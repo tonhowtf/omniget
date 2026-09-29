@@ -14,17 +14,23 @@ pub struct P2pSendHandle {
 pub type ActiveP2pSends = Arc<tokio::sync::Mutex<HashMap<String, P2pSendHandle>>>;
 
 pub mod agentkit_boot;
+pub mod approvals;
+pub mod bridge_tokens;
 pub mod commands;
+pub mod company;
 pub mod cookies;
 pub mod core;
 pub mod extension_storage;
 pub mod external_url;
 pub mod hotkey;
 pub mod ipc_guard;
-pub mod company;
+pub mod job_commands;
+pub mod job_workflow;
 pub mod jobs;
 pub mod limits_strip;
 pub mod llm_attention;
+pub mod llm_audit;
+pub mod llm_budget;
 pub mod llm_manager;
 pub mod local_bridge;
 pub mod local_bridge_agentkit;
@@ -236,6 +242,14 @@ pub struct AppState {
     pub world: std::sync::OnceLock<Arc<world_manager::WorldManager>>,
 }
 
+/// Whether this start shows no window (3.2): `--background`, "start in
+/// tray only", or a start at login with agents in the background.
+fn launched_hidden(app: &tauri::AppHandle) -> bool {
+    let s = storage::config::load_settings(app);
+    let args: Vec<String> = std::env::args().collect();
+    omniget_core::core::app_launch::starts_hidden(&args, s.start_minimized, s.run_in_background)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tracing_subscriber::fmt::init();
@@ -320,7 +334,12 @@ pub fn run() {
                         );
                     }
                 });
-            } else {
+            } else if !argv
+                .iter()
+                .any(|a| a == omniget_core::core::app_launch::BACKGROUND_FLAG)
+            {
+                // A CLI that starts the app in the background while it is
+                // already running must not pop its window up (3.2).
                 tray::show_window(app);
             }
         }))
@@ -347,7 +366,9 @@ pub fn run() {
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
-            None,
+            // The login item says it is one, so a start at login can stay
+            // hidden when the person runs agents in the background (3.2).
+            Some(vec![omniget_core::core::app_launch::AUTOSTART_FLAG]),
         ))
         .setup(|app| {
             crate::agentkit_boot::spawn_ensure_shim();
@@ -357,6 +378,12 @@ pub fn run() {
             // app's store — keychain where the policy allows it — instead of
             // the core's file default. Must run before any secret is read.
             omniget_core::core::secrets::install(std::sync::Arc::new(secrets::AppSecretStore));
+            // The /llm audit log (2.8) is open before any job or question.
+            crate::llm_audit::boot(app.handle());
+            // The budget policies (3.3) too: a paused scope starts nothing.
+            crate::llm_budget::boot(app.handle());
+            // `.omniget/workflow.md` (3.10): last good versions and trust.
+            crate::job_workflow::boot();
 
             // A janela principal e criada aqui, e nao pelo `tauri.conf.json`
             // (`"create": false`), porque so daqui da para passar
@@ -417,6 +444,10 @@ pub fn run() {
                     );
                 }
 
+                // Started hidden (3.2): `--background` from the CLI, or a
+                // start at login with agents in the background. The window
+                // is born invisible instead of flashing and hiding.
+                let builder = builder.visible(!launched_hidden(app.handle()));
                 builder.build()?;
 
                 // A unica prova de que a janela subiu. O CI compila em todas as
@@ -857,9 +888,31 @@ pub fn run() {
                 });
             }
 
-            if settings.start_minimized {
+            let hidden = launched_hidden(app.handle());
+            if hidden {
                 if let Some(window) = app.get_webview_window("main") {
                     let _ = window.hide();
+                }
+                // Nobody saw this start: the audit log says who asked for it.
+                let args: Vec<String> = std::env::args().collect();
+                let has = |flag: &str| args.iter().any(|a| a == flag);
+                crate::llm_audit::app_started_hidden(
+                    if has(omniget_core::core::app_launch::BACKGROUND_FLAG) {
+                        "cli"
+                    } else if has(omniget_core::core::app_launch::AUTOSTART_FLAG) {
+                        "login"
+                    } else {
+                        "tray"
+                    },
+                );
+            }
+            // Where this app lives, for the CLI that starts it when it is not
+            // running (3.2).
+            if let Some(dir) = omniget_core::core::paths::app_data_dir() {
+                if let Some(launch) = omniget_core::core::app_launch::current(hidden) {
+                    if let Err(e) = omniget_core::core::app_launch::record_in(&dir, &launch) {
+                        tracing::warn!("[startup] app-launch.json: {e}");
+                    }
                 }
             }
 
@@ -868,7 +921,10 @@ pub fn run() {
         .on_window_event(|window, event| match event {
             tauri::WindowEvent::CloseRequested { api, .. } if window.label() == "main" => {
                 api.prevent_close();
-                if storage::config::load_settings(window.app_handle()).exit_on_close {
+                let s = storage::config::load_settings(window.app_handle());
+                // Agents in the background (3.2) keep the app in the tray:
+                // closing the window must not stop their jobs.
+                if s.exit_on_close && !s.run_in_background {
                     tray::request_quit(window.app_handle());
                 } else {
                     let _ = window.hide();
@@ -1318,6 +1374,8 @@ pub fn run() {
             commands::central::arena::arena_cleanup,
             commands::central::arena::arena_delete,
             commands::central::arena::arena_scoreboard,
+            commands::central::arena::arena_estimate,
+            commands::central::arena::arena_compare,
             commands::central::run::run_runners,
             commands::central::run::run_loop_prepare,
             commands::central::run::run_loop_start,
@@ -1352,6 +1410,8 @@ pub fn run() {
             commands::llm::chat::llm_turn_cancel,
             commands::llm::chat::llm_tool_answer,
             commands::llm::chat::llm_tool_asks_pending,
+            approvals::llm_approvals_list,
+            approvals::llm_approval_respond,
             commands::llm::chat::llm_workspace_set,
             commands::llm::chat::llm_workspace_get,
             commands::llm::chat::llm_turn_undo,
@@ -1377,11 +1437,23 @@ pub fn run() {
             commands::llm::jobs::llm_loop_cancel,
             commands::llm::jobs::llm_loop_delete,
             commands::llm::jobs::llm_triggers_list,
+            commands::llm::jobs::llm_bridge_tokens,
+            commands::llm::jobs::llm_bridge_token_mint,
+            commands::llm::jobs::llm_bridge_token_revoke,
+            commands::llm::jobs::llm_bridge_legacy_set,
             commands::llm::jobs::llm_trigger_save,
             commands::llm::jobs::llm_trigger_delete,
             commands::llm::jobs::llm_trigger_fire,
             commands::llm::chat::llm_permission_rules_get,
             commands::llm::chat::llm_permission_rules_set,
+            commands::llm::chat::llm_conversation_run_mode,
+            commands::llm::chat::llm_conversation_run_mode_set,
+            llm_audit::llm_audit_list,
+            llm_audit::llm_audit_retention_set,
+            llm_budget::llm_budget_state,
+            llm_budget::llm_budget_policy_save,
+            llm_budget::llm_budget_policy_delete,
+            llm_budget::llm_budget_incident_resolve,
             commands::llm::chat::llm_switch_model,
             commands::llm::models::llm_models_list,
             commands::llm::observatory::llm_telemetry_snapshot,
@@ -1516,8 +1588,6 @@ pub fn run() {
             commands::assist::runs::assist_runs_list,
             commands::assist::runs::assist_run_get,
             commands::assist::runs::assist_run_diff,
-            commands::assist::runs::assist_permissions_pending,
-            commands::assist::runs::assist_permission_answer,
             commands::assist::runs::assist_run_cancel,
             commands::assist::runs::assist_run_resolve,
             commands::llm::jobs::llm_job_resume,
@@ -1528,9 +1598,22 @@ pub fn run() {
             commands::llm::jobs::llm_trigger_mute,
             commands::llm::jobs::llm_job_seen,
             commands::llm::jobs::llm_jobs_state,
+            commands::llm::jobs::llm_workflow_status,
+            commands::llm::jobs::llm_workflow_trust,
             commands::llm::jobs::llm_jobs_limits_set,
             commands::llm::jobs::llm_job_explain,
             commands::llm::jobs::llm_job_diff,
+            commands::llm::jobs::llm_job_remove_worktree,
+            commands::llm::jobs::llm_job_hunks,
+            commands::llm::jobs::llm_job_discard_hunk,
+            commands::llm::jobs::llm_job_notes_list,
+            commands::llm::jobs::llm_job_note_add,
+            commands::llm::jobs::llm_job_note_delete,
+            commands::llm::jobs::llm_job_notes_send,
+            commands::llm::jobs::llm_job_integrate_preview,
+            commands::llm::jobs::llm_job_integrate,
+            commands::llm::jobs::llm_job_discard_worktree,
+            commands::llm::jobs::llm_job_walkthrough,
             commands::llm::jobs::llm_ui_focus,
             commands::llm::jobs::sync_llm_notify_strings,
             commands::assist::groups::assist_group_list,

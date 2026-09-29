@@ -121,6 +121,106 @@ pub enum Answer {
     Always,
 }
 
+/// A person's answer to a durable ask, in the words of the approvals API
+/// (item 2.2): `POST /v1/approvals/{id}`, `omniget agent approve`, MCP
+/// `approval_respond`, the window and a paired phone all send one of these.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Decision {
+    /// Allow this call.
+    Accept,
+    /// Allow this call and the same tool for the rest of this turn.
+    AcceptSession,
+    /// Allow, and store a rule so the same kind of call stops asking.
+    AcceptAlways,
+    Decline,
+    /// Refuse and stop the turn that asked.
+    Cancel,
+}
+
+impl Decision {
+    /// Every decision, in the order the elicitation payload lists them.
+    pub const ALL: [&'static str; 5] = [
+        "accept",
+        "accept_session",
+        "accept_always",
+        "decline",
+        "cancel",
+    ];
+
+    pub fn parse(s: &str) -> Option<Self> {
+        Some(match s {
+            "accept" => Decision::Accept,
+            "accept_session" => Decision::AcceptSession,
+            "accept_always" => Decision::AcceptAlways,
+            "decline" => Decision::Decline,
+            "cancel" => Decision::Cancel,
+            _ => return None,
+        })
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Decision::Accept => "accept",
+            Decision::AcceptSession => "accept_session",
+            Decision::AcceptAlways => "accept_always",
+            Decision::Decline => "decline",
+            Decision::Cancel => "cancel",
+        }
+    }
+
+    /// The word stored in `runs_permissions.answer`.
+    pub fn word(self) -> &'static str {
+        match self {
+            Decision::Accept => "once",
+            Decision::AcceptSession => "session",
+            Decision::AcceptAlways => "always",
+            Decision::Decline => "deny",
+            Decision::Cancel => "cancel",
+        }
+    }
+
+    /// What the waiting call reads.
+    pub fn answer(self) -> Answer {
+        match self {
+            Decision::Accept | Decision::AcceptSession => Answer::Once,
+            Decision::AcceptAlways => Answer::Always,
+            Decision::Decline | Decision::Cancel => Answer::Deny,
+        }
+    }
+
+    fn of_answer(answer: Answer) -> Self {
+        match answer {
+            Answer::Deny => Decision::Decline,
+            Answer::Once => Decision::Accept,
+            Answer::Always => Decision::AcceptAlways,
+        }
+    }
+}
+
+/// The question as an MCP `elicitation/create` request (`85#P2`): what a
+/// remote client renders and answers with `{decision}`. Stored with the row,
+/// served by `GET /v1/approvals`; it carries no ids of the turn.
+pub fn elicitation(agent_id: &str, action: &str, preview: &str) -> Value {
+    serde_json::json!({
+        "method": "elicitation/create",
+        "params": {
+            "message": format!("{agent_id} asks to run {action}: {preview}"),
+            "requestedSchema": {
+                "type": "object",
+                "properties": {
+                    "decision": {
+                        "type": "string",
+                        "title": "Decision",
+                        "enum": Decision::ALL,
+                        "default": "decline"
+                    }
+                },
+                "required": ["decision"]
+            }
+        }
+    })
+}
+
 /// Result of one brokered call, for telemetry.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ToolOutcome {
@@ -169,7 +269,26 @@ struct Source {
 struct PendingAsk {
     tx: oneshot::Sender<Answer>,
     request_id: String,
+    /// The tool (or label) asked about: an "accept for the session" answer
+    /// covers the next asks of the same turn for it.
+    tool: String,
     permission: Option<(crate::core::assist::runs::Registry, String)>,
+    /// The agent that asked, for the audit line of an "always" (2.8).
+    agent: String,
+}
+
+/// The id an ask has in the audit log: its durable id when it has a row,
+/// else the tool call it belongs to.
+fn ask_entity(
+    permission: &Option<(crate::core::assist::runs::Registry, String)>,
+    call: &str,
+) -> super::audit::Entity {
+    super::audit::Entity::ask(
+        permission
+            .as_ref()
+            .map(|(_, id)| id.as_str())
+            .unwrap_or(call),
+    )
 }
 
 /// Why an answer did not apply.
@@ -181,6 +300,9 @@ pub enum AnswerRefused {
     Expired,
     /// The question already had its answer, or its run was cancelled.
     Resolved,
+    /// The process that asked is gone (a restart): nothing can release that
+    /// call; the turn has to be started again.
+    Stale,
 }
 
 pub struct ToolBroker {
@@ -192,7 +314,14 @@ pub struct ToolBroker {
     /// The run registry of the last durable question, so a late answer can
     /// still be told apart (expired vs resolved) after its waiter left.
     last_registry: Mutex<Option<crate::core::assist::runs::Registry>>,
+    /// "Accept for the session" answers: request id → tools that stop asking
+    /// for the rest of that turn. Bounded: cleared when it grows past
+    /// [`SESSION_ALLOW_MAX`] turns (a turn then simply asks again).
+    session_allow: Mutex<HashMap<String, std::collections::HashSet<String>>>,
 }
+
+/// Turns remembered by `session_allow` before it starts over.
+const SESSION_ALLOW_MAX: usize = 512;
 
 impl std::fmt::Debug for ToolBroker {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -219,6 +348,7 @@ impl ToolBroker {
             ask_timeout: RwLock::new(DEFAULT_ASK_TIMEOUT),
             ask_timeout_resolver: RwLock::new(None),
             last_registry: Mutex::new(None),
+            session_allow: Mutex::new(HashMap::new()),
         };
         broker.register_internal(specs, executor);
         broker
@@ -436,6 +566,36 @@ impl ToolBroker {
         permission_id: &str,
         answer: Answer,
     ) -> Result<(), AnswerRefused> {
+        self.respond(
+            permission_id,
+            Decision::of_answer(answer),
+            &crate::core::assist::runs::Actor::window(),
+        )
+    }
+
+    /// The one entry of every channel (item 2.2): answers the durable ask
+    /// `permission_id` with `decision`, recording who answered and through
+    /// what. Exactly one answer applies; any later one is refused
+    /// (`Resolved`/`Expired`/`Unknown`). A `stale` ask (its waiter died with
+    /// another boot) takes no answer; `Cancel` closes it.
+    pub fn respond(
+        &self,
+        permission_id: &str,
+        decision: Decision,
+        actor: &crate::core::assist::runs::Actor,
+    ) -> Result<(), AnswerRefused> {
+        self.respond_in(None, permission_id, decision, actor)
+    }
+
+    /// [`Self::respond`] against a given run record when nobody waits here
+    /// (a handler outside the turn's task, a test); `None` = the active one.
+    pub fn respond_in(
+        &self,
+        registry: Option<&crate::core::assist::runs::Registry>,
+        permission_id: &str,
+        decision: Decision,
+        actor: &crate::core::assist::runs::Actor,
+    ) -> Result<(), AnswerRefused> {
         let key = {
             let pending = self.pending.lock().unwrap_or_else(|e| e.into_inner());
             pending
@@ -445,30 +605,68 @@ impl ToolBroker {
                 })
                 .map(|(k, _)| k.clone())
         };
-        match key {
-            Some(k) => self.deliver(&k, answer),
-            None => {
-                // Nobody waits: tell expired from resolved if the record knows.
-                let reg = crate::core::assist::runs::active().or_else(|| {
-                    self.last_registry
-                        .lock()
-                        .unwrap_or_else(|e| e.into_inner())
-                        .clone()
-                });
-                let state = reg
-                    .and_then(|r| r.permission(permission_id))
-                    .map(|p| p.state);
-                use crate::core::assist::runs::PermissionState as S;
-                Err(match state {
-                    Some(S::Expired) => AnswerRefused::Expired,
-                    Some(S::Pending) | None => AnswerRefused::Unknown,
-                    Some(_) => AnswerRefused::Resolved,
-                })
+        if let Some(k) = key {
+            return self.deliver_by(&k, decision, actor);
+        }
+        // Nobody waits here: tell expired, stale and resolved apart if the
+        // record knows.
+        let reg = registry
+            .cloned()
+            .or_else(crate::core::assist::runs::active)
+            .or_else(|| {
+                self.last_registry
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .clone()
+            });
+        let Some(reg) = reg else {
+            return Err(AnswerRefused::Unknown);
+        };
+        use crate::core::assist::runs::PermissionState as S;
+        match reg.permission(permission_id).map(|p| p.state) {
+            Some(S::Stale) if decision == Decision::Cancel => {
+                reg.dismiss_stale(permission_id, actor)
+                    .map_err(|_| AnswerRefused::Resolved)?;
+                super::audit::log(
+                    actor.into(),
+                    "ask.dismissed",
+                    super::audit::Entity::ask(permission_id),
+                    serde_json::json!({ "state": "stale" }),
+                );
+                Ok(())
             }
+            Some(S::Stale) => Err(AnswerRefused::Stale),
+            Some(S::Expired) => Err(AnswerRefused::Expired),
+            Some(S::Pending) | None => Err(AnswerRefused::Unknown),
+            Some(_) => Err(AnswerRefused::Resolved),
         }
     }
 
     fn deliver(&self, tool_call_id: &str, answer: Answer) -> Result<(), AnswerRefused> {
+        self.deliver_by(
+            tool_call_id,
+            Decision::of_answer(answer),
+            &crate::core::assist::runs::Actor::window(),
+        )
+    }
+
+    /// [`Self::answer_with`] with the full decision and who gave it (the
+    /// window's cards answer by tool call id).
+    pub fn answer_call_by(
+        &self,
+        tool_call_id: &str,
+        decision: Decision,
+        actor: &crate::core::assist::runs::Actor,
+    ) -> Result<(), AnswerRefused> {
+        self.deliver_by(tool_call_id, decision, actor)
+    }
+
+    fn deliver_by(
+        &self,
+        tool_call_id: &str,
+        decision: Decision,
+        actor: &crate::core::assist::runs::Actor,
+    ) -> Result<(), AnswerRefused> {
         let entry = {
             let mut pending = self.pending.lock().unwrap_or_else(|e| e.into_inner());
             pending.remove(tool_call_id)
@@ -476,13 +674,9 @@ impl ToolBroker {
         let Some(entry) = entry else {
             return Err(AnswerRefused::Unknown);
         };
+        let entity = ask_entity(&entry.permission, tool_call_id);
         if let Some((reg, id)) = &entry.permission {
-            let word = match answer {
-                Answer::Deny => "deny",
-                Answer::Once => "once",
-                Answer::Always => "always",
-            };
-            if let Err(e) = reg.answer_permission(id, word) {
+            if let Err(e) = reg.answer_permission_by(id, decision.word(), actor) {
                 // Dropping `entry.tx` makes the waiter read "no".
                 return Err(
                     if e.starts_with(crate::core::assist::runs::ERR_PERMISSION_EXPIRED) {
@@ -493,7 +687,45 @@ impl ToolBroker {
                 );
             }
         }
-        entry.tx.send(answer).map_err(|_| AnswerRefused::Expired)
+        // Who answered, through what (2.8): the one line every channel leaves.
+        super::audit::log(
+            actor.into(),
+            "ask.answered",
+            entity,
+            serde_json::json!({ "decision": decision.as_str(), "tool": entry.tool, "run": entry.request_id }),
+        );
+        if decision == Decision::AcceptAlways {
+            super::audit::log(
+                actor.into(),
+                "grant.always",
+                super::audit::Entity::rule(&format!("{}:{}", entry.agent, entry.tool)),
+                serde_json::json!({ "agent": entry.agent, "tool": entry.tool }),
+            );
+        }
+        if decision == Decision::AcceptSession {
+            let mut allow = self.session_allow.lock().unwrap_or_else(|e| e.into_inner());
+            if allow.len() >= SESSION_ALLOW_MAX && !allow.contains_key(&entry.request_id) {
+                allow.clear();
+            }
+            allow
+                .entry(entry.request_id.clone())
+                .or_default()
+                .insert(entry.tool.clone());
+        }
+        entry
+            .tx
+            .send(decision.answer())
+            .map_err(|_| AnswerRefused::Expired)
+    }
+
+    /// Whether an "accept for the session" answer already covers `tool` in
+    /// this turn.
+    fn session_allows(&self, request_id: &str, tool: &str) -> bool {
+        self.session_allow
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .get(request_id)
+            .is_some_and(|t| t.contains(tool))
     }
 
     /// Cancels every question of one turn: each resolves as `cancelled` in
@@ -510,9 +742,19 @@ impl ToolBroker {
                 .filter_map(|k| pending.remove(&k))
                 .collect()
         };
+        self.session_allow
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .remove(request_id);
         let n = gone.len();
         let mut done = std::collections::HashSet::new();
         for p in gone {
+            super::audit::log(
+                super::audit::Actor::system("cancel"),
+                "ask.cancelled",
+                ask_entity(&p.permission, ""),
+                serde_json::json!({ "tool": p.tool, "run": p.request_id }),
+            );
             if let Some((reg, _)) = &p.permission {
                 if done.insert(p.request_id.clone()) {
                     let _ = reg.cancel_permissions(&p.request_id);
@@ -521,6 +763,17 @@ impl ToolBroker {
             drop(p.tx);
         }
         n
+    }
+
+    /// The questions this broker waits on, as `(request_id, tool_call_id,
+    /// tool)`: the window's list when no run record is available.
+    pub fn pending_calls(&self) -> Vec<(String, String, String)> {
+        self.pending
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .iter()
+            .map(|(k, p)| (p.request_id.clone(), k.clone(), p.tool.clone()))
+            .collect()
     }
 
     pub fn pending_count(&self) -> usize {
@@ -582,19 +835,20 @@ impl ToolBroker {
                 LlmError::new(ERR_TOOL_UNKNOWN, format!("unknown tool `{name}`")),
             ));
         };
-        let mut mode = self.mode_for(grants, name);
+        // The grant, the turn's run mode inside it (2.7), the stored rules and
+        // the always-ask tools: the one gate the Claude Code hook uses too
+        // (3.4), so native and CLI give the same verdict.
+        let run =
+            super::code_tools::current_turn().and_then(|c| super::run_mode::of(&c.conversation));
+        let mut mode = super::perm::gate(
+            &super::perm::rules_of(agent_id),
+            run,
+            self.mode_for(grants, name),
+            name,
+            &super::perm::native_input(name, &input, super::code_tools::workspace().as_deref()),
+        )
+        .mode;
         if !matches!(mode, GrantMode::Deny) {
-            match super::perm::decide(agent_id, name, &input) {
-                Some(super::perm::Action::Allow) => mode = GrantMode::Auto,
-                Some(super::perm::Action::Ask) => mode = GrantMode::Ask,
-                Some(super::perm::Action::Deny) => mode = GrantMode::Deny,
-                None => {}
-            }
-            // Tools that change the machine (washmybelly plans) ask every
-            // time: neither a grant nor a stored rule turns them into Auto.
-            if super::tool_table::always_asks(name) && matches!(mode, GrantMode::Auto) {
-                mode = GrantMode::Ask;
-            }
             // A path outside the workspace is its own question, whatever the
             // grant says; a yes covers this one call.
             let path = input.get("path").and_then(Value::as_str).unwrap_or("");
@@ -803,6 +1057,11 @@ impl ToolBroker {
         name: &str,
         input: &Value,
     ) -> AskEnd {
+        // "Accept for the session" already said yes to this tool in this
+        // turn: no new question.
+        if self.session_allows(request_id, name) {
+            return AskEnd::Answered(Answer::Once);
+        }
         let asked_at = Instant::now();
         let ask_timeout = self.ask_timeout_for(request_id);
         let (tx, rx) = oneshot::channel();
@@ -810,21 +1069,32 @@ impl ToolBroker {
             Value::String(s) => s.clone(),
             _ => super::code_tools::preview(name, input),
         };
-        // The durable request, when the turn has a run record: the answer
-        // must resolve exactly this one, in time.
-        let deadline =
-            crate::core::assist::now_ms() + ask_timeout.as_millis().min(i64::MAX as u128) as i64;
+        // A thread of the Central persists the ask as `request.opened` and
+        // waits for the answer however long it takes (plan §3.3); jobs and
+        // the old chat keep the configurable timeout.
+        let durable = super::code_tools::current_turn()
+            .map(|ctx| super::drivers::is_durable_conversation(&ctx.conversation))
+            .unwrap_or(false);
+        // The durable request (item 2.2: every ask is a row of
+        // `runs_permissions`, with or without a run record): the answer must
+        // resolve exactly this one, in time. A durable thread has no deadline.
+        let deadline = if durable {
+            i64::MAX
+        } else {
+            crate::core::assist::now_ms() + ask_timeout.as_millis().min(i64::MAX as u128) as i64
+        };
         let permission = crate::core::assist::runs::active().and_then(|reg| {
-            reg.run(request_id)?;
             let req = reg
-                .open_permission(
-                    request_id,
-                    tool_call_id,
-                    name,
-                    &preview_text,
-                    &["once", "always", "deny"],
-                    deadline,
-                )
+                .open_ask(crate::core::assist::runs::NewAsk {
+                    run_id: request_id.to_string(),
+                    tool_call_id: tool_call_id.to_string(),
+                    action: name.to_string(),
+                    preview: preview_text.clone(),
+                    options: Decision::ALL.iter().map(|d| d.to_string()).collect(),
+                    deadline_ms: deadline,
+                    agent_id: agent_id.to_string(),
+                    payload: elicitation(agent_id, name, &preview_text),
+                })
                 .ok()?;
             Some((reg, req.id))
         });
@@ -839,10 +1109,20 @@ impl ToolBroker {
                 PendingAsk {
                     tx,
                     request_id: request_id.to_string(),
+                    tool: name.to_string(),
                     permission: permission.clone(),
+                    agent: agent_id.to_string(),
                 },
             );
         }
+        // Never the preview (it can hold a file's content): the tool and the
+        // turn are the fact (2.8).
+        super::audit::log(
+            super::audit::Actor::agent(agent_id),
+            "ask.opened",
+            ask_entity(&permission, tool_call_id),
+            serde_json::json!({ "tool": name, "run": request_id }),
+        );
         self.bus.emit(BusEvent::ToolAsk {
             agent: agent_id.to_string(),
             request_id: request_id.to_string(),
@@ -850,12 +1130,6 @@ impl ToolBroker {
             tool: name.to_string(),
             preview: preview_text,
         });
-        // A thread of the Central persists the ask as `request.opened` and
-        // waits for the answer however long it takes (plan §3.3); jobs and
-        // the old chat keep the configurable timeout.
-        let durable = super::code_tools::current_turn()
-            .map(|ctx| super::drivers::is_durable_conversation(&ctx.conversation))
-            .unwrap_or(false);
         let end = if durable {
             match rx.await {
                 Ok(answer) => AskEnd::Answered(answer),
@@ -892,6 +1166,12 @@ impl ToolBroker {
             }
         }
         if let AskEnd::Expired { waited } = end {
+            super::audit::log(
+                super::audit::Actor::system("timeout"),
+                "ask.expired",
+                ask_entity(&permission, tool_call_id),
+                serde_json::json!({ "tool": name, "run": request_id, "waited_ms": waited.as_millis() as u64 }),
+            );
             tracing::warn!(
                 "[broker] {ERR_TOOL_TIMEOUT}: `{name}` of {request_id} unanswered after {} s",
                 waited.as_secs()
@@ -1772,6 +2052,250 @@ mod a11_permission_tests {
         assert_eq!(
             broker.answer_permission(&id, Answer::Once),
             Err(AnswerRefused::Resolved)
+        );
+    }
+
+    // ── BN3, wave 2 (item 2.2, scripts/llm/approvals_eval.py) ──────────
+
+    fn bench2(metric: &str, value: serde_json::Value) {
+        if let Ok(path) = std::env::var("OMNIGET_BENCH_OUT") {
+            use std::io::Write as _;
+            if let Ok(mut f) = std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(path)
+            {
+                let _ = writeln!(
+                    f,
+                    "{}",
+                    json!({ "bench": "bn3", "metric": metric, "value": value, "level": "unit" })
+                );
+            }
+        }
+    }
+
+    fn actor() -> crate::core::assist::runs::Actor {
+        crate::core::assist::runs::Actor::new("cli", "token:bn3")
+    }
+
+    /// Records every bus event of the test as text, to grep for ids.
+    fn bus_log(broker: &Arc<ToolBroker>) -> Arc<std::sync::Mutex<String>> {
+        let log = Arc::new(std::sync::Mutex::new(String::new()));
+        let mut rx = broker.bus.subscribe();
+        let l = log.clone();
+        tokio::spawn(async move {
+            while let Ok(ev) = rx.recv().await {
+                l.lock().unwrap().push_str(&format!("{ev:?}\n"));
+            }
+        });
+        log
+    }
+
+    /// 20 ask → answer cycles through every ending a channel can give
+    /// (accept, decline, accept for the session, cancel, timeout). Afterwards
+    /// no ask is left pending (in the table or in the broker), every second
+    /// answer is refused, and no ask id ever reached what the agent sees
+    /// (the tool result, the error, the bus of the turn).
+    #[tokio::test]
+    async fn bn3_no_orphan_asks_in_20_cycles_and_no_id_in_the_stream() {
+        let (broker, reg) = setup(5_000);
+        broker.set_ask_timeout_resolver(Some(Arc::new(|req: &str| {
+            req.starts_with("run-timeout").then_some(Duration::ZERO)
+        })));
+        let bus = bus_log(&broker);
+        let mut agent_saw = String::new();
+        let mut ids = Vec::new();
+        let mut second_refused = 0;
+        let mut latencies = Vec::new();
+        for i in 0..20 {
+            let kind = i % 5;
+            let run = if kind == 4 {
+                format!("run-timeout-{i}")
+            } else {
+                "run-1".to_string()
+            };
+            let call = format!("c{i}");
+            let task = {
+                let (b, r, run, call) = (broker.clone(), reg.clone(), run.clone(), call.clone());
+                tokio::spawn(async move {
+                    crate::core::assist::runs::scope(
+                        Some(r),
+                        b.call("a11-agent", &ask_grants(), &run, &call, "tool_a", json!({})),
+                    )
+                    .await
+                })
+            };
+            let id = loop {
+                if let Some(p) = reg
+                    .permissions(None, false)
+                    .into_iter()
+                    .find(|p| p.tool_call_id == call)
+                {
+                    break p.id;
+                }
+                tokio::time::sleep(Duration::from_millis(2)).await;
+            };
+            ids.push(id.clone());
+            let decision = [
+                Decision::Accept,
+                Decision::Decline,
+                Decision::AcceptSession,
+                Decision::Cancel,
+                Decision::Accept,
+            ][kind];
+            let t0 = Instant::now();
+            if kind != 4 {
+                crate::core::assist::runs::scope(Some(reg.clone()), async {
+                    broker.respond(&id, decision, &actor()).unwrap()
+                })
+                .await;
+                if kind == 3 {
+                    broker.cancel_request(&run);
+                }
+            }
+            let out = task.await.unwrap();
+            if kind == 0 {
+                latencies.push(t0.elapsed().as_secs_f64() * 1000.0);
+            }
+            match &out {
+                Ok(o) => agent_saw.push_str(&o.content),
+                Err(e) => agent_saw.push_str(&format!("{}: {}", e.code, e.message)),
+            }
+            if kind == 2 {
+                // The same tool again in this turn: no new question.
+                let again = crate::core::assist::runs::scope(
+                    Some(reg.clone()),
+                    broker.call(
+                        "a11-agent",
+                        &ask_grants(),
+                        &run,
+                        "again",
+                        "tool_a",
+                        json!({}),
+                    ),
+                )
+                .await;
+                assert!(again.unwrap().ok);
+                assert!(reg.pending_of_call("again").is_none());
+                broker.cancel_request(&run);
+            }
+            // A second answer, through any channel, applies to nothing.
+            let second = crate::core::assist::runs::scope(Some(reg.clone()), async {
+                broker.respond(&id, Decision::Accept, &actor())
+            })
+            .await;
+            if second.is_err() {
+                second_refused += 1;
+            }
+        }
+        let orphans = reg.permissions(None, true).len() + broker.pending_count();
+        let states: Vec<String> = ids
+            .iter()
+            .map(|id| reg.permission(id).unwrap().state.as_str().to_string())
+            .collect();
+        let leaked = ids
+            .iter()
+            .filter(|id| {
+                agent_saw.contains(id.as_str()) || bus.lock().unwrap().contains(id.as_str())
+            })
+            .count();
+        latencies.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        bench2("orphan_asks_after_20_cycles", json!(orphans));
+        bench2("second_answer_refused", json!(second_refused));
+        bench2("ask_ids_in_agent_stream", json!(leaked));
+        bench2(
+            "respond_to_tool_ms_p50_inprocess",
+            json!(latencies[latencies.len() / 2]),
+        );
+        assert_eq!(orphans, 0, "{states:?}");
+        assert_eq!(second_refused, 20);
+        assert_eq!(leaked, 0);
+        assert!(states.iter().all(|s| s != "pending"), "{states:?}");
+        let accepted = reg.permission(&ids[0]).unwrap();
+        assert_eq!(accepted.channel.as_deref(), Some("cli"));
+        assert_eq!(accepted.decided_by.as_deref(), Some("token:bn3"));
+        assert_eq!(accepted.payload["method"], "elicitation/create");
+    }
+
+    /// Focus of review 2 (restart with a pending ask): the process that
+    /// held the waiter dies; on the next boot the ask is `stale` with
+    /// "restart the turn", never a silent "no"; an answer is refused as stale
+    /// and `cancel` closes it.
+    #[tokio::test]
+    async fn bn3_restart_turns_a_pending_ask_stale() {
+        let (db, _path) = crate::core::assist::db::tests_support::temp_db();
+        let old = Registry::with_instance(db.clone(), "boot-old");
+        old.open_run(NewRun {
+            id: "run-r".into(),
+            conversation_id: "c".into(),
+            bot_id: "a11-agent".into(),
+            ..Default::default()
+        })
+        .unwrap();
+        old.transition("run-r", RunState::Running, None).unwrap();
+        let (broker, _) = setup(60_000);
+        let task = {
+            let (b, r) = (broker.clone(), old.clone());
+            tokio::spawn(async move {
+                crate::core::assist::runs::scope(
+                    Some(r),
+                    b.call(
+                        "a11-agent",
+                        &ask_grants(),
+                        "run-r",
+                        "cr",
+                        "tool_a",
+                        json!({}),
+                    ),
+                )
+                .await
+            })
+        };
+        let id = loop {
+            if let Some(p) = old.pending_of_call("cr") {
+                break p.id;
+            }
+            tokio::time::sleep(Duration::from_millis(2)).await;
+        };
+        // "Crash": the waiter is gone with its process.
+        task.abort();
+        let _ = task.await;
+        let fresh = Registry::with_instance(db, "boot-new");
+        let out = fresh.reconcile().unwrap();
+        let after = fresh.permission(&id).unwrap();
+        let broker2 = Arc::new(ToolBroker::new(
+            vec![],
+            Arc::new(Echo),
+            Arc::new(Bus::new()),
+        ));
+        let answer = crate::core::assist::runs::scope(Some(fresh.clone()), async {
+            broker2.respond(&id, Decision::Accept, &actor())
+        })
+        .await;
+        let closed = crate::core::assist::runs::scope(Some(fresh.clone()), async {
+            broker2.respond(&id, Decision::Cancel, &actor())
+        })
+        .await;
+        bench2("restart_state", json!(after.state.as_str()));
+        bench2(
+            "restart_note_says_restart",
+            json!(after
+                .note
+                .as_deref()
+                .unwrap_or("")
+                .contains("Restart the turn")),
+        );
+        bench2(
+            "restart_resolvable",
+            json!(answer == Err(AnswerRefused::Stale) && closed.is_ok()),
+        );
+        assert_eq!(out.permissions_stale, 1);
+        assert_eq!(after.state, PermissionState::Stale);
+        assert_eq!(answer, Err(AnswerRefused::Stale));
+        assert!(closed.is_ok());
+        assert_eq!(
+            fresh.permission(&id).unwrap().state,
+            PermissionState::Cancelled
         );
     }
 }

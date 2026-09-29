@@ -19,6 +19,7 @@
   import YearHeatmap from "$components/central/sessions/YearHeatmap.svelte";
   import BarList from "$components/central/sessions/BarList.svelte";
   import FilterBar from "$components/central/sessions/FilterBar.svelte";
+  import BudgetPanel from "$components/llm/budget/BudgetPanel.svelte";
   import {
     compact,
     daySpan,
@@ -244,6 +245,9 @@
       {refreshing ? $t("llm.central.sessions.refreshing") : $t("llm.central.sessions.refresh")}
     </button>
   </header>
+
+  <!-- Budgets (3.3): the ceilings of the agents here, not of the sessions below. -->
+  <BudgetPanel />
 
   <FilterBar
     bind:rangeKey

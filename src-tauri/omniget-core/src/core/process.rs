@@ -600,6 +600,108 @@ fn start_time(pid: i32) -> Option<u64> {
     }
 }
 
+/// What a process recorded by an earlier session of the app turned out to
+/// be when this one looked (3.1): the CLI of a job that was running when the
+/// app died may outlive it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StaleProcess {
+    /// No process with that pid.
+    Gone,
+    /// A process with that pid but another start time: the pid was reused,
+    /// it is someone else's and was left alone.
+    NotOurs,
+    /// It was still running and its tree is dead now.
+    Killed,
+    /// It was still running and could not be stopped.
+    Survived,
+}
+
+/// An opaque token that tells this process from a later one with the same
+/// pid: the start time as the OS reports it (Linux: clock ticks since boot;
+/// macOS: microseconds since the epoch; Windows: seconds since the epoch).
+/// `None` when no such process exists.
+pub fn start_token(pid: u32) -> Option<u64> {
+    #[cfg(unix)]
+    {
+        start_time(i32::try_from(pid).ok()?)
+    }
+    #[cfg(windows)]
+    {
+        windows_start_token(pid)
+    }
+    #[cfg(not(any(unix, windows)))]
+    {
+        let _ = pid;
+        None
+    }
+}
+
+#[cfg(windows)]
+fn windows_start_token(pid: u32) -> Option<u64> {
+    use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate, System};
+    let mut sys = System::new();
+    let pid = Pid::from_u32(pid);
+    sys.refresh_processes_specifics(
+        ProcessesToUpdate::Some(&[pid]),
+        true,
+        ProcessRefreshKind::nothing(),
+    );
+    sys.process(pid).map(|p| p.start_time())
+}
+
+/// Stops the process a previous session recorded as `(pid, start)` together
+/// with everything it started, the same way a cancel does (freeze the tree,
+/// then `SIGKILL`), but only when the start time still matches: a recycled
+/// pid is never touched. A new run of the job must never run beside the old
+/// one; adopting it is not possible either, since its pipes died with the
+/// app that read them.
+///
+/// Windows: the job object was kill-on-close and died with the app, so the
+/// tree is normally gone already; a survivor is ended with `taskkill /T`.
+pub fn stop_stale(pid: u32, start: u64) -> StaleProcess {
+    match start_token(pid) {
+        None => return StaleProcess::Gone,
+        Some(now) if now != start => return StaleProcess::NotOurs,
+        Some(_) => {}
+    }
+    #[cfg(unix)]
+    {
+        let Ok(p) = i32::try_from(pid) else {
+            return StaleProcess::NotOurs;
+        };
+        // Never the app itself or init, whatever the record says.
+        if p <= 1 || p == std::process::id() as i32 {
+            return StaleProcess::NotOurs;
+        }
+        // SAFETY: plain syscall; a pid that is gone just returns -1.
+        let pgid = (unsafe { libc::getpgid(p) } == p).then_some(p);
+        let mut guard = ProcessTreeGuard {
+            root: Some((p, start)),
+            pgid,
+            known: std::iter::once((p, start)).collect(),
+            done: false,
+        };
+        guard.terminate();
+    }
+    #[cfg(windows)]
+    {
+        let _ = std_command("taskkill")
+            .args(["/PID", &pid.to_string(), "/T", "/F"])
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status();
+    }
+    // SIGKILL is asynchronous: give the kernel a moment to reap it (it is
+    // not our child, so init/launchd does).
+    for _ in 0..50 {
+        if start_token(pid) != Some(start) {
+            return StaleProcess::Killed;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
+    StaleProcess::Survived
+}
+
 impl Drop for ProcessTreeGuard {
     /// A guard dropped without `release` (a panic, an early return) takes
     /// the tree with it: nothing it started may outlive the turn unnoticed.
@@ -825,6 +927,62 @@ mod tree_tests {
             .parse()
             .unwrap();
         (child, escapee, dir)
+    }
+
+    /// 3.1: the CLI a dead session left running, with a child of its own,
+    /// is stopped whole; a wrong start time (a recycled pid) is left alone;
+    /// a pid that is gone says so.
+    #[cfg(unix)]
+    #[test]
+    fn stop_stale_kills_the_old_tree_and_never_a_recycled_pid() {
+        use std::os::unix::process::CommandExt;
+        let dir = std::env::temp_dir().join(format!("omniget-stale-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let pidfile = dir.join("child.pid");
+        let code = "import subprocess, sys, time, os\n\
+                    p = subprocess.Popen(['sleep', '120'])\n\
+                    open(sys.argv[1] + '.t', 'w').write(str(p.pid))\n\
+                    os.rename(sys.argv[1] + '.t', sys.argv[1])\n\
+                    time.sleep(120)\n";
+        let mut child = std::process::Command::new("python3")
+            .args(["-c", code])
+            .arg(&pidfile)
+            .process_group(0)
+            .spawn()
+            .unwrap();
+        let since = std::time::Instant::now();
+        while !pidfile.exists() && since.elapsed() < std::time::Duration::from_secs(10) {
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        let grandchild: i32 = std::fs::read_to_string(&pidfile)
+            .unwrap()
+            .trim()
+            .parse()
+            .unwrap();
+        let pid = child.id();
+        let token = start_token(pid).expect("the child is alive");
+        // The app that recorded it is gone; here a thread plays init and
+        // reaps it, so a dead child does not linger as a zombie.
+        let reaper = std::thread::spawn(move || child.wait());
+
+        assert_eq!(
+            stop_stale(pid, token.wrapping_add(1)),
+            StaleProcess::NotOurs
+        );
+        assert!(alive(pid as i32), "a recycled pid is never touched");
+        assert_eq!(stop_stale(pid, token), StaleProcess::Killed);
+        let _ = reaper.join();
+        let since = std::time::Instant::now();
+        while alive(grandchild) && since.elapsed() < std::time::Duration::from_secs(2) {
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        let survived = alive(grandchild);
+        if survived {
+            unsafe { libc::kill(grandchild, libc::SIGKILL) };
+        }
+        assert!(!survived, "its child dies with it");
+        assert_eq!(stop_stale(pid, token), StaleProcess::Gone);
+        let _ = std::fs::remove_dir_all(dir);
     }
 
     #[cfg(unix)]

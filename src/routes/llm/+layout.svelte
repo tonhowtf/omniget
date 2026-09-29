@@ -4,6 +4,7 @@
   import { t } from '$lib/i18n';
   import { LLM_DESTINATIONS, llmDestination, llmDestinationLabel } from '$lib/llm/workspace-navigation';
   import UsageMonitor from '$components/llm/UsageMonitor.svelte';
+  import WorkBadge from '$components/llm/work/WorkBadge.svelte';
   import UpdatesWatcher from '$components/central/tools/UpdatesWatcher.svelte';
   let { children }: { children: Snippet } = $props();
   let path = $derived(page.url.pathname.replace(/\/$/, '') || '/llm');
@@ -17,7 +18,7 @@
         <a class="llm-tab" href={item.href} aria-current={destination.id === item.id ? 'page' : undefined}>{$t(llmDestinationLabel(item))}</a>
       {/each}
     </nav>
-    <UsageMonitor />
+    <div class="header-trailing"><WorkBadge /><UsageMonitor /></div>
   </header>
   {#if destination.tools.length}
     <nav class="workspace-tools" aria-label={$t(llmDestinationLabel(destination))}>
@@ -29,6 +30,7 @@
 <style>
   .llm-root { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
   .workspace-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--separator); flex-shrink: 0; flex-wrap: wrap; }
+  .header-trailing { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .llm-tabs { display: flex; gap: 4px; flex-wrap: wrap; }
   .llm-tab { padding: 8px 12px; border-radius: 8px; font-size: 14px; font-weight: 500; color: var(--text-muted); text-decoration: none; }
   .llm-tab[aria-current='page'] { background: var(--accent-soft); color: var(--accent-hi); }

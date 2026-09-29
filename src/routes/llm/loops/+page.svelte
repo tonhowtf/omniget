@@ -1,10 +1,14 @@
 <script lang="ts">
   import SurfaceGuide from "$components/llm/SurfaceGuide.svelte";
+  import RunModeSelect from "$components/llm/RunModeSelect.svelte";
+  import type { RunMode } from "$lib/stores/llm-run-mode.svelte";
   /**
    * Loops: the same prompt run round after round until a check command
-   * passes or the round/minute budget runs out.
+   * passes or the round/minute budget runs out. Without a check command an
+   * independent auditor (the agent's small model) judges each round (3.7).
    */
   import { onMount } from "svelte";
+  import { page } from "$app/state";
   import { t } from "$lib/i18n";
   import { getAgents, loadRoster } from "$lib/stores/llm-store.svelte";
   import {
@@ -20,17 +24,17 @@
     resumeLoop,
     settleLoop,
     shortTime,
+    auditOverhead,
+    type LoopAudit,
     type LoopDef,
   } from "$lib/stores/llm-jobs-store.svelte";
   import CatalogLoops from "$components/central/run/CatalogLoops.svelte";
   import { agentLabel } from "$components/central/run/run-api";
   import { itemHref } from "$lib/central/catalog";
 
-  /** Fields the catalog runs add to a Loop (schedule, cost budget, source). */
+  /** Fields the catalog runs add to a Loop (schedule, source). */
   type LoopExtra = LoopDef & {
     schedule?: string | null;
-    max_cost_usd?: number | null;
-    spent_usd?: number;
     source?: string | null;
     next_round_ms?: number | null;
   };
@@ -49,9 +53,25 @@
   let reviewing = $state(false);
   let maxRounds = $state<number | null>(10);
   let maxMinutes = $state<number | null>(null);
+  /** A cost ceiling (US$) pauses the loop with a budget incident (3.3). */
+  let maxCost = $state<number | null>(null);
   let checkCommand = $state("");
+  /** Resume by itself after a restart (3.1); unchecked = the setting. */
+  let autoResume = $state(false);
+  let tokenBudget = $state<number | null>(null);
+  // A loop made here is the person's own: the chat's default (2.7, D2).
+  let runMode = $state<RunMode>("auto_edits");
   let creating = $state(false);
   let openId = $state<string | null>(null);
+  // `?loop=<id>` (a row of /llm/work) opens that loop.
+  let linkedLoop = $derived(page.url.searchParams.get("loop"));
+  let followedLoop: string | null = null;
+  $effect(() => {
+    if (linkedLoop && linkedLoop !== followedLoop && loops.some((l) => l.id === linkedLoop)) {
+      followedLoop = linkedLoop;
+      openId = linkedLoop;
+    }
+  });
   /** Re-read on each store change, enough for a quiet elapsed column. */
   let now = $state(Date.now());
 
@@ -75,8 +95,51 @@
     return typeof n === "number" && n > 0 ? Math.floor(n) : null;
   }
 
+  /** Stop reasons the app names; anything else (an error) shows as it is. */
+  const KNOWN_STOPS = ["audit_complete", "audit_blocked", "audit_unavailable", "audit_disagrees", "token_budget", "max_rounds"];
+
   function reason(loop: LoopDef): string {
-    return loop.stop_reason === "check_passed" ? $t("llm.loops.check_passed") : loop.stop_reason ?? "";
+    if (budgetIncident(loop)) return $t("llm.loops.paused_budget") as string;
+    const r = loop.stop_reason ?? "";
+    if (r === "check_passed") return $t("llm.loops.check_passed");
+    if (KNOWN_STOPS.includes(r)) return $t(`llm.loops.stop.${r}`);
+    if (r.startsWith("round_failed: ")) return $t("llm.loops.stop.round_failed", { error: r.slice(14) });
+    return r;
+  }
+
+  function verdictClass(a: LoopAudit): string {
+    switch (a.verdict) {
+      case "complete":
+        return "green";
+      case "blocked":
+        return "orange";
+      case "continue":
+        return "blue";
+      default:
+        return "red";
+    }
+  }
+
+  function usd(n: number | null | undefined): string {
+    return `US$ ${(n ?? 0).toFixed(4)}`;
+  }
+
+  /** The budget incident that paused the loop, if one did. */
+  function budgetIncident(loop: LoopDef): string | null {
+    return loop.state === "paused" && loop.stop_reason?.startsWith("budget:") ? loop.stop_reason.slice(7) : null;
+  }
+
+  /** What the rounds cost: dollars (marked when estimated), else weighted tokens (C5). */
+  function cost(loop: LoopDef): string {
+    const usd = loop.spent_usd ?? 0;
+    const tokens = loop.spent_tokens ?? 0;
+    const parts: string[] = [];
+    if (usd > 0) {
+      parts.push(`US$ ${usd.toFixed(4)}${(loop.spent_usd_estimated ?? 0) > 0 ? ` ${$t("llm.loops.cost_estimated")}` : ""}`);
+    }
+    if (tokens > 0) parts.push($t("llm.loops.cost_tokens", { tokens: tokens.toLocaleString() }) as string);
+    if ((loop.unpriced_rounds ?? 0) > 0) parts.push($t("llm.loops.cost_unknown", { count: loop.unpriced_rounds ?? 0 }) as string);
+    return parts.join(" · ");
   }
 
   async function create() {
@@ -90,6 +153,10 @@
       max_rounds: positive(maxRounds) ?? 10,
       max_minutes: positive(maxMinutes),
       check_command: checkCommand.trim() || null,
+      auto_resume: autoResume ? true : null,
+      run_mode: runMode,
+      max_cost_usd: typeof maxCost === "number" && maxCost > 0 ? maxCost : null,
+      token_budget: positive(tokenBudget),
     });
     creating = false;
     if (loop) {
@@ -105,14 +172,14 @@
 <div class="page page-wide loops-page">
   <header class="page-head">
     <div>
-      <h1 class="page-title">{$t("llm.surface.routines")}</h1>
+      <h1 class="page-title">{$t("llm.tab.loops")}</h1>
       <p class="page-lede">{$t("llm.loops.lede")}</p>
     </div>
   </header>
   <SurfaceGuide text={$t("llm.surface.loops_hint")} href="/help?article=routines#guide" />
   <CatalogLoops />
 
-  <details class="creation-panel"><summary>{$t("llm.surface.create_routine")}</summary>
+  <details class="creation-panel"><summary>{$t("llm.surface.create_loop")}</summary>
   <section class="surface-card form">
     <h2 class="section-header-title">{$t("llm.loops.new_title")}</h2>
     <div class="form-row">
@@ -153,11 +220,30 @@
         <span class="field-label">{$t("llm.loops.max_minutes")}</span>
         <input class="input" type="number" min="1" bind:value={maxMinutes} />
       </label>
+      <label class="field small">
+        <span class="field-label">{$t("llm.loops.max_cost")}</span>
+        <input class="input" type="number" min="0" step="any" placeholder="0.50" bind:value={maxCost} />
+      </label>
       <label class="field grow">
         <span class="field-label">{$t("llm.loops.check_command")}</span>
         <input class="input mono" type="text" bind:value={checkCommand} placeholder="npm test" />
       </label>
+      <label class="field small">
+        <span class="field-label">{$t("llm.loops.token_budget")}</span>
+        <input class="input" type="number" min="1" step="1000" bind:value={tokenBudget} />
+      </label>
     </div>
+    <label class="auto-resume">
+      <input type="checkbox" bind:checked={autoResume} />
+      <span>
+        <span class="field-label">{$t("llm.loops.auto_resume")}</span>
+        <span class="hint">{$t("llm.loops.auto_resume_hint")}</span>
+      </span>
+    </label>
+    <div class="form-row">
+      <RunModeSelect bind:value={runMode} />
+    </div>
+    <p class="hint">{$t("llm.loops.run_mode_hint")}</p>
     <p class="hint">{$t("llm.loops.summary", { rounds: positive(maxRounds) ?? 10 })}</p>
     {#if !checkCommand.trim()}<p class="hint">{$t("llm.loops.no_check")}</p>{/if}
     {#if reviewing}
@@ -167,6 +253,9 @@
         {#if workspace}<p><code>{workspace}</code></p>{/if}
         {#if checkCommand.trim()}<p><code>{checkCommand}</code></p>{/if}
         {#if positive(maxMinutes)}<p>{$t("llm.loops.max_minutes")}: {positive(maxMinutes)}</p>{/if}
+        {#if typeof maxCost === "number" && maxCost > 0}<p>{$t("llm.loops.max_cost")}: US$ {maxCost}</p>{/if}
+        {#if positive(tokenBudget)}<p>{$t("llm.loops.token_budget")}: {positive(tokenBudget)}</p>{/if}
+        <p>{$t("llm.run_mode.label")}: {$t(`llm.run_mode.${runMode}`)}</p>
         <button type="button" class="button active" disabled={creating || !agentId || !prompt.trim()} onclick={create}>{$t("llm.loops.start")}</button>
         <button type="button" class="button" disabled={creating} onclick={() => reviewing = false}>{$t("llm.loops.edit")}</button>
       </div>
@@ -195,8 +284,11 @@
               <span class="name">{loop.name || loop.id}</span>
               <span class="dim">{agentName(loop.agent_id)}</span>
               <span class="dim">{$t("llm.loops.rounds", { done: loop.rounds_done, max: loop.max_rounds ?? "∞" })}</span>
-              {#if loop.finished_ms && reason(loop)}
+              {#if cost(loop)}<span class="dim">{cost(loop)}</span>{/if}
+              {#if (loop.finished_ms || loop.state === "paused") && reason(loop)}
                 <span class="line dim">{reason(loop)}</span>
+              {:else if loop.note}
+                <span class="line dim" title={$t("llm.loops.note")}>{loop.note}</span>
               {:else}
                 <span class="line"></span>
               {/if}
@@ -217,13 +309,15 @@
                   <div class="field-label">{$t("llm.loops.check_command")}</div>
                   <code class="path">{loop.check_command}</code>
                 {/if}
+                <div class="field-label">{$t("llm.run_mode.label")}</div>
+                <div class="text" title={$t(`llm.run_mode.${loop.run_mode ?? "auto_edits"}_hint`) as string}>{$t(`llm.run_mode.${loop.run_mode ?? "auto_edits"}`)}</div>
                 {#if extra(loop).schedule}
                   <div class="field-label">{$t("llm.central.run.loop.schedule")}</div>
                   <code class="path">{extra(loop).schedule}{extra(loop).next_round_ms ? ` · ${$t("llm.central.run.loop.next_round")} ${shortTime(extra(loop).next_round_ms ?? null)}` : ""}</code>
                 {/if}
-                {#if extra(loop).max_cost_usd || extra(loop).spent_usd}
+                {#if loop.max_cost_usd || cost(loop)}
                   <div class="field-label">{$t("llm.central.run.loop.cost")}</div>
-                  <span class="text">US$ {(extra(loop).spent_usd ?? 0).toFixed(4)}{extra(loop).max_cost_usd ? ` / ${extra(loop).max_cost_usd}` : ""}</span>
+                  <span class="text">{cost(loop) || "US$ 0.0000"}{loop.max_cost_usd ? ` / US$ ${loop.max_cost_usd}` : ""}</span>
                 {/if}
                 {#if extra(loop).source}
                   <div class="field-label">{$t("llm.central.run.loop.source")}</div>
@@ -232,6 +326,34 @@
                 {#if loop.last_check}
                   <div class="field-label">{$t("llm.loops.last_check")}</div>
                   <pre class="pre">{loop.last_check}</pre>
+                {/if}
+                {#if loop.token_budget || loop.tokens_used}
+                  <div class="field-label">{$t("llm.loops.token_budget")}</div>
+                  <span class="text">{$t("llm.loops.tokens", { used: loop.tokens_used ?? 0, budget: loop.token_budget ?? "∞" })}</span>
+                {/if}
+                {#if loop.rounds_guided}
+                  <p class="hint">{$t("llm.loops.guided", { count: loop.rounds_guided })}</p>
+                {/if}
+                {#if loop.audits && loop.audits.length > 0}
+                  {@const cost = auditOverhead(loop.audits)}
+                  <div class="field-label">{$t("llm.loops.audits")}</div>
+                  <ol class="audit-list">
+                    {#each loop.audits as a (a.round)}
+                      <li class="audit">
+                        <span class="dim">#{a.round}</span>
+                        <span class="pill {verdictClass(a)}">{a.verdict ? $t(`llm.loops.verdict.${a.verdict}`) : $t("llm.loops.verdict.none")}</span>
+                        <span class="audit-note">{a.note || a.error || ""}</span>
+                        {#if a.claimed_done}
+                          <span class="tag" title={$t("llm.loops.claimed_done_hint")}>{$t("llm.loops.claimed_done")}</span>
+                        {/if}
+                        <span class="dim" title={$t(`llm.loops.side_reason.${a.reason.replace("+fallback", "")}`)}>{a.model}</span>
+                        {#if a.cost_usd != null}<span class="dim">{usd(a.cost_usd)}</span>{/if}
+                      </li>
+                    {/each}
+                  </ol>
+                  {#if cost.share != null}
+                    <p class="hint">{$t("llm.loops.overhead", { audit: usd(cost.audit), rounds: usd(cost.rounds), percent: Math.round(cost.share * 100) })}</p>
+                  {/if}
                 {/if}
                 <div class="field-label">{$t("llm.loops.jobs")}</div>
                 {#if rounds.length === 0}
@@ -248,6 +370,14 @@
                 {/if}
                 {#if loop.state === "interrupted"}
                   <p class="hint">{$t("assist.runs.loop_interrupted_hint")}</p>
+                {:else if loop.state === "blocked"}
+                  <p class="hint">{$t("llm.loops.blocked_hint")}</p>
+                {/if}
+                {#if budgetIncident(loop)}
+                  <p class="hint">
+                    {$t("llm.loops.paused_budget_hint")}
+                    <a href={`/llm/usage?incident=${encodeURIComponent(budgetIncident(loop) ?? "")}#budgets`}>{$t("llm.loops.open_incident")}</a>
+                  </p>
                 {/if}
                 <div class="actions">
                   {#if loop.state === "interrupted"}
@@ -260,7 +390,14 @@
                     <button type="button" class="button" onclick={() => void settleLoop(loop.id, false)}>
                       {$t("assist.runs.action_discard")}
                     </button>
-                  {:else if loop.state === "running"}
+                  {:else if loop.state === "blocked"}
+                    <button type="button" class="button active" onclick={() => void resumeLoop(loop.id)}>
+                      {$t("assist.runs.action_resume")}
+                    </button>
+                    <button type="button" class="button" onclick={() => void deleteLoop(loop.id)}>
+                      {$t("llm.loops.delete")}
+                    </button>
+                  {:else if loop.state === "running" || loop.state === "paused"}
                     <button type="button" class="button" onclick={() => void cancelLoop(loop.id)}>
                       {$t("llm.loops.cancel")}
                     </button>
@@ -285,6 +422,9 @@
   .creation-panel[open] summary { margin-bottom:12px; }
   .creation-panel summary:focus-visible { outline:var(--focus-ring); }
   .loop-review { border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface-mut); padding: var(--space-4); overflow-wrap: anywhere; }
+  .auto-resume { display: flex; align-items: flex-start; gap: var(--space-2); cursor: pointer; }
+  .auto-resume > span { display: flex; flex-direction: column; gap: 2px; }
+  .auto-resume input { margin-top: 3px; }
   .loops-page {
     flex: 1;
     min-height: 0;
@@ -474,6 +614,39 @@
     align-items: center;
     gap: var(--space-1);
     text-decoration: none;
+  }
+
+  .audit-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .audit {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 0;
+    font-size: var(--text-sm);
+  }
+
+  .audit-note {
+    flex: 1;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    user-select: text;
+  }
+
+  .tag {
+    flex-shrink: 0;
+    padding: 0 6px;
+    border: var(--hairline) solid var(--separator);
+    border-radius: var(--radius-sm);
+    font-size: var(--text-xs);
+    color: var(--text-dim);
   }
 
   .pre {

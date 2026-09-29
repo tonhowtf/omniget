@@ -19,6 +19,13 @@ pub struct AppSettings {
     pub start_minimized: bool,
     #[serde(default)]
     pub exit_on_close: bool,
+    /// "Run agents in the background" (3.2): the app starts hidden at login
+    /// (`--autostart`) and closing the window keeps it in the tray, so jobs,
+    /// Loops and routines keep running and the CLI finds the bridge. Wins
+    /// over `exit_on_close`; the settings screen turns one off when the
+    /// other goes on.
+    #[serde(default)]
+    pub run_in_background: bool,
     #[serde(default)]
     pub portable_mode: bool,
     #[serde(default)]
@@ -103,6 +110,21 @@ pub struct LlmSettings {
     /// Jobs of one agent at the same time; `None` = only the global cap.
     #[serde(default)]
     pub jobs_max_per_agent: Option<u32>,
+    /// Resume by itself after a restart (3.1, S16): a job the app lost while
+    /// it ran starts again with `--resume` and a "check before repeating"
+    /// note, but only after an infrastructure failure (the app closed, the
+    /// watchdog stopped it) and only when it ran in its own worktree or had
+    /// not started a tool that writes. Off by default: every such run is an
+    /// action a person did not click; a job or Loop can say otherwise.
+    #[serde(default)]
+    pub auto_resume: bool,
+    /// Days the audit log (`<llm dir>/audit.db`, 2.8) keeps a line.
+    #[serde(default = "default_audit_retention_days")]
+    pub audit_retention_days: u32,
+}
+
+fn default_audit_retention_days() -> u32 {
+    90
 }
 
 fn default_prune_min_tokens() -> u32 {
@@ -156,6 +178,8 @@ impl Default for LlmSettings {
             approval_notify_delay_s: default_approval_notify_delay_s(),
             jobs_max_parallel: default_jobs_max_parallel(),
             jobs_max_per_agent: None,
+            auto_resume: false,
+            audit_retention_days: default_audit_retention_days(),
         }
     }
 }
@@ -846,6 +870,11 @@ pub struct BridgeSettings {
     /// Empty means "regenerate on next launch".
     #[serde(default)]
     pub token: String,
+    /// Grace period of 2.1: the extension token still works on the agent
+    /// routes (`/v1/agent/*`, `/v1/jobs*`…) with a deprecation warning. On by
+    /// default in this version; the next one turns it off, then removes it.
+    #[serde(default = "default_bridge_enabled")]
+    pub legacy_agent_routes: bool,
 }
 
 impl Default for BridgeSettings {
@@ -854,6 +883,7 @@ impl Default for BridgeSettings {
             enabled: default_bridge_enabled(),
             port: 0,
             token: String::new(),
+            legacy_agent_routes: true,
         }
     }
 }
@@ -979,6 +1009,7 @@ impl Default for AppSettings {
             start_with_system: false,
             start_minimized: false,
             exit_on_close: false,
+            run_in_background: false,
             portable_mode: false,
             legal_acknowledged: false,
             last_download_options: LastDownloadOptions::default(),

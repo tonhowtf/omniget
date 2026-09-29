@@ -297,9 +297,21 @@ pub fn account_id(cli: CliKind, label: &str, taken: &[String]) -> String {
 /// The literal flag the CLI gets for this mode, so the UI can print it.
 ///
 /// Codex takes `--sandbox <mode>` (`read-only` is its own default) and Claude
-/// takes `--permission-mode <mode>`; neither "no rules at all" mode
-/// (`danger-full-access`, `bypassPermissions`) is reachable from an account.
+/// takes `--permission-mode <mode>`. Neither "no rules at all" mode
+/// (`danger-full-access`, `bypassPermissions`) comes from the account alone:
+/// a `full` account only allows it for a turn whose run mode is
+/// `full_access` (2.7), and the flag says so.
 pub fn sandbox_flag(cli: CliKind, sandbox: SandboxMode) -> String {
+    if sandbox == SandboxMode::Full {
+        return match cli {
+            CliKind::Codex => {
+                "--sandbox workspace-write (danger-full-access with run mode full_access)".into()
+            }
+            CliKind::Claude => {
+                "--permission-mode acceptEdits (bypassPermissions with run mode full_access)".into()
+            }
+        };
+    }
     match cli {
         CliKind::Codex => format!(
             "--sandbox {}",

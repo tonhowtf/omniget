@@ -1311,7 +1311,10 @@
       "reset_hints": "Restablecer sugerencias",
       "reset_hints_desc": "Volver a mostrar todas las sugerencias descartadas",
       "restore": "Restablecer",
-      "hints_restored": "Sugerencias restablecidas"
+      "hints_restored": "Sugerencias restablecidas",
+      "run_in_background": "Ejecutar agentes en segundo plano",
+      "run_in_background_desc": "OmniGet se abre oculto al iniciar sesión y cerrar la ventana lo deja en la bandeja, así que los trabajos, Loops y rutinas siguen funcionando y el comando omniget lo encuentra. Desactiva «Salir al cerrar la ventana».",
+      "run_in_background_flatpak": "Flatpak: iniciar al iniciar sesión y ser abierto desde la línea de comandos aún no están verificados."
     },
     "appearance": {
       "title": "Apariencia",
@@ -2772,12 +2775,10 @@
       "mcp": "MCP",
       "skills": "Skills",
       "accounts": "Accounts",
-      "local": "Local",
       "arena": "Arena",
       "jobs": "Jobs",
       "loops": "Loops"
     },
-    "demo_banner": "Demo data: the LLM backend is not wired yet.",
     "rail": {
       "title": "Agents",
       "unassigned": "Unassigned",
@@ -2785,7 +2786,8 @@
       "new_chat": "New chat",
       "empty": "No agents yet.",
       "no_profile": "No local profile",
-      "search": "Search agents"
+      "search": "Search agents",
+      "load_failed": "No se pudieron leer tus chats guardados."
     },
     "role": {
       "coordinator": "Coordinator",
@@ -2896,14 +2898,11 @@
       "connect": "Connect or manage providers",
       "local_hint": "Local server: make sure it is running and has models installed. No saved API key is required.",
       "no_models": "This provider returned no models. Check the models available on the server or enter an identifier manually.",
-      "load_failed": "Could not load models: {{error}}"
+      "load_failed": "No se pudieron leer tus proveedores: {{error}}"
     },
     "err": {
       "unavailable": "The LLM backend is not wired yet.",
       "turn_failed": "The turn could not start."
-    },
-    "local": {
-      "explanation": "Local model management is not available here yet. Configure an existing local provider in Models & Routing."
     },
     "skills": {
       "title": "Skills",
@@ -2911,7 +2910,6 @@
       "installed_title": "Installed",
       "loading": "Reading the installed skills…",
       "empty": "No skill installed yet. Install one from a folder, a zip or a git repository.",
-      "demo": "Demo data — nothing here is installed on this machine.",
       "remove": "Remove",
       "install": "Install",
       "installing": "Installing…",
@@ -2993,7 +2991,6 @@
       "lede": "El punto de conexión al que se conectan otros agentes y los servidores a los que se conecta OmniGet.",
       "half_client": "Servidores que usas",
       "half_server": "Tu punto de conexión",
-      "demo": "Servidores de demostración: el backend de MCP aún no responde. Nada de esto es una conexión real.",
       "servers": "Servidores conectados",
       "add": "Añadir un servidor",
       "loading": "Leyendo los servidores guardados…",
@@ -3218,7 +3215,12 @@
         "connecting": "Connecting…",
         "err_unknown_provider": "Unknown provider",
         "err_credential_failed": "Credential validation failed"
-      }
+      },
+      "sandbox_full": "acceso total permitido",
+      "sandbox_full_hint": "Los turnos de esta cuenta pueden editar archivos, y un turno en modo Acceso total se ejecuta sin preguntar.",
+      "sandbox_allow_full": "Permitir acceso total",
+      "sandbox_allow_full_confirm": "Confirmar: permitir acceso total",
+      "sandbox_make_write": "Volver a solo escritura"
     },
     "rules": {
       "title": "Always rules",
@@ -3277,10 +3279,8 @@
       "undone": "Undone: {{count}} file(s) restored",
       "chat": "Chat",
       "agents": "Agents",
-      "activity": "Activity",
       "configure": "Configure",
       "tasks": "Tasks",
-      "routines": "Routines",
       "performance": "Usage and performance",
       "monitor": "Usage monitor",
       "off": "Off",
@@ -3302,7 +3302,10 @@
       "retro": "Retrospective",
       "installed": "Installed",
       "remote": "Remote access",
-      "wizard": "Project setup"
+      "wizard": "Project setup",
+      "work": "Trabajo",
+      "more": "Más",
+      "loops": "Bucles"
     },
     "jobs": {
       "lede": "Agent runs that work in the background while you do something else.",
@@ -3318,6 +3321,12 @@
       "list_title": "Recent jobs",
       "empty": "No jobs yet. Start one above and it shows up here.",
       "result": "Result",
+      "outcome": {
+        "title": "Veredicto del agente",
+        "succeeded": "Salió bien",
+        "failed": "Falló",
+        "missing": "El agente terminó sin su línea OUTCOME: lee el resultado antes de confiar en él."
+      },
       "error": "Error",
       "log": "Log",
       "log_empty": "Nothing logged yet.",
@@ -3332,26 +3341,31 @@
         "done": "Done",
         "failed": "Failed",
         "cancelled": "Cancelled",
-        "waiting_workspace": "Esperando la carpeta"
+        "waiting_workspace": "Esperando la carpeta",
+        "review": "Pendiente de revisión",
+        "done_unreported": "Terminada, sin informe"
       },
       "kind": {
         "run": "Run",
         "chat": "Chat",
         "loop": "Loop",
-        "trigger": "Trigger",
+        "trigger": "Programada",
         "mission": "Misión"
       },
       "ask": {
         "title": "Wants to use {{tool}}",
         "allow": "Allow",
         "always": "Always allow",
-        "deny": "Deny"
+        "deny": "Deny",
+        "session": "Permitir en este turno",
+        "stop": "Denegar y detener",
+        "cli": "Desde una terminal: omniget agent approve {{id}}"
       },
       "trigger": {
-        "title": "Triggers",
-        "lede": "Start a job on a schedule or when a webhook is called.",
-        "empty": "No triggers yet. Create one below.",
-        "new_title": "New trigger",
+        "title": "Programaciones y webhooks",
+        "lede": "Inicia una tarea a horas fijas o cuando se llame a un webhook.",
+        "empty": "Todavía no hay programaciones. Crea una abajo.",
+        "new_title": "Nueva programación",
         "kind": "Kind",
         "kind_cron": "Schedule",
         "kind_webhook": "Webhook",
@@ -3359,10 +3373,10 @@
         "cron": "Cron line",
         "cron_hint": "Five fields (minute hour day month weekday), or @hourly, @daily, @weekly, @monthly.",
         "body_hint": "{{token}} is replaced by the webhook body.",
-        "create": "Create trigger",
+        "create": "Crear programación",
         "enabled": "Enabled",
         "fire": "Fire now",
-        "fired": "Trigger fired",
+        "fired": "La programación inició una tarea",
         "fired_count": "Fired {{count}}×",
         "copy_curl": "Copy curl",
         "catch_up": "Perdidas con la app cerrada",
@@ -3387,7 +3401,9 @@
         "no_start": "Detenido: el agente nunca arrancó",
         "deadline": "Detenido: se alcanzó el límite de tiempo",
         "limit": "Detenido: se alcanzó el límite de presupuesto",
-        "ask_expired": "Una pregunta quedó sin respuesta"
+        "ask_expired": "Una pregunta quedó sin respuesta",
+        "app_restart": "La app se cerró durante este trabajo",
+        "budget": "Detenido: un límite de presupuesto retiene este ámbito"
       },
       "queue": {
         "title": "Cola",
@@ -3411,6 +3427,121 @@
         "unavailable_no_snapshot": "No se sabe qué cambió este trabajo: sus turnos no tomaron una instantánea de la carpeta.",
         "unavailable_no_workspace": "Este trabajo se ejecutó sin carpeta, así que no hay diff.",
         "unavailable_error": "No se pudo leer la instantánea de la carpeta de este trabajo."
+      },
+      "tokens": {
+        "title": "Tokens de acceso",
+        "lede": "Los scripts, los webhooks y la CLI omniget llegan a las rutas de agente del puente local con un token con alcance. La clave de la extensión del navegador no es para ellas.",
+        "empty": "Todavía no hay tokens.",
+        "name": "Nombre",
+        "scopes": "Qué puede hacer",
+        "scope_jobs_read": "Ver trabajos (jobs:read)",
+        "scope_jobs_operate": "Iniciar y cancelar trabajos (jobs:operate)",
+        "scope_approvals_respond": "Responder aprobaciones (approvals:respond)",
+        "expires": "Caduca",
+        "expires_never": "Nunca",
+        "expires_days": "En {{days}} días",
+        "expires_at": "caduca {{when}}",
+        "create": "Crear token",
+        "created": "Token creado. Cópialo ahora: no se vuelve a mostrar.",
+        "copy": "Copiar token",
+        "revoke": "Revocar",
+        "kind_cli": "CLI omniget de este equipo",
+        "last_used": "último uso {{when}}",
+        "never_used": "nunca usado",
+        "legacy_toggle": "Seguir aceptando la clave de la extensión del navegador en las rutas de agente (obsoleto)",
+        "legacy_hint": "Se mantiene una versión para que los scripts antiguos sigan funcionando. La próxima versión la rechaza.",
+        "legacy_seen": "La clave de la extensión del navegador se usó en {{route}} a las {{when}}. Cambia ese script a un token con alcance.",
+        "curl_hint": "Define OMNIGET_TOKEN con un token con el alcance jobs:operate (Tokens de acceso, abajo).",
+        "scope_audit_read": "Leer el registro de auditoría (audit:read)",
+        "scope_budget_write": "Definir y subir presupuestos (budget:write)",
+        "scope_workflow_trust": "Confiar en flujos de trabajo de repositorios (workflow:trust)"
+      },
+      "isolation": {
+        "label": "Dónde escribe",
+        "auto": "Automático: su propio worktree solo si otro trabajo está escribiendo ahí",
+        "worktree": "Siempre en un worktree de git propio",
+        "shared": "En la propia carpeta (espera su turno)"
+      },
+      "worktree": {
+        "title": "Worktree",
+        "chip": "{{branch}} desde {{base}}",
+        "gone": "Worktree eliminado; la rama guarda el trabajo.",
+        "remove": "Eliminar worktree",
+        "removed": "Worktree eliminado.",
+        "kept_branch": "Worktree eliminado. La rama {{branch}} guarda el trabajo.",
+        "saved": "{{count}} archivo(s) sin commit guardado(s) antes en la rama."
+      },
+      "proof": {
+        "title": "Comprobante",
+        "summary": "{{files}} archivo(s) cambiado(s) · {{tokens}} tokens · {{time}}",
+        "check": "{{command}} → salida {{code}}",
+        "by_host": "Sellado por OmniGet en este equipo a partir de lo que registró, no escrito por el agente."
+      },
+      "review": {
+        "mark": "Marcar como revisado",
+        "title": "Revisión",
+        "lede": "Descarta un fragmento, deja notas para el agente y luego integra o descarta el trabajo.",
+        "discard_hunk": "Descartar",
+        "hunk_discarded": "Fragmento descartado.",
+        "hunk_stale": "Ese código cambió desde que se cargó. El diff se actualizó; inténtalo de nuevo.",
+        "busy": "Un job está escribiendo en esta carpeta ahora. Inténtalo cuando termine.",
+        "not_actionable": "Se eliminó el worktree de este job, así que ya no se pueden descartar fragmentos uno a uno.",
+        "notes_title": "Notas para el agente",
+        "notes_hint": "Selecciona líneas en el diff y comenta. Enviar inicia una continuación en la misma conversación, que cuesta solo las notas.",
+        "notes_empty": "Aún no hay notas.",
+        "note_file": "archivo completo",
+        "note_sent": "enviada a {{job}}",
+        "note_delete": "Borrar nota",
+        "notes_send": "Enviar {{count}} nota(s) al agente",
+        "notes_sent": "Notas enviadas: se inició el job de continuación {{job}}.",
+        "walkthrough_title": "Recorrido",
+        "walkthrough": "Explicar cambios",
+        "walkthrough_refresh": "Explicar de nuevo",
+        "walkthrough_loading": "Escribiendo el recorrido…",
+        "walkthrough_too_large": "Este diff es demasiado grande para un recorrido. Revísalo archivo por archivo.",
+        "walkthrough_uncovered": "{{count}} fragmento(s) no están en ninguna parada",
+        "walkthrough_cached": "de la caché",
+        "importance_critical": "crítico",
+        "integrate_title": "Integrar",
+        "integrate_into": "Fusionar {{branch}} en {{target}}",
+        "commits": "{{count}} commit(s) por traer",
+        "worktree_dirty": "{{count}} archivo(s) sin commit en el worktree se guardarán antes en la rama.",
+        "blocked": "No se puede integrar ahora: {{reason}}",
+        "strategy_merge": "Commit de merge",
+        "strategy_squash": "Squash en un commit",
+        "integrate": "Integrar",
+        "integrated": "Integrado en {{target}}.",
+        "up_to_date": "{{target}} ya tiene este trabajo.",
+        "conflict": "Conflicto en {{files}}. No cambió nada en tu checkout.",
+        "failed": "Git rechazó el merge (quizá un hook). No cambió nada en tu checkout.",
+        "discard_work": "Descartar trabajo",
+        "discard_confirm": "¿Descartar el trabajo de este job? Se borran su worktree y la rama {{branch}}.",
+        "discarded": "Trabajo descartado. La rama {{branch}} estaba en {{tip}}."
+      },
+      "resumed_by_itself": "Reanudado solo ({{count}}×)",
+      "workflow": {
+        "title": "Flujo de trabajo del repositorio",
+        "state": {
+          "trusted": "En vigor",
+          "untrusted": "No confiable",
+          "invalid": "Inválido",
+          "none": "Ninguno"
+        },
+        "last_good": "La última versión válida sigue vigente hasta que se corrija el archivo.",
+        "no_last_good": "No hay versión válida anterior: las tareas en esta carpeta se rechazan hasta que se corrija el archivo.",
+        "defaults": "Valores por defecto:",
+        "commands": "Comandos que ejecuta en este equipo:",
+        "kind": {
+          "after_create": "tras crear el worktree",
+          "before_remove": "antes de eliminar el worktree",
+          "check": "comprobación tras la tarea"
+        },
+        "untrusted_hint": "Hasta que confíes en esta versión exacta, estos comandos se omiten y no se aplica un modo de ejecución más permisivo. Cualquier cambio en el archivo vuelve a preguntar.",
+        "trust": "Confiar en esta versión",
+        "revoke": "Dejar de confiar",
+        "template": "Plantilla del prompt",
+        "trusted_toast": "Flujo de trabajo confiable: sus comandos se ejecutan desde ahora",
+        "untrusted_toast": "El flujo de trabajo ya no es confiable"
       }
     },
     "loops": {
@@ -3440,13 +3571,56 @@
         "running": "Running",
         "done": "Done",
         "failed": "Failed",
-        "cancelled": "Cancelled"
+        "cancelled": "Cancelled",
+        "paused": "En pausa",
+        "blocked": "Bloqueado",
+        "budget_limited": "Presupuesto alcanzado"
       },
       "check_passed": "Condition met",
       "summary": "Up to {{rounds}} rounds. Stops earlier when a configured condition or time limit is reached.",
-      "no_check": "No check command: completion will be controlled by the round or time limit.",
+      "no_check": "Sin comando de verificación: después de cada ronda un auditor independiente (el modelo más pequeño del agente) decide si el trabajo terminó, hasta 20 rondas.",
       "review": "Review loop",
-      "edit": "Edit configuration"
+      "edit": "Edit configuration",
+      "auto_resume": "Reanudar solo tras un reinicio",
+      "auto_resume_hint": "Si la app se cierra durante una ronda, el Loop continúa cuando vuelve a abrirse, salvo que esa ronda ya hubiera escrito en tu carpeta.",
+      "run_mode_hint": "Cada ronda del loop se ejecuta con este modo. Con «Preguntar antes de todo», cada ronda se detiene y te espera antes de cualquier edición o comando.",
+      "max_cost": "Presupuesto (US$)",
+      "paused_budget": "En pausa: presupuesto alcanzado",
+      "paused_budget_hint": "Ninguna ronda empieza hasta subir el límite; subirlo reanuda el bucle.",
+      "open_incident": "Abrir el incidente",
+      "cost_estimated": "(estimado)",
+      "cost_tokens": "{{tokens}} tokens ponderados",
+      "cost_unknown": "{{count}} ronda(s) de coste desconocido",
+      "stop": {
+        "audit_complete": "Verificado por el auditor",
+        "audit_blocked": "El auditor vio al agente bloqueado 3 rondas seguidas",
+        "audit_unavailable": "Auditoría no disponible dos veces seguidas",
+        "token_budget": "Presupuesto de tokens alcanzado",
+        "max_rounds": "Límite de rondas alcanzado",
+        "round_failed": "Una ronda falló: {{error}}",
+        "audit_disagrees": "El agente dijo que terminó y el auditor discrepó 3 veces seguidas: decides tú"
+      },
+      "token_budget": "Presupuesto de tokens",
+      "tokens": "{{used}} / {{budget}} tokens",
+      "guided": "{{count}} rondas enviaron solo la continuación (la tarea no se reenvió).",
+      "audits": "Veredictos del auditor",
+      "verdict": {
+        "continue": "Continuar",
+        "complete": "Completo",
+        "blocked": "Bloqueado",
+        "none": "Sin veredicto"
+      },
+      "claimed_done": "dijo que terminó",
+      "claimed_done_hint": "El agente dijo que terminó; solo el veredicto del auditor cierra el loop.",
+      "side_reason": {
+        "provider_small": "Modelo más pequeño de la misma cuenta",
+        "session_model": "No se conoce un modelo más pequeño: el del propio agente",
+        "requested": "Elegido para este loop",
+        "setting": "Ajuste de modelo lateral"
+      },
+      "overhead": "Auditor {{audit}} para rondas de {{rounds}} ({{percent}}%).",
+      "blocked_hint": "El loop se detuvo y te necesita. Reanudar ejecuta una ronda nueva, auditada otra vez.",
+      "note": "Progreso"
     },
     "limits": {
       "title": "Limits strip",
@@ -3559,22 +3733,18 @@
       "model": "Connection and model",
       "customize": "Tools and limits",
       "tasks": "Tasks",
-      "routines": "Routines",
       "active": "Running",
       "attention": "Needs attention",
       "done": "Finished",
       "create": "Create a task",
-      "create_routine": "Create a routine",
       "jobs_hint": "Run a task in the background. Open its details to see the result, approve a tool or stop execution.",
       "loops_hint": "Repeat a task until a check passes or its limit is reached. Review the stop conditions before starting.",
       "models_hint": "Connect an API provider, then choose its model for an agent. Chat subscriptions are configured in Connections.",
       "mcp_hint": "Connect a tool, test it, then choose which agents may use it. Adding a connection does not grant permission.",
       "skills_hint": "Skills give agents reusable instructions. Review the source and scan result before installing, then assign the skill to an agent.",
       "observatory_hint": "Inspect measured activity and provider quotas. Missing measurements are unavailable, never zero. Diagnostics run only when you open them.",
-      "local_hint": "Use a local model through a compatible server. Connect the running server and select one of its actual models before creating an agent.",
       "arena_hint": "Model comparison is not available yet. You can choose a model and run a conversation with the current tools.",
       "unavailable_feature": "Not available yet",
-      "local_steps": "Start your local model server|Connect its endpoint in AI settings|Choose the model for an agent",
       "arena_steps": "Select a model|Open a conversation|Review the result",
       "roster_hint": "Start with one agent and give it a clear purpose. Add a team when your task needs it.",
       "suggestion_1": "List my downloads and explain which need attention",
@@ -3587,7 +3757,8 @@
       "search": "Find an agent",
       "no_matches": "No matching agents",
       "templates_impact": "Review the template and its effect on the existing team before applying it.",
-      "mcp_server_hint": "Deja que otras apps de IA usen OmniGet: enciende el servidor, crea un cliente solo con los permisos que necesita y pega su fragmento en esa app."
+      "mcp_server_hint": "Deja que otras apps de IA usen OmniGet: enciende el servidor, crea un cliente solo con los permisos que necesita y pega su fragmento en esa app.",
+      "create_loop": "Crear un bucle"
     },
     "prompts": {
       "omni": "You are Omni, the assistant inside OmniGet. Answer briefly and in the language the user writes in. Use a tool only when it is clearly needed.",
@@ -3618,14 +3789,16 @@
       "start": "Tiempo de arranque (segundos)",
       "start_desc": "Un agente que no dice nada durante este tiempo tras iniciar nunca recibió el prompt.",
       "deadline": "Límite de tiempo del trabajo (minutos)",
-      "deadline_desc": "Todo trabajo en segundo plano (ejecución, ronda de bucle, rutina) se detiene aquí salvo que fije el suyo.",
+      "deadline_desc": "Toda tarea en segundo plano (ejecución, ronda de bucle, ejecución programada) se detiene aquí salvo que fije el suyo.",
       "ask_chat": "Espera de preguntas en el chat (minutos)",
       "ask_chat_desc": "Después la pregunta caduca: la acción no se ejecuta y se te dice por qué.",
       "ask_job": "Espera de preguntas en trabajos (minutos)",
       "ask_job_desc": "Deja 0 para esperar hasta el límite de tiempo del propio trabajo.",
       "notify_delay": "Avisar tras (segundos)",
       "notify_delay_desc": "Una pregunta aún abierta tras este tiempo se vuelve una notificación del sistema. Una que respondas antes, nunca.",
-      "offline": "No se pudo guardar: el backend no respondió."
+      "offline": "No se pudo guardar: el backend no respondió.",
+      "auto_resume": "Reanudar solo tras un reinicio",
+      "auto_resume_desc": "Cuando la app se cierra o un agente deja de responder, un trabajo que se ejecutó en su propio worktree o solo leyó archivos vuelve a empezar solo: continúa su sesión y se le pide comprobar lo que ya está hecho antes de repetir nada. Un trabajo que escribió en tu carpeta sigue esperándote. Un trabajo o un Loop puede indicar lo contrario."
     },
     "central": {
       "agentkit": {
@@ -5350,7 +5523,6 @@
         "verify_hint": "Runs in every worktree; the exit code decides pass or fail.",
         "cleanup": "Clean up",
         "cleanup_lede": "Archives the threads (their worktrees go; the work stays in the arena's refs).",
-        "cleanup_losers": "Only the losers",
         "cleanup_all": "Every entry (discard the arena)",
         "delete": "Delete arena",
         "delete_lede": "Removes this arena from the history and its refs. The threads stay.",
@@ -5466,10 +5638,11 @@
           "verify_hint": "Optional; runs in each worktree when its turn ends. Timeout",
           "timeout": "Timeout in minutes",
           "minutes": "min",
-          "start": "Start in {{count}} tools"
+          "start": "Start in {{count}} tools",
+          "min_tools": "Elige al menos {{count}} herramientas para comparar."
         },
         "apply": {
-          "title": "Apply the winner",
+          "title": "Elegir este",
           "lede": "{{name}}'s branch goes into the target branch. Nothing else is touched.",
           "target": "Target branch",
           "strategy": "How",
@@ -5480,22 +5653,49 @@
           "conflicts": "{{count}} files conflict; resolve in the thread first.",
           "checked_out": "The branch is checked out at {{path}}.",
           "dirty": "That checkout has uncommitted changes: commit or stash them first.",
-          "touch_checkout": "Update my checkout too (fast-forward only)",
+          "touch_checkout": "Fusionar en mi checkout (git merge con mi identidad y hooks; se deshace si hay conflicto)",
           "ref_only": "Only the branch moves; no checkout is touched.",
-          "clean_losers": "Archive the losing threads and remove their worktrees",
+          "clean_losers": "Luego quitar los demás (worktrees; su trabajo queda en los refs de la arena)",
           "delete_branches": "Also delete their branches (only OmniGet's)",
           "confirm": "I want to change {{branch}}",
           "do": "Apply",
           "ok": "Applied to {{branch}}",
-          "updated_checkout": "your checkout moved forward",
-          "updated_ref": "only the branch ref moved",
-          "cleaned": "{{count}} threads archived"
+          "updated_checkout": "fusionado en tu checkout",
+          "updated_ref": "only the branch ref moved"
         },
         "plan": {
           "implement_n": "Implement in N tools",
           "hint": "Open the Arena with this plan as the prompt"
         },
-        "apply_winner": "Apply winner"
+        "apply_winner": "Apply winner",
+        "removed": "{{count}} worktrees eliminados",
+        "branches_kept": "{{count}} ramas conservadas",
+        "remove_others": "Quitar los demás",
+        "choose": "Elegir este",
+        "choose_hint": "Fusionar el trabajo de esta columna en la rama base",
+        "estimate": {
+          "total": "Costo estimado antes de empezar: {{total}} para {{count}} herramientas",
+          "unknown": "{{count}} sin estimación",
+          "rough": "aproximado: precio de lista × un turno típico",
+          "source": {
+            "history": "Promedio de {{runs}} ejecuciones anteriores en la arena",
+            "price": "Precio de lista × un turno típico de código (aproximado)",
+            "unknown": "Sin precio conocido (suscripción, o modelo fuera de la tabla de precios)"
+          }
+        },
+        "compare": {
+          "title": "Dónde divergen",
+          "toggle": "Comparar",
+          "divergent": "{{count}} archivos difieren",
+          "agreed": "{{count}} idénticos",
+          "pending": "{{count}} aún en curso",
+          "show_agreed": "Mostrar archivos idénticos",
+          "file": "Archivo",
+          "untouched": "igual a la base",
+          "none_divergent": "Todas las columnas terminaron con los mismos archivos.",
+          "column": "{{count}} divergentes",
+          "column_hint": "Archivos en los que esta columna difiere de las demás"
+        }
       },
       "run": {
         "back": "Back",
@@ -5512,7 +5712,8 @@
           "done": "Done",
           "failed": "Failed",
           "cancelled": "Cancelled",
-          "skipped": "Skipped"
+          "skipped": "Skipped",
+          "review": "Pendiente de revisión"
         },
         "runner": {
           "label": "Runs with",
@@ -5662,6 +5863,156 @@
           "review_started": "Review job started",
           "open_jobs": "Open Jobs"
         }
+      }
+    },
+    "run_mode": {
+      "label": "Modo de ejecución",
+      "approval_required": "Preguntar antes de todo",
+      "auto_edits": "Ediciones automáticas",
+      "auto": "Automático (revisor del CLI)",
+      "full_access": "Acceso total",
+      "approval_required_hint": "Cada edición y cada comando te preguntan antes.",
+      "auto_edits_hint": "Las ediciones de archivos pasan; los comandos preguntan antes.",
+      "auto_hint": "Decide el revisor del propio CLI; donde el CLI no tiene uno, funciona como Ediciones automáticas.",
+      "full_access_hint": "Nada pregunta. La cuenta del CLI también debe permitir acceso total.",
+      "full_access_warning": "El acceso total ejecuta cada edición y cada comando sin preguntar. Úsalo solo en una carpeta que puedas perder.",
+      "full_access_confirm": "Permitir acceso total",
+      "cancel": "Cancelar"
+    },
+    "audit": {
+      "title": "Registro de auditoría",
+      "lede": "Quién hizo qué en trabajos, preguntas, permisos, tokens y agentes, y por qué canal. Nunca se guardan prompts, contenido de archivos ni secretos.",
+      "since": "Período",
+      "since_1h": "Última hora",
+      "since_1d": "Último día",
+      "since_7d": "Últimos 7 días",
+      "since_30d": "Últimos 30 días",
+      "since_90d": "Últimos 90 días",
+      "kind": "Tipo",
+      "kind_all": "Todo",
+      "kind_job": "Trabajos",
+      "kind_ask": "Preguntas",
+      "kind_grant": "Permisos permanentes",
+      "kind_token": "Tokens",
+      "kind_agent": "Agentes",
+      "kind_loop": "Bucles",
+      "refresh": "Actualizar",
+      "export": "Exportar CSV",
+      "empty": "Nada en este período.",
+      "error": "No se pudo leer el registro de auditoría.",
+      "who": "Quién",
+      "through": "Por dónde",
+      "on": "Sobre",
+      "retention": "Conservar líneas durante (días)",
+      "retention_days": "Las líneas se conservan {{days}} días.",
+      "retention_save": "Guardar",
+      "retention_saved": "Guardado; se borraron las líneas más antiguas.",
+      "cli_hint": "el mismo registro desde una terminal, con un token que tenga audit:read."
+    },
+    "work": {
+      "nav": "Todo el trabajo",
+      "lede": "Todo lo que tus agentes hacen por ti en una sola lista: primero lo que te necesita, luego lo que se ejecuta, espera, está listo para revisar o terminó hace poco.",
+      "badge_needs_you": "Te necesita ({{count}})",
+      "badge_running": "{{count}} en ejecución",
+      "badge_review": "{{count}} por revisar",
+      "badge_queued": "{{count}} en cola",
+      "section": {
+        "needs_you": "Te necesita",
+        "running": "En ejecución",
+        "queued": "Esperando para empezar",
+        "review": "Listo para revisar",
+        "done": "Terminado hace poco"
+      },
+      "pill": {
+        "approval": "Requiere aprobación",
+        "input": "Requiere respuesta",
+        "decision": "Requiere decisión",
+        "working": "Trabajando",
+        "failed": "Falló",
+        "queued": "En cola",
+        "review": "Revisar",
+        "ready": "Hecho",
+        "stopped": "Detenido"
+      },
+      "source": {
+        "job": "Tarea",
+        "loop": "Bucle",
+        "mission": "Misión",
+        "thread": "Hilo",
+        "run": "Chat",
+        "ask": "Pregunta",
+        "budget": "Presupuesto"
+      },
+      "asks_for": "pide usar {{tool}}",
+      "nothing_waits": "Nada te está esperando.",
+      "empty": "Todavía no hay trabajo.",
+      "partial": "No se pudo leer parte del trabajo: {{error}}",
+      "notify": {
+        "approval": "Requiere aprobación: {{title}}",
+        "input": "Requiere respuesta: {{title}}",
+        "decision": "Requiere decisión: {{title}}",
+        "failed": "Falló: {{title}}",
+        "ready": "Hecho: {{title}}",
+        "review": "Listo para revisar: {{title}}",
+        "more": "Y {{count}} más en Trabajo"
+      }
+    },
+    "budget": {
+      "title": "Presupuestos",
+      "refresh": "Actualizar",
+      "lede": "Límites para tus agentes: para todo, un agente, una cuenta, un bucle, una tarea o una misión, en dólares, tokens ponderados o una parte de la ventana de 5 h / 7 d de una suscripción. Al pasar un límite estricto el ámbito se pausa y su trabajo se detiene hasta que lo subas. Sin límite, nada se restringe.",
+      "read_error": "No se pudieron leer los presupuestos.",
+      "empty": "Aún no hay límites: nada está restringido.",
+      "hard": "pausa",
+      "soft": "pregunta",
+      "paused": "En pausa",
+      "remove": "Quitar",
+      "no_reading": "Aún sin lectura de cuota (viene del propio flujo de la CLI)",
+      "warn_at": "avisa al {{pct}}%",
+      "estimate_note": "los dólares de una suscripción son la estimación de la tabla de precios",
+      "add": "Añadir un límite",
+      "scope": "Para",
+      "scope_id": "Id",
+      "metric_label": "Medido en",
+      "window_label": "Ventana",
+      "amount": "Límite",
+      "warn_label": "Avisar al (%)",
+      "soft_label": "Preguntar en vez de pausar",
+      "save": "Guardar",
+      "hard_hint": "Al pasar el límite el ámbito se pausa: su trabajo en curso y en cola se cancela y un incidente te espera (subir y reanudar, o mantener en pausa).",
+      "soft_hint": "Al pasar el límite el siguiente turno pregunta \"¿continuar?\" una vez por ventana, como cualquier aprobación (también desde la CLI y el móvil). Un no pausa el ámbito.",
+      "quota_hint": "Los límites de cuota leen solo lo que la CLI informó en su propio flujo. Para una cuenta (o todo) el límite es el porcentaje de la ventana; para un bucle, tarea, agente o misión son los puntos que movió desde que empezó.",
+      "warn_toast": "Presupuesto de {{scope}}: {{used}} de {{limit}} usado",
+      "metric": {
+        "usd": "Dólares",
+        "weighted_tokens": "Tokens ponderados",
+        "quota_pct": "Parte de la ventana de cuota"
+      },
+      "window": {
+        "turn": "por turno",
+        "day": "por día",
+        "week": "por semana",
+        "5h": "ventana de 5 h",
+        "7d": "ventana de 7 d",
+        "run": "toda la ejecución"
+      },
+      "scope_kind": {
+        "global": "Todo",
+        "agent": "Agente",
+        "account": "Cuenta",
+        "loop": "Bucle",
+        "job": "Tarea",
+        "mission": "Misión"
+      },
+      "incident": {
+        "open": "Presupuesto alcanzado",
+        "kept": "Mantenido en pausa",
+        "hard_line": "Usado {{used}} de {{limit}}. Nada empieza aquí hasta que subas el límite.",
+        "checkpoint_line": "El punto de control de {{limit}} se respondió que no ({{used}} usado). Nada empieza aquí hasta que lo subas.",
+        "new_limit": "Nuevo límite",
+        "raise": "Subir y reanudar",
+        "keep": "Mantener en pausa",
+        "too_low": "El nuevo límite debe superar lo ya usado."
       }
     }
   },
@@ -6176,9 +6527,6 @@
       "tool_calls": "{{count}} herramientas",
       "permissions_title": "Esperando tu respuesta",
       "permission_label": "Quiere usar {{action}}",
-      "answer_once": "Permitir una vez",
-      "answer_always": "Permitir siempre",
-      "answer_deny": "Denegar",
       "expires_in": "Caduca en {{seconds}} s",
       "request_title": "Lo que pediste",
       "summary_title": "Respuesta",
@@ -6212,7 +6560,8 @@
         "approved": "permitido",
         "denied": "denegado",
         "expired": "caducado",
-        "cancelled": "cancelado"
+        "cancelled": "cancelado",
+        "stale": "dejada por un reinicio"
       },
       "unknown_hint": "OmniGet se cerró mientras esta ejecución trabajaba, así que su resultado es desconocido. No se volvió a enviar nada por sí solo: revisa los cambios de abajo y elige qué hacer.",
       "interrupted_hint": "OmniGet se cerró antes de que esta ejecución llegara al modelo. No se hizo nada.",
@@ -6247,7 +6596,14 @@
       "routine_app_open": "solo se ejecuta mientras OmniGet está abierto",
       "routine_mute": "Silenciar",
       "routine_unmute": "Quitar silencio",
-      "routine_muted": "silenciada"
+      "routine_muted": "silenciada",
+      "stale_title": "Preguntas que un reinicio dejó sin respuesta",
+      "stale_hint": "La app se cerró mientras esperaban. No se ejecutó nada. Reinicia el turno para volver a preguntar.",
+      "dismiss": "Descartar",
+      "answer_on_card": "Respóndela en su tarjeta, arriba en esta página.",
+      "answer_once": "Permitir una vez",
+      "answer_always": "Permitir siempre",
+      "answer_deny": "Denegar"
     },
     "conversation": {
       "status_working": "Trabajando…",
@@ -6806,7 +7162,10 @@
       "adv_events": "Eventos",
       "blocked_before_call": "Se detuvo antes de cualquier llamada: no se ejecutó nada en este paso.",
       "verify_started": "Comprobando en segundo plano. El resultado aparece aquí cuando termine.",
-      "verify_already_running": "Ya hay una comprobación en curso para esta misión."
+      "verify_already_running": "Ya hay una comprobación en curso para esta misión.",
+      "changes": "Cambios",
+      "changes_no_job": "Esta tarea todavía no ejecutó ningún trabajo.",
+      "changes_job": "Trabajo {{job}}"
     },
     "log": {
       "loading": "Cargando el registro…",
@@ -6925,7 +7284,7 @@
     "auth_origin": {
       "user_ui": "Tú, en la página Misiones",
       "chat": "Tú, desde un chat",
-      "trigger": "Un disparador que configuraste",
+      "trigger": "Una programación que configuraste",
       "external_mcp": "Un cliente MCP"
     }
   },
@@ -7015,7 +7374,11 @@
     "native_active": "Native access",
     "native_revoke": "Revoke access",
     "system_read": "Leer el estado, los escaneos y los planes de este equipo (washmybelly)",
-    "system_change": "Preparar planes de limpieza, mantener energía, modo juego y capturas de FPS (washmybelly)"
+    "system_change": "Preparar planes de limpieza, mantener energía, modo juego y capturas de FPS (washmybelly)",
+    "approvals_respond": "Responder las preguntas de permiso de sus misiones",
+    "approvals_respond_help": "Con esto, el cliente puede permitir las llamadas a herramientas de sus propias misiones, incluidos comandos de shell, como si pulsaras Permitir aquí. Dáselo solo a un cliente en el que confíes como en ti. Nunca puede crear una regla “siempre permitir”, y un agente nunca responde sus propias preguntas.",
+    "agents_run": "Ejecutar tus agentes como tareas en segundo plano",
+    "agents_run_help": "Con esto, el cliente puede poner cualquier agente de tu lista a trabajar en una tarea, en la carpeta que indique, en segundo plano, como `omniget agent run`. Solo ve y detiene las tareas que él mismo inició. Las preguntas de permiso de los agentes siguen esperándote, salvo que también dejes que este cliente las responda."
   },
   "mcp_auth": {
     "title": "Un cliente de IA te pide iniciar sesión",

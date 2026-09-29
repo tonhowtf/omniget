@@ -73,7 +73,6 @@ describe("pure helpers", () => {
   });
 
   it("maps every ERR_SKILL_* code of core/skills/mod.rs to an i18n key", () => {
-    expect(store.skillErrorKey("ERR_STUB")).toBe("llm.skills.err_unavailable");
     expect(store.skillErrorKey("ERR_SKILL_GIT: git not found")).toBe("llm.skills.err_git");
     expect(store.skillErrorKey("ERR_SKILL_ZIP: traversal")).toBe("llm.skills.err_zip");
     expect(store.skillErrorKey("ERR_SKILL_PARSE")).toBe("llm.skills.err_parse");
@@ -122,20 +121,6 @@ describe("pure helpers", () => {
     expect(store.catalogPress(entry, null)).toEqual({ confirming: null, install: true });
   });
 
-  it("treats the whole OpenRouterTeam showcase as unlicensed, as the repo is", () => {
-    expect(store.DEMO_CATALOG.every((e) => store.isUnlicensed(e))).toBe(true);
-  });
-
-  it("keeps the showcase fallback honest: 17 unique OpenRouterTeam entries", () => {
-    expect(store.DEMO_CATALOG).toHaveLength(17);
-    expect(new Set(store.DEMO_CATALOG.map((e) => e.name)).size).toBe(17);
-    for (const entry of store.DEMO_CATALOG) {
-      expect(entry.repo_url).toBe("https://github.com/OpenRouterTeam/skills");
-      expect(entry.html_url).toContain(entry.name);
-      expect(entry.subdir).toBe(`skills/${entry.name}`);
-      expect(entry.description.length).toBeGreaterThan(20);
-    }
-  });
 });
 
 describe("the security scan", () => {
@@ -317,28 +302,18 @@ describe("the quarantine flow", () => {
     expect(store.isScannerAvailable()).toBe(true);
 
     store.resetSkillsStore();
-    invoke.mockRejectedValue("ERR_STUB");
+    invoke.mockRejectedValue("ERR_UNKNOWN_COMMAND");
     await store.loadScanner();
     expect(store.isScannerAvailable()).toBe(false);
   });
 });
 
 describe("loading", () => {
-  it("shows what the backend returned and is not in demo mode", async () => {
+  it("shows what the backend returned", async () => {
     invoke.mockResolvedValue([{ name: "x", description: "d" }]);
     await store.loadSkills();
     expect(store.getSkills()).toEqual([{ name: "x", description: "d" }]);
-    expect(store.isDemoSkills()).toBe(false);
     expect(store.isSkillsAvailable()).toBe(true);
-  });
-
-  it("falls back to the demo list on ERR_STUB, with no error on screen", async () => {
-    invoke.mockRejectedValue("ERR_STUB");
-    await store.loadSkills();
-    expect(store.getSkills()).toBe(store.DEMO_SKILLS);
-    expect(store.isDemoSkills()).toBe(true);
-    expect(store.isSkillsAvailable()).toBe(false);
-    expect(store.getSkillsErrorKey()).toBeNull();
   });
 
   it("reports a real error while keeping the backend marked as wired", async () => {
@@ -347,14 +322,13 @@ describe("loading", () => {
     expect(store.isSkillsAvailable()).toBe(true);
     expect(store.getSkillsErrorKey()).toBe("llm.skills.err_parse");
     expect(store.getSkills()).toEqual([]);
-    expect(store.isDemoSkills()).toBe(false);
   });
 
-  it("treats the screenshot harness `null` as demo", async () => {
+  it("treats a null answer as unavailable and invents no skills", async () => {
     invoke.mockResolvedValue(null);
     await store.loadSkills();
-    expect(store.isDemoSkills()).toBe(true);
-    expect(store.getSkills()).toBe(store.DEMO_SKILLS);
+    expect(store.isSkillsAvailable()).toBe(false);
+    expect(store.getSkills()).toEqual([]);
   });
 
   it("loads once per session unless forced", async () => {
@@ -372,18 +346,17 @@ describe("loading", () => {
     expect(invoke).toHaveBeenCalledTimes(1);
   });
 
-  it("falls back to the demo showcase when the catalogue command is a stub", async () => {
-    invoke.mockRejectedValue("ERR_STUB");
+  it("shows an empty showcase and the error when the catalogue cannot be read", async () => {
+    invoke.mockRejectedValue("ERR_SKILL_IO: offline");
     await store.loadCatalog();
-    expect(store.getCatalog()).toBe(store.DEMO_CATALOG);
-    expect(store.isDemoSkills()).toBe(true);
+    expect(store.getCatalog()).toEqual([]);
+    expect(store.getSkillsErrorKey()).toBe("llm.skills.err_io");
   });
 
   it("keeps the backend showcase when there is one", async () => {
     invoke.mockResolvedValue([{ name: "a", description: "d", url: "u" }]);
     await store.loadCatalog();
     expect(store.getCatalog()).toHaveLength(1);
-    expect(store.isDemoSkills()).toBe(false);
   });
 });
 
@@ -421,7 +394,7 @@ describe("installing", () => {
 
   it("installs a showcase entry by name, keeping the repo and the pin in Rust", async () => {
     invoke.mockResolvedValue({ name: "openrouter-tts", description: "d" });
-    const entry = store.DEMO_CATALOG.find((e) => e.name === "openrouter-tts")!;
+    const entry = { name: "openrouter-tts", description: "d", repo_url: "https://github.com/OpenRouterTeam/skills" };
     await store.installCatalogEntry(entry);
     expect(invoke).toHaveBeenCalledWith("llm_skills_install_catalog", {
       name: "openrouter-tts",
@@ -507,7 +480,6 @@ describe("store lifecycle", () => {
     store.resetSkillsStore();
     expect(store.getSkills()).toEqual([]);
     expect(store.getCatalog()).toEqual([]);
-    expect(store.isDemoSkills()).toBe(false);
     expect(store.getBusySkill()).toBeNull();
     expect(store.getLastInstalled()).toBeNull();
     expect(store.isSkillsLoading()).toBe(false);

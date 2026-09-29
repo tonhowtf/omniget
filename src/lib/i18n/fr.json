@@ -1311,7 +1311,10 @@
       "reset_hints": "Réinitialiser les conseils",
       "reset_hints_desc": "Afficher à nouveau tous les conseils masqués",
       "restore": "Restaurer",
-      "hints_restored": "All hints restored"
+      "hints_restored": "All hints restored",
+      "run_in_background": "Exécuter les agents en arrière-plan",
+      "run_in_background_desc": "OmniGet démarre masqué à l’ouverture de session et fermer la fenêtre le garde dans la zone de notification : les tâches, Loops et routines continuent et la commande omniget le trouve. Désactive « Quitter à la fermeture de la fenêtre ».",
+      "run_in_background_flatpak": "Flatpak : le démarrage à l’ouverture de session et le lancement depuis la ligne de commande ne sont pas encore vérifiés."
     },
     "appearance": {
       "title": "Apparence",
@@ -2772,12 +2775,10 @@
       "mcp": "MCP",
       "skills": "Skills",
       "accounts": "Accounts",
-      "local": "Local",
       "arena": "Arena",
       "jobs": "Jobs",
       "loops": "Loops"
     },
-    "demo_banner": "Demo data: the LLM backend is not wired yet.",
     "rail": {
       "title": "Agents",
       "unassigned": "Unassigned",
@@ -2785,7 +2786,8 @@
       "new_chat": "New chat",
       "empty": "No agents yet.",
       "no_profile": "No local profile",
-      "search": "Search agents"
+      "search": "Search agents",
+      "load_failed": "Vos discussions enregistrées n'ont pas pu être lues."
     },
     "role": {
       "coordinator": "Coordinator",
@@ -2896,14 +2898,11 @@
       "connect": "Connect or manage providers",
       "local_hint": "Local server: make sure it is running and has models installed. No saved API key is required.",
       "no_models": "This provider returned no models. Check the models available on the server or enter an identifier manually.",
-      "load_failed": "Could not load models: {{error}}"
+      "load_failed": "Impossible de lire vos fournisseurs : {{error}}"
     },
     "err": {
       "unavailable": "The LLM backend is not wired yet.",
       "turn_failed": "The turn could not start."
-    },
-    "local": {
-      "explanation": "Local model management is not available here yet. Configure an existing local provider in Models & Routing."
     },
     "skills": {
       "title": "Skills",
@@ -2911,7 +2910,6 @@
       "installed_title": "Installed",
       "loading": "Reading the installed skills…",
       "empty": "No skill installed yet. Install one from a folder, a zip or a git repository.",
-      "demo": "Demo data — nothing here is installed on this machine.",
       "remove": "Remove",
       "install": "Install",
       "installing": "Installing…",
@@ -2993,7 +2991,6 @@
       "lede": "Le point de terminaison auquel se connectent d'autres agents, et les serveurs auxquels OmniGet se connecte.",
       "half_client": "Serveurs utilisés",
       "half_server": "Votre point de terminaison",
-      "demo": "Serveurs de démonstration : le backend MCP ne répond pas encore. Rien ici n'est une vraie connexion.",
       "servers": "Serveurs connectés",
       "add": "Ajouter un serveur",
       "loading": "Lecture des serveurs enregistrés…",
@@ -3218,7 +3215,12 @@
         "connecting": "Connecting…",
         "err_unknown_provider": "Unknown provider",
         "err_credential_failed": "Credential validation failed"
-      }
+      },
+      "sandbox_full": "accès complet autorisé",
+      "sandbox_full_hint": "Les tours de ce compte peuvent modifier des fichiers, et un tour en mode Accès complet s'exécute sans demander.",
+      "sandbox_allow_full": "Autoriser l'accès complet",
+      "sandbox_allow_full_confirm": "Confirmer : autoriser l'accès complet",
+      "sandbox_make_write": "Revenir à l'écriture seule"
     },
     "rules": {
       "title": "Always rules",
@@ -3277,10 +3279,8 @@
       "undone": "Undone: {{count}} file(s) restored",
       "chat": "Chat",
       "agents": "Agents",
-      "activity": "Activity",
       "configure": "Configure",
       "tasks": "Tasks",
-      "routines": "Routines",
       "performance": "Usage and performance",
       "monitor": "Usage monitor",
       "off": "Off",
@@ -3302,7 +3302,10 @@
       "retro": "Retrospective",
       "installed": "Installed",
       "remote": "Remote access",
-      "wizard": "Project setup"
+      "wizard": "Project setup",
+      "work": "Travail",
+      "more": "Plus",
+      "loops": "Boucles"
     },
     "jobs": {
       "lede": "Agent runs that work in the background while you do something else.",
@@ -3318,6 +3321,12 @@
       "list_title": "Recent jobs",
       "empty": "No jobs yet. Start one above and it shows up here.",
       "result": "Result",
+      "outcome": {
+        "title": "Verdict de l'agent",
+        "succeeded": "Réussi",
+        "failed": "Échoué",
+        "missing": "L'agent a fini sans sa ligne OUTCOME : lisez le résultat avant de vous y fier."
+      },
       "error": "Error",
       "log": "Log",
       "log_empty": "Nothing logged yet.",
@@ -3332,26 +3341,31 @@
         "done": "Done",
         "failed": "Failed",
         "cancelled": "Cancelled",
-        "waiting_workspace": "En attente du dossier"
+        "waiting_workspace": "En attente du dossier",
+        "review": "À relire",
+        "done_unreported": "Terminée, sans compte rendu"
       },
       "kind": {
         "run": "Run",
         "chat": "Chat",
         "loop": "Loop",
-        "trigger": "Trigger",
+        "trigger": "Planifiée",
         "mission": "Mission"
       },
       "ask": {
         "title": "Wants to use {{tool}}",
         "allow": "Allow",
         "always": "Always allow",
-        "deny": "Deny"
+        "deny": "Deny",
+        "session": "Autoriser pour ce tour",
+        "stop": "Refuser et arrêter",
+        "cli": "Depuis un terminal : omniget agent approve {{id}}"
       },
       "trigger": {
-        "title": "Triggers",
-        "lede": "Start a job on a schedule or when a webhook is called.",
-        "empty": "No triggers yet. Create one below.",
-        "new_title": "New trigger",
+        "title": "Planifications et webhooks",
+        "lede": "Lancez une tâche à heures fixes ou quand un webhook est appelé.",
+        "empty": "Aucune planification pour l'instant. Créez-en une ci-dessous.",
+        "new_title": "Nouvelle planification",
         "kind": "Kind",
         "kind_cron": "Schedule",
         "kind_webhook": "Webhook",
@@ -3359,10 +3373,10 @@
         "cron": "Cron line",
         "cron_hint": "Five fields (minute hour day month weekday), or @hourly, @daily, @weekly, @monthly.",
         "body_hint": "{{token}} is replaced by the webhook body.",
-        "create": "Create trigger",
+        "create": "Créer la planification",
         "enabled": "Enabled",
         "fire": "Fire now",
-        "fired": "Trigger fired",
+        "fired": "La planification a lancé une tâche",
         "fired_count": "Fired {{count}}×",
         "copy_curl": "Copy curl",
         "catch_up": "Manquées app fermée",
@@ -3387,7 +3401,9 @@
         "no_start": "Arrêté : l'agent n'a jamais démarré",
         "deadline": "Arrêté : durée maximale atteinte",
         "limit": "Arrêté : limite de budget atteinte",
-        "ask_expired": "Une question est restée sans réponse"
+        "ask_expired": "Une question est restée sans réponse",
+        "app_restart": "L’application s’est fermée pendant cette tâche",
+        "budget": "Arrêté : un plafond de budget bloque cette portée"
       },
       "queue": {
         "title": "File d'attente",
@@ -3411,6 +3427,121 @@
         "unavailable_no_snapshot": "On ne sait pas ce que cette tâche a modifié : ses tours n’ont pris aucun instantané du dossier.",
         "unavailable_no_workspace": "Cette tâche a tourné sans dossier, il n’y a donc pas de diff.",
         "unavailable_error": "L’instantané du dossier de cette tâche n’a pas pu être lu."
+      },
+      "tokens": {
+        "title": "Jetons d'accès",
+        "lede": "Les scripts, les webhooks et la CLI omniget atteignent les routes d'agent du pont local avec un jeton à portée limitée. La clé de l'extension du navigateur n'est pas faite pour elles.",
+        "empty": "Aucun jeton pour l'instant.",
+        "name": "Nom",
+        "scopes": "Ce qu'il peut faire",
+        "scope_jobs_read": "Voir les tâches (jobs:read)",
+        "scope_jobs_operate": "Lancer et annuler des tâches (jobs:operate)",
+        "scope_approvals_respond": "Répondre aux approbations (approvals:respond)",
+        "expires": "Expire",
+        "expires_never": "Jamais",
+        "expires_days": "Dans {{days}} jours",
+        "expires_at": "expire {{when}}",
+        "create": "Créer un jeton",
+        "created": "Jeton créé. Copiez-le maintenant : il ne sera plus affiché.",
+        "copy": "Copier le jeton",
+        "revoke": "Révoquer",
+        "kind_cli": "CLI omniget de cet ordinateur",
+        "last_used": "dernière utilisation {{when}}",
+        "never_used": "jamais utilisé",
+        "legacy_toggle": "Accepter encore la clé de l'extension du navigateur sur les routes d'agent (obsolète)",
+        "legacy_hint": "Conservé pendant une version pour que les anciens scripts continuent de fonctionner. La prochaine version la refuse.",
+        "legacy_seen": "La clé de l'extension du navigateur a été utilisée sur {{route}} à {{when}}. Passez ce script à un jeton à portée limitée.",
+        "curl_hint": "Définissez OMNIGET_TOKEN avec un jeton ayant la portée jobs:operate (Jetons d'accès, ci-dessous).",
+        "scope_audit_read": "Lire le journal d'audit (audit:read)",
+        "scope_budget_write": "Définir et relever les budgets (budget:write)",
+        "scope_workflow_trust": "Approuver les workflows de dépôt (workflow:trust)"
+      },
+      "isolation": {
+        "label": "Où il écrit",
+        "auto": "Automatique : son propre worktree seulement si une autre tâche écrit déjà là",
+        "worktree": "Toujours dans son propre worktree git",
+        "shared": "Dans le dossier lui-même (attend son tour)"
+      },
+      "worktree": {
+        "title": "Worktree",
+        "chip": "{{branch}} depuis {{base}}",
+        "gone": "Worktree supprimé ; la branche garde le travail.",
+        "remove": "Supprimer le worktree",
+        "removed": "Worktree supprimé.",
+        "kept_branch": "Worktree supprimé. La branche {{branch}} garde le travail de la tâche.",
+        "saved": "{{count}} fichier(s) non commité(s) enregistré(s) d'abord sur la branche."
+      },
+      "proof": {
+        "title": "Preuve",
+        "summary": "{{files}} fichier(s) modifié(s) · {{tokens}} jetons · {{time}}",
+        "check": "{{command}} → code de sortie {{code}}",
+        "by_host": "Tamponné par OmniGet sur cet ordinateur à partir de ce qu'il a enregistré, pas écrit par l'agent."
+      },
+      "review": {
+        "mark": "Marquer comme relu",
+        "title": "Relecture",
+        "lede": "Écartez un bloc, laissez des notes à l'agent, puis intégrez ou abandonnez le travail.",
+        "discard_hunk": "Écarter",
+        "hunk_discarded": "Bloc écarté.",
+        "hunk_stale": "Ce code a changé depuis son chargement. Le diff a été rafraîchi ; réessayez.",
+        "busy": "Un job écrit dans ce dossier en ce moment. Réessayez quand il aura fini.",
+        "not_actionable": "Le worktree de ce job a été supprimé : les blocs ne peuvent plus être écartés un par un.",
+        "notes_title": "Notes pour l'agent",
+        "notes_hint": "Sélectionnez des lignes dans le diff et commentez. L'envoi lance une suite dans la même conversation, qui ne coûte que les notes.",
+        "notes_empty": "Pas encore de notes.",
+        "note_file": "fichier entier",
+        "note_sent": "envoyée à {{job}}",
+        "note_delete": "Supprimer la note",
+        "notes_send": "Envoyer {{count}} note(s) à l'agent",
+        "notes_sent": "Notes envoyées : job de suite {{job}} lancé.",
+        "walkthrough_title": "Visite guidée",
+        "walkthrough": "Expliquer les changements",
+        "walkthrough_refresh": "Expliquer à nouveau",
+        "walkthrough_loading": "Rédaction de la visite…",
+        "walkthrough_too_large": "Ce diff est trop grand pour une visite guidée. Relisez-le fichier par fichier.",
+        "walkthrough_uncovered": "{{count}} bloc(s) hors de toute étape",
+        "walkthrough_cached": "depuis le cache",
+        "importance_critical": "critique",
+        "integrate_title": "Intégrer",
+        "integrate_into": "Fusionner {{branch}} dans {{target}}",
+        "commits": "{{count}} commit(s) à apporter",
+        "worktree_dirty": "{{count}} fichier(s) non commités dans le worktree seront d'abord enregistrés sur la branche.",
+        "blocked": "Impossible d'intégrer maintenant : {{reason}}",
+        "strategy_merge": "Commit de fusion",
+        "strategy_squash": "Squash en un seul commit",
+        "integrate": "Intégrer",
+        "integrated": "Intégré dans {{target}}.",
+        "up_to_date": "{{target}} contient déjà ce travail.",
+        "conflict": "Conflit dans {{files}}. Rien n'a changé dans votre checkout.",
+        "failed": "Git a refusé la fusion (un hook, peut-être). Rien n'a changé dans votre checkout.",
+        "discard_work": "Abandonner le travail",
+        "discard_confirm": "Abandonner le travail de ce job ? Son worktree et la branche {{branch}} seront supprimés.",
+        "discarded": "Travail abandonné. La branche {{branch}} était à {{tip}}."
+      },
+      "resumed_by_itself": "Repris tout seul ({{count}}×)",
+      "workflow": {
+        "title": "Workflow du dépôt",
+        "state": {
+          "trusted": "En vigueur",
+          "untrusted": "Non approuvé",
+          "invalid": "Invalide",
+          "none": "Aucun"
+        },
+        "last_good": "La dernière version valide reste en vigueur jusqu'à ce que le fichier soit corrigé.",
+        "no_last_good": "Aucune version valide antérieure : les tâches dans ce dossier sont refusées jusqu'à la correction du fichier.",
+        "defaults": "Valeurs par défaut :",
+        "commands": "Commandes qu'il exécute sur cet ordinateur :",
+        "kind": {
+          "after_create": "après la création du worktree",
+          "before_remove": "avant la suppression du worktree",
+          "check": "vérification après la tâche"
+        },
+        "untrusted_hint": "Tant que vous n'approuvez pas cette version exacte, ces commandes sont ignorées et un mode d'exécution plus permissif n'est pas appliqué. Toute modification du fichier redemande.",
+        "trust": "Approuver cette version",
+        "revoke": "Retirer l'approbation",
+        "template": "Modèle de prompt",
+        "trusted_toast": "Workflow approuvé : ses commandes s'exécutent désormais",
+        "untrusted_toast": "Workflow plus approuvé"
       }
     },
     "loops": {
@@ -3440,13 +3571,56 @@
         "running": "Running",
         "done": "Done",
         "failed": "Failed",
-        "cancelled": "Cancelled"
+        "cancelled": "Cancelled",
+        "paused": "En pause",
+        "blocked": "Bloqué",
+        "budget_limited": "Budget atteint"
       },
       "check_passed": "Condition met",
       "summary": "Up to {{rounds}} rounds. Stops earlier when a configured condition or time limit is reached.",
-      "no_check": "No check command: completion will be controlled by the round or time limit.",
+      "no_check": "Pas de commande de vérification : après chaque tour, un auditeur indépendant (le plus petit modèle de l'agent) décide si le travail est terminé, jusqu'à 20 tours.",
       "review": "Review loop",
-      "edit": "Edit configuration"
+      "edit": "Edit configuration",
+      "auto_resume": "Reprendre tout seul après un redémarrage",
+      "auto_resume_hint": "Si l’application se ferme pendant un tour, le Loop continue à sa réouverture, sauf si ce tour avait déjà écrit dans votre dossier.",
+      "run_mode_hint": "Chaque tour de la boucle s’exécute avec ce mode. Avec « Demander avant tout », chaque tour s’arrête et vous attend avant toute modification ou commande.",
+      "max_cost": "Budget (US$)",
+      "paused_budget": "En pause : budget atteint",
+      "paused_budget_hint": "Aucun tour ne démarre tant que le plafond n'est pas relevé ; le relever reprend la boucle.",
+      "open_incident": "Ouvrir l'incident",
+      "cost_estimated": "(estimé)",
+      "cost_tokens": "{{tokens}} tokens pondérés",
+      "cost_unknown": "{{count}} tour(s) au coût inconnu",
+      "stop": {
+        "audit_complete": "Vérifié par l'auditeur",
+        "audit_blocked": "L'auditeur a vu l'agent bloqué 3 tours de suite",
+        "audit_unavailable": "Audit indisponible deux fois de suite",
+        "token_budget": "Budget de tokens atteint",
+        "max_rounds": "Limite de tours atteinte",
+        "round_failed": "Un tour a échoué : {{error}}",
+        "audit_disagrees": "L'agent a dit avoir fini et l'auditeur a contesté 3 fois de suite : à vous de décider"
+      },
+      "token_budget": "Budget de tokens",
+      "tokens": "{{used}} / {{budget}} tokens",
+      "guided": "{{count}} tours n'ont envoyé que la suite (la tâche n'a pas été renvoyée).",
+      "audits": "Verdicts de l'auditeur",
+      "verdict": {
+        "continue": "Continuer",
+        "complete": "Terminé",
+        "blocked": "Bloqué",
+        "none": "Pas de verdict"
+      },
+      "claimed_done": "a dit avoir fini",
+      "claimed_done_hint": "L'agent a dit avoir fini ; seul le verdict de l'auditeur termine la boucle.",
+      "side_reason": {
+        "provider_small": "Plus petit modèle du même compte",
+        "session_model": "Aucun modèle plus petit connu : celui de l'agent",
+        "requested": "Choisi pour cette boucle",
+        "setting": "Réglage du modèle secondaire"
+      },
+      "overhead": "Auditeur {{audit}} pour des tours à {{rounds}} ({{percent}} %).",
+      "blocked_hint": "La boucle s'est arrêtée et a besoin de vous. Reprendre lance un nouveau tour, audité à nouveau.",
+      "note": "Progression"
     },
     "limits": {
       "title": "Limits strip",
@@ -3559,22 +3733,18 @@
       "model": "Connection and model",
       "customize": "Tools and limits",
       "tasks": "Tasks",
-      "routines": "Routines",
       "active": "Running",
       "attention": "Needs attention",
       "done": "Finished",
       "create": "Create a task",
-      "create_routine": "Create a routine",
       "jobs_hint": "Run a task in the background. Open its details to see the result, approve a tool or stop execution.",
       "loops_hint": "Repeat a task until a check passes or its limit is reached. Review the stop conditions before starting.",
       "models_hint": "Connect an API provider, then choose its model for an agent. Chat subscriptions are configured in Connections.",
       "mcp_hint": "Connect a tool, test it, then choose which agents may use it. Adding a connection does not grant permission.",
       "skills_hint": "Skills give agents reusable instructions. Review the source and scan result before installing, then assign the skill to an agent.",
       "observatory_hint": "Inspect measured activity and provider quotas. Missing measurements are unavailable, never zero. Diagnostics run only when you open them.",
-      "local_hint": "Use a local model through a compatible server. Connect the running server and select one of its actual models before creating an agent.",
       "arena_hint": "Model comparison is not available yet. You can choose a model and run a conversation with the current tools.",
       "unavailable_feature": "Not available yet",
-      "local_steps": "Start your local model server|Connect its endpoint in AI settings|Choose the model for an agent",
       "arena_steps": "Select a model|Open a conversation|Review the result",
       "roster_hint": "Start with one agent and give it a clear purpose. Add a team when your task needs it.",
       "suggestion_1": "List my downloads and explain which need attention",
@@ -3587,7 +3757,8 @@
       "search": "Find an agent",
       "no_matches": "No matching agents",
       "templates_impact": "Review the template and its effect on the existing team before applying it.",
-      "mcp_server_hint": "Laissez d'autres apps d'IA utiliser OmniGet : activez le serveur, créez un client avec seulement les permissions nécessaires, puis collez son extrait dans l'app."
+      "mcp_server_hint": "Laissez d'autres apps d'IA utiliser OmniGet : activez le serveur, créez un client avec seulement les permissions nécessaires, puis collez son extrait dans l'app.",
+      "create_loop": "Créer une boucle"
     },
     "prompts": {
       "omni": "You are Omni, the assistant inside OmniGet. Answer briefly and in the language the user writes in. Use a tool only when it is clearly needed.",
@@ -3618,14 +3789,16 @@
       "start": "Délai de démarrage (secondes)",
       "start_desc": "Un agent qui ne dit rien pendant ce temps après son lancement n'a jamais reçu le prompt.",
       "deadline": "Durée maximale d'une tâche (minutes)",
-      "deadline_desc": "Toute tâche en arrière-plan (exécution, tour de boucle, routine) s'arrête ici, sauf si elle fixe la sienne.",
+      "deadline_desc": "Toute tâche en arrière-plan (exécution, tour de boucle, exécution planifiée) s'arrête ici sauf si elle fixe sa propre limite.",
       "ask_chat": "Attente des questions dans le chat (minutes)",
       "ask_chat_desc": "Ensuite la question expire : l'action n'est pas exécutée et on vous dit pourquoi.",
       "ask_job": "Attente des questions dans les tâches (minutes)",
       "ask_job_desc": "Laissez 0 pour attendre jusqu'à la durée maximale de la tâche.",
       "notify_delay": "Prévenir après (secondes)",
       "notify_delay_desc": "Une question encore ouverte après ce délai devient une notification système. Si vous répondez avant, jamais.",
-      "offline": "Impossible d'enregistrer : le backend n'a pas répondu."
+      "offline": "Impossible d'enregistrer : le backend n'a pas répondu.",
+      "auto_resume": "Reprendre tout seul après un redémarrage",
+      "auto_resume_desc": "Quand l’application se ferme ou qu’un agent devient muet, une tâche qui tournait dans son propre worktree ou qui n’a fait que lire des fichiers repart d’elle-même : elle poursuit sa session et doit vérifier ce qui est déjà fait avant de répéter quoi que ce soit. Une tâche qui a écrit dans votre dossier vous attend toujours. Une tâche ou un Loop peut en décider autrement."
     },
     "central": {
       "agentkit": {
@@ -5350,7 +5523,6 @@
         "verify_hint": "Runs in every worktree; the exit code decides pass or fail.",
         "cleanup": "Clean up",
         "cleanup_lede": "Archives the threads (their worktrees go; the work stays in the arena's refs).",
-        "cleanup_losers": "Only the losers",
         "cleanup_all": "Every entry (discard the arena)",
         "delete": "Delete arena",
         "delete_lede": "Removes this arena from the history and its refs. The threads stay.",
@@ -5466,10 +5638,11 @@
           "verify_hint": "Optional; runs in each worktree when its turn ends. Timeout",
           "timeout": "Timeout in minutes",
           "minutes": "min",
-          "start": "Start in {{count}} tools"
+          "start": "Start in {{count}} tools",
+          "min_tools": "Choisissez au moins {{count}} outils à comparer."
         },
         "apply": {
-          "title": "Apply the winner",
+          "title": "Choisir celui-ci",
           "lede": "{{name}}'s branch goes into the target branch. Nothing else is touched.",
           "target": "Target branch",
           "strategy": "How",
@@ -5480,22 +5653,49 @@
           "conflicts": "{{count}} files conflict; resolve in the thread first.",
           "checked_out": "The branch is checked out at {{path}}.",
           "dirty": "That checkout has uncommitted changes: commit or stash them first.",
-          "touch_checkout": "Update my checkout too (fast-forward only)",
+          "touch_checkout": "Fusionner dans mon checkout (git merge avec mon identité et mes hooks ; annulé en cas de conflit)",
           "ref_only": "Only the branch moves; no checkout is touched.",
-          "clean_losers": "Archive the losing threads and remove their worktrees",
+          "clean_losers": "Puis retirer les autres (worktrees ; leur travail reste dans les refs de l'arène)",
           "delete_branches": "Also delete their branches (only OmniGet's)",
           "confirm": "I want to change {{branch}}",
           "do": "Apply",
           "ok": "Applied to {{branch}}",
-          "updated_checkout": "your checkout moved forward",
-          "updated_ref": "only the branch ref moved",
-          "cleaned": "{{count}} threads archived"
+          "updated_checkout": "fusionné dans votre checkout",
+          "updated_ref": "only the branch ref moved"
         },
         "plan": {
           "implement_n": "Implement in N tools",
           "hint": "Open the Arena with this plan as the prompt"
         },
-        "apply_winner": "Apply winner"
+        "apply_winner": "Apply winner",
+        "removed": "{{count}} worktrees supprimés",
+        "branches_kept": "{{count}} branches conservées",
+        "remove_others": "Retirer les autres",
+        "choose": "Choisir celui-ci",
+        "choose_hint": "Fusionner le travail de cette colonne dans la branche de base",
+        "estimate": {
+          "total": "Coût estimé avant de commencer : {{total}} pour {{count}} outils",
+          "unknown": "{{count}} sans estimation",
+          "rough": "approximatif : prix catalogue × un tour typique",
+          "source": {
+            "history": "Moyenne de {{runs}} exécutions passées dans l'arène",
+            "price": "Prix catalogue × un tour de code typique (approximatif)",
+            "unknown": "Aucun prix connu (abonnement, ou modèle absent du tableau des prix)"
+          }
+        },
+        "compare": {
+          "title": "Où elles divergent",
+          "toggle": "Comparer",
+          "divergent": "{{count}} fichiers diffèrent",
+          "agreed": "{{count}} identiques",
+          "pending": "{{count}} encore en cours",
+          "show_agreed": "Afficher les fichiers identiques",
+          "file": "Fichier",
+          "untouched": "comme la base",
+          "none_divergent": "Toutes les colonnes ont abouti aux mêmes fichiers.",
+          "column": "{{count}} divergents",
+          "column_hint": "Fichiers où cette colonne diffère des autres"
+        }
       },
       "run": {
         "back": "Back",
@@ -5512,7 +5712,8 @@
           "done": "Done",
           "failed": "Failed",
           "cancelled": "Cancelled",
-          "skipped": "Skipped"
+          "skipped": "Skipped",
+          "review": "À relire"
         },
         "runner": {
           "label": "Runs with",
@@ -5662,6 +5863,156 @@
           "review_started": "Review job started",
           "open_jobs": "Open Jobs"
         }
+      }
+    },
+    "run_mode": {
+      "label": "Mode d'exécution",
+      "approval_required": "Demander avant tout",
+      "auto_edits": "Modifications automatiques",
+      "auto": "Automatique (relecteur du CLI)",
+      "full_access": "Accès complet",
+      "approval_required_hint": "Chaque modification et chaque commande vous demandent d'abord.",
+      "auto_edits_hint": "Les modifications de fichiers passent ; les commandes demandent d'abord.",
+      "auto_hint": "Le relecteur du CLI décide ; si le CLI n'en a pas, cela fonctionne comme Modifications automatiques.",
+      "full_access_hint": "Rien ne demande. Le compte du CLI doit aussi autoriser l'accès complet.",
+      "full_access_warning": "L'accès complet exécute chaque modification et chaque commande sans demander. Utilisez-le seulement dans un dossier que vous pouvez perdre.",
+      "full_access_confirm": "Autoriser l'accès complet",
+      "cancel": "Annuler"
+    },
+    "audit": {
+      "title": "Journal d'audit",
+      "lede": "Qui a fait quoi sur les tâches, questions, autorisations, jetons et agents, et par quel canal. Les prompts, le contenu des fichiers et les secrets ne sont jamais enregistrés.",
+      "since": "Période",
+      "since_1h": "Dernière heure",
+      "since_1d": "Dernier jour",
+      "since_7d": "7 derniers jours",
+      "since_30d": "30 derniers jours",
+      "since_90d": "90 derniers jours",
+      "kind": "Type",
+      "kind_all": "Tout",
+      "kind_job": "Tâches",
+      "kind_ask": "Questions",
+      "kind_grant": "Autorisations permanentes",
+      "kind_token": "Jetons",
+      "kind_agent": "Agents",
+      "kind_loop": "Boucles",
+      "refresh": "Actualiser",
+      "export": "Exporter en CSV",
+      "empty": "Rien sur cette période.",
+      "error": "Impossible de lire le journal d'audit.",
+      "who": "Qui",
+      "through": "Par",
+      "on": "Sur",
+      "retention": "Conserver les lignes pendant (jours)",
+      "retention_days": "Les lignes sont conservées {{days}} jours.",
+      "retention_save": "Enregistrer",
+      "retention_saved": "Enregistré ; les lignes plus anciennes ont été supprimées.",
+      "cli_hint": "le même journal depuis un terminal, avec un jeton qui a audit:read."
+    },
+    "work": {
+      "nav": "Tout le travail",
+      "lede": "Tout ce que vos agents font pour vous dans une seule liste : d'abord ce qui a besoin de vous, puis ce qui tourne, attend, est prêt à relire ou vient de finir.",
+      "badge_needs_you": "Vous attend ({{count}})",
+      "badge_running": "{{count}} en cours",
+      "badge_review": "{{count}} à relire",
+      "badge_queued": "{{count}} en file",
+      "section": {
+        "needs_you": "Vous attend",
+        "running": "En cours",
+        "queued": "En attente de démarrage",
+        "review": "Prêt à relire",
+        "done": "Terminé récemment"
+      },
+      "pill": {
+        "approval": "Approbation requise",
+        "input": "Réponse requise",
+        "decision": "Décision requise",
+        "working": "En cours",
+        "failed": "Échec",
+        "queued": "En file",
+        "review": "À relire",
+        "ready": "Terminé",
+        "stopped": "Arrêté"
+      },
+      "source": {
+        "job": "Tâche",
+        "loop": "Boucle",
+        "mission": "Mission",
+        "thread": "Fil",
+        "run": "Discussion",
+        "ask": "Question",
+        "budget": "Budget"
+      },
+      "asks_for": "demande à utiliser {{tool}}",
+      "nothing_waits": "Rien ne vous attend.",
+      "empty": "Aucun travail pour l'instant.",
+      "partial": "Une partie du travail n'a pas pu être lue : {{error}}",
+      "notify": {
+        "approval": "Approbation requise : {{title}}",
+        "input": "Réponse requise : {{title}}",
+        "decision": "Décision requise : {{title}}",
+        "failed": "Échec : {{title}}",
+        "ready": "Terminé : {{title}}",
+        "review": "Prêt à relire : {{title}}",
+        "more": "Et {{count}} de plus dans Travail"
+      }
+    },
+    "budget": {
+      "title": "Budgets",
+      "refresh": "Actualiser",
+      "lede": "Plafonds pour vos agents : pour tout, un agent, un compte, une boucle, une tâche ou une mission, en dollars, en tokens pondérés ou en part de la fenêtre 5 h / 7 j d'un abonnement. Au-delà d'un plafond strict, la portée se met en pause et son travail s'arrête jusqu'à ce que vous le releviez. Sans plafond, rien n'est limité.",
+      "read_error": "Impossible de lire les budgets.",
+      "empty": "Aucun plafond pour l'instant : rien n'est limité.",
+      "hard": "met en pause",
+      "soft": "demande",
+      "paused": "En pause",
+      "remove": "Supprimer",
+      "no_reading": "Pas encore de lecture de quota (elle vient du flux de la CLI)",
+      "warn_at": "avertit à {{pct}} %",
+      "estimate_note": "les dollars d'un abonnement sont l'estimation de la table de prix",
+      "add": "Ajouter un plafond",
+      "scope": "Pour",
+      "scope_id": "Id",
+      "metric_label": "Mesuré en",
+      "window_label": "Fenêtre",
+      "amount": "Plafond",
+      "warn_label": "Avertir à (%)",
+      "soft_label": "Demander au lieu de mettre en pause",
+      "save": "Enregistrer",
+      "hard_hint": "Au-delà du plafond la portée se met en pause : son travail en cours et en file est annulé et un incident vous attend (relever et reprendre, ou garder en pause).",
+      "soft_hint": "Au-delà du plafond le tour suivant demande « continuer ? » une fois par fenêtre, comme toute approbation (aussi depuis la CLI et le téléphone). Un non met la portée en pause.",
+      "quota_hint": "Les plafonds de quota ne lisent que ce que la CLI a signalé dans son propre flux. Pour un compte (ou tout) le plafond est le pourcentage de la fenêtre ; pour une boucle, une tâche, un agent ou une mission ce sont les points consommés depuis son début.",
+      "warn_toast": "Budget de {{scope}} : {{used}} sur {{limit}} utilisés",
+      "metric": {
+        "usd": "Dollars",
+        "weighted_tokens": "Tokens pondérés",
+        "quota_pct": "Part de la fenêtre de quota"
+      },
+      "window": {
+        "turn": "par tour",
+        "day": "par jour",
+        "week": "par semaine",
+        "5h": "fenêtre de 5 h",
+        "7d": "fenêtre de 7 j",
+        "run": "toute l'exécution"
+      },
+      "scope_kind": {
+        "global": "Tout",
+        "agent": "Agent",
+        "account": "Compte",
+        "loop": "Boucle",
+        "job": "Tâche",
+        "mission": "Mission"
+      },
+      "incident": {
+        "open": "Budget atteint",
+        "kept": "Gardé en pause",
+        "hard_line": "{{used}} utilisés sur {{limit}}. Rien ne démarre ici tant que vous ne relevez pas le plafond.",
+        "checkpoint_line": "Le point de contrôle à {{limit}} a reçu un non ({{used}} utilisés). Rien ne démarre ici tant que vous ne le relevez pas.",
+        "new_limit": "Nouveau plafond",
+        "raise": "Relever et reprendre",
+        "keep": "Garder en pause",
+        "too_low": "Le nouveau plafond doit dépasser ce qui est déjà utilisé."
       }
     }
   },
@@ -6176,9 +6527,6 @@
       "tool_calls": "{{count}} outils",
       "permissions_title": "En attente de votre réponse",
       "permission_label": "Veut utiliser {{action}}",
-      "answer_once": "Autoriser une fois",
-      "answer_always": "Toujours autoriser",
-      "answer_deny": "Refuser",
       "expires_in": "Expire dans {{seconds}} s",
       "request_title": "Votre demande",
       "summary_title": "Réponse",
@@ -6212,7 +6560,8 @@
         "approved": "autorisée",
         "denied": "refusée",
         "expired": "expirée",
-        "cancelled": "annulée"
+        "cancelled": "annulée",
+        "stale": "laissée par un redémarrage"
       },
       "unknown_hint": "OmniGet s'est fermé pendant cette exécution, son résultat est donc inconnu. Rien n'a été relancé automatiquement : vérifiez les modifications ci-dessous et choisissez quoi faire.",
       "interrupted_hint": "OmniGet s'est fermé avant que cette exécution n'atteigne le modèle. Rien n'a été fait.",
@@ -6247,7 +6596,14 @@
       "routine_app_open": "s'exécute uniquement quand OmniGet est ouvert",
       "routine_mute": "Mettre en sourdine",
       "routine_unmute": "Réactiver le son",
-      "routine_muted": "en sourdine"
+      "routine_muted": "en sourdine",
+      "stale_title": "Questions laissées sans réponse par un redémarrage",
+      "stale_hint": "L’app s’est fermée pendant qu’elles attendaient. Rien ne s’est exécuté. Relancez le tour pour redemander.",
+      "dismiss": "Ignorer",
+      "answer_on_card": "Répondez sur sa carte, en haut de cette page.",
+      "answer_once": "Autoriser une fois",
+      "answer_always": "Toujours autoriser",
+      "answer_deny": "Refuser"
     },
     "conversation": {
       "status_working": "En cours…",
@@ -6806,7 +7162,10 @@
       "adv_events": "Événements",
       "blocked_before_call": "Arrêté avant tout appel : rien n'a été exécuté pour cette étape.",
       "verify_started": "Vérification en arrière-plan. Le résultat s'affiche ici à la fin.",
-      "verify_already_running": "Une vérification est déjà en cours pour cette mission."
+      "verify_already_running": "Une vérification est déjà en cours pour cette mission.",
+      "changes": "Modifications",
+      "changes_no_job": "Cette tâche n'a encore lancé aucune tâche de fond.",
+      "changes_job": "Tâche {{job}}"
     },
     "log": {
       "loading": "Chargement du journal…",
@@ -6925,7 +7284,7 @@
     "auth_origin": {
       "user_ui": "Vous, dans la page Missions",
       "chat": "Vous, depuis une conversation",
-      "trigger": "Un déclencheur que vous avez créé",
+      "trigger": "Une planification que vous avez créée",
       "external_mcp": "Un client MCP"
     }
   },
@@ -7015,7 +7374,11 @@
     "native_active": "Native access",
     "native_revoke": "Revoke access",
     "system_read": "Lire l'état de cet ordinateur, les analyses et les plans (washmybelly)",
-    "system_change": "Préparer des plans de nettoyage, maintenir l'alimentation, le mode jeu et les captures FPS (washmybelly)"
+    "system_change": "Préparer des plans de nettoyage, maintenir l'alimentation, le mode jeu et les captures FPS (washmybelly)",
+    "approvals_respond": "Répondre aux demandes d’autorisation de ses missions",
+    "approvals_respond_help": "Avec ceci, le client peut autoriser les appels d’outils de ses propres missions, y compris des commandes shell, comme si vous appuyiez sur Autoriser ici. Ne l’accordez qu’à un client en qui vous avez autant confiance qu’en vous. Il ne peut jamais créer de règle « toujours autoriser », et un agent ne répond jamais à ses propres questions.",
+    "agents_run": "Lancer vos agents en tâches de fond",
+    "agents_run_help": "Avec ceci, le client peut lancer n'importe quel agent de votre liste sur une tâche, dans le dossier qu'il indique, en arrière-plan, comme `omniget agent run`. Il ne voit et n'arrête que les tâches qu'il a lancées. Les demandes d'autorisation des agents vous attendent toujours, sauf si vous autorisez aussi ce client à y répondre."
   },
   "mcp_auth": {
     "title": "Un client IA vous demande de vous connecter",

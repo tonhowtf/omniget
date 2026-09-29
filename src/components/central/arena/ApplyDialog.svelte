@@ -1,7 +1,9 @@
 <script lang="ts">
-  // "Aplicar vencedor": mostra o que vai acontecer (branch alvo, conflitos,
-  // se a branch está em checkout no clone do usuário e se ele está sujo),
-  // pede confirmação explícita e, depois, oferece limpar as perdedoras.
+  // "Escolher este" (roteiro 3.8): mostra o que vai acontecer (branch alvo,
+  // conflitos, se a branch está em checkout no clone do usuário e o que
+  // bloqueia o merge lá), pede confirmação explícita, integra (no checkout:
+  // o merge do 3.5 com os hooks do usuário; fora dele, só o ref) e, depois,
+  // remove as outras colunas (worktrees e branches).
   import { untrack } from "svelte";
   import { t } from "$lib/i18n";
   import { vcsBranches, type BranchInfo } from "$lib/central/vcs";
@@ -10,6 +12,7 @@
     arenaApplyPreview,
     arenaCleanup,
     arenaError,
+    formatMs,
     type ApplyPreview,
     type ApplyResult,
     type ApplyStrategy,
@@ -41,7 +44,7 @@
   let touchCheckout = $state(false);
   let understood = $state(false);
   let cleanLosers = $state(true);
-  let deleteBranches = $state(false);
+  let deleteBranches = $state(true);
   let busy = $state(false);
   let error = $state<string | null>(null);
   let result = $state<ApplyResult | null>(null);
@@ -87,7 +90,7 @@
     !preview ||
       preview.alreadyApplied ||
       preview.conflicts.length > 0 ||
-      (!!preview.checkedOutAt && (preview.checkoutDirty || !touchCheckout)) ||
+      (!!preview.checkedOutAt && (preview.checkoutDirty || !!preview.blocker || !touchCheckout)) ||
       !understood,
   );
 
@@ -108,7 +111,8 @@
       if (cleanLosers) {
         const c = await arenaCleanup(arena.arenaId, "losers", deleteBranches);
         latest = c.arena;
-        cleanupNote = $t("llm.central.arena.apply.cleaned", { count: c.archived.length }) as string;
+        cleanupNote = $t("llm.central.arena.removed", { count: c.worktreesRemoved.length }) as string;
+        if (c.branchesDeleted.length) cleanupNote += ` · ${$t("llm.central.arena.branches_deleted", { count: c.branchesDeleted.length })}`;
         if (c.errors.length) cleanupNote += ` · ${c.errors.join("; ")}`;
       }
       ondone(latest);
@@ -132,7 +136,7 @@
           <Icon name="check-circle" size={18} />
           <div>
             <strong>{$t("llm.central.arena.apply.ok", { branch: result.targetBranch })}</strong>
-            <p class="mono">{result.commit.slice(0, 10)} · {result.updated === "checkout" ? $t("llm.central.arena.apply.updated_checkout") : $t("llm.central.arena.apply.updated_ref")}</p>
+            <p class="mono">{result.commit.slice(0, 10)} · {result.updated === "checkout" ? $t("llm.central.arena.apply.updated_checkout") : $t("llm.central.arena.apply.updated_ref")} · {formatMs(result.tookMs)}</p>
             {#if cleanupNote}<p class="muted">{cleanupNote}</p>{/if}
           </div>
         </div>
@@ -172,6 +176,8 @@
               <li class="warn"><Icon name="warning" size={13} /> {$t("llm.central.arena.apply.checked_out", { path: preview.checkedOutAt })}</li>
               {#if preview.checkoutDirty}
                 <li class="bad"><Icon name="x-circle" size={13} /> {$t("llm.central.arena.apply.dirty")}</li>
+              {:else if preview.blocker}
+                <li class="bad"><Icon name="x-circle" size={13} /> {preview.blocker}</li>
               {:else}
                 <li><label class="check"><input type="checkbox" bind:checked={touchCheckout} /> {$t("llm.central.arena.apply.touch_checkout")}</label></li>
               {/if}

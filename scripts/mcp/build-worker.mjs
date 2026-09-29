@@ -12,19 +12,23 @@ const triple = process.env.TAURI_ENV_TARGET_TRIPLE || rust.stdout.match(/^host: 
 if (!triple || !/^[a-zA-Z0-9_-]+$/.test(triple)) throw new Error('Invalid Rust target');
 if (triple === 'universal-apple-darwin') throw new Error('Build the worker separately for each macOS architecture');
 // Every sidecar in tauri.conf.json `externalBin`: the confined download
-// worker and the washmybelly administrator helper.
+// worker, the washmybelly administrator helper and the permission hook of
+// Claude Code turns. The hook is the cargo binary `omniget-hook-shim`
+// shipped as the sidecar `omniget-hook`: tauri-build copies each sidecar into
+// target/<profile>/ under its sidecar name, and a dev/CI placeholder named
+// like the cargo binary would overwrite it.
 const metadata = spawnSync('cargo', ['metadata', '--no-deps', '--format-version', '1'], { cwd: cargoRoot, encoding: 'utf8' });
 if (metadata.status !== 0) throw new Error('Cannot resolve Cargo target directory');
 const target = JSON.parse(metadata.stdout).target_directory;
 const ext = triple.includes('windows') ? '.exe' : '';
-for (const bin of ['omniget-worker', 'omniget-elevate']) {
+for (const [bin, sidecar] of [['omniget-worker', 'omniget-worker'], ['omniget-elevate', 'omniget-elevate'], ['omniget-hook-shim', 'omniget-hook']]) {
   const args = ['build', '--manifest-path', path.join(root, 'src-tauri/Cargo.toml'), '-p', 'omniget-cli', '--bin', bin, '--target', triple];
   if (release) args.push('--release');
   const result = spawnSync('cargo', args, { cwd: cargoRoot, stdio: 'inherit' });
   if (result.status !== 0) process.exit(result.status || 1);
   const source = path.join(target, triple, release ? 'release' : 'debug', `${bin}${ext}`);
-  const dest = path.join(root, 'src-tauri/binaries', `${bin}-${triple}${ext}`);
+  const dest = path.join(root, 'src-tauri/binaries', `${sidecar}-${triple}${ext}`);
   // Only a changed binary is copied, so an unchanged sidecar does not make
   // the dev app rebuild.
-  console.log(JSON.stringify({ bin, target: triple, ...copyChanged(source, dest) }));
+  console.log(JSON.stringify({ bin, sidecar, target: triple, ...copyChanged(source, dest) }));
 }

@@ -2,6 +2,7 @@ pub mod adaptive_concurrency;
 pub mod agentkit;
 pub mod agentkit_run;
 pub mod ai;
+pub mod app_launch;
 pub mod assist;
 pub mod binary_overrides;
 pub mod catalog;
@@ -47,6 +48,8 @@ pub mod sessions;
 pub mod shell_words;
 pub mod skills;
 pub mod subtitle_merge;
+#[cfg(test)]
+pub mod test_env;
 pub mod threads;
 pub mod tools;
 pub mod vcs;

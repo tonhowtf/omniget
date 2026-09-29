@@ -1,7 +1,11 @@
 <script lang="ts">
   import SurfaceGuide from "$components/llm/SurfaceGuide.svelte";
   import RunsPanel from "$components/llm/activity/RunsPanel.svelte";
+  import AskCard from "$components/llm/activity/AskCard.svelte";
+  import RunModeSelect from "$components/llm/RunModeSelect.svelte";
+  import type { RunMode } from "$lib/stores/llm-run-mode.svelte";
   import DiffView from "$components/llm/activity/DiffView.svelte";
+  import JobReview from "$components/llm/activity/JobReview.svelte";
   import { promptTitle } from "$components/llm/activity/run-status";
   /**
    * Jobs: background agent runs. A form to start one, the list with live
@@ -9,13 +13,13 @@
    * ask inline, and the triggers (cron and webhook) that start jobs on
    * their own, with what they do about missed times.
    */
-  import { onMount } from "svelte";
+  import { onMount, untrack } from "svelte";
+  import { page } from "$app/state";
   import { t } from "$lib/i18n";
   import { showToast } from "$lib/stores/toast-store.svelte";
   import { getAgents, loadRoster } from "$lib/stores/llm-store.svelte";
   import { setLlmFocus } from "$lib/llm/ui-focus.svelte";
   import {
-    answerAsk,
     cancelJob,
     CATCH_UP_CAP,
     deleteJob,
@@ -41,6 +45,7 @@
     markJobSeen,
     pickState,
     queuedEntry,
+    removeJobWorktree,
     queueLines,
     reasonLine,
     setJobLimits,
@@ -49,6 +54,7 @@
     submitJob,
     triggerInput,
     type CatchUp,
+    type Isolation,
     type Job,
     type JobDiffView,
     type Trigger,
@@ -57,6 +63,8 @@
   import PlaybookPanel from "$components/central/run/PlaybookPanel.svelte";
   import SandboxReview from "$components/central/run/SandboxReview.svelte";
   import RunNow from "$components/central/run/RunNow.svelte";
+  import BridgeTokens from "$components/llm/BridgeTokens.svelte";
+  import WorkflowStatus from "$components/llm/WorkflowStatus.svelte";
   import { agentLabel } from "$components/central/run/run-api";
 
   let agents = $derived(getAgents());
@@ -66,7 +74,12 @@
   function matches(job: Job, key: string) {
     if (key === "active") return isActive(job);
     if (key === "attention")
-      return job.state === "waiting_approval" || job.state === "failed" || job.state === "interrupted";
+      return (
+        job.state === "waiting_approval" ||
+        job.state === "review" ||
+        job.state === "failed" ||
+        job.state === "interrupted"
+      );
     if (key === "done") return !isActive(job);
     return true;
   }
@@ -97,6 +110,22 @@
   let agentId = $state("");
   let prompt = $state("");
   let workspace = $state<string | null>(null);
+  let isolation = $state<Isolation>("auto");
+  // Started here, by a person in the window: edits go through, commands ask.
+  // Jobs from the CLI, the bridge or MCP ask for everything unless told (D2).
+  let runMode = $state<RunMode>("auto_edits");
+  const isolations: Isolation[] = ["auto", "worktree", "shared"];
+
+  /** The folder's `.omniget/workflow.md` (3.10) sets where the form starts;
+   * a looser run mode only once the person trusts the file. */
+  function applyWorkflowDefaults(
+    config: { agent?: string; isolation?: string; run_mode?: string },
+    trusted: boolean,
+  ) {
+    if (config.agent && agents.some(a => a.id === config.agent)) agentId = config.agent;
+    if (config.isolation && (isolations as string[]).includes(config.isolation)) isolation = config.isolation as Isolation;
+    if (config.run_mode && (trusted || config.run_mode === "approval_required")) runMode = config.run_mode as RunMode;
+  }
   let submitting = $state(false);
 
   let openId = $state<string | null>(null);
@@ -126,6 +155,24 @@
       void refreshDiff(wanted);
       void markJobSeen(wanted);
     }
+  });
+
+  // `?job=<id>` (a row of /llm/work): that job opened, whatever the filter.
+  let linkedJob = $derived(page.url.searchParams.get("job"));
+  let linkedRun = $derived(page.url.searchParams.get("run"));
+  /** The link already followed: closing the row afterwards keeps it closed. */
+  let followedJob: string | null = null;
+  $effect(() => {
+    const id = linkedJob;
+    const row = id ? jobs.find((j) => j.id === id) : undefined;
+    if (!row || followedJob === row.id) return;
+    followedJob = row.id;
+    untrack(() => {
+      if (openId === row.id) return;
+      filter = "all";
+      toggle(row);
+      requestAnimationFrame(() => document.getElementById(`job-${row.id}`)?.scrollIntoView({ block: "center" }));
+    });
   });
 
   $effect(() => {
@@ -184,6 +231,13 @@
     );
   }
 
+  /** A job whose changes can be reviewed here (3.5): in review, or a
+   *  finished worktree job whose branch can still be integrated. */
+  function reviewable(job: Job): boolean {
+    if (isActive(job)) return false;
+    return job.state === "review" || (!!job.branch && !!job.worktree_path);
+  }
+
   function isWaiting(job: Job): boolean {
     return job.state === "queued" || job.state === "waiting_workspace";
   }
@@ -216,9 +270,23 @@
   async function run() {
     if (!agentId || !prompt.trim()) return;
     submitting = true;
-    const job = await submitJob(agentId, prompt.trim(), workspace);
+    const job = await submitJob(agentId, prompt.trim(), workspace, workspace ? isolation : null, runMode);
     submitting = false;
     if (job) prompt = "";
+  }
+
+  async function removeWorktree(id: string) {
+    const out = await removeJobWorktree(id);
+    if (!out) return;
+    const saved = out.saved ? $t("llm.jobs.worktree.saved", { count: out.dirty.length }) + " " : "";
+    showToast(
+      "success",
+      saved +
+        (out.preserved_branch
+          ? $t("llm.jobs.worktree.kept_branch", { branch: out.preserved_branch })
+          : $t("llm.jobs.worktree.removed")),
+    );
+    if (openId === id) detail = await fetchJob(id);
   }
 
   async function createTrigger() {
@@ -252,7 +320,8 @@
   }
 
   function hookCurl(tr: Trigger): string {
-    return `curl -X POST -H "Authorization: Bearer ${bridge?.token ?? ""}" -d 'payload' ${hookUrl(tr)}`;
+    // Never the token itself (U6): the shell fills in a scoped one.
+    return `curl -X POST -H "Authorization: Bearer $OMNIGET_TOKEN" -d 'payload' ${hookUrl(tr)}`;
   }
 
   async function copy(text: string) {
@@ -281,7 +350,7 @@
   </header>
   <SurfaceGuide text={$t("llm.surface.jobs_hint")} href="/help?article=tasks#guide" />
 
-  <RunsPanel />
+  <RunsPanel openRun={linkedRun} />
 
   <details class="creation-panel"><summary>{$t("llm.surface.create")}</summary>
   <section class="surface-card form">
@@ -309,7 +378,21 @@
           {/if}
         </div>
       </div>
+      {#if workspace}
+        <label class="field">
+          <span class="field-label">{$t("llm.jobs.isolation.label")}</span>
+          <select class="input" bind:value={isolation}>
+            {#each isolations as i (i)}
+              <option value={i}>{$t(`llm.jobs.isolation.${i}`)}</option>
+            {/each}
+          </select>
+        </label>
+      {/if}
     </div>
+    {#if workspace}
+      <WorkflowStatus folder={workspace} ondefaults={applyWorkflowDefaults} />
+    {/if}
+    <RunModeSelect bind:value={runMode} />
     <label class="field">
       <span class="field-label">{$t("llm.jobs.prompt")}</span>
       <textarea class="input" rows="3" bind:value={prompt} placeholder={$t("llm.jobs.prompt_placeholder")}></textarea>
@@ -363,18 +446,21 @@
       <div class="rows">
         {#each visibleJobs as job (job.id)}
           {@const ask = job.state === "waiting_approval" ? asks.find((a) => a.request_id === job.request_id) : undefined}
-          <div class="row" class:open={openId === job.id}>
+          <div class="row" id="job-{job.id}" class:open={openId === job.id}>
             <button type="button" class="row-head" aria-expanded={openId === job.id} onclick={() => toggle(job)}>
               <span class="pill {pickState(job.state)}">{job.state === "interrupted" ? $t("assist.runs.job_interrupted") : $t(`llm.jobs.state.${job.state}`)}</span>
               <span class="kind">{kindLabel(job.kind)}</span>
-              {#if job.state === "failed" && job.failure_reason}
+              {#if (job.state === "failed" || job.state === "interrupted") && job.failure_reason}
                 <span class="reason">{$t(`llm.jobs.failure.${job.failure_reason}`)}</span>
+              {/if}
+              {#if (job.attempt ?? 0) > 0}
+                <span class="reason">{$t("llm.jobs.resumed_by_itself", { count: job.attempt ?? 0 })}</span>
               {/if}
               {#if isWaiting(job)}
                 <span class="wait">{waitText(job)}</span>
               {/if}
               <span class="agent">{agentName(job.agent_id)}</span>
-              <span class="line">{promptTitle(job.prompt).title}</span>
+              <span class="line">{job.title || promptTitle(job.prompt).title}</span>
               <span class="time">
                 {shortTime(job.created_ms)}
                 {#if job.finished_ms}· {duration(job.started_ms ?? job.created_ms, job.finished_ms)}{/if}
@@ -383,21 +469,7 @@
             </button>
 
             {#if ask}
-              <div class="ask">
-                <div class="ask-title">{$t("llm.jobs.ask.title", { tool: ask.tool })}</div>
-                <pre class="pre">{ask.preview}</pre>
-                <div class="actions">
-                  <button type="button" class="button active" onclick={() => void answerAsk(ask, true, false)}>
-                    {$t("llm.jobs.ask.allow")}
-                  </button>
-                  <button type="button" class="button" onclick={() => void answerAsk(ask, true, true)}>
-                    {$t("llm.jobs.ask.always")}
-                  </button>
-                  <button type="button" class="button" onclick={() => void answerAsk(ask, false, false)}>
-                    {$t("llm.jobs.ask.deny")}
-                  </button>
-                </div>
-              </div>
+              <div class="ask-slot"><AskCard {ask} /></div>
             {/if}
 
             {#if openId === job.id}
@@ -408,6 +480,29 @@
                 {#if full.workspace}
                   <div class="field-label">{$t("llm.jobs.workspace")}</div>
                   <code class="path">{full.workspace}</code>
+                {/if}
+                {#if full.run_mode}
+                  <div class="field-label">{$t("llm.run_mode.label")}</div>
+                  <div class="text" title={$t(`llm.run_mode.${full.run_mode}_hint`) as string}>{$t(`llm.run_mode.${full.run_mode}`)}</div>
+                {/if}
+                {#if full.branch}
+                  <div class="field-label">{$t("llm.jobs.worktree.title")}</div>
+                  <div class="worktree">
+                    <span class="chip" title={full.base_oid ?? ""}>
+                      {$t("llm.jobs.worktree.chip", { branch: full.branch, base: (full.base_oid ?? "").slice(0, 7) })}
+                    </span>
+                    {#if full.worktree_path}
+                      <code class="path" title={full.worktree_path}>{full.worktree_path}</code>
+                    {:else}
+                      <span class="hint">{$t("llm.jobs.worktree.gone")}</span>
+                    {/if}
+                  </div>
+                {/if}
+                {#if full.outcome}
+                  <div class="field-label">{$t("llm.jobs.outcome.title")}</div>
+                  <div class="text" class:err={full.outcome.status === "failed"}>{$t(`llm.jobs.outcome.${full.outcome.status}`)} — {full.outcome.summary}</div>
+                {:else if full.state === "done_unreported"}
+                  <p class="hint">{$t("llm.jobs.outcome.missing")}</p>
                 {/if}
                 {#if full.result}
                   <div class="field-label">{$t("llm.jobs.result")}</div>
@@ -444,14 +539,45 @@
                         </li>
                       {/each}
                     </ul>
-                    {#if diff.patch}
+                    {#if diff.patch && !reviewable(full)}
                       <details class="patch">
                         <summary>{$t("assist.runs.show_diff")}</summary>
                         <DiffView patch={diff.patch} label={$t("llm.jobs.diff.title")} />
                       </details>
                     {/if}
                     {#if diff.clipped}<p class="hint">{$t("assist.runs.diff_clipped")}</p>{/if}
+                    {#if reviewable(full) && diff.complete}
+                      <JobReview
+                        job={full}
+                        files={diff.files}
+                        onchanged={() => {
+                          void refreshDetail(job.id);
+                          void refreshDiff(job.id);
+                        }}
+                      />
+                    {/if}
                   {/if}
+                {/if}
+                {#if full.proof}
+                  {@const pr = full.proof}
+                  <div class="field-label">{$t("llm.jobs.proof.title")}</div>
+                  <div class="proof">
+                    <code class="path" title={pr.stamp}>{pr.stamp}</code>
+                    <p class="hint">
+                      {$t("llm.jobs.proof.summary", {
+                        files: pr.file_count,
+                        tokens: (pr.tokens.billable ?? 0).toLocaleString(),
+                        time: duration(full.started_ms, full.finished_ms) || "—",
+                      })}{#if pr.cost_usd != null}{" · "}${pr.cost_usd.toFixed(4)}{/if}
+                    </p>
+                    {#each pr.checks as c, i (i)}
+                      <p class="hint">
+                        <span class={c.ok ? "plus" : "minus"}>{c.ok ? "✓" : "✗"}</span>
+                        {$t("llm.jobs.proof.check", { command: c.command, code: c.exit_code ?? "?" })}
+                      </p>
+                    {/each}
+                    <p class="hint">{$t("llm.jobs.proof.by_host")}</p>
+                  </div>
                 {/if}
                 <div class="field-label">{$t("llm.jobs.log")}</div>
                 <pre class="pre log">{full.log || $t("llm.jobs.log_empty")}</pre>
@@ -477,6 +603,16 @@
                       {$t("llm.jobs.cancel")}
                     </button>
                   {:else}
+                    {#if job.state === "review"}
+                      <button type="button" class="button active" onclick={() => void markJobDone(job.id)}>
+                        {$t("llm.jobs.review.mark")}
+                      </button>
+                    {/if}
+                    {#if full.worktree_path}
+                      <button type="button" class="button" onclick={() => void removeWorktree(job.id)}>
+                        {$t("llm.jobs.worktree.remove")}
+                      </button>
+                    {/if}
                     <button type="button" class="button" onclick={() => void deleteJob(job.id)}>
                       {$t("llm.jobs.delete")}
                     </button>
@@ -582,12 +718,13 @@
                 <code class="path">{hookUrl(tr)}</code>
                 <button type="button" class="button" onclick={() => void copy(hookUrl(tr))}>{$t("llm.jobs.copy")}</button>
               </div>
-              <div class="copyline" data-agent-sensitive>
+              <div class="copyline">
                 <code class="path">{hookCurl(tr)}</code>
                 <button type="button" class="button" onclick={() => void copy(hookCurl(tr))}>
                   {$t("llm.jobs.trigger.copy_curl")}
                 </button>
               </div>
+              <p class="hint">{$t("llm.jobs.tokens.curl_hint")}</p>
             {/if}
             <div class="line muted">{firstLine(tr.prompt)}</div>
           </div>
@@ -674,6 +811,8 @@
       </div>
     </div>
   </section>
+
+  <BridgeTokens />
 </div>
 
 <style>
@@ -751,6 +890,31 @@
 
   .mono {
     font-family: var(--font-mono);
+  }
+
+  .proof {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    min-width: 0;
+  }
+
+  .worktree {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 0;
+  }
+
+  .chip {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    padding: 2px var(--space-2);
+    border-radius: var(--radius-sm);
+    border: var(--hairline) solid var(--separator);
+    color: var(--text-muted);
+    white-space: nowrap;
   }
 
   .rows {
@@ -956,7 +1120,6 @@
     background: color-mix(in srgb, var(--red) 14%, transparent);
   }
 
-  .ask,
   .detail {
     display: flex;
     flex-direction: column;
@@ -964,15 +1127,8 @@
     padding: var(--space-2) var(--space-3) var(--space-3);
   }
 
-  .ask {
+  .ask-slot {
     margin: 0 var(--space-3) var(--space-3);
-    border-radius: var(--radius-sm);
-    background: color-mix(in srgb, var(--orange) 8%, transparent);
-  }
-
-  .ask-title {
-    font-size: var(--text-sm);
-    font-weight: 600;
   }
 
   .text {

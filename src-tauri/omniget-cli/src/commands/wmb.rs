@@ -7,8 +7,6 @@ use std::time::Duration;
 use anyhow::bail;
 use serde_json::{json, Value};
 
-use super::agent::Bridge;
-
 #[derive(clap::Subcommand)]
 pub enum WmbCommand {
     /// Health score and a snapshot of CPU, memory, disk, temperature, battery
@@ -93,7 +91,7 @@ fn print(v: &Value, json_out: bool) {
 }
 
 pub async fn execute(cmd: WmbCommand, json_out: bool) -> anyhow::Result<()> {
-    let bridge = Bridge::open()?;
+    let bridge = super::launch::connect().await?;
     let call = |tool: &str, input: Value| {
         let path = format!("/v1/wmb/{tool}");
         let bridge = &bridge;

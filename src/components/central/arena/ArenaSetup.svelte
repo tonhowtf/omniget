@@ -9,7 +9,19 @@
   import type { AccessMode, PlanRow, TurnsPage } from "$lib/central/threads/types";
   import { ACCESS_MODES, MODEL_HINTS, driverName, driverTint } from "$lib/central/threads-ui/drivers";
   import { vcsBranches, vcsStatus, type BranchInfo } from "$lib/central/vcs";
-  import { arenaCreate, arenaError, promptFromPlan, type ArenaView, type EntrySpec } from "$lib/central/arena";
+  import {
+    MAX_ENTRIES,
+    MIN_ENTRIES,
+    arenaCreate,
+    arenaError,
+    arenaEstimate,
+    estimateSummary,
+    formatCost,
+    promptFromPlan,
+    type ArenaEstimate,
+    type ArenaView,
+    type EntrySpec,
+  } from "$lib/central/arena";
   import Icon from "$components/central/threads/Icon.svelte";
 
   let {
@@ -59,7 +71,32 @@
   let projects = $derived(threadsStore.projects.filter((p) => p.workspaceRoot));
   let project = $derived(projects.find((p) => p.projectId === projectId) ?? null);
   let instances = $derived(threadsStore.instances.filter((i) => i.instance.enabled !== false));
-  let canStart = $derived(!!project && isRepo === true && prompt.trim().length > 0 && rows.length > 0 && !busy);
+  let canStart = $derived(!!project && isRepo === true && prompt.trim().length > 0 && rows.length >= MIN_ENTRIES && rows.length <= MAX_ENTRIES && !busy);
+
+  // Estimativa de custo antes de começar (S23: custo × N colunas).
+  let estimate = $state<ArenaEstimate | null>(null);
+  let summary = $derived(estimateSummary(estimate));
+  let estimateKey = $derived(JSON.stringify(rows.map((r) => [r.instanceId, r.driver, r.model.trim()])));
+  $effect(() => {
+    const key = estimateKey;
+    const specs = untrack(() => specsOf());
+    if (!specs.length) {
+      estimate = null;
+      return;
+    }
+    const timer = setTimeout(() => {
+      arenaEstimate(specs)
+        .then((e) => {
+          if (key === estimateKey) estimate = e;
+        })
+        .catch(() => (estimate = null));
+    }, 300);
+    return () => clearTimeout(timer);
+  });
+
+  function specsOf(): EntrySpec[] {
+    return rows.map((r) => ({ instanceId: r.instanceId, driver: r.driver, model: r.model.trim() || null }));
+  }
 
   $effect(() => {
     if (!projectId && projects.length) projectId = projects[0].projectId;
@@ -121,7 +158,7 @@
 
   function addRow(instanceId: string) {
     const inst = instances.find((i) => i.instance.id === instanceId);
-    if (!inst || rows.length >= 8) return;
+    if (!inst || rows.length >= MAX_ENTRIES) return;
     rows = [...rows, { key: crypto.randomUUID(), instanceId, driver: inst.instance.driver, model: "" }];
   }
 
@@ -145,11 +182,7 @@
     busy = true;
     error = null;
     try {
-      const entries: EntrySpec[] = rows.map((r) => ({
-        instanceId: r.instanceId,
-        driver: r.driver,
-        model: r.model.trim() || null,
-      }));
+      const entries = specsOf();
       const arena = await arenaCreate({
         projectId: project.projectId,
         title: title.trim() || null,
@@ -259,10 +292,10 @@
   <div class="field">
     <div class="row-head">
       <span>{$t("llm.central.arena.setup.contenders")}</span>
-      <span class="muted">{rows.length}/8</span>
+      <span class="muted">{rows.length}/{MAX_ENTRIES}</span>
     </div>
     <ul class="rows">
-      {#each rows as r (r.key)}
+      {#each rows as r, i (r.key)}
         {@const inst = instanceOf(r.instanceId)}
         <li class="entry" style:--tint={driverTint(r.driver, inst)}>
           <span class="dot"></span>
@@ -278,6 +311,12 @@
             placeholder={$t("llm.central.arena.setup.model_placeholder")}
             disabled={busy}
           />
+          {#if estimate?.entries[i]}
+            {@const est = estimate.entries[i]}
+            <span class="est est-{est.source}" title={$t(`llm.central.arena.estimate.source.${est.source}`, { runs: est.runs })}>
+              {est.usd == null ? "?" : `${est.source === "price" ? "~" : ""}${formatCost(est.usd)}`}
+            </span>
+          {/if}
           <button type="button" class="icon-btn" aria-label={$t("llm.central.arena.setup.remove")} onclick={() => removeRow(r.key)} disabled={busy}>
             <Icon name="x" size={13} />
           </button>
@@ -290,7 +329,7 @@
           type="button"
           class="add-chip"
           style:--tint={driverTint(inst.instance.driver, inst)}
-          disabled={busy || rows.length >= 8}
+          disabled={busy || rows.length >= MAX_ENTRIES}
           title={inst.available ? inst.driverLabel : (inst.unavailableReason ?? "")}
           class:off={!inst.available}
           onclick={() => addRow(inst.instance.id)}
@@ -309,6 +348,17 @@
       </datalist>
     {/each}
     <datalist id="arena-models-native"><option value="fake/fake"></option></datalist>
+    {#if rows.length < MIN_ENTRIES}
+      <small class="muted">{$t("llm.central.arena.setup.min_tools", { count: MIN_ENTRIES })}</small>
+    {/if}
+    {#if summary}
+      <p class="estimate" aria-live="polite">
+        <Icon name="currency-dollar" size={13} />
+        <span>{$t("llm.central.arena.estimate.total", { total: `${summary.rough ? "~" : ""}${summary.total}`, count: rows.length })}</span>
+        {#if summary.unknown}<span class="muted">· {$t("llm.central.arena.estimate.unknown", { count: summary.unknown })}</span>{/if}
+        {#if summary.rough}<span class="muted">· {$t("llm.central.arena.estimate.rough")}</span>{/if}
+      </p>
+    {/if}
   </div>
 
   <div class="grid">
@@ -348,6 +398,9 @@
 </section>
 
 <style>
+  .est { font-size: var(--text-xs); font-variant-numeric: tabular-nums; color: var(--text-muted); padding: 1px 6px; border-radius: 999px; background: var(--fill-1); flex-shrink: 0; }
+  .est-history { color: var(--text); }
+  .estimate { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 4px 0 0; font-size: var(--text-sm); }
   .setup { max-width: 860px; margin: 0 auto; padding: 20px 24px 32px; display: flex; flex-direction: column; gap: 14px; }
   .head h2 { margin: 0; font-size: var(--text-xl); font-weight: 700; letter-spacing: var(--track-tight); }
   .lede { margin: 4px 0 0; color: var(--text-muted); font-size: var(--text-base); }

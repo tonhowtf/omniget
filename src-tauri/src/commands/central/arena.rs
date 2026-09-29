@@ -10,6 +10,23 @@
 //! Histórico em `<app_data>/llm/arena.db` (tabelas `arenas` e `entries`),
 //! com placar por driver/modelo. Eventos ao vivo em `central://arena`.
 //!
+//! Roteiro 3.8 (S23) — a Arena única do /llm. É esta: a proposta de uma
+//! arena por jobs (`84#P4`) foi dobrada aqui em vez de virar uma segunda.
+//! Cada entrada continua sendo uma thread da Central com worktree própria
+//! (o que dá o chat ao vivo, as aprovações na thread, o plano → arena e o
+//! placar); o que o 3.8 trouxe dos jobs:
+//! - 2 a 5 entradas e a estimativa de custo antes de começar
+//!   ([`arena_estimate`], `compare.rs`);
+//! - a comparação lado a lado com os arquivos em que as entradas divergem
+//!   ([`arena_compare`]);
+//! - "escolher este" com a branch alvo em checkout = o `vcs::integrate` do
+//!   3.5 (merge `--no-ff`/`--squash` no checkout do usuário, com os hooks
+//!   dele e `merge --abort` garantido); fora de checkout só o ref anda;
+//! - "remover os outros" = a remoção segura do 2.3
+//!   (`vcs::job_worktree::remove`: o que não foi gravado vai para a branch,
+//!   lixeira + `worktree prune`) e `branch -D` só nas branches do OmniGet,
+//!   com o trabalho preso nos refs da arena até ela ser apagada.
+//!
 //! Nada roda em repouso: o observador dos eventos do motor só nasce no
 //! primeiro comando `arena_*` e só acorda com evento do motor.
 
@@ -25,6 +42,7 @@ use omniget_core::core::vcs::diff::{self, DiffOptions, DiffResult};
 use omniget_core::core::vcs::repo::{self, GitCtx};
 use omniget_core::core::vcs::runner::{self, Invocation};
 use omniget_core::core::vcs::worktree;
+use omniget_core::core::vcs::{integrate, job_worktree};
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -32,9 +50,18 @@ use tauri::{AppHandle, Emitter};
 
 use crate::threads_host;
 
+mod compare;
+pub use compare::{ArenaCompare, ArenaEstimate};
+
+#[cfg(test)]
+mod bn11;
+
 pub const ARENA_EVENT: &str = "central://arena";
 pub const ERR_ARENA: &str = "ERR_ARENA";
-const MAX_ENTRIES: usize = 8;
+/// 2 a 5 entradas (S23): uma só não compara nada; mais de 5 multiplica o
+/// custo e o disco sem ajudar a escolher.
+pub const MIN_ENTRIES: usize = 2;
+pub const MAX_ENTRIES: usize = 5;
 const DEFAULT_VERIFY_TIMEOUT_SECS: u64 = 600;
 const REF_ROOT: &str = "refs/omniget/arena";
 
@@ -191,7 +218,12 @@ pub struct ApplyPreview {
     pub winner_commit: String,
     /// Onde a branch alvo está em checkout (o checkout do usuário), se estiver.
     pub checked_out_at: Option<String>,
+    /// Arquivos rastreados alterados nesse checkout (bloqueiam o merge;
+    /// arquivos não rastreados não bloqueiam).
     pub checkout_dirty: bool,
+    /// Por que o merge no checkout não pode começar (HEAD solto, merge ou
+    /// rebase em andamento, arquivo rastreado sujo), como o 3.5 diz.
+    pub blocker: Option<String>,
     pub already_applied: bool,
     pub conflicts: Vec<String>,
     pub files_changed: i64,
@@ -206,8 +238,10 @@ pub struct ApplyResult {
     pub commit: String,
     pub target_branch: String,
     pub strategy: String,
-    /// `ref` (só o ref mudou) ou `checkout` (o checkout do usuário avançou).
+    /// `ref` (só o ref mudou) ou `checkout` (merge no checkout do usuário).
     pub updated: String,
+    /// Tempo do merge em si (BN11: < 2 s).
+    pub took_ms: u64,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -215,7 +249,14 @@ pub struct ApplyResult {
 pub struct CleanupResult {
     pub arena: ArenaView,
     pub archived: Vec<String>,
+    /// Worktrees tiradas pela remoção segura do 2.3.
+    pub worktrees_removed: Vec<String>,
+    /// Trabalho que não estava gravado e foi salvo na branch antes.
+    pub saved: Vec<String>,
     pub branches_deleted: Vec<String>,
+    /// Branches mantidas (não pedidas para apagar, ou não são do OmniGet):
+    /// o trabalho está nelas e nos refs da arena.
+    pub branches_kept: Vec<String>,
     pub errors: Vec<String>,
 }
 
@@ -1264,10 +1305,10 @@ pub async fn create_core(
     if prompt.is_empty() {
         return Err(aerr("ERR_ARENA_INVALID", "empty prompt"));
     }
-    if request.entries.is_empty() || request.entries.len() > MAX_ENTRIES {
+    if request.entries.len() < MIN_ENTRIES || request.entries.len() > MAX_ENTRIES {
         return Err(aerr(
             "ERR_ARENA_INVALID",
-            format!("pick between 1 and {MAX_ENTRIES} tools"),
+            format!("pick between {MIN_ENTRIES} and {MAX_ENTRIES} tools"),
         ));
     }
     ensure_watcher(engine, notify);
@@ -1779,7 +1820,18 @@ fn target_of(a: &ArenaView, target: Option<String>) -> Result<String, String> {
     Ok(t)
 }
 
-/// O que "aplicar vencedor" vai fazer, sem mexer em nada.
+/// A branch do vencedor, se ela aponta para o commit dele (o `commit_worktree`
+/// grava na branch da thread, então é o caso normal).
+async fn winner_branch(root: &Path, e: &ArenaEntry, win: &str) -> Option<String> {
+    let b = e.branch.as_deref().filter(|b| !b.is_empty())?;
+    (rev_parse(&gctx(root), &format!("refs/heads/{b}"))
+        .await
+        .as_deref()
+        == Some(win))
+    .then(|| b.to_string())
+}
+
+/// O que "escolher este" vai fazer, sem mexer em nada.
 #[tauri::command]
 pub async fn arena_apply_preview(
     app: AppHandle,
@@ -1788,8 +1840,16 @@ pub async fn arena_apply_preview(
     target_branch: Option<String>,
 ) -> Result<ApplyPreview, String> {
     let _ = threads_host::get(&app)?;
-    let a = load_arena(&arena_id)?;
-    let e = entry_of(&a, &entry_id)?;
+    preview_core(&arena_id, &entry_id, target_branch).await
+}
+
+pub async fn preview_core(
+    arena_id: &str,
+    entry_id: &str,
+    target_branch: Option<String>,
+) -> Result<ApplyPreview, String> {
+    let a = load_arena(arena_id)?;
+    let e = entry_of(&a, entry_id)?;
     let target = target_of(&a, target_branch)?;
     let root = PathBuf::from(&a.repo_root);
     let ctx = gctx(&root);
@@ -1804,21 +1864,29 @@ pub async fn arena_apply_preview(
         merge_tree(&ctx, &head, &win).await?
     };
     let checked = checkout_of(&root, &target).await;
-    let dirty = match &checked {
-        Some(p) => repo::status(p).await.map(|s| s.dirty).unwrap_or(true),
-        None => false,
+    let (dirty, blocker) = match &checked {
+        Some(p) => match winner_branch(&root, &e, &win).await {
+            // As mesmas pré-condições que o merge vai checar.
+            Some(b) => match integrate::preview(p, &b).await {
+                Ok(pre) => (!pre.dirty.is_empty(), pre.blocker()),
+                Err(err) => (false, Some(err.to_string())),
+            },
+            None => (repo::status(p).await.map(|s| s.dirty).unwrap_or(true), None),
+        },
+        None => (false, None),
     };
     let (f, ad, de) = diff_stats(&root, &a.base_commit, &win)
         .await
         .unwrap_or((0, 0, 0));
     Ok(ApplyPreview {
-        arena_id,
-        entry_id,
+        arena_id: arena_id.to_string(),
+        entry_id: entry_id.to_string(),
         target_branch: target,
         target_head: head,
         winner_commit: win,
         checked_out_at: checked.map(|p| p.to_string_lossy().into_owned()),
         checkout_dirty: dirty,
+        blocker,
         already_applied: already,
         conflicts,
         files_changed: f,
@@ -1828,17 +1896,17 @@ pub async fn arena_apply_preview(
 }
 
 /// O merge/squash de `win` em `refs/heads/<target>` sem tocar em nada além
-/// do ref, ou do checkout do usuário quando `touch_checkout` (limpo e só
-/// fast-forward). Devolve o commit novo e `"ref"|"checkout"`.
+/// do ref: `git merge-tree` + `commit-tree` + `update-ref` com o valor antigo
+/// (corrida = recusa). Só para uma branch fora de checkout; em checkout quem
+/// entra é o [`integrate`] do 3.5 ([`apply_in_checkout`]).
 pub async fn apply_core(
     root: &Path,
     target: &str,
     win: &str,
     strategy: &str,
-    touch_checkout: bool,
     subject: &str,
     body: &str,
-) -> Result<(String, &'static str), String> {
+) -> Result<String, String> {
     let ctx = gctx(root);
     let old = rev_parse(&ctx, &format!("refs/heads/{target}"))
         .await
@@ -1849,30 +1917,21 @@ pub async fn apply_core(
             format!("{target} already has this work"),
         ));
     }
+    if let Some(p) = checkout_of(root, target).await {
+        return Err(aerr(
+            "ERR_ARENA_CHECKOUT",
+            format!(
+                "{target} is checked out at {}; it is merged there",
+                p.display()
+            ),
+        ));
+    }
     let (tree, conflicts) = merge_tree(&ctx, &old, win).await?;
     if !conflicts.is_empty() {
         return Err(aerr(
             "ERR_ARENA_CONFLICT",
             format!("conflicts in {}", conflicts.join(", ")),
         ));
-    }
-    let checked = checkout_of(root, target).await;
-    if let Some(p) = &checked {
-        if !touch_checkout {
-            return Err(aerr(
-                "ERR_ARENA_CHECKOUT",
-                format!(
-                    "{target} is checked out at {}; confirm to update it",
-                    p.display()
-                ),
-            ));
-        }
-        if repo::status(p).await.map(|s| s.dirty).unwrap_or(true) {
-            return Err(aerr(
-                "ERR_ARENA_DIRTY",
-                format!("{} has uncommitted changes", p.display()),
-            ));
-        }
     }
     let mut inv = ctx
         .git()
@@ -1887,41 +1946,94 @@ pub async fn apply_core(
         .await
         .map_err(|e| e.to_string())?
         .trimmed();
-    let updated = match &checked {
-        Some(p) => {
-            gctx(p)
-                .git()
-                .args(["merge", "--ff-only", "--no-edit", "-q", &new])
-                .timeout(Some(Duration::from_secs(300)))
-                .run()
-                .await
-                .map_err(|e| e.to_string())?;
-            "checkout"
-        }
+    ctx.git()
+        .args([
+            "update-ref",
+            "-m",
+            "omniget arena: apply winner",
+            &format!("refs/heads/{target}"),
+            &new,
+            &old,
+        ])
+        .run()
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(new)
+}
+
+/// "Escolher este" com a branch alvo em checkout: o `vcs::integrate` do 3.5
+/// no checkout `checkout`, a partir da branch do vencedor (ou de uma branch
+/// temporária no commit dele, apagada no fim). Conflito ou hook que falha =
+/// erro com os arquivos, e o checkout volta a como estava.
+pub async fn apply_in_checkout(
+    root: &Path,
+    checkout: &Path,
+    e: &ArenaEntry,
+    win: &str,
+    strategy: &str,
+    subject: &str,
+) -> Result<String, String> {
+    let (branch, temp) = match winner_branch(root, e, win).await {
+        Some(b) => (b, false),
         None => {
-            ctx.git()
-                .args([
-                    "update-ref",
-                    "-m",
-                    "omniget arena: apply winner",
-                    &format!("refs/heads/{target}"),
-                    &new,
-                    &old,
-                ])
+            let b = format!("omniget/arena-{}", e.entry_id);
+            gctx(root)
+                .git()
+                .args(["branch", "-f", "--", &b, win])
                 .run()
                 .await
-                .map_err(|e| e.to_string())?;
-            "ref"
+                .map_err(|x| x.to_string())?;
+            (b, true)
         }
     };
-    Ok((new, updated))
+    let strat = if strategy == "squash" {
+        integrate::Strategy::Squash
+    } else {
+        integrate::Strategy::Merge
+    };
+    let res = integrate::integrate(checkout, &branch, strat, subject).await;
+    if temp {
+        let _ = integrate::delete_branch(root, &branch).await;
+    }
+    let out = res.map_err(|x| {
+        let why = x.to_string();
+        if why.contains("uncommitted") {
+            aerr("ERR_ARENA_DIRTY", why)
+        } else {
+            aerr("ERR_ARENA_BLOCKED", why)
+        }
+    })?;
+    match out.status.as_str() {
+        "merged" => out
+            .commit
+            .ok_or_else(|| aerr("ERR_ARENA_GIT", "merged without a commit")),
+        "up_to_date" => Err(aerr(
+            "ERR_ARENA_NOTHING",
+            format!("{} already has this work", out.target_branch),
+        )),
+        "conflict" => Err(aerr(
+            "ERR_ARENA_CONFLICT",
+            format!(
+                "conflicts in {}{}",
+                out.conflicts.join(", "),
+                if out.clean {
+                    "; your checkout is back as it was"
+                } else {
+                    "; check your checkout (git status)"
+                }
+            ),
+        )),
+        _ => Err(aerr(
+            "ERR_ARENA_GIT",
+            format!("{} {}", out.status, out.output.trim()),
+        )),
+    }
 }
 
 /// Aplica o vencedor na branch alvo (padrão: a base da arena).
 /// `strategy`: `merge` (commit de merge com as duas pontas) ou `squash`
-/// (um commit só em cima da base, como um cherry-pick do resultado).
-/// A branch em checkout no clone do usuário só avança com
-/// `touchCheckout: true`, árvore limpa e fast-forward.
+/// (um commit só em cima da base). A branch em checkout só recebe o merge
+/// com `touchCheckout: true` (pelo [`integrate`] do 3.5).
 #[tauri::command]
 #[allow(clippy::too_many_arguments)]
 pub async fn arena_apply(
@@ -1938,9 +2050,42 @@ pub async fn arena_apply(
         return Err(aerr("ERR_ARENA_CONFIRM", "confirm the apply first"));
     }
     let _ = threads_host::get(&app)?;
-    let a = load_arena(&arena_id)?;
-    let e = entry_of(&a, &entry_id)?;
-    let strategy = match strategy.as_deref() {
+    let r = apply_entry(
+        &arena_id,
+        &entry_id,
+        strategy.as_deref(),
+        target_branch,
+        touch_checkout.unwrap_or(false),
+        message,
+    )
+    .await?;
+    // Linha de auditoria (2.8): só a escolha, nunca o conteúdo.
+    crate::llm_audit::arena_action(
+        "arena.applied",
+        &arena_id,
+        json!({
+            "entry_id": entry_id,
+            "strategy": r.strategy,
+            "target_branch": r.target_branch,
+            "updated": r.updated,
+        }),
+    );
+    emit_arena(&app, &arena_id);
+    Ok(r)
+}
+
+/// O corpo de `arena_apply`, sem Tauri.
+pub async fn apply_entry(
+    arena_id: &str,
+    entry_id: &str,
+    strategy: Option<&str>,
+    target_branch: Option<String>,
+    touch_checkout: bool,
+    message: Option<String>,
+) -> Result<ApplyResult, String> {
+    let a = load_arena(arena_id)?;
+    let e = entry_of(&a, entry_id)?;
+    let strategy = match strategy {
         Some("squash") | Some("cherry-pick") => "squash",
         _ => "merge",
     };
@@ -1961,16 +2106,27 @@ pub async fn arena_apply(
             .unwrap_or_default(),
         a.arena_id
     );
-    let (new, updated) = apply_core(
-        &root,
-        &target,
-        &win,
-        strategy,
-        touch_checkout.unwrap_or(false),
-        &subject,
-        &body,
-    )
-    .await?;
+    let t0 = Instant::now();
+    let (new, updated) = match checkout_of(&root, &target).await {
+        Some(p) => {
+            if !touch_checkout {
+                return Err(aerr(
+                    "ERR_ARENA_CHECKOUT",
+                    format!(
+                        "{target} is checked out at {}; confirm to merge there",
+                        p.display()
+                    ),
+                ));
+            }
+            let c = apply_in_checkout(&root, &p, &e, &win, strategy, &subject).await?;
+            (c, "checkout")
+        }
+        None => (
+            apply_core(&root, &target, &win, strategy, &subject, &body).await?,
+            "ref",
+        ),
+    };
+    let took_ms = t0.elapsed().as_millis() as u64;
     let now = now_iso();
     with_db(|c| {
         c.execute(
@@ -1984,20 +2140,19 @@ pub async fn arena_apply(
         )?;
         Ok(())
     })?;
-    emit_arena(&app, &arena_id);
     Ok(ApplyResult {
-        arena: load_arena(&arena_id)?,
+        arena: load_arena(arena_id)?,
         commit: new,
         target_branch: target,
         strategy: strategy.into(),
         updated: updated.into(),
+        took_ms,
     })
 }
 
-/// Arquiva as threads (o reactor do git remove as worktrees) das perdedoras
-/// (`scope: "losers"`, padrão) ou de todas (`"all"`), e com
-/// `deleteBranches` apaga as branches delas (só as que o OmniGet criou). O
-/// trabalho continua nos refs da arena.
+/// "Remover os outros": as perdedoras (`scope: "losers"`, padrão) ou todas
+/// (`"all"`). Com `deleteBranches` apaga as branches delas (só as que o
+/// OmniGet criou). O trabalho continua nos refs da arena.
 #[tauri::command]
 pub async fn arena_cleanup(
     app: AppHandle,
@@ -2006,8 +2161,40 @@ pub async fn arena_cleanup(
     delete_branches: Option<bool>,
 ) -> Result<CleanupResult, String> {
     let host = threads_host::get(&app)?;
-    let a = load_arena(&arena_id)?;
-    let all = scope.as_deref() == Some("all");
+    let r = cleanup_core(
+        &host.engine,
+        &arena_id,
+        scope.as_deref() == Some("all"),
+        delete_branches.unwrap_or(false),
+    )
+    .await?;
+    crate::llm_audit::arena_action(
+        "arena.cleaned",
+        &arena_id,
+        json!({
+            "scope": if scope.as_deref() == Some("all") { "all" } else { "losers" },
+            "archived": r.archived.len(),
+            "worktrees_removed": r.worktrees_removed.len(),
+            "branches_deleted": r.branches_deleted.len(),
+            "errors": r.errors.len(),
+        }),
+    );
+    emit_arena(&app, &arena_id);
+    Ok(r)
+}
+
+/// O corpo de `arena_cleanup`, sem Tauri. Por entrada: para o turno vivo,
+/// tira a worktree pela remoção segura do 2.3 (o não gravado vai para a
+/// branch antes; falhar aí mantém a worktree), prende a ponta da branch no
+/// ref da arena, apaga a branch se pedido e for do OmniGet, e arquiva a
+/// thread (o reator do git já não acha pasta para tirar).
+pub async fn cleanup_core(
+    engine: &Arc<ThreadsEngine>,
+    arena_id: &str,
+    all: bool,
+    delete_branches: bool,
+) -> Result<CleanupResult, String> {
+    let a = load_arena(arena_id)?;
     let winner = a.winner_entry_id.clone();
     let targets: Vec<ArenaEntry> = a
         .entries
@@ -2016,82 +2203,107 @@ pub async fn arena_cleanup(
         .filter(|e| all || winner.as_deref() != Some(e.entry_id.as_str()))
         .cloned()
         .collect();
-    let mut archived = Vec::new();
-    let mut errors = Vec::new();
+    let root = PathBuf::from(&a.repo_root);
+    let ctx = gctx(&root);
+    let mut out = CleanupResult {
+        arena: a.clone(),
+        archived: Vec::new(),
+        worktrees_removed: Vec::new(),
+        saved: Vec::new(),
+        branches_deleted: Vec::new(),
+        branches_kept: Vec::new(),
+        errors: Vec::new(),
+    };
     for e in &targets {
-        if matches!(e.status.as_str(), "running" | "preparing") {
+        if matches!(e.status.as_str(), "running" | "preparing" | "testing") {
             let _ = dispatch(
-                &host.engine,
+                engine,
                 json!({ "type": "thread.turn.interrupt", "threadId": e.thread_id }),
             )
             .await;
         }
-        let row = host
-            .engine
+        // Espera limitada a finalização (commit do turno) soltar a entrada.
+        let deadline = Instant::now() + Duration::from_secs(15);
+        while is_busy(&e.entry_id) && Instant::now() < deadline {
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+        let row = engine
             .read(|c| store::thread_row(c, &e.thread_id))
             .ok()
             .flatten();
-        match row {
-            Some(r) if r.archived_at.is_none() => {
+        let dir = e
+            .worktree_path
+            .clone()
+            .or_else(|| row.as_ref().and_then(|r| r.worktree_path.clone()))
+            .map(PathBuf::from)
+            .filter(|p| p.is_dir() && worktree::is_omniget_worktree(p));
+        let mut branch = e.branch.clone().filter(|b| !b.is_empty());
+        let mut kept_worktree = false;
+        if let Some(p) = &dir {
+            if branch.is_none() {
+                branch = job_worktree::branch_at(p).await;
+            }
+            let b = branch.clone().unwrap_or_default();
+            match job_worktree::remove(&root, p, &b, Some(&a.base_commit)).await {
+                Ok(r) => {
+                    out.worktrees_removed.push(e.label.clone());
+                    if let Some(s) = r.saved {
+                        out.saved
+                            .push(format!("{}: {}", e.label, &s[..s.len().min(10)]));
+                    }
+                }
+                Err(err) => {
+                    kept_worktree = true;
+                    out.errors.push(format!("{}: {err}", e.label));
+                }
+            }
+        }
+        if let Some(b) = branch.as_deref().filter(|_| !kept_worktree) {
+            // A ponta da branch (com o que a remoção salvou) fica no ref da
+            // arena: apagar a branch não perde o trabalho.
+            if let Some(tip) = rev_parse(&ctx, &format!("refs/heads/{b}")).await {
+                let _ = ctx
+                    .git()
+                    .args(["update-ref", &arena_ref(arena_id, &e.entry_id), &tip])
+                    .run()
+                    .await;
+                let owner = repo::config_get(&ctx, &format!("branch.{b}.omniget-thread")).await;
+                // A branch que a própria arena gravou para a coluna (vinda da
+                // worktree da thread) também é do OmniGet: a marca na config
+                // pode ter se perdido numa escrita concorrente do `.git/config`.
+                let ours = owner.as_deref() == Some(e.thread_id.as_str())
+                    || worktree::is_temp_branch(b)
+                    || (b.starts_with("omniget/") && e.branch.as_deref() == Some(b));
+                let used = checkout_of(&root, b).await.is_some();
+                if delete_branches && ours && !used {
+                    match integrate::delete_branch(&root, b).await {
+                        Ok(_) => out.branches_deleted.push(b.to_string()),
+                        Err(err) => out.errors.push(format!("{}: {err}", e.label)),
+                    }
+                } else {
+                    if delete_branches && !ours {
+                        out.errors.push(format!(
+                            "{}: branch {b} is not an OmniGet branch, kept",
+                            e.label
+                        ));
+                    }
+                    out.branches_kept.push(b.to_string());
+                }
+            }
+        }
+        if kept_worktree {
+            continue;
+        }
+        if let Some(r) = &row {
+            if r.archived_at.is_none() {
                 match dispatch(
-                    &host.engine,
+                    engine,
                     json!({ "type": "thread.archive", "threadId": e.thread_id }),
                 )
                 .await
                 {
-                    Ok(()) => archived.push(e.thread_id.clone()),
-                    Err(err) => errors.push(format!("{}: {err}", e.label)),
-                }
-            }
-            _ => {}
-        }
-    }
-    // Espera limitada o reactor tirar as pastas (as branches só saem depois).
-    let deadline = Instant::now() + Duration::from_secs(30);
-    loop {
-        let pending = targets.iter().any(|e| {
-            e.worktree_path
-                .as_deref()
-                .map(|p| Path::new(p).is_dir())
-                .unwrap_or(false)
-        });
-        if !pending || Instant::now() > deadline {
-            break;
-        }
-        tokio::time::sleep(Duration::from_millis(300)).await;
-    }
-    let root = PathBuf::from(&a.repo_root);
-    let ctx = gctx(&root);
-    let mut branches_deleted = Vec::new();
-    for e in &targets {
-        if let Some(p) = e.worktree_path.as_deref().map(PathBuf::from) {
-            if p.is_dir() && worktree::is_omniget_worktree(&p) {
-                if let Err(err) = worktree::remove(&p, true, false, None).await {
-                    errors.push(format!("{}: {err}", e.label));
-                }
-            }
-        }
-        if delete_branches.unwrap_or(false) {
-            if let Some(b) = e.branch.as_deref() {
-                let owner = repo::config_get(&ctx, &format!("branch.{b}.omniget-thread")).await;
-                let ours =
-                    owner.as_deref() == Some(e.thread_id.as_str()) || worktree::is_temp_branch(b);
-                let used = checkout_of(&root, b).await.is_some();
-                if ours && !used {
-                    let o = ctx
-                        .git()
-                        .args(["branch", "-D", "--", b])
-                        .unchecked()
-                        .run()
-                        .await;
-                    if o.map(|o| o.ok()).unwrap_or(false) {
-                        branches_deleted.push(b.to_string());
-                    }
-                } else if !ours {
-                    errors.push(format!(
-                        "{}: branch {b} is not an OmniGet branch, kept",
-                        e.label
-                    ));
+                    Ok(()) => out.archived.push(e.thread_id.clone()),
+                    Err(err) => out.errors.push(format!("{}: {err}", e.label)),
                 }
             }
         }
@@ -2110,12 +2322,71 @@ pub async fn arena_cleanup(
             )
         });
     }
-    emit_arena(&app, &arena_id);
-    Ok(CleanupResult {
-        arena: load_arena(&arena_id)?,
-        archived,
-        branches_deleted,
-        errors,
+    out.arena = load_arena(arena_id)?;
+    Ok(out)
+}
+
+/// Estimativa de custo antes de começar (S23: custo × N): por coluna, a
+/// média do placar ou o preço de tabela × um turno típico.
+#[tauri::command]
+pub async fn arena_estimate(entries: Vec<EntrySpec>) -> Result<ArenaEstimate, String> {
+    let board = with_db(|c| scoreboard(c, None))?;
+    let mut prices = Vec::with_capacity(entries.len());
+    for e in &entries {
+        let p = match e.model.as_deref().map(str::trim).filter(|m| !m.is_empty()) {
+            Some(m) => {
+                let m = m.split_once(':').map(|(_, x)| x).unwrap_or(m).to_string();
+                tokio::time::timeout(
+                    Duration::from_secs(8),
+                    omniget_core::core::tools::pricing::price_for(&m),
+                )
+                .await
+                .ok()
+                .flatten()
+            }
+            None => None,
+        };
+        prices.push(p);
+    }
+    Ok(compare::estimate_from(&entries, &board, &prices))
+}
+
+/// Comparação lado a lado: arquivo × entrada, com os divergentes primeiro.
+#[tauri::command]
+pub async fn arena_compare(app: AppHandle, arena_id: String) -> Result<ArenaCompare, String> {
+    let _ = threads_host::get(&app)?;
+    compare_core(&arena_id).await
+}
+
+pub async fn compare_core(arena_id: &str) -> Result<ArenaCompare, String> {
+    let a = load_arena(arena_id)?;
+    let root = PathBuf::from(&a.repo_root);
+    let ctx = gctx(&root);
+    let mut per = Vec::new();
+    let mut pending = Vec::new();
+    for e in &a.entries {
+        let commit = match rev_parse(&ctx, &arena_ref(arena_id, &e.entry_id)).await {
+            Some(c) => Some(c),
+            None => e.commit_sha.clone(),
+        };
+        match commit {
+            Some(c) if !matches!(e.status.as_str(), "preparing" | "running") => {
+                per.push((
+                    e.entry_id.clone(),
+                    compare::touches(&root, &a.base_commit, &c).await?,
+                ));
+            }
+            _ => pending.push(e.entry_id.clone()),
+        }
+    }
+    let files = compare::divergence(&per);
+    Ok(ArenaCompare {
+        arena_id: arena_id.to_string(),
+        entries: per.iter().map(|(id, _)| id.clone()).collect(),
+        pending,
+        divergent: files.iter().filter(|f| f.divergent).count(),
+        agreed: files.iter().filter(|f| !f.divergent).count(),
+        files,
     })
 }
 
@@ -2260,19 +2531,37 @@ mod tests {
         assert_eq!((s[1].runs, s[1].failures), (1, 1));
     }
 
-    /// Uma pasta de dados para todos os testes do módulo (a env é global e o
-    /// banco da arena é aberto uma vez só).
-    fn test_data() -> PathBuf {
+    /// Uma pasta de dados para todos os testes do módulo (o banco da arena é
+    /// aberto uma vez só).
+    fn data_path() -> PathBuf {
         static D: OnceLock<PathBuf> = OnceLock::new();
-        D.get_or_init(|| {
-            let d = scratch("data");
-            unsafe { std::env::set_var("OMNIGET_DATA_DIR", &d) };
-            d
-        })
-        .clone()
+        D.get_or_init(|| scratch("data")).clone()
     }
 
-    fn scratch(name: &str) -> PathBuf {
+    /// A pasta de dados na env durante o teste inteiro. A env é global ao
+    /// processo: o guarda segura a trava de env do crate
+    /// (`secrets::test_env`), a mesma dos outros testes que mexem nela, e
+    /// devolve o valor anterior no fim.
+    pub(super) struct TestData {
+        path: PathBuf,
+        _env: crate::secrets::test_env::EnvGuard,
+    }
+
+    impl std::ops::Deref for TestData {
+        type Target = PathBuf;
+        fn deref(&self) -> &PathBuf {
+            &self.path
+        }
+    }
+
+    pub(super) fn test_data() -> TestData {
+        let env = crate::secrets::test_env::EnvGuard::acquire();
+        let path = data_path();
+        env.set("OMNIGET_DATA_DIR", Some(path.to_str().expect("utf-8 path")));
+        TestData { path, _env: env }
+    }
+
+    pub(super) fn scratch(name: &str) -> PathBuf {
         let d = std::env::temp_dir().join(format!(
             "omniget-arena-{name}-{}",
             uuid::Uuid::new_v4().simple()
@@ -2281,7 +2570,7 @@ mod tests {
         std::fs::canonicalize(d).unwrap()
     }
 
-    fn git(dir: &Path, args: &[&str]) -> String {
+    pub(super) fn git(dir: &Path, args: &[&str]) -> String {
         let out = std::process::Command::new("git")
             .arg("-C")
             .arg(dir)
@@ -2326,6 +2615,8 @@ mod tests {
         let _data = test_data();
         let repo = scratch("repo");
         git(&repo, &["init", "-q", "-b", "main"]);
+        git(&repo, &["config", "user.email", "t@t"]);
+        git(&repo, &["config", "user.name", "t"]);
         std::fs::write(repo.join("a.txt"), "one\ntwo\nthree\n").unwrap();
         git(&repo, &["add", "-A"]);
         git(&repo, &["commit", "-q", "-m", "base"]);
@@ -2353,50 +2644,89 @@ mod tests {
         let bad = run_verify(&w2, "test -f b.txt", 30).await;
         assert_eq!(bad.status, "failed");
 
-        // main está em checkout no repo do usuário: sem pedir, nada muda.
-        let err = apply_core(&repo, "main", &c1, "merge", false, "Arena: x", "b")
+        // main está em checkout no repo do usuário: o caminho só-ref recusa.
+        let err = apply_core(&repo, "main", &c1, "merge", "Arena: x", "b")
             .await
             .unwrap_err();
         assert!(err.starts_with("ERR_ARENA_CHECKOUT"), "{err}");
         assert_eq!(git(&repo, &["rev-parse", "HEAD"]), base);
 
-        // Checkout sujo: recusa mesmo com permissão.
-        std::fs::write(repo.join("scratch.txt"), "user work").unwrap();
-        let err = apply_core(&repo, "main", &c1, "merge", true, "Arena: x", "b")
+        // Em checkout quem entra é o integrate do 3.5. Arquivo rastreado
+        // sujo: recusa antes de tocar em qualquer coisa.
+        let one = ArenaEntry {
+            entry_id: "ent_one".into(),
+            ..Default::default()
+        };
+        std::fs::write(repo.join("a.txt"), "user edit\n").unwrap();
+        let err = apply_in_checkout(&repo, &repo, &one, &c1, "merge", "Arena: x")
             .await
             .unwrap_err();
         assert!(err.starts_with("ERR_ARENA_DIRTY"), "{err}");
-        std::fs::remove_file(repo.join("scratch.txt")).unwrap();
+        git(&repo, &["checkout", "--", "a.txt"]);
+        assert_eq!(git(&repo, &["rev-parse", "HEAD"]), base);
 
-        // Com permissão: merge com duas pontas, checkout avança.
-        let (m, how) = apply_core(&repo, "main", &c1, "merge", true, "Arena: x", "b")
+        // Arquivo não rastreado não bloqueia: merge com duas pontas no
+        // checkout, a branch temporária do vencedor some no fim.
+        std::fs::write(repo.join("scratch.txt"), "user work").unwrap();
+        let m = apply_in_checkout(&repo, &repo, &one, &c1, "merge", "Arena: x")
             .await
             .unwrap();
-        assert_eq!(how, "checkout");
         assert_eq!(git(&repo, &["rev-parse", "HEAD"]), m);
         assert!(repo.join("b.txt").is_file());
+        assert_eq!(
+            std::fs::read_to_string(repo.join("scratch.txt")).unwrap(),
+            "user work"
+        );
         assert_eq!(
             git(&repo, &["rev-list", "--parents", "-n", "1", "HEAD"])
                 .split_whitespace()
                 .count(),
             3
         );
+        assert_eq!(git(&repo, &["branch", "--list", "omniget/arena-*"]), "");
         // De novo: nada a aplicar.
-        let err = apply_core(&repo, "main", &c1, "merge", true, "x", "b")
+        let err = apply_in_checkout(&repo, &repo, &one, &c1, "merge", "x")
             .await
             .unwrap_err();
         assert!(err.starts_with("ERR_ARENA_NOTHING"), "{err}");
 
-        // Conflito previsto (duas edições na mesma linha) → recusa.
+        // Conflito previsto (duas edições na mesma linha).
         let (_, conflicts) = merge_tree(&gctx(&repo), &c2, &c3).await.unwrap();
         assert_eq!(conflicts, vec!["a.txt".to_string()]);
+        // E no checkout: o 2º merge conflita e é desfeito (sem MERGE_HEAD,
+        // status limpo, HEAD igual).
+        let two = ArenaEntry {
+            entry_id: "ent_two".into(),
+            ..Default::default()
+        };
+        let three = ArenaEntry {
+            entry_id: "ent_three".into(),
+            ..Default::default()
+        };
+        let m2 = apply_in_checkout(&repo, &repo, &two, &c2, "squash", "Arena: two")
+            .await
+            .unwrap();
+        let err = apply_in_checkout(&repo, &repo, &three, &c3, "merge", "Arena: three")
+            .await
+            .unwrap_err();
+        assert!(err.starts_with("ERR_ARENA_CONFLICT"), "{err}");
+        assert!(
+            err.contains("a.txt") && err.contains("back as it was"),
+            "{err}"
+        );
+        assert_eq!(git(&repo, &["rev-parse", "HEAD"]), m2);
+        assert!(!repo.join(".git/MERGE_HEAD").exists());
+        assert_eq!(
+            git(&repo, &["status", "--porcelain", "--untracked-files=no"]),
+            ""
+        );
+        std::fs::remove_file(repo.join("scratch.txt")).unwrap();
 
         // Branch fora de checkout: só o ref anda (squash, um pai).
         git(&repo, &["branch", "release", &base]);
-        let (sq, how) = apply_core(&repo, "release", &c2, "squash", false, "Arena: y", "b")
+        let sq = apply_core(&repo, "release", &c2, "squash", "Arena: y", "b")
             .await
             .unwrap();
-        assert_eq!(how, "ref");
         assert_eq!(git(&repo, &["rev-parse", "release"]), sq);
         assert_eq!(
             git(&repo, &["rev-list", "--parents", "-n", "1", "release"])
@@ -2409,13 +2739,35 @@ mod tests {
             "one\ntwo\nthree\nfour"
         );
         // main (checkout do usuário) não foi tocada pelo squash.
-        assert_eq!(git(&repo, &["rev-parse", "main"]), m);
+        assert_eq!(git(&repo, &["rev-parse", "main"]), m2);
 
         let _ = std::fs::remove_dir_all(&repo);
     }
 
-    async fn until<F: Fn(&ArenaView) -> bool>(id: &str, what: &str, f: F) -> ArenaView {
-        for _ in 0..300 {
+    /// Um motor de threads para o módulo inteiro: o observador da arena só
+    /// nasce uma vez por processo (no primeiro motor que vê), então os testes
+    /// que dependem dele dividem o mesmo motor, com o reator do git no
+    /// runtime global (vive além do teste que o criou).
+    pub(super) fn test_engine() -> Arc<ThreadsEngine> {
+        use omniget_core::core::threads::git::{GitHooks, ThreadGit};
+        static E: OnceLock<Arc<ThreadsEngine>> = OnceLock::new();
+        E.get_or_init(|| {
+            // Quem chama já segura `test_data()` (a trava não é reentrante).
+            let data = data_path();
+            let engine = ThreadsEngine::open(
+                &data.join(format!("threads-{}.db", uuid::Uuid::new_v4().simple())),
+            )
+            .unwrap();
+            let gitr = ThreadGit::new(engine.clone(), GitHooks::default());
+            let rx = engine.subscribe();
+            tauri::async_runtime::spawn(gitr.run(rx));
+            engine
+        })
+        .clone()
+    }
+
+    pub(super) async fn until<F: Fn(&ArenaView) -> bool>(id: &str, what: &str, f: F) -> ArenaView {
+        for _ in 0..600 {
             let a = load_arena(id).unwrap();
             if f(&a) {
                 return a;
@@ -2433,8 +2785,7 @@ mod tests {
     #[cfg(unix)]
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn arena_engine_flow() {
-        use omniget_core::core::threads::git::{GitHooks, ThreadGit};
-        let data = test_data();
+        let _data = test_data();
         let repo = scratch("erepo");
         git(&repo, &["init", "-q", "-b", "main"]);
         std::fs::write(repo.join("a.txt"), "base\n").unwrap();
@@ -2442,12 +2793,7 @@ mod tests {
         git(&repo, &["commit", "-q", "-m", "base"]);
         let base = git(&repo, &["rev-parse", "HEAD"]);
 
-        let engine = ThreadsEngine::open(
-            &data.join(format!("threads-{}.db", uuid::Uuid::new_v4().simple())),
-        )
-        .unwrap();
-        let gitr = ThreadGit::new(engine.clone(), GitHooks::default());
-        tokio::spawn(gitr.run(engine.subscribe()));
+        let engine = test_engine();
         let seen = Arc::new(Mutex::new(0usize));
         let notify: Notify = {
             let seen = seen.clone();
@@ -2548,10 +2894,9 @@ mod tests {
 
         // Aplicar o vencedor numa branch fora de checkout.
         git(&repo, &["branch", "arena-target", "main"]);
-        let (new, how) = apply_core(&repo, "arena-target", &sha, "merge", false, "Arena", "b")
+        let new = apply_core(&repo, "arena-target", &sha, "merge", "Arena", "b")
             .await
             .unwrap();
-        assert_eq!(how, "ref");
         assert_eq!(
             git(&repo, &["show", &format!("{new}:out.txt")]),
             "made by one"

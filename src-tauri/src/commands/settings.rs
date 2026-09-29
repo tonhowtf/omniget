@@ -2,6 +2,25 @@ use crate::hotkey;
 use crate::models::settings::AppSettings;
 use crate::storage::config;
 
+/// The login item exists when the person asked for it, or for agents in
+/// the background (3.2: they start hidden at login).
+pub fn autostart_wanted(s: &AppSettings) -> bool {
+    s.start_with_system || s.run_in_background
+}
+
+/// "Run agents in the background" and "quit when the window is closed"
+/// contradict each other (3.2). The one just turned on wins; turned on
+/// together, the agents keep running.
+pub fn reconcile_close(s: &mut AppSettings, old_background: bool, old_exit_on_close: bool) {
+    if s.run_in_background && s.exit_on_close {
+        if old_background && !old_exit_on_close {
+            s.run_in_background = false;
+        } else {
+            s.exit_on_close = false;
+        }
+    }
+}
+
 #[tauri::command]
 pub fn get_settings(app: tauri::AppHandle) -> Result<AppSettings, String> {
     Ok(config::load_settings(&app))
@@ -18,6 +37,9 @@ pub fn update_settings(app: tauri::AppHandle, partial: String) -> Result<AppSett
     let old_music_hotkey_binding = current.download.music_hotkey_binding.clone();
     let old_ptt_key = current.omnidisc.voice.ptt_key.clone();
     let old_start_with_system = current.start_with_system;
+    let old_background = current.run_in_background;
+    let old_exit_on_close = current.exit_on_close;
+    let old_autostart = autostart_wanted(&current);
     let old_rpc = current.rpc.clone();
 
     let patch: serde_json::Value =
@@ -26,6 +48,7 @@ pub fn update_settings(app: tauri::AppHandle, partial: String) -> Result<AppSett
         serde_json::to_value(&current).map_err(|e| format!("Serialize: {}", e))?;
     merge_json(&mut current_val, &patch);
     current = serde_json::from_value(current_val).map_err(|e| format!("Deserialize: {}", e))?;
+    reconcile_close(&mut current, old_background, old_exit_on_close);
     config::save_settings(&app, &current).map_err(|e| format!("Save: {}", e))?;
 
     crate::core::http_client::init_proxy(current.proxy.clone());
@@ -45,8 +68,10 @@ pub fn update_settings(app: tauri::AppHandle, partial: String) -> Result<AppSett
         hotkey::reregister(&app);
     }
 
-    if old_start_with_system != current.start_with_system {
-        crate::commands::autostart::apply_autostart(&app, current.start_with_system)?;
+    if old_start_with_system != current.start_with_system
+        || old_autostart != autostart_wanted(&current)
+    {
+        crate::commands::autostart::apply_autostart(&app, autostart_wanted(&current))?;
     }
 
     if old_rpc.enabled != current.rpc.enabled
@@ -68,7 +93,7 @@ pub fn reset_settings(app: tauri::AppHandle) -> Result<AppSettings, String> {
     let defaults = AppSettings::default();
     config::save_settings(&app, &defaults).map_err(|e| format!("Save: {}", e))?;
     hotkey::reregister(&app);
-    let _ = crate::commands::autostart::apply_autostart(&app, defaults.start_with_system);
+    let _ = crate::commands::autostart::apply_autostart(&app, autostart_wanted(&defaults));
     Ok(defaults)
 }
 
@@ -122,6 +147,7 @@ pub fn get_bridge_info(app: tauri::AppHandle) -> Result<BridgeInfo, String> {
 pub fn rotate_bridge_token(app: tauri::AppHandle) -> Result<BridgeInfo, String> {
     let mut current = config::load_settings(&app);
     current.bridge.token = crate::local_bridge::generate_token();
+    omniget_core::core::llm::cli_runtime::session::register_secret_value(&current.bridge.token);
     config::save_settings(&app, &current).map_err(|e| format!("Save: {}", e))?;
     get_bridge_info(app)
 }
@@ -166,5 +192,53 @@ fn merge_json(base: &mut serde_json::Value, patch: &serde_json::Value) {
                 base_obj.insert(key.clone(), value.clone());
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod background_tests {
+    use super::*;
+
+    #[test]
+    fn the_switch_turned_on_last_wins() {
+        let mut s = AppSettings {
+            run_in_background: true,
+            exit_on_close: true,
+            ..AppSettings::default()
+        };
+        // Background was on, quit-on-close just turned on.
+        reconcile_close(&mut s, true, false);
+        assert!(s.exit_on_close && !s.run_in_background);
+
+        let mut s = AppSettings {
+            run_in_background: true,
+            exit_on_close: true,
+            ..AppSettings::default()
+        };
+        // Quit-on-close was on, background just turned on.
+        reconcile_close(&mut s, false, true);
+        assert!(s.run_in_background && !s.exit_on_close);
+
+        let mut s = AppSettings {
+            run_in_background: true,
+            exit_on_close: true,
+            ..AppSettings::default()
+        };
+        reconcile_close(&mut s, false, false);
+        assert!(
+            s.run_in_background && !s.exit_on_close,
+            "together: agents win"
+        );
+    }
+
+    #[test]
+    fn background_agents_need_the_login_item() {
+        let mut s = AppSettings::default();
+        assert!(!autostart_wanted(&s));
+        s.run_in_background = true;
+        assert!(autostart_wanted(&s));
+        s.run_in_background = false;
+        s.start_with_system = true;
+        assert!(autostart_wanted(&s));
     }
 }

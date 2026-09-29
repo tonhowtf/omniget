@@ -8,7 +8,6 @@
    */
   import { t } from "$lib/i18n";
   import {
-    answerPermission,
     cancelRun,
     fetchRun,
     fetchRunDiff,
@@ -96,21 +95,15 @@
     {/if}
 
     {#if pending.length > 0}
+      <!-- Answered on its one card (the task row or the panel above), never
+           here too (A6). -->
       <div class="field-label">{$t("assist.runs.permissions_title")}</div>
       {#each pending as p (p.id)}
         <div class="ask" role="group" aria-label={$t("assist.runs.permission_label", { action: p.action })}>
           <div class="ask-title">{$t("assist.runs.permission_label", { action: p.action })}</div>
           <pre class="pre">{p.preview}</pre>
           <div class="actions">
-            <button type="button" class="button active" disabled={busy} onclick={() => act(() => answerPermission(p.id, "once"))}>
-              {$t("assist.runs.answer_once")}
-            </button>
-            <button type="button" class="button" disabled={busy} onclick={() => act(() => answerPermission(p.id, "always"))}>
-              {$t("assist.runs.answer_always")}
-            </button>
-            <button type="button" class="button" disabled={busy} onclick={() => act(() => answerPermission(p.id, "deny"))}>
-              {$t("assist.runs.answer_deny")}
-            </button>
+            <span class="dim">{$t("assist.runs.answer_on_card")}</span>
             <span class="dim">{$t("assist.runs.expires_in", { seconds: secondsLeft(p.deadline_ms, now) })}</span>
           </div>
         </div>

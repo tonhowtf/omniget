@@ -73,7 +73,23 @@ pub struct ClaudeArgs {
     pub exclude_dynamic: bool,
     /// `--effort` (`low`..`max`), already normalised by [`effort_level`].
     pub effort: Option<String>,
+    /// `--system-prompt` instead of `--append-system-prompt`: the whole
+    /// system prompt is ours (a side call, 3.7), without Claude Code's own.
+    pub replace_system_prompt: bool,
+    /// `--no-session-persistence`: nothing to resume later (a side call).
+    pub no_session_persistence: bool,
 }
+
+/// Built-in tools of a side call (the Loop auditor, 3.7): none.
+pub const SIDE_TOOLS: &str = "";
+
+/// `--effort` of a side call: a verdict in one JSON line needs no thinking.
+pub const SIDE_EFFORT: &str = "low";
+
+/// Environment of a side call: no extended thinking at all. Measured on
+/// 2.1.284 with Haiku: an audit at `--effort low` spent 823 thinking tokens
+/// of 862 (US$ 0.0050); with this, 32 output tokens (US$ 0.0008).
+pub const SIDE_ENV: &[(&str, &str)] = &[("MAX_THINKING_TOKENS", "0")];
 
 /// Built-in tools an external (MCP-controlled) mission never gets: every
 /// file, shell, web and agent tool. It acts only through OmniGet's projection,
@@ -120,7 +136,7 @@ pub fn effort_level(raw: &str) -> Option<&'static str> {
 pub fn permission_mode(sandbox: super::accounts::SandboxMode) -> &'static str {
     match sandbox {
         super::accounts::SandboxMode::ReadOnly => "plan",
-        super::accounts::SandboxMode::Write => "acceptEdits",
+        super::accounts::SandboxMode::Write | super::accounts::SandboxMode::Full => "acceptEdits",
     }
 }
 
@@ -133,6 +149,34 @@ impl ClaudeArgs {
     }
 }
 
+/// The permission half of the argv, in one place (2.7): who answers the
+/// prompts and the `--permission-mode` of the turn's run mode
+/// (`run_mode::claude_permission`). `scripts/llm/missions_eval.py`
+/// (`permission_flags`) mirrors exactly this function.
+pub fn permission_flags(prompt_tool: Option<&str>, mode: Option<&str>) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    match prompt_tool {
+        // Prompts go to OmniGet's user through the projection.
+        Some(tool) => {
+            out.push("--permission-prompts".into());
+            out.push("host".into());
+            out.push("--permission-prompt-tool".into());
+            out.push(tool.to_string());
+        }
+        // Nobody is at the keyboard: anything that would prompt is denied
+        // instead of hanging the turn forever (and the parser says why).
+        None => {
+            out.push("--permission-prompts".into());
+            out.push("none".into());
+        }
+    }
+    if let Some(mode) = mode {
+        out.push("--permission-mode".into());
+        out.push(mode.into());
+    }
+    out
+}
+
 /// Builds the argv. Pure, so the test can pin the flags of a version.
 pub fn argv(args: &ClaudeArgs) -> Vec<String> {
     let mut out: Vec<String> = vec![
@@ -141,25 +185,10 @@ pub fn argv(args: &ClaudeArgs) -> Vec<String> {
         "stream-json".into(),
         "--verbose".into(),
     ];
-    match &args.permission_prompt_tool {
-        // Prompts go to OmniGet's user through the projection.
-        Some(tool) => {
-            out.push("--permission-prompts".into());
-            out.push("host".into());
-            out.push("--permission-prompt-tool".into());
-            out.push(tool.clone());
-        }
-        // Nobody is at the keyboard: anything that would prompt is denied
-        // instead of hanging the turn forever.
-        None => {
-            out.push("--permission-prompts".into());
-            out.push("none".into());
-        }
-    }
-    if let Some(mode) = args.permission_mode {
-        out.push("--permission-mode".into());
-        out.push(mode.into());
-    }
+    out.extend(permission_flags(
+        args.permission_prompt_tool.as_deref(),
+        args.permission_mode,
+    ));
     if args.partial_messages {
         out.push("--include-partial-messages".into());
     }
@@ -173,9 +202,16 @@ pub fn argv(args: &ClaudeArgs) -> Vec<String> {
     }
     if let Some(system) = &args.system_prompt {
         if !system.trim().is_empty() {
-            out.push("--append-system-prompt".into());
+            out.push(if args.replace_system_prompt {
+                "--system-prompt".into()
+            } else {
+                "--append-system-prompt".into()
+            });
             out.push(system.clone());
         }
+    }
+    if args.no_session_persistence {
+        out.push("--no-session-persistence".into());
     }
     if let Some(budget) = args.max_budget_usd {
         out.push("--max-budget-usd".into());
@@ -295,6 +331,16 @@ pub struct ClaudeParser {
     started: AtomicBool,
     errored: AtomicBool,
     tool_blocks: Mutex<HashMap<u64, String>>,
+    /// The turn asked for `--permission-mode auto`: `system/init` must say
+    /// `auto`, or the user is told the turn runs in another mode (SP2).
+    expect_auto: bool,
+    /// Said next to every call the CLI denied (2.7, S5).
+    denial_note: String,
+    /// Tool calls whose denial already carries the note.
+    explained: Mutex<std::collections::HashSet<String>>,
+    /// The turn whose file baselines are recorded (3.4): each `Write`/`Edit`
+    /// result's `originalFile` goes to [`crate::core::llm::file_changes`].
+    baselines: Option<String>,
 }
 
 impl ClaudeParser {
@@ -304,7 +350,32 @@ impl ClaudeParser {
             started: AtomicBool::new(false),
             errored: AtomicBool::new(false),
             tool_blocks: Mutex::new(HashMap::new()),
+            expect_auto: false,
+            denial_note: "[OmniGet] Denied: the CLI refused this call under its permission mode and nobody could be asked.".into(),
+            explained: Mutex::new(std::collections::HashSet::new()),
+            baselines: None,
         }
+    }
+
+    /// Records the "before" of every file this turn (`request`) writes.
+    pub fn with_baselines(mut self, request: String) -> Self {
+        self.baselines = Some(request);
+        self
+    }
+
+    /// The turn's run mode as the parser needs it: whether `auto` was asked
+    /// for, and the reason to give next to a denial.
+    pub fn with_permission(mut self, expect_auto: bool, denial_note: String) -> Self {
+        self.expect_auto = expect_auto;
+        self.denial_note = denial_note;
+        self
+    }
+
+    fn explain(&self, id: &str) -> bool {
+        self.explained
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .insert(id.to_string())
     }
 
     fn take_start(&self, id: &str, out: &mut Vec<CliSignal>) {
@@ -336,6 +407,18 @@ impl LineParser for ClaudeParser {
                 if let Some(id) = value.get("session_id").and_then(Value::as_str) {
                     self.take_start(id, &mut out);
                     out.push(CliSignal::Session(id.to_string()));
+                }
+                if self.expect_auto && value.get("subtype").and_then(Value::as_str) == Some("init")
+                {
+                    let got = value
+                        .get("permissionMode")
+                        .and_then(Value::as_str)
+                        .unwrap_or("unknown");
+                    if got != "auto" {
+                        out.push(CliSignal::Event(TurnEvent::TextDelta {
+                            text: crate::core::llm::run_mode::auto_fallback_note(got),
+                        }));
+                    }
                 }
             }
             "stream_event" => {
@@ -386,6 +469,24 @@ impl LineParser for ClaudeParser {
                 }
             }
             "result" => {
+                // A denial the tool result did not carry (another wording, or
+                // no result at all) still gets its reason, once per call.
+                for denial in value
+                    .get("permission_denials")
+                    .and_then(Value::as_array)
+                    .into_iter()
+                    .flatten()
+                {
+                    if let Some(id) = denial.get("tool_use_id").and_then(Value::as_str) {
+                        if self.explain(id) {
+                            out.push(CliSignal::Event(TurnEvent::ToolResult {
+                                id: id.to_string(),
+                                content: self.denial_note.clone(),
+                                is_error: true,
+                            }));
+                        }
+                    }
+                }
                 if let Some(usage) = result_usage(&value) {
                     out.push(CliSignal::Event(TurnEvent::Usage { usage }));
                 }
@@ -451,6 +552,14 @@ impl LineParser for ClaudeParser {
             // `{"type":"user","message":{"content":[{"type":"tool_result",
             // "tool_use_id":"toolu_…","content":"…" | [{"type":"text",…}]}]}}`.
             "user" => {
+                if let (Some(request), Some(touch)) = (
+                    &self.baselines,
+                    value
+                        .get("tool_use_result")
+                        .and_then(crate::core::llm::file_changes::from_tool_use_result),
+                ) {
+                    crate::core::llm::file_changes::record(request, touch);
+                }
                 let blocks = value
                     .get("message")
                     .and_then(|m| m.get("content"))
@@ -464,7 +573,7 @@ impl LineParser for ClaudeParser {
                     let Some(id) = block.get("tool_use_id").and_then(Value::as_str) else {
                         continue;
                     };
-                    let content = match block.get("content") {
+                    let mut content = match block.get("content") {
                         Some(Value::String(text)) => text.clone(),
                         Some(Value::Array(parts)) => parts
                             .iter()
@@ -473,13 +582,21 @@ impl LineParser for ClaudeParser {
                             .join("\n"),
                         _ => String::new(),
                     };
+                    let is_error = block
+                        .get("is_error")
+                        .and_then(Value::as_bool)
+                        .unwrap_or(false);
+                    if is_error
+                        && crate::core::llm::run_mode::looks_denied(&content)
+                        && self.explain(id)
+                    {
+                        content.push_str("\n\n");
+                        content.push_str(&self.denial_note);
+                    }
                     out.push(CliSignal::Event(TurnEvent::ToolResult {
                         id: id.to_string(),
                         content,
-                        is_error: block
-                            .get("is_error")
-                            .and_then(Value::as_bool)
-                            .unwrap_or(false),
+                        is_error,
                     }));
                 }
             }
@@ -1186,5 +1303,37 @@ mod tests {
             Some(1_760_000_000)
         );
         assert_eq!(epoch_seconds(&Value::Null), None);
+    }
+
+    /// A side call (3.7): our system prompt replaces Claude Code's, no tools,
+    /// no user MCPs, nothing persisted. `scripts/llm/missions_eval.py`
+    /// (`side_argv`) mirrors this argv.
+    #[test]
+    fn a_side_call_replaces_the_system_prompt_and_persists_nothing() {
+        let a = argv(&ClaudeArgs {
+            model: Some("haiku".into()),
+            system_prompt: Some("You audit.".into()),
+            replace_system_prompt: true,
+            no_session_persistence: true,
+            tools: Some(SIDE_TOOLS.into()),
+            strict_mcp: true,
+            effort: Some(SIDE_EFFORT.into()),
+            permission_mode: Some("plan"),
+            ..ClaudeArgs::default()
+        });
+        let at = |f: &str| a.iter().position(|x| x == f);
+        assert_eq!(a[at("--system-prompt").unwrap() + 1], "You audit.");
+        assert!(at("--append-system-prompt").is_none());
+        assert!(at("--no-session-persistence").is_some());
+        assert_eq!(a[at("--tools").unwrap() + 1], "");
+        assert_eq!(a[at("--model").unwrap() + 1], "haiku");
+        assert!(at("--strict-mcp-config").is_some());
+        // A normal turn is unchanged: append, persisted.
+        let b = argv(&ClaudeArgs {
+            system_prompt: Some("x".into()),
+            ..ClaudeArgs::default()
+        });
+        assert!(b.contains(&"--append-system-prompt".to_string()));
+        assert!(!b.contains(&"--no-session-persistence".to_string()));
     }
 }

@@ -53,6 +53,144 @@ pub enum TaskKind {
     Unspecified,
     /// Writing, reading or reviewing code.
     Code,
+    /// A side call (S22, 84#P3): the Loop auditor, and later titles, the
+    /// walkthrough, summaries. Short, tool-less, on the cheapest model of the
+    /// **same** provider/account as the session ([`resolve_side`]); never
+    /// another provider's subscription. The chain order decides, like
+    /// [`TaskKind::Unspecified`].
+    Side,
+}
+
+/// The role a side agent is given (`AgentRole::Custom`), so the coordinator's
+/// [`TaskKind::of_agent`] reads [`TaskKind::Side`] off it.
+pub const SIDE_ROLE: &str = "side";
+
+/// Conversation ids of side calls start with this: the CLI runtime launches
+/// them lean (no tools, no MCP, the system prompt replaced, low effort).
+pub const SIDE_PREFIX: &str = "side-";
+
+pub fn is_side_conversation(id: &str) -> bool {
+    id.starts_with(SIDE_PREFIX)
+}
+
+/// Why a side call runs on the model it runs on (shown to the user as
+/// "side model: X (because …)").
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SideReason {
+    /// The caller named a model.
+    Requested,
+    /// The "side model" setting.
+    Setting,
+    /// The smallest model of the session's provider/account.
+    ProviderSmall,
+    /// No smaller model is known for this provider: the session's own.
+    SessionModel,
+}
+
+impl SideReason {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            SideReason::Requested => "requested",
+            SideReason::Setting => "setting",
+            SideReason::ProviderSmall => "provider_small",
+            SideReason::SessionModel => "session_model",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SideModel {
+    pub model: String,
+    pub reason: SideReason,
+}
+
+/// The provider family of a candidate, for [`small_model_of`]: `claude-cli`,
+/// `codex-cli`, or the native provider id (`anthropic`, `openai`, …).
+pub fn side_family(candidate: &Candidate, runtime: &super::agent::RuntimeKind) -> String {
+    match (&candidate.runtime, runtime) {
+        (CandidateRuntime::Cli { .. }, super::agent::RuntimeKind::Cli { cli, .. }) => {
+            format!("{}-cli", cli.trim().to_ascii_lowercase())
+        }
+        (CandidateRuntime::Native { provider }, _) => provider.as_str().to_ascii_lowercase(),
+        (CandidateRuntime::Cli { account_id }, _) => format!("cli:{account_id}"),
+    }
+}
+
+/// The small model of the same family, or `None` when none is known (a
+/// local model is already free; an ACP agent picks its own). Names that a
+/// family does not offer only cost one failed side call: the caller retries
+/// with the session model.
+pub fn small_model_of(family: &str, session_model: &str) -> Option<String> {
+    let m = session_model.trim().to_ascii_lowercase();
+    let small = |needles: &[&str]| needles.iter().any(|n| m.contains(n));
+    match family {
+        // `claude --model haiku` is an alias the CLI resolves itself.
+        "claude-cli" => Some("haiku".into()),
+        "anthropic" => Some(if small(&["haiku"]) {
+            session_model.trim().to_string()
+        } else {
+            "claude-haiku-4-5".into()
+        }),
+        "codex-cli" | "openai" => {
+            if m.is_empty() || m == "default" {
+                return None;
+            }
+            if small(&["mini", "nano", "luna"]) {
+                return Some(session_model.trim().to_string());
+            }
+            // The tiered names Codex lists (`gpt-5.6-sol`, `gpt-6-astra`):
+            // `luna` is the cheapest tier of a generation.
+            if let Some((base, tier)) = m.rsplit_once('-') {
+                if matches!(tier, "astra" | "sol" | "terra") && base.starts_with("gpt-") {
+                    return Some(format!("{base}-luna"));
+                }
+            }
+            if m.starts_with("gpt-") {
+                return Some(format!("{m}-mini"));
+            }
+            None
+        }
+        "google" | "gemini" => Some(if small(&["flash-lite"]) {
+            session_model.trim().to_string()
+        } else {
+            "gemini-2.5-flash-lite".into()
+        }),
+        _ => None,
+    }
+}
+
+/// The side model chain of 84#P3: requested → setting → the smallest model
+/// of the session's provider → the session's own model.
+pub fn resolve_side(
+    requested: Option<&str>,
+    setting: Option<&str>,
+    family: &str,
+    session_model: &str,
+) -> SideModel {
+    let named = |m: Option<&str>| m.map(str::trim).filter(|m| !m.is_empty()).map(String::from);
+    if let Some(model) = named(requested) {
+        return SideModel {
+            model,
+            reason: SideReason::Requested,
+        };
+    }
+    if let Some(model) = named(setting) {
+        return SideModel {
+            model,
+            reason: SideReason::Setting,
+        };
+    }
+    match small_model_of(family, session_model) {
+        Some(model) => SideModel {
+            model,
+            reason: SideReason::ProviderSmall,
+        },
+        None => SideModel {
+            model: session_model.trim().to_string(),
+            reason: SideReason::SessionModel,
+        },
+    }
 }
 
 /// Template ids (and therefore agent ids, since the roster keeps them) whose
@@ -66,6 +204,9 @@ impl TaskKind {
     pub fn of_agent(agent: &AgentDef) -> TaskKind {
         if let AgentRole::Custom(name) = &agent.role {
             let name = name.trim().to_ascii_lowercase();
+            if name == SIDE_ROLE {
+                return TaskKind::Side;
+            }
             if name == "code" || name == "coder" || name == "coding" {
                 return TaskKind::Code;
             }
@@ -488,7 +629,7 @@ pub fn select_for(
                 }
                 // With no preference to look for, the first usable one wins,
                 // exactly as before.
-                if task == TaskKind::Unspecified {
+                if matches!(task, TaskKind::Unspecified | TaskKind::Side) {
                     break;
                 }
             }
@@ -1186,5 +1327,100 @@ mod tests {
         let m = model_ref(&cli("max-1", "sonnet"));
         assert_eq!(m.provider.as_str(), "cli:max-1");
         assert_eq!(m.model, "sonnet");
+    }
+
+    // ── TaskKind::Side (3.7, 84#P3) ────────────────────────────────────
+
+    #[test]
+    fn a_side_call_stays_on_the_session_provider_small_model() {
+        use crate::core::llm::agent::RuntimeKind;
+        let claude = RuntimeKind::Cli {
+            cli: "claude".into(),
+            account: "max-1".into(),
+        };
+        let codex = RuntimeKind::Cli {
+            cli: "codex".into(),
+            account: "pro".into(),
+        };
+        assert_eq!(side_family(&cli("max-1", "sonnet"), &claude), "claude-cli");
+        assert_eq!(side_family(&cli("pro", "gpt-5.6-sol"), &codex), "codex-cli");
+        assert_eq!(
+            side_family(
+                &native("anthropic", "claude-sonnet-5"),
+                &RuntimeKind::Native
+            ),
+            "anthropic"
+        );
+        let side = |family: &str, model: &str| resolve_side(None, None, family, model);
+        assert_eq!(side("claude-cli", "opus").model, "haiku");
+        assert_eq!(side("claude-cli", "").model, "haiku");
+        assert_eq!(side("claude-cli", "opus").reason, SideReason::ProviderSmall);
+        assert_eq!(
+            side("anthropic", "claude-sonnet-5").model,
+            "claude-haiku-4-5"
+        );
+        assert_eq!(side("codex-cli", "gpt-5.6-sol").model, "gpt-5.6-luna");
+        assert_eq!(side("codex-cli", "gpt-6-astra").model, "gpt-6-luna");
+        assert_eq!(side("codex-cli", "gpt-5.6-luna").model, "gpt-5.6-luna");
+        assert_eq!(side("openai", "gpt-4o").model, "gpt-4o-mini");
+        assert_eq!(side("openai", "gpt-4o-mini").model, "gpt-4o-mini");
+        assert_eq!(
+            side("google", "gemini-2.5-pro").model,
+            "gemini-2.5-flash-lite"
+        );
+        // Nothing smaller known: the session's own model, and the reason says so.
+        let local = side("ollama", "qwen3:8b");
+        assert_eq!(local.model, "qwen3:8b");
+        assert_eq!(local.reason, SideReason::SessionModel);
+        let default_codex = side("codex-cli", "");
+        assert_eq!(default_codex.reason, SideReason::SessionModel);
+    }
+
+    #[test]
+    fn a_requested_side_model_wins_then_the_setting() {
+        let r = resolve_side(Some("sonnet"), Some("haiku"), "claude-cli", "opus");
+        assert_eq!(
+            (r.model.as_str(), r.reason),
+            ("sonnet", SideReason::Requested)
+        );
+        let r = resolve_side(Some("  "), Some("haiku"), "claude-cli", "opus");
+        assert_eq!((r.model.as_str(), r.reason), ("haiku", SideReason::Setting));
+    }
+
+    #[test]
+    fn a_side_agent_declares_side_and_takes_the_first_usable_candidate() {
+        use crate::core::llm::agent::{AgentRole, Budget, ModelPolicy, RuntimeKind};
+        let agent = AgentDef {
+            id: "claude-code".into(),
+            name: "Claude Code".into(),
+            role: AgentRole::Custom(SIDE_ROLE.into()),
+            system_prompt: String::new(),
+            model: ModelPolicy::Route { chain: vec![] },
+            tools: vec![],
+            skills: vec![],
+            budget: Budget::default(),
+            runtime: RuntimeKind::Cli {
+                cli: "claude".into(),
+                account: "max-1".into(),
+            },
+            skin: None,
+        };
+        assert_eq!(TaskKind::of_agent(&agent), TaskKind::Side);
+        assert!(is_side_conversation("side-audit-l1"));
+        assert!(!is_side_conversation("loop-l1"));
+        let chain = vec![cli("max-1", "haiku"), cli("max-2", "haiku")];
+        let caps = StaticCapacity::new();
+        let route = select_for(
+            &chain,
+            &caps,
+            &RouterState::new(),
+            &RouterConfig::default(),
+            Instant::now(),
+            &[],
+            TaskKind::Side,
+        )
+        .unwrap();
+        assert_eq!(route.index, 0);
+        assert!(!route.preferred);
     }
 }

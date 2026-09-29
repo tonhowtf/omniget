@@ -5,6 +5,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { showToast } from "$lib/stores/toast-store.svelte";
+import { addLog } from "$lib/stores/debug-store.svelte";
 
 export type JobState =
   | "queued"
@@ -13,10 +14,43 @@ export type JobState =
   | "running"
   | "waiting_approval"
   | "done"
+  /** It ended well and changed files: a person looks at them before it counts as done. */
+  | "review"
+  /** It ended well but the agent wrote no `OUTCOME:` line (2.6). */
+  | "done_unreported"
   | "failed"
   | "cancelled"
   /** The app closed while it ran: its result is unknown, a person decides. */
   | "interrupted";
+
+export type Isolation = "shared" | "worktree" | "auto";
+
+/** What removing a job's worktree did (`llm_job_remove_worktree`). */
+export type WorktreeRemoval = {
+  dirty: string[];
+  saved: string | null;
+  preserved_branch: string | null;
+  branch_deleted: string | null;
+  trashed: boolean;
+};
+
+/** What the host recorded about a finished job (never the agent's words). */
+export type JobProof = {
+  generated_by: "host";
+  /** `host:workspace@base→head` */
+  stamp: string;
+  mode: "worktree" | "shared";
+  branch: string | null;
+  base: string | null;
+  head: string | null;
+  file_count: number;
+  additions: number | null;
+  deletions: number | null;
+  checks: { command: string; exit_code: number | null; ok: boolean; at_ms: number }[];
+  tokens: { input: number | null; output: number | null; cache_read: number | null; billable: number | null };
+  cost_usd: number | null;
+  duration_ms: number | null;
+};
 
 export type Job = {
   id: string;
@@ -39,8 +73,17 @@ export type Job = {
   state_seq?: number;
   /** When the user last opened the job (epoch ms). */
   seen_ms?: number | null;
-  /** Why a failed job failed: `stalled`, `no_start`, `deadline`, `limit`, `ask_expired`. */
+  /**
+   * Why a failed job failed: `stalled`, `no_start`, `deadline`, `limit`,
+   * `ask_expired`; an interrupted one: `app_restart`.
+   */
   failure_reason?: string | null;
+  /** The CLI session `--resume` continues (3.1). */
+  session_id?: string | null;
+  /** How many times the host started it again by itself (3.1). */
+  attempt?: number;
+  /** This job's own "resume by itself after a restart"; null = the setting. */
+  auto_resume?: boolean | null;
   /** This job's own time limit in minutes; null = the setting. */
   deadline_min?: number | null;
   /** The deadline applied when it started (epoch ms). */
@@ -57,6 +100,26 @@ export type Job = {
   diff_clipped?: boolean;
   /** Why there is no diff: `code: detail` (`no_workspace`, `no_snapshot`, `error`). */
   diff_unavailable?: string | null;
+  /** Where it writes: the folder, a worktree of its own, or `auto` (a worktree only if the folder is busy). */
+  isolation?: Isolation;
+  /** What it may do without asking (2.7): `approval_required` unless someone chose. */
+  run_mode?: import("./llm-run-mode.svelte").RunMode;
+  /** The ref its worktree starts from; null = the checkout as it is, uncommitted work included. */
+  base_ref?: string | null;
+  /** Its worktree, while it has one. */
+  worktree_path?: string | null;
+  /** `omniget/job-<id>`: keeps the job's work after the worktree is gone. */
+  branch?: string | null;
+  /** The commit the worktree started from. */
+  base_oid?: string | null;
+  /** The commit holding the job's work on its branch (worktree mode). */
+  head_oid?: string | null;
+  /** Stamped by the host when the job ended; list rows and events leave it out. */
+  proof?: JobProof | null;
+  /** A short name given by whoever started it (`job.start`, 2.5). */
+  title?: string | null;
+  /** The agent's own last word, from its `OUTCOME:` line (2.6). */
+  outcome?: { status: "succeeded" | "failed"; summary: string } | null;
   /** Summed over the model calls of the job; `cost_usd` is null for local models and CLI accounts. */
   usage?: {
     model: string;
@@ -102,13 +165,59 @@ export type LoopDef = {
   max_rounds: number | null;
   max_minutes: number | null;
   check_command: string | null;
-  state: "running" | "done" | "failed" | "cancelled" | "interrupted";
+  /** `paused`: a budget incident holds it (`stop_reason` = `budget:<incident>`, 3.3);
+   * `blocked` and `budget_limited` come from the auditor's rules (3.7). */
+  state: "running" | "done" | "failed" | "cancelled" | "interrupted" | "paused" | "blocked" | "budget_limited";
   rounds_done: number;
   conversation_id: string;
   created_ms: number;
   finished_ms: number | null;
   last_check: string | null;
   stop_reason: string | null;
+  /** Resume by itself after a restart (3.1); null = the setting. */
+  auto_resume?: boolean | null;
+  /** The run mode of its rounds (2.7); older loops have none (`auto_edits`). */
+  run_mode?: import("./llm-run-mode.svelte").RunMode | null;
+  /** Cost ceiling in US$ (a hard budget policy on the loop, 3.3). */
+  max_cost_usd?: number | null;
+  /** What the rounds cost: reported dollars plus the price table's estimate. */
+  spent_usd?: number;
+  /** The part of `spent_usd` that is an estimate (a CLI that reports no price). */
+  spent_usd_estimated?: number;
+  /** Weighted tokens of all rounds (input by price weight + output). */
+  spent_tokens?: number;
+  /** Rounds whose cost nobody knows. */
+  unpriced_rounds?: number;
+  /** Billable-token ceiling of rounds + audits (3.7); none = no ceiling. */
+  token_budget?: number | null;
+  tokens_used?: number;
+  /** The auditor's last note: the Loop's progress line. */
+  note?: string | null;
+  /** One entry per audited round (a Loop without a check command), newest last. */
+  audits?: LoopAudit[];
+  audit_usd?: number;
+  /** Rounds sent as the short continuation guide (the task was not resent). */
+  rounds_guided?: number;
+};
+
+/** The auditor's verdict on one round of a Loop (3.7). */
+export type LoopAudit = {
+  round: number;
+  /** `null` = the audit gave no verdict (see `error`). */
+  verdict: "continue" | "complete" | "blocked" | null;
+  note: string;
+  /** The agent itself said it was done. */
+  claimed_done: boolean;
+  model: string;
+  /** `provider_small` | `session_model` | `requested` | `setting`, `+fallback`. */
+  reason: string;
+  error: string | null;
+  cost_usd: number | null;
+  tokens: number;
+  ms: number;
+  round_cost_usd: number | null;
+  round_tokens: number;
+  guided: boolean;
 };
 
 export type Trigger = {
@@ -153,7 +262,8 @@ export type CatchUp = "skip" | "once" | "all_capped";
 export const CATCH_UP_CAP = 25;
 export type TriggerConcurrency = "skip_if_active" | "queue";
 
-export type BridgeInfo = { base_url: string; token: string };
+/** The bridge address only: no secret reaches the page (U6). */
+export type BridgeInfo = { base_url: string };
 
 /** One job still at the gate, from `llm_jobs_state` / `llm://queue`. */
 export type QueuedEntry = {
@@ -212,12 +322,41 @@ export function queueLines(entry: QueuedEntry, state: QueueState): { position: I
   };
 }
 
+/**
+ * A question waiting for a person: a pending row of `runs_permissions`, the
+ * one table of asks (2.2). `id` is the approval id every channel answers
+ * with (window, `omniget agent approve`, MCP, a paired phone).
+ */
 export type PendingAsk = {
+  id?: string;
   agent: string;
   request_id: string;
   tool_call_id: string;
   tool: string;
   preview: string;
+  asked_ms?: number;
+  deadline_ms?: number | null;
+};
+
+/** `accept | accept_session | accept_always | decline | cancel` (2.2). */
+export type ApprovalDecision = "accept" | "accept_session" | "accept_always" | "decline" | "cancel";
+
+/** An approval as `llm_approvals_list` returns it (the bridge's view). */
+export type Approval = {
+  id: string;
+  state: "pending" | "resolved" | "cancelled" | "stale" | "expired";
+  decision: ApprovalDecision | null;
+  job_id: string | null;
+  run_id: string;
+  agent: string;
+  tool: string;
+  preview: string;
+  asked_ms: number;
+  deadline_ms: number | null;
+  resolved_ms: number | null;
+  channel: string | null;
+  decided_by: string | null;
+  note: string | null;
 };
 
 export type LoopInput = {
@@ -228,6 +367,15 @@ export type LoopInput = {
   max_rounds?: number | null;
   max_minutes?: number | null;
   check_command?: string | null;
+  /** Resume by itself after a restart (3.1); omitted = the setting. */
+  auto_resume?: boolean | null;
+  /** How much each round may do without asking (2.7); none = `auto_edits`. */
+  run_mode?: import("./llm-run-mode.svelte").RunMode | null;
+  /** Pause the loop with a budget incident when the rounds cost this (US$). */
+  max_cost_usd?: number | null;
+  /** Billable tokens the rounds and their audits may spend (3.7): a hard
+   * `weighted_tokens` budget policy on the loop, like `max_cost_usd`. */
+  token_budget?: number | null;
 };
 
 export type TriggerInput = {
@@ -328,7 +476,7 @@ export type PermissionRequest = {
   preview: string;
   options: string[];
   deadline_ms: number;
-  state: "pending" | "approved" | "denied" | "expired" | "cancelled";
+  state: "pending" | "approved" | "denied" | "expired" | "cancelled" | "stale";
   answer: string | null;
   version: number;
   created_ms: number;
@@ -426,7 +574,18 @@ export type RunUpdate = {
 };
 
 let runs = $state<RunView[]>([]);
-let permissions = $state<PermissionRequest[]>([]);
+/** Asks a restart left behind (`stale`): shown until dismissed (2.2). */
+let staleAsks = $state<Approval[]>([]);
+/**
+ * Why the questions or the run record could not be read. A question that
+ * fails to load must not look like "nothing waits for you" (U3), so the
+ * last list stays and this is shown instead.
+ */
+let readError = $state<string | null>(null);
+
+export function getJobsReadError(): string | null {
+  return readError;
+}
 /** Bumped on every `assist://run`, so an open detail can refresh. */
 let runTick = $state(0);
 let runsReload: ReturnType<typeof setTimeout> | null = null;
@@ -434,8 +593,8 @@ let runsReload: ReturnType<typeof setTimeout> | null = null;
 export function getRuns(): RunView[] {
   return runs;
 }
-export function getPermissions(): PermissionRequest[] {
-  return permissions;
+export function getStaleAsks(): Approval[] {
+  return staleAsks;
 }
 export function getRunTick(): number {
   return runTick;
@@ -443,15 +602,16 @@ export function getRunTick(): number {
 
 export async function reloadRuns(): Promise<void> {
   try {
-    const [list, pending] = await Promise.all([
+    const [list, stale] = await Promise.all([
       invoke<RunView[]>("assist_runs_list", { limit: 150 }),
-      invoke<PermissionRequest[]>("assist_permissions_pending"),
+      invoke<Approval[]>("llm_approvals_list", { state: "stale" }).catch(() => [] as Approval[]),
     ]);
     runs = list;
-    permissions = pending;
-  } catch {
+    staleAsks = stale;
+  } catch (e) {
     // The run record may be unavailable (no assistant database): the rest
-    // of the page still works.
+    // of the page still works, and the log says why.
+    addLog("warn", "system", `runs: could not read the run record: ${String(e)}`);
   }
 }
 
@@ -481,16 +641,22 @@ export async function fetchRunDiff(id: string): Promise<RunDiff | null> {
   }
 }
 
-/** `answer`: once | always | deny. A late answer is refused (expired). */
-export async function answerPermission(id: string, answer: "once" | "always" | "deny"): Promise<boolean> {
+/**
+ * Answers an approval by its id: the same door as the bridge, the CLI and
+ * MCP. A second answer is refused (`ERR_NO_ASK`); `cancel` on a stale one
+ * dismisses it.
+ */
+export async function respondApproval(id: string, decision: ApprovalDecision): Promise<boolean> {
   try {
-    await invoke("assist_permission_answer", { permissionId: id, answer });
-    permissions = permissions.filter((p) => p.id !== id);
+    await invoke("llm_approval_respond", { id, decision });
+    asks = asks.filter((a) => a.id !== id);
+    staleAsks = staleAsks.filter((a) => a.id !== id);
     scheduleRunsReload();
     return true;
   } catch (e) {
     fail(e);
     scheduleRunsReload();
+    void pollAsks();
     return false;
   }
 }
@@ -730,9 +896,15 @@ export async function fetchJob(id: string): Promise<Job | null> {
   }
 }
 
-export async function submitJob(agentId: string, prompt: string, workspace: string | null): Promise<Job | null> {
+export async function submitJob(
+  agentId: string,
+  prompt: string,
+  workspace: string | null,
+  isolation: Isolation | null = null,
+  runMode: import("./llm-run-mode.svelte").RunMode | null = null,
+): Promise<Job | null> {
   try {
-    const job = await invoke<Job>("llm_job_submit", { agentId, prompt, workspace });
+    const job = await invoke<Job>("llm_job_submit", { agentId, prompt, workspace, isolation, runMode });
     jobs = upsert(jobs, job);
     return job;
   } catch (e) {
@@ -746,6 +918,19 @@ export async function cancelJob(id: string): Promise<void> {
     jobs = upsert(jobs, await invoke<Job>("llm_job_cancel", { id }));
   } catch (e) {
     fail(e);
+  }
+}
+
+/** Removes a finished job's worktree; its work is saved on the job's branch first. */
+export async function removeJobWorktree(id: string): Promise<WorktreeRemoval | null> {
+  try {
+    const out = await invoke<WorktreeRemoval>("llm_job_remove_worktree", { id });
+    const job = await invoke<Job | null>("llm_job_get", { id });
+    if (job) jobs = upsert(jobs, job);
+    return out;
+  } catch (e) {
+    fail(e);
+    return null;
   }
 }
 
@@ -820,8 +1005,12 @@ export async function fireTrigger(id: string): Promise<Job | null> {
 export async function pollAsks(): Promise<void> {
   try {
     asks = await invoke<PendingAsk[]>("llm_tool_asks_pending");
-  } catch {
-    asks = [];
+    readError = null;
+  } catch (e) {
+    // Keep the questions already shown: an empty list would read as
+    // "nothing waits for you" while something may.
+    readError = String(e);
+    addLog("error", "system", `jobs: could not read the pending questions: ${String(e)}`);
   }
 }
 
@@ -835,7 +1024,12 @@ export async function markJobSeen(id: string): Promise<void> {
   }
 }
 
+/** One card, one answer: by approval id when the row has one (2.2). */
 export async function answerAsk(ask: PendingAsk, allow: boolean, always: boolean): Promise<void> {
+  if (ask.id) {
+    await respondApproval(ask.id, !allow ? "decline" : always ? "accept_always" : "accept");
+    return;
+  }
   try {
     await invoke("llm_tool_answer", {
       requestId: ask.request_id,
@@ -856,11 +1050,15 @@ export function pickState(state: string): string {
     case "preparing":
       return "blue";
     case "waiting_approval":
+    case "review":
     case "waiting_user":
     case "interrupted":
     case "unknown":
+    case "blocked":
+    case "budget_limited":
       return "orange";
     case "done":
+    case "done_unreported":
     case "completed":
       return "green";
     case "failed":
@@ -868,6 +1066,17 @@ export function pickState(state: string): string {
     default:
       return "grey";
   }
+}
+
+/** What the auditor cost next to the rounds it judged, as a share (0..1). */
+export function auditOverhead(audits: LoopAudit[] | undefined): { audit: number; rounds: number; share: number | null } {
+  let audit = 0;
+  let rounds = 0;
+  for (const a of audits ?? []) {
+    audit += a.cost_usd ?? 0;
+    rounds += a.round_cost_usd ?? 0;
+  }
+  return { audit, rounds, share: rounds > 0 ? audit / rounds : null };
 }
 
 export function shortTime(ms: number | null): string {

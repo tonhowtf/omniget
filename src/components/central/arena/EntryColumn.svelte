@@ -25,6 +25,7 @@
     entry,
     now,
     tags = [],
+    divergent = 0,
     diffHeight = "60vh",
     showDiff = true,
     onvote,
@@ -36,6 +37,8 @@
     entry: ArenaEntry;
     now: number;
     tags?: string[];
+    /** Arquivos divergentes (entre as colunas) em que esta coluna mexeu. */
+    divergent?: number;
     diffHeight?: string;
     showDiff?: boolean;
     onvote: (e: ArenaEntry, delta: 1 | -1) => void;
@@ -116,6 +119,9 @@
     {#each tags as tag (tag)}
       <span class="tag">{$t(`llm.central.arena.tag.${tag}`)}</span>
     {/each}
+    {#if divergent > 0}
+      <span class="tag split" title={$t("llm.central.arena.compare.column_hint")}>{$t("llm.central.arena.compare.column", { count: divergent })}</span>
+    {/if}
   </div>
 
   <dl class="stats">
@@ -172,8 +178,8 @@
     </button>
     <div class="grow"></div>
     <a class="mini" href={`/llm/threads?thread=${encodeURIComponent(entry.threadId)}`} title={$t("llm.central.arena.open_thread")}><Icon name="arrow-square-out" size={13} /></a>
-    {#if entry.winner && !applied}
-      <button type="button" class="pill primary" onclick={() => onapply(entry)}><Icon name="git-branch" size={12} /> {$t("llm.central.arena.apply_winner")}</button>
+    {#if !applied && entry.status === "done" && (entry.commitSha || entry.worktreePath) && !entry.cleanedAt}
+      <button type="button" class="pill" class:primary={entry.winner} onclick={() => onapply(entry)} title={$t("llm.central.arena.choose_hint")}><Icon name="git-pull-request" size={12} /> {$t("llm.central.arena.choose")}</button>
     {/if}
   </div>
 
@@ -219,6 +225,7 @@
   .spin { display: inline-flex; animation: spin 900ms linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
   .link { color: inherit; text-decoration: underline; font-weight: 500; }
+  .tag.split { background: color-mix(in srgb, var(--warning) 16%, transparent); color: var(--warning); }
   .tag { font-size: var(--text-caption); font-weight: 600; text-transform: uppercase; letter-spacing: var(--track-caps); padding: 1px 6px; border-radius: 999px; background: color-mix(in srgb, var(--tint) 16%, transparent); color: var(--text); }
   .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; margin: 0; }
   .stats > div { display: flex; flex-direction: column; gap: 1px; min-width: 0; }

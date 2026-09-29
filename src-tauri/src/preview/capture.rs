@@ -717,7 +717,8 @@ mod tests {
         }
         assert_eq!(list.windows[0].id, "screen");
         if let Ok(dir) = std::env::var("SNAPSHOT_TEST_CAPTURE") {
-            std::env::set_var("OMNIGET_DATA_DIR", dir);
+            let env = crate::secrets::test_env::EnvGuard::acquire();
+            env.set("OMNIGET_DATA_DIR", Some(dir.as_str()));
             let shot = capture_window(
                 &list
                     .windows

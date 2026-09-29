@@ -59,7 +59,9 @@ use omniget_core::core::tools::ai_keys;
 
 pub const ERR_NO_AGENT: &str = "ERR_LLM_NO_AGENT";
 pub const ERR_NO_TURN: &str = "ERR_LLM_NO_TURN";
-pub const ERR_NO_ASK: &str = "ERR_LLM_NO_ASK";
+/// No question waits under this id (answered, expired, cancelled): the same
+/// code the approvals API returns (2.2).
+pub const ERR_NO_ASK: &str = "ERR_NO_ASK";
 pub const ERR_STORE: &str = "ERR_LLM_STORE";
 pub const ERR_NO_PROVIDER: &str = "ERR_LLM_NO_PROVIDER";
 
@@ -782,11 +784,7 @@ struct TurnHandle {
     agent_id: String,
 }
 
-/// Tool asks still waiting for an answer, so a window opened in the middle of
-/// a turn (the pet) can catch up. Cleared entry by entry on answer and
-/// wholesale whenever the broker says nothing is pending any more.
 static PRUNE_RECEIPTS: Mutex<Vec<serde_json::Value>> = Mutex::new(Vec::new());
-static PENDING_ASKS: Mutex<Vec<serde_json::Value>> = Mutex::new(Vec::new());
 
 /// The roster editor's skill checklist (`AgentDef::skills`) is a mirror of
 /// the bot's bindings in `assist.db`; saving the agent brings the bindings in
@@ -840,6 +838,7 @@ impl LlmManager {
         let _ = std::fs::create_dir_all(&root);
         omniget_core::core::llm::code_tools::set_store_file(root.join("workspaces.json"));
         omniget_core::core::llm::perm::set_store_file(root.join("permission-rules.json"));
+        omniget_core::core::llm::run_mode::set_store_file(root.join("run-modes.json"));
         omniget_core::core::llm::snapshot::set_root(root.join("snapshots"));
 
         let bus = Arc::new(Bus::new());
@@ -862,6 +861,11 @@ impl LlmManager {
         // instead of the owner's real account book.
         let accounts = Arc::new(AccountStore::at(root.join("accounts.json")));
         let cli_capacity = Arc::new(CliCapacity::new());
+        // `quota_pct` budgets (3.3) read the same capacity the router does:
+        // what each CLI reported on its own stream, never an endpoint.
+        omniget_core::core::llm::budget::policy::set_quota_source(
+            omniget_core::core::llm::budget::policy::quota_from_capacity(cli_capacity.clone()),
+        );
         let router = Arc::new(Router::new(Arc::new(CompositeCapacity::new(
             capacity.clone(),
             CliCapacitySource::new(cli_capacity.clone(), accounts.clone()),
@@ -881,15 +885,17 @@ impl LlmManager {
         // watchdog asks the broker before it counts the silence (1.2). Weak,
         // so the runtime never keeps the broker alive by itself.
         let pause_broker = Arc::downgrade(&broker);
+        // Codex over its app-server asks per call (3.6): the questions become
+        // the broker's durable asks, answerable from any channel.
         let cli = Arc::new(
-            CliRuntime::new(accounts.clone(), cli_capacity.clone()).with_pause_probe(Arc::new(
-                move |request: &str| {
+            CliRuntime::new(accounts.clone(), cli_capacity.clone())
+                .with_pause_probe(Arc::new(move |request: &str| {
                     pause_broker
                         .upgrade()
                         .map(|b| b.has_pending(request))
                         .unwrap_or(false)
-                },
-            )),
+                }))
+                .with_broker(Arc::downgrade(&broker)),
         );
         let runtime: Arc<dyn AgentRuntime> = Arc::new(
             CompositeRuntime::new(native.clone())
@@ -1310,6 +1316,93 @@ impl LlmManager {
             .await
     }
 
+    /// A side call (3.7, `TaskKind::Side`, 84#P3): a short, tool-less turn
+    /// of the agent's own provider/account on its smallest model, for the
+    /// Loop auditor. `conversation_id` must start with `side-` (the CLI
+    /// runtime launches it lean from that). `system` replaces the agent's
+    /// prompt; the agent's skills, tools and memory stay out. Returns the
+    /// model it runs on and why.
+    pub async fn side_turn_stream(
+        &self,
+        conversation_id: &str,
+        source_agent_id: &str,
+        system: &str,
+        input: &str,
+        requested_model: Option<&str>,
+    ) -> Result<
+        (
+            String,
+            CancellationToken,
+            BoxStream<'static, TurnEvent>,
+            router::SideModel,
+        ),
+        String,
+    > {
+        if !router::is_side_conversation(conversation_id) {
+            return Err(format!(
+                "ERR_SIDE_SESSION: `{conversation_id}` is not a side conversation"
+            ));
+        }
+        let mut agent = self
+            .agent(source_agent_id)
+            .ok_or_else(|| format!("{ERR_NO_AGENT}: no agent {source_agent_id}"))?;
+        let side = self.side_agent(&mut agent, system, requested_model);
+        let (request, cancel, stream) = self
+            .turn_with_agent(conversation_id, agent, input, CancellationToken::new())
+            .await?;
+        Ok((request, cancel, stream, side))
+    }
+
+    /// Turns `agent` into its side agent in place: same runtime, account and
+    /// provider (never another provider's subscription), the side model of
+    /// [`router::resolve_side`], no tools, no skills, `system` as its prompt.
+    pub fn side_agent(
+        &self,
+        agent: &mut AgentDef,
+        system: &str,
+        requested_model: Option<&str>,
+    ) -> router::SideModel {
+        use omniget_core::core::llm::agent::{AgentRole, RuntimeKind};
+        let session = self.model_of(agent);
+        let family = match &agent.runtime {
+            RuntimeKind::Cli { cli, .. } => format!("{}-cli", cli.trim().to_ascii_lowercase()),
+            RuntimeKind::Native => session.provider.as_str().to_ascii_lowercase(),
+            RuntimeKind::Acp { .. } => "acp".to_string(),
+        };
+        let side = router::resolve_side(requested_model, None, &family, &session.model);
+        agent.model = match &agent.model {
+            ModelPolicy::Fixed { model } => ModelPolicy::Fixed {
+                model: ModelRef {
+                    provider: model.provider.clone(),
+                    model: side.model.clone(),
+                },
+            },
+            ModelPolicy::Route { chain } => {
+                let picked = self
+                    .inner()
+                    .router
+                    .pick_for(chain, &[], router::TaskKind::of_agent(agent))
+                    .map(|r| r.candidate)
+                    .ok()
+                    .or_else(|| chain.first().cloned());
+                ModelPolicy::Route {
+                    chain: picked
+                        .map(|c| Candidate {
+                            model: side.model.clone(),
+                            ..c
+                        })
+                        .into_iter()
+                        .collect(),
+                }
+            }
+        };
+        agent.role = AgentRole::Custom(router::SIDE_ROLE.into());
+        agent.system_prompt = system.to_string();
+        agent.tools.clear();
+        agent.skills.clear();
+        side
+    }
+
     async fn turn_with_agent(
         &self,
         conversation_id: &str,
@@ -1553,23 +1646,9 @@ impl LlmManager {
             .ok_or_else(|| format!("{ERR_NO_TURN}: {request_id}"))?;
         handle.cancel.cancel();
         // Pending permission requests of this turn resolve as cancelled, not
-        // denied, and a late answer can no longer apply to them.
+        // denied, and a late answer can no longer apply to them (no ghost
+        // approval is left in the list: the table is the list).
         inner.broker.cancel_request(request_id);
-        // A question of a turn that no longer exists must not wait out its
-        // 120 s: it would sit in the jobs list as a ghost approval.
-        let orphans: Vec<String> = {
-            let mut asks = PENDING_ASKS.lock().unwrap_or_else(|e| e.into_inner());
-            let (gone, keep): (Vec<_>, Vec<_>) = asks
-                .drain(..)
-                .partition(|a| a["request_id"].as_str() == Some(request_id));
-            *asks = keep;
-            gone.iter()
-                .filter_map(|a| a["tool_call_id"].as_str().map(str::to_string))
-                .collect()
-        };
-        for id in orphans {
-            inner.broker.answer(&id, false);
-        }
         inner
             .telemetry
             .with(&handle.agent_id, &handle.agent_id, |t| {
@@ -1600,18 +1679,46 @@ impl LlmManager {
             .clone()
     }
 
+    /// Asks waiting for a person now, for the window (the pet, the jobs
+    /// page, missions): the pending rows of `runs_permissions` this boot
+    /// holds (2.2: the one table of asks), each still waited on by the
+    /// broker. `id` is the approval id the window answers with; it never
+    /// goes to the agent (`explain` drops it).
     pub fn pending_ask_list(&self) -> Vec<serde_json::Value> {
+        use omniget_core::core::assist::runs::{self, PermissionState};
         let broker = self.inner().broker.clone();
-        let mut asks = PENDING_ASKS.lock().unwrap_or_else(|e| e.into_inner());
-        // The broker is the truth: whatever it no longer waits on (answered,
-        // expired, cancelled) is gone, however it ended.
-        asks.retain(|a| {
-            a["tool_call_id"]
-                .as_str()
-                .map(|id| broker.has_pending_call(id))
-                .unwrap_or(false)
+        let Some(reg) = runs::active() else {
+            // No run record (no assistant database): what the broker holds.
+            return broker
+                .pending_calls()
+                .into_iter()
+                .map(|(request_id, tool_call_id, tool)| {
+                    serde_json::json!({
+                        "request_id": request_id, "tool_call_id": tool_call_id,
+                        "tool": tool, "preview": "", "agent": "",
+                    })
+                })
+                .collect();
+        };
+        let mut rows = reg.permissions_in(PermissionState::Pending, 200);
+        rows.retain(|p| {
+            p.instance_id == reg.instance() && broker.has_pending_call(&p.tool_call_id)
         });
-        asks.clone()
+        rows.sort_by_key(|p| p.created_ms);
+        rows.into_iter()
+            .map(|p| {
+                serde_json::json!({
+                    "id": p.id,
+                    "agent": p.agent_id,
+                    "request_id": p.run_id,
+                    "tool_call_id": p.tool_call_id,
+                    "tool": p.action,
+                    "preview": p.preview,
+                    "asked_ms": p.created_ms,
+                    "deadline_ms": (p.deadline_ms < i64::MAX / 2).then_some(p.deadline_ms),
+                })
+            })
+            .collect()
     }
 
     /// Whether a question of this turn waits for a person right now. The turn
@@ -1657,20 +1764,22 @@ impl LlmManager {
         allow: bool,
         always: bool,
     ) -> Result<(), String> {
-        use omniget_core::core::llm::broker::Answer;
-        if let Ok(mut asks) = PENDING_ASKS.lock() {
-            asks.retain(|a| a["tool_call_id"] != tool_call_id);
-        }
-        let answer = match (allow, always) {
-            (false, _) => Answer::Deny,
-            (true, true) => Answer::Always,
-            (true, false) => Answer::Once,
+        use omniget_core::core::llm::broker::Decision;
+        let decision = match (allow, always) {
+            (false, _) => Decision::Decline,
+            (true, true) => Decision::AcceptAlways,
+            (true, false) => Decision::Accept,
         };
-        if self.inner().broker.answer_with(tool_call_id, answer) {
-            Ok(())
-        } else {
-            Err(format!("{ERR_NO_ASK}: {tool_call_id}"))
-        }
+        // The same door as every other channel: the durable row records the
+        // answer, once (2.2).
+        self.inner()
+            .broker
+            .answer_call_by(
+                tool_call_id,
+                decision,
+                &omniget_core::core::assist::runs::Actor::window(),
+            )
+            .map_err(|_| format!("{ERR_NO_ASK}: {tool_call_id}"))
     }
 
     pub fn pending_asks(&self) -> usize {
@@ -1779,32 +1888,9 @@ impl LlmManager {
     pub fn note_bus(&self, event: &BusEvent) {
         let inner = self.inner();
         match event {
-            BusEvent::ToolAsk {
-                agent,
-                request_id,
-                tool_call_id,
-                tool,
-                preview,
-            } => {
-                if let Ok(mut asks) = PENDING_ASKS.lock() {
-                    asks.push(serde_json::json!({
-                        "agent": agent,
-                        "request_id": request_id,
-                        "tool_call_id": tool_call_id,
-                        "tool": tool,
-                        "preview": preview,
-                        "asked_ms": now_ms(),
-                    }));
-                }
-                inner.telemetry.with(agent, agent, |t| {
-                    t.state = AgentState::WaitingTool;
-                })
-            }
-            BusEvent::ToolAskResolved { tool_call_id, .. } => {
-                if let Ok(mut asks) = PENDING_ASKS.lock() {
-                    asks.retain(|a| a["tool_call_id"] != tool_call_id.as_str());
-                }
-            }
+            BusEvent::ToolAsk { agent, .. } => inner.telemetry.with(agent, agent, |t| {
+                t.state = AgentState::WaitingTool;
+            }),
             BusEvent::ToolCalled { agent, ok, .. } => inner.telemetry.with(agent, agent, |t| {
                 if !*ok {
                     t.errors += 1;
@@ -2190,6 +2276,49 @@ mod tests {
         );
         // An unavailable account stays unavailable.
         assert!(!apply_rotation_switch(Capacity::unavailable(), false).available);
+    }
+
+    /// 3.7 (84#P3): the auditor of a Claude Code agent runs on Haiku of the
+    /// same account, with no tools and the auditor's prompt; a side call on a
+    /// conversation that is not `side-*` is refused.
+    #[tokio::test]
+    async fn a_side_agent_keeps_the_account_and_takes_the_small_model() {
+        use omniget_core::core::llm::agent::{AgentRole, RuntimeKind};
+        let m = temp_manager("side");
+        let mut agent = fake_agent(&m);
+        agent.runtime = RuntimeKind::Cli {
+            cli: "claude".into(),
+            account: "max-1".into(),
+        };
+        agent.model = ModelPolicy::Fixed {
+            model: ModelRef {
+                provider: ProviderId::new("claude"),
+                model: "opus".into(),
+            },
+        };
+        let mut side = agent.clone();
+        let choice = m.side_agent(&mut side, "You audit.", None);
+        assert_eq!(choice.model, "haiku");
+        assert_eq!(choice.reason, router::SideReason::ProviderSmall);
+        assert_eq!(side.runtime, agent.runtime);
+        match &side.model {
+            ModelPolicy::Fixed { model } => {
+                assert_eq!(model.provider.as_str(), "claude");
+                assert_eq!(model.model, "haiku");
+            }
+            other => panic!("{other:?}"),
+        }
+        assert!(side.tools.is_empty() && side.skills.is_empty());
+        assert_eq!(side.system_prompt, "You audit.");
+        assert_eq!(side.role, AgentRole::Custom(router::SIDE_ROLE.into()));
+        assert_eq!(router::TaskKind::of_agent(&side), router::TaskKind::Side);
+        m.roster_update(agent.clone()).unwrap();
+        let refused = m
+            .side_turn_stream("loop-l1", &agent.id, "x", "y", None)
+            .await
+            .err()
+            .unwrap();
+        assert!(refused.starts_with("ERR_SIDE_SESSION"), "{refused}");
     }
 
     #[tokio::test]

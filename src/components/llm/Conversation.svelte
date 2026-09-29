@@ -306,6 +306,7 @@
     {status}
     queue={queued}
     members={memberOptions}
+    conversationId={conversation?.id ?? null}
     onsend={onSend}
     onstop={() => void onStop()}
     onremovequeued={onRemoveQueued}

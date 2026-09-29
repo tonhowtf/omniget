@@ -1311,7 +1311,10 @@
       "reset_hints": "Επαναφορά υποδείξεων",
       "reset_hints_desc": "Εμφάνιση ξανά όλων των απορριφθέντων συμβουλών",
       "restore": "Επαναφορά",
-      "hints_restored": "All hints restored"
+      "hints_restored": "All hints restored",
+      "run_in_background": "Εκτέλεση πρακτόρων στο παρασκήνιο",
+      "run_in_background_desc": "Το OmniGet ξεκινά κρυφά όταν συνδέεστε και το κλείσιμο του παραθύρου το αφήνει στην περιοχή ειδοποιήσεων, ώστε οι εργασίες, τα Loops και οι ρουτίνες να συνεχίζουν και η εντολή omniget να το βρίσκει. Απενεργοποιεί την επιλογή «Έξοδος όταν κλείνει το παράθυρο».",
+      "run_in_background_flatpak": "Flatpak: η εκκίνηση κατά τη σύνδεση και το άνοιγμα από τη γραμμή εντολών δεν έχουν επαληθευτεί ακόμη."
     },
     "appearance": {
       "title": "Εμφάνιση",
@@ -2772,12 +2775,10 @@
       "mcp": "MCP",
       "skills": "Skills",
       "accounts": "Accounts",
-      "local": "Local",
       "arena": "Arena",
       "jobs": "Jobs",
       "loops": "Loops"
     },
-    "demo_banner": "Demo data: the LLM backend is not wired yet.",
     "rail": {
       "title": "Agents",
       "unassigned": "Unassigned",
@@ -2785,7 +2786,8 @@
       "new_chat": "New chat",
       "empty": "No agents yet.",
       "no_profile": "No local profile",
-      "search": "Search agents"
+      "search": "Search agents",
+      "load_failed": "Δεν ήταν δυνατή η ανάγνωση των αποθηκευμένων συνομιλιών."
     },
     "role": {
       "coordinator": "Coordinator",
@@ -2896,14 +2898,11 @@
       "connect": "Connect or manage providers",
       "local_hint": "Local server: make sure it is running and has models installed. No saved API key is required.",
       "no_models": "This provider returned no models. Check the models available on the server or enter an identifier manually.",
-      "load_failed": "Could not load models: {{error}}"
+      "load_failed": "Δεν ήταν δυνατή η ανάγνωση των παρόχων σας: {{error}}"
     },
     "err": {
       "unavailable": "The LLM backend is not wired yet.",
       "turn_failed": "The turn could not start."
-    },
-    "local": {
-      "explanation": "Local model management is not available here yet. Configure an existing local provider in Models & Routing."
     },
     "skills": {
       "title": "Skills",
@@ -2911,7 +2910,6 @@
       "installed_title": "Installed",
       "loading": "Reading the installed skills…",
       "empty": "No skill installed yet. Install one from a folder, a zip or a git repository.",
-      "demo": "Demo data — nothing here is installed on this machine.",
       "remove": "Remove",
       "install": "Install",
       "installing": "Installing…",
@@ -2993,7 +2991,6 @@
       "lede": "Το τελικό σημείο στο οποίο συνδέονται άλλοι πράκτορες και οι διακομιστές στους οποίους συνδέεται το OmniGet.",
       "half_client": "Διακομιστές που χρησιμοποιείτε",
       "half_server": "Το τελικό σας σημείο",
-      "demo": "Διακομιστές επίδειξης: το backend του MCP δεν απαντά ακόμα. Τίποτα εδώ δεν είναι πραγματική σύνδεση.",
       "servers": "Συνδεδεμένοι διακομιστές",
       "add": "Προσθήκη διακομιστή",
       "loading": "Ανάγνωση αποθηκευμένων διακομιστών…",
@@ -3218,7 +3215,12 @@
         "connecting": "Connecting…",
         "err_unknown_provider": "Unknown provider",
         "err_credential_failed": "Credential validation failed"
-      }
+      },
+      "sandbox_full": "επιτρέπεται πλήρης πρόσβαση",
+      "sandbox_full_hint": "Οι γύροι αυτού του λογαριασμού μπορούν να επεξεργάζονται αρχεία, και ένας γύρος σε λειτουργία Πλήρης πρόσβαση εκτελείται χωρίς ερώτηση.",
+      "sandbox_allow_full": "Να επιτρέπεται πλήρης πρόσβαση",
+      "sandbox_allow_full_confirm": "Επιβεβαίωση: πλήρης πρόσβαση",
+      "sandbox_make_write": "Επιστροφή μόνο σε εγγραφή"
     },
     "rules": {
       "title": "Always rules",
@@ -3277,10 +3279,8 @@
       "undone": "Undone: {{count}} file(s) restored",
       "chat": "Chat",
       "agents": "Agents",
-      "activity": "Activity",
       "configure": "Configure",
       "tasks": "Tasks",
-      "routines": "Routines",
       "performance": "Usage and performance",
       "monitor": "Usage monitor",
       "off": "Off",
@@ -3302,7 +3302,10 @@
       "retro": "Retrospective",
       "installed": "Installed",
       "remote": "Remote access",
-      "wizard": "Project setup"
+      "wizard": "Project setup",
+      "work": "Εργασία",
+      "more": "Περισσότερα",
+      "loops": "Βρόχοι"
     },
     "jobs": {
       "lede": "Agent runs that work in the background while you do something else.",
@@ -3318,6 +3321,12 @@
       "list_title": "Recent jobs",
       "empty": "No jobs yet. Start one above and it shows up here.",
       "result": "Result",
+      "outcome": {
+        "title": "Ετυμηγορία του πράκτορα",
+        "succeeded": "Πέτυχε",
+        "failed": "Απέτυχε",
+        "missing": "Ο πράκτορας τελείωσε χωρίς τη γραμμή OUTCOME: διαβάστε το αποτέλεσμα πριν βασιστείτε σε αυτό."
+      },
       "error": "Error",
       "log": "Log",
       "log_empty": "Nothing logged yet.",
@@ -3332,26 +3341,31 @@
         "done": "Done",
         "failed": "Failed",
         "cancelled": "Cancelled",
-        "waiting_workspace": "Αναμονή για τον φάκελο"
+        "waiting_workspace": "Αναμονή για τον φάκελο",
+        "review": "Χρειάζεται έλεγχο",
+        "done_unreported": "Ολοκληρώθηκε, χωρίς αναφορά"
       },
       "kind": {
         "run": "Run",
         "chat": "Chat",
         "loop": "Loop",
-        "trigger": "Trigger",
+        "trigger": "Προγραμματισμένη",
         "mission": "Αποστολή"
       },
       "ask": {
         "title": "Wants to use {{tool}}",
         "allow": "Allow",
         "always": "Always allow",
-        "deny": "Deny"
+        "deny": "Deny",
+        "session": "Να επιτρέπεται σε αυτόν τον γύρο",
+        "stop": "Άρνηση και διακοπή",
+        "cli": "Από τερματικό: omniget agent approve {{id}}"
       },
       "trigger": {
-        "title": "Triggers",
-        "lede": "Start a job on a schedule or when a webhook is called.",
-        "empty": "No triggers yet. Create one below.",
-        "new_title": "New trigger",
+        "title": "Προγραμματισμοί και webhooks",
+        "lede": "Ξεκινήστε μια εργασία σε καθορισμένες ώρες ή όταν καλείται ένα webhook.",
+        "empty": "Κανένας προγραμματισμός ακόμη. Δημιουργήστε έναν παρακάτω.",
+        "new_title": "Νέος προγραμματισμός",
         "kind": "Kind",
         "kind_cron": "Schedule",
         "kind_webhook": "Webhook",
@@ -3359,10 +3373,10 @@
         "cron": "Cron line",
         "cron_hint": "Five fields (minute hour day month weekday), or @hourly, @daily, @weekly, @monthly.",
         "body_hint": "{{token}} is replaced by the webhook body.",
-        "create": "Create trigger",
+        "create": "Δημιουργία προγραμματισμού",
         "enabled": "Enabled",
         "fire": "Fire now",
-        "fired": "Trigger fired",
+        "fired": "Ο προγραμματισμός ξεκίνησε μια εργασία",
         "fired_count": "Fired {{count}}×",
         "copy_curl": "Copy curl",
         "catch_up": "Χαμένες με την εφαρμογή κλειστή",
@@ -3387,7 +3401,9 @@
         "no_start": "Σταμάτησε: ο πράκτορας δεν ξεκίνησε ποτέ",
         "deadline": "Σταμάτησε: έφτασε το χρονικό όριο",
         "limit": "Σταμάτησε: έφτασε το όριο προϋπολογισμού",
-        "ask_expired": "Μια ερώτηση έμεινε αναπάντητη"
+        "ask_expired": "Μια ερώτηση έμεινε αναπάντητη",
+        "app_restart": "Η εφαρμογή έκλεισε κατά τη διάρκεια αυτής της εργασίας",
+        "budget": "Διακόπηκε: ένα όριο προϋπολογισμού κρατά αυτό το πεδίο"
       },
       "queue": {
         "title": "Ουρά",
@@ -3411,6 +3427,121 @@
         "unavailable_no_snapshot": "Δεν είναι γνωστό τι άλλαξε αυτή η εργασία: οι γύροι της δεν πήραν στιγμιότυπο του φακέλου.",
         "unavailable_no_workspace": "Αυτή η εργασία έτρεξε χωρίς φάκελο, άρα δεν υπάρχει diff.",
         "unavailable_error": "Δεν ήταν δυνατή η ανάγνωση του στιγμιότυπου του φακέλου αυτής της εργασίας."
+      },
+      "tokens": {
+        "title": "Διακριτικά πρόσβασης",
+        "lede": "Τα σενάρια, τα webhooks και το CLI omniget φτάνουν στις διαδρομές πρακτόρων της τοπικής γέφυρας με διακριτικό περιορισμένου εύρους. Το κλειδί της επέκτασης του προγράμματος περιήγησης δεν προορίζεται γι' αυτές.",
+        "empty": "Δεν υπάρχουν ακόμη διακριτικά.",
+        "name": "Όνομα",
+        "scopes": "Τι μπορεί να κάνει",
+        "scope_jobs_read": "Προβολή εργασιών (jobs:read)",
+        "scope_jobs_operate": "Εκκίνηση και ακύρωση εργασιών (jobs:operate)",
+        "scope_approvals_respond": "Απάντηση σε εγκρίσεις (approvals:respond)",
+        "expires": "Λήγει",
+        "expires_never": "Ποτέ",
+        "expires_days": "Σε {{days}} ημέρες",
+        "expires_at": "λήγει {{when}}",
+        "create": "Δημιουργία διακριτικού",
+        "created": "Το διακριτικό δημιουργήθηκε. Αντιγράψτε το τώρα: δεν θα εμφανιστεί ξανά.",
+        "copy": "Αντιγραφή διακριτικού",
+        "revoke": "Ανάκληση",
+        "kind_cli": "CLI omniget σε αυτόν τον υπολογιστή",
+        "last_used": "τελευταία χρήση {{when}}",
+        "never_used": "δεν χρησιμοποιήθηκε ποτέ",
+        "legacy_toggle": "Αποδοχή ακόμη του κλειδιού της επέκτασης στις διαδρομές πρακτόρων (παρωχημένο)",
+        "legacy_hint": "Διατηρείται για μία έκδοση ώστε τα παλιά σενάρια να συνεχίσουν να λειτουργούν. Η επόμενη έκδοση το απορρίπτει.",
+        "legacy_seen": "Το κλειδί της επέκτασης χρησιμοποιήθηκε στο {{route}} στις {{when}}. Αλλάξτε αυτό το σενάριο σε διακριτικό περιορισμένου εύρους.",
+        "curl_hint": "Ορίστε το OMNIGET_TOKEN σε διακριτικό με εύρος jobs:operate (Διακριτικά πρόσβασης, παρακάτω).",
+        "scope_audit_read": "Ανάγνωση του αρχείου ελέγχου (audit:read)",
+        "scope_budget_write": "Ορισμός και αύξηση προϋπολογισμών (budget:write)",
+        "scope_workflow_trust": "Εμπιστοσύνη σε ροές εργασίας αποθετηρίων (workflow:trust)"
+      },
+      "isolation": {
+        "label": "Πού γράφει",
+        "auto": "Αυτόματα: δικό του worktree μόνο αν άλλη εργασία γράφει ήδη εκεί",
+        "worktree": "Πάντα σε δικό του git worktree",
+        "shared": "Στον ίδιο τον φάκελο (περιμένει τη σειρά του)"
+      },
+      "worktree": {
+        "title": "Worktree",
+        "chip": "{{branch}} από {{base}}",
+        "gone": "Το worktree αφαιρέθηκε· ο κλάδος κρατά τη δουλειά.",
+        "remove": "Αφαίρεση worktree",
+        "removed": "Το worktree αφαιρέθηκε.",
+        "kept_branch": "Το worktree αφαιρέθηκε. Ο κλάδος {{branch}} κρατά τη δουλειά της εργασίας.",
+        "saved": "{{count}} αρχεία χωρίς commit αποθηκεύτηκαν πρώτα στον κλάδο."
+      },
+      "proof": {
+        "title": "Αποδεικτικό",
+        "summary": "{{files}} αρχεία άλλαξαν · {{tokens}} tokens · {{time}}",
+        "check": "{{command}} → κωδικός εξόδου {{code}}",
+        "by_host": "Σφραγίστηκε από το OmniGet σε αυτόν τον υπολογιστή με βάση όσα κατέγραψε, όχι από τον πράκτορα."
+      },
+      "review": {
+        "mark": "Σήμανση ως ελεγμένο",
+        "title": "Έλεγχος",
+        "lede": "Απορρίψτε ένα τμήμα, αφήστε σημειώσεις στον πράκτορα και μετά ενσωματώστε ή απορρίψτε τη δουλειά.",
+        "discard_hunk": "Απόρριψη",
+        "hunk_discarded": "Το τμήμα απορρίφθηκε.",
+        "hunk_stale": "Αυτός ο κώδικας άλλαξε μετά τη φόρτωση. Το diff ανανεώθηκε· δοκιμάστε ξανά.",
+        "busy": "Μια εργασία γράφει σε αυτόν τον φάκελο τώρα. Δοκιμάστε όταν τελειώσει.",
+        "not_actionable": "Το worktree αυτής της εργασίας αφαιρέθηκε, οπότε τα τμήματα δεν απορρίπτονται πια ένα ένα.",
+        "notes_title": "Σημειώσεις για τον πράκτορα",
+        "notes_hint": "Επιλέξτε γραμμές στο diff και σχολιάστε. Η αποστολή ξεκινά συνέχεια στην ίδια συνομιλία, που κοστίζει μόνο τις σημειώσεις.",
+        "notes_empty": "Καμία σημείωση ακόμα.",
+        "note_file": "όλο το αρχείο",
+        "note_sent": "στάλθηκε στο {{job}}",
+        "note_delete": "Διαγραφή σημείωσης",
+        "notes_send": "Αποστολή {{count}} σημείωσης(εων) στον πράκτορα",
+        "notes_sent": "Οι σημειώσεις στάλθηκαν: ξεκίνησε η εργασία συνέχειας {{job}}.",
+        "walkthrough_title": "Περιήγηση",
+        "walkthrough": "Εξήγηση αλλαγών",
+        "walkthrough_refresh": "Εξήγηση ξανά",
+        "walkthrough_loading": "Γράφεται η περιήγηση…",
+        "walkthrough_too_large": "Αυτό το diff είναι πολύ μεγάλο για περιήγηση. Ελέγξτε το αρχείο προς αρχείο.",
+        "walkthrough_uncovered": "{{count}} τμήμα(τα) εκτός στάσεων",
+        "walkthrough_cached": "από την προσωρινή μνήμη",
+        "importance_critical": "κρίσιμο",
+        "integrate_title": "Ενσωμάτωση",
+        "integrate_into": "Συγχώνευση του {{branch}} στο {{target}}",
+        "commits": "{{count}} commit προς ενσωμάτωση",
+        "worktree_dirty": "{{count}} αρχείο(α) χωρίς commit στο worktree θα αποθηκευτούν πρώτα στο branch.",
+        "blocked": "Δεν γίνεται ενσωμάτωση τώρα: {{reason}}",
+        "strategy_merge": "Commit συγχώνευσης",
+        "strategy_squash": "Squash σε ένα commit",
+        "integrate": "Ενσωμάτωση",
+        "integrated": "Ενσωματώθηκε στο {{target}}.",
+        "up_to_date": "Το {{target}} έχει ήδη αυτή τη δουλειά.",
+        "conflict": "Σύγκρουση σε {{files}}. Τίποτα δεν άλλαξε στο checkout σας.",
+        "failed": "Το git αρνήθηκε τη συγχώνευση (ίσως hook). Τίποτα δεν άλλαξε στο checkout σας.",
+        "discard_work": "Απόρριψη δουλειάς",
+        "discard_confirm": "Απόρριψη της δουλειάς αυτής της εργασίας; Διαγράφονται το worktree και το branch {{branch}}.",
+        "discarded": "Η δουλειά απορρίφθηκε. Το branch {{branch}} ήταν στο {{tip}}."
+      },
+      "resumed_by_itself": "Συνεχίστηκε αυτόματα ({{count}}×)",
+      "workflow": {
+        "title": "Ροή εργασίας αποθετηρίου",
+        "state": {
+          "trusted": "Σε ισχύ",
+          "untrusted": "Μη έμπιστη",
+          "invalid": "Μη έγκυρη",
+          "none": "Καμία"
+        },
+        "last_good": "Η τελευταία έγκυρη έκδοση ισχύει μέχρι να διορθωθεί το αρχείο.",
+        "no_last_good": "Δεν υπάρχει προηγούμενη έγκυρη έκδοση: οι εργασίες σε αυτόν τον φάκελο απορρίπτονται μέχρι να διορθωθεί το αρχείο.",
+        "defaults": "Προεπιλογές:",
+        "commands": "Εντολές που εκτελεί σε αυτόν τον υπολογιστή:",
+        "kind": {
+          "after_create": "μετά τη δημιουργία του worktree",
+          "before_remove": "πριν από την αφαίρεση του worktree",
+          "check": "έλεγχος μετά την εργασία"
+        },
+        "untrusted_hint": "Μέχρι να εμπιστευτείτε αυτήν ακριβώς την έκδοση, οι εντολές παραλείπονται και δεν εφαρμόζεται πιο χαλαρή λειτουργία εκτέλεσης. Κάθε αλλαγή στο αρχείο ρωτά ξανά.",
+        "trust": "Εμπιστοσύνη σε αυτήν την έκδοση",
+        "revoke": "Ανάκληση εμπιστοσύνης",
+        "template": "Πρότυπο prompt",
+        "trusted_toast": "Η ροή εργασίας είναι έμπιστη: οι εντολές της εκτελούνται από τώρα",
+        "untrusted_toast": "Η ροή εργασίας δεν είναι πλέον έμπιστη"
       }
     },
     "loops": {
@@ -3440,13 +3571,56 @@
         "running": "Running",
         "done": "Done",
         "failed": "Failed",
-        "cancelled": "Cancelled"
+        "cancelled": "Cancelled",
+        "paused": "Σε παύση",
+        "blocked": "Μπλοκαρισμένο",
+        "budget_limited": "Εξαντλήθηκε ο προϋπολογισμός"
       },
       "check_passed": "Condition met",
       "summary": "Up to {{rounds}} rounds. Stops earlier when a configured condition or time limit is reached.",
-      "no_check": "No check command: completion will be controlled by the round or time limit.",
+      "no_check": "Χωρίς εντολή ελέγχου: μετά από κάθε γύρο ένας ανεξάρτητος ελεγκτής (το μικρότερο μοντέλο του πράκτορα) αποφασίζει αν η δουλειά τελείωσε, για έως 20 γύρους.",
       "review": "Review loop",
-      "edit": "Edit configuration"
+      "edit": "Edit configuration",
+      "auto_resume": "Αυτόματη συνέχιση μετά από επανεκκίνηση",
+      "auto_resume_hint": "Αν η εφαρμογή κλείσει κατά τη διάρκεια ενός γύρου, το Loop συνεχίζει όταν ανοίξει ξανά, εκτός αν ο γύρος είχε ήδη γράψει στον φάκελό σας.",
+      "run_mode_hint": "Κάθε γύρος του loop τρέχει με αυτή τη λειτουργία. Με «Ερώτηση πριν από όλα», κάθε γύρος σταματά και σας περιμένει πριν από οποιαδήποτε αλλαγή ή εντολή.",
+      "max_cost": "Προϋπολογισμός (US$)",
+      "paused_budget": "Σε παύση: εξαντλήθηκε ο προϋπολογισμός",
+      "paused_budget_hint": "Κανένας γύρος δεν ξεκινά μέχρι να αυξηθεί το όριο· η αύξηση συνεχίζει τον βρόχο.",
+      "open_incident": "Άνοιγμα του συμβάντος",
+      "cost_estimated": "(εκτίμηση)",
+      "cost_tokens": "{{tokens}} σταθμισμένα tokens",
+      "cost_unknown": "{{count}} γύρος/οι άγνωστου κόστους",
+      "stop": {
+        "audit_complete": "Επαληθεύτηκε από τον ελεγκτή",
+        "audit_blocked": "Ο ελεγκτής είδε τον πράκτορα μπλοκαρισμένο 3 γύρους στη σειρά",
+        "audit_unavailable": "Ο έλεγχος δεν ήταν διαθέσιμος δύο φορές στη σειρά",
+        "token_budget": "Εξαντλήθηκε ο προϋπολογισμός tokens",
+        "max_rounds": "Έφτασε το όριο γύρων",
+        "round_failed": "Ένας γύρος απέτυχε: {{error}}",
+        "audit_disagrees": "Ο πράκτορας είπε ότι τελείωσε και ο ελεγκτής διαφώνησε 3 φορές στη σειρά: αποφασίζεις εσύ"
+      },
+      "token_budget": "Προϋπολογισμός tokens",
+      "tokens": "{{used}} / {{budget}} tokens",
+      "guided": "{{count}} γύροι έστειλαν μόνο τη συνέχεια (η εργασία δεν ξαναστάλθηκε).",
+      "audits": "Ετυμηγορίες ελεγκτή",
+      "verdict": {
+        "continue": "Συνέχεια",
+        "complete": "Ολοκληρώθηκε",
+        "blocked": "Μπλοκαρισμένο",
+        "none": "Χωρίς ετυμηγορία"
+      },
+      "claimed_done": "είπε ότι τελείωσε",
+      "claimed_done_hint": "Ο πράκτορας είπε ότι τελείωσε· μόνο η ετυμηγορία του ελεγκτή τερματίζει τον βρόχο.",
+      "side_reason": {
+        "provider_small": "Το μικρότερο μοντέλο του ίδιου λογαριασμού",
+        "session_model": "Δεν είναι γνωστό μικρότερο μοντέλο: του ίδιου του πράκτορα",
+        "requested": "Επιλέχθηκε για αυτόν τον βρόχο",
+        "setting": "Ρύθμιση βοηθητικού μοντέλου"
+      },
+      "overhead": "Ελεγκτής {{audit}} για γύρους κόστους {{rounds}} ({{percent}}%).",
+      "blocked_hint": "Ο βρόχος σταμάτησε και σε χρειάζεται. Η συνέχιση τρέχει νέο γύρο, με νέο έλεγχο.",
+      "note": "Πρόοδος"
     },
     "limits": {
       "title": "Limits strip",
@@ -3559,22 +3733,18 @@
       "model": "Connection and model",
       "customize": "Tools and limits",
       "tasks": "Tasks",
-      "routines": "Routines",
       "active": "Running",
       "attention": "Needs attention",
       "done": "Finished",
       "create": "Create a task",
-      "create_routine": "Create a routine",
       "jobs_hint": "Run a task in the background. Open its details to see the result, approve a tool or stop execution.",
       "loops_hint": "Repeat a task until a check passes or its limit is reached. Review the stop conditions before starting.",
       "models_hint": "Connect an API provider, then choose its model for an agent. Chat subscriptions are configured in Connections.",
       "mcp_hint": "Connect a tool, test it, then choose which agents may use it. Adding a connection does not grant permission.",
       "skills_hint": "Skills give agents reusable instructions. Review the source and scan result before installing, then assign the skill to an agent.",
       "observatory_hint": "Inspect measured activity and provider quotas. Missing measurements are unavailable, never zero. Diagnostics run only when you open them.",
-      "local_hint": "Use a local model through a compatible server. Connect the running server and select one of its actual models before creating an agent.",
       "arena_hint": "Model comparison is not available yet. You can choose a model and run a conversation with the current tools.",
       "unavailable_feature": "Not available yet",
-      "local_steps": "Start your local model server|Connect its endpoint in AI settings|Choose the model for an agent",
       "arena_steps": "Select a model|Open a conversation|Review the result",
       "roster_hint": "Start with one agent and give it a clear purpose. Add a team when your task needs it.",
       "suggestion_1": "List my downloads and explain which need attention",
@@ -3587,7 +3757,8 @@
       "search": "Find an agent",
       "no_matches": "No matching agents",
       "templates_impact": "Review the template and its effect on the existing team before applying it.",
-      "mcp_server_hint": "Αφήστε άλλες εφαρμογές ΤΝ να χρησιμοποιούν το OmniGet: ενεργοποιήστε τον διακομιστή, δημιουργήστε πελάτη μόνο με τα δικαιώματα που χρειάζεται και επικολλήστε το απόσπασμά του στην εφαρμογή."
+      "mcp_server_hint": "Αφήστε άλλες εφαρμογές ΤΝ να χρησιμοποιούν το OmniGet: ενεργοποιήστε τον διακομιστή, δημιουργήστε πελάτη μόνο με τα δικαιώματα που χρειάζεται και επικολλήστε το απόσπασμά του στην εφαρμογή.",
+      "create_loop": "Δημιουργία βρόχου"
     },
     "prompts": {
       "omni": "You are Omni, the assistant inside OmniGet. Answer briefly and in the language the user writes in. Use a tool only when it is clearly needed.",
@@ -3618,14 +3789,16 @@
       "start": "Χρόνος εκκίνησης (δευτερόλεπτα)",
       "start_desc": "Ένας πράκτορας που δεν λέει τίποτα για τόσο διάστημα μετά την εκκίνηση δεν έλαβε ποτέ το prompt.",
       "deadline": "Χρονικό όριο εργασίας (λεπτά)",
-      "deadline_desc": "Κάθε εργασία στο παρασκήνιο (εκτέλεση, γύρος βρόχου, ρουτίνα) σταματά εδώ, εκτός αν ορίζει δικό της.",
+      "deadline_desc": "Κάθε εργασία παρασκηνίου (εκτέλεση, γύρος βρόχου, προγραμματισμένη εκτέλεση) σταματά εδώ, εκτός αν ορίζει δικό της όριο.",
       "ask_chat": "Αναμονή ερωτήσεων στη συνομιλία (λεπτά)",
       "ask_chat_desc": "Μετά η ερώτηση λήγει: η ενέργεια δεν εκτελείται και σου λέμε γιατί.",
       "ask_job": "Αναμονή ερωτήσεων στις εργασίες (λεπτά)",
       "ask_job_desc": "Άφησε 0 για αναμονή μέχρι το χρονικό όριο της ίδιας της εργασίας.",
       "notify_delay": "Ειδοποίηση μετά από (δευτερόλεπτα)",
       "notify_delay_desc": "Μια ερώτηση που είναι ακόμη ανοιχτή μετά από αυτό γίνεται ειδοποίηση συστήματος. Αν απαντήσεις νωρίτερα, ποτέ.",
-      "offline": "Η αποθήκευση απέτυχε: το backend δεν απάντησε."
+      "offline": "Η αποθήκευση απέτυχε: το backend δεν απάντησε.",
+      "auto_resume": "Αυτόματη συνέχιση μετά από επανεκκίνηση",
+      "auto_resume_desc": "Όταν η εφαρμογή κλείνει ή ένας πράκτορας σωπαίνει, μια εργασία που έτρεχε στο δικό της worktree ή μόνο διάβαζε αρχεία ξεκινά ξανά μόνη της: συνεχίζει τη συνεδρία της και της ζητείται να ελέγξει τι έχει γίνει πριν επαναλάβει οτιδήποτε. Μια εργασία που έγραψε στον φάκελό σας σας περιμένει ακόμη. Μια εργασία ή ένα Loop μπορεί να ορίσει διαφορετικά."
     },
     "central": {
       "agentkit": {
@@ -5350,7 +5523,6 @@
         "verify_hint": "Runs in every worktree; the exit code decides pass or fail.",
         "cleanup": "Clean up",
         "cleanup_lede": "Archives the threads (their worktrees go; the work stays in the arena's refs).",
-        "cleanup_losers": "Only the losers",
         "cleanup_all": "Every entry (discard the arena)",
         "delete": "Delete arena",
         "delete_lede": "Removes this arena from the history and its refs. The threads stay.",
@@ -5466,10 +5638,11 @@
           "verify_hint": "Optional; runs in each worktree when its turn ends. Timeout",
           "timeout": "Timeout in minutes",
           "minutes": "min",
-          "start": "Start in {{count}} tools"
+          "start": "Start in {{count}} tools",
+          "min_tools": "Διαλέξτε τουλάχιστον {{count}} εργαλεία για σύγκριση."
         },
         "apply": {
-          "title": "Apply the winner",
+          "title": "Επιλογή αυτού",
           "lede": "{{name}}'s branch goes into the target branch. Nothing else is touched.",
           "target": "Target branch",
           "strategy": "How",
@@ -5480,22 +5653,49 @@
           "conflicts": "{{count}} files conflict; resolve in the thread first.",
           "checked_out": "The branch is checked out at {{path}}.",
           "dirty": "That checkout has uncommitted changes: commit or stash them first.",
-          "touch_checkout": "Update my checkout too (fast-forward only)",
+          "touch_checkout": "Συγχώνευση στο checkout μου (git merge με την ταυτότητα και τα hooks μου· αναιρείται σε σύγκρουση)",
           "ref_only": "Only the branch moves; no checkout is touched.",
-          "clean_losers": "Archive the losing threads and remove their worktrees",
+          "clean_losers": "Μετά αφαίρεση των υπολοίπων (worktrees· η δουλειά τους μένει στα refs της αρένας)",
           "delete_branches": "Also delete their branches (only OmniGet's)",
           "confirm": "I want to change {{branch}}",
           "do": "Apply",
           "ok": "Applied to {{branch}}",
-          "updated_checkout": "your checkout moved forward",
-          "updated_ref": "only the branch ref moved",
-          "cleaned": "{{count}} threads archived"
+          "updated_checkout": "συγχωνεύτηκε στο checkout σας",
+          "updated_ref": "only the branch ref moved"
         },
         "plan": {
           "implement_n": "Implement in N tools",
           "hint": "Open the Arena with this plan as the prompt"
         },
-        "apply_winner": "Apply winner"
+        "apply_winner": "Apply winner",
+        "removed": "Αφαιρέθηκαν {{count}} worktrees",
+        "branches_kept": "Διατηρήθηκαν {{count}} κλάδοι",
+        "remove_others": "Αφαίρεση των υπολοίπων",
+        "choose": "Επιλογή αυτού",
+        "choose_hint": "Συγχώνευση της δουλειάς αυτής της στήλης στον βασικό κλάδο",
+        "estimate": {
+          "total": "Εκτιμώμενο κόστος πριν την έναρξη: {{total}} για {{count}} εργαλεία",
+          "unknown": "{{count}} χωρίς εκτίμηση",
+          "rough": "κατά προσέγγιση: τιμή καταλόγου × ένας τυπικός γύρος",
+          "source": {
+            "history": "Μέσος όρος {{runs}} προηγούμενων εκτελέσεων στην αρένα",
+            "price": "Τιμή καταλόγου × ένας τυπικός γύρος κώδικα (κατά προσέγγιση)",
+            "unknown": "Άγνωστη τιμή (συνδρομή ή μοντέλο εκτός τιμοκαταλόγου)"
+          }
+        },
+        "compare": {
+          "title": "Πού αποκλίνουν",
+          "toggle": "Σύγκριση",
+          "divergent": "{{count}} αρχεία διαφέρουν",
+          "agreed": "{{count}} ίδια",
+          "pending": "{{count}} ακόμη σε εξέλιξη",
+          "show_agreed": "Εμφάνιση ίδιων αρχείων",
+          "file": "Αρχείο",
+          "untouched": "ίδιο με τη βάση",
+          "none_divergent": "Όλες οι στήλες κατέληξαν στα ίδια αρχεία.",
+          "column": "{{count}} αποκλίνοντα",
+          "column_hint": "Αρχεία όπου αυτή η στήλη διαφέρει από τις άλλες"
+        }
       },
       "run": {
         "back": "Back",
@@ -5512,7 +5712,8 @@
           "done": "Done",
           "failed": "Failed",
           "cancelled": "Cancelled",
-          "skipped": "Skipped"
+          "skipped": "Skipped",
+          "review": "Χρειάζεται έλεγχο"
         },
         "runner": {
           "label": "Runs with",
@@ -5662,6 +5863,156 @@
           "review_started": "Review job started",
           "open_jobs": "Open Jobs"
         }
+      }
+    },
+    "run_mode": {
+      "label": "Λειτουργία εκτέλεσης",
+      "approval_required": "Ερώτηση πριν από όλα",
+      "auto_edits": "Αυτόματες επεξεργασίες",
+      "auto": "Αυτόματη (ελεγκτής του CLI)",
+      "full_access": "Πλήρης πρόσβαση",
+      "approval_required_hint": "Κάθε επεξεργασία και κάθε εντολή σε ρωτάνε πρώτα.",
+      "auto_edits_hint": "Οι επεξεργασίες αρχείων περνούν· οι εντολές ρωτάνε πρώτα.",
+      "auto_hint": "Αποφασίζει ο ελεγκτής του ίδιου του CLI· όπου το CLI δεν έχει, λειτουργεί όπως οι Αυτόματες επεξεργασίες.",
+      "full_access_hint": "Τίποτα δεν ρωτά. Ο λογαριασμός του CLI πρέπει επίσης να επιτρέπει πλήρη πρόσβαση.",
+      "full_access_warning": "Η πλήρης πρόσβαση εκτελεί κάθε επεξεργασία και κάθε εντολή χωρίς ερώτηση. Χρησιμοποίησέ τη μόνο σε φάκελο που μπορείς να χάσεις.",
+      "full_access_confirm": "Να επιτρέπεται πλήρης πρόσβαση",
+      "cancel": "Ακύρωση"
+    },
+    "audit": {
+      "title": "Αρχείο ελέγχου",
+      "lede": "Ποιος έκανε τι σε εργασίες, ερωτήσεις, άδειες, tokens και πράκτορες, και μέσω ποιου καναλιού. Prompts, περιεχόμενο αρχείων και μυστικά δεν αποθηκεύονται ποτέ.",
+      "since": "Περίοδος",
+      "since_1h": "Τελευταία ώρα",
+      "since_1d": "Τελευταία ημέρα",
+      "since_7d": "Τελευταίες 7 ημέρες",
+      "since_30d": "Τελευταίες 30 ημέρες",
+      "since_90d": "Τελευταίες 90 ημέρες",
+      "kind": "Είδος",
+      "kind_all": "Όλα",
+      "kind_job": "Εργασίες",
+      "kind_ask": "Ερωτήσεις",
+      "kind_grant": "Μόνιμες άδειες",
+      "kind_token": "Tokens",
+      "kind_agent": "Πράκτορες",
+      "kind_loop": "Βρόχοι",
+      "refresh": "Ανανέωση",
+      "export": "Εξαγωγή CSV",
+      "empty": "Τίποτα σε αυτή την περίοδο.",
+      "error": "Δεν ήταν δυνατή η ανάγνωση του αρχείου ελέγχου.",
+      "who": "Ποιος",
+      "through": "Μέσω",
+      "on": "Σε",
+      "retention": "Διατήρηση γραμμών για (ημέρες)",
+      "retention_days": "Οι γραμμές διατηρούνται {{days}} ημέρες.",
+      "retention_save": "Αποθήκευση",
+      "retention_saved": "Αποθηκεύτηκε· οι παλαιότερες γραμμές διαγράφηκαν.",
+      "cli_hint": "το ίδιο αρχείο από τερματικό, με token που έχει audit:read."
+    },
+    "work": {
+      "nav": "Όλη η εργασία",
+      "lede": "Ό,τι κάνουν οι πράκτορές σας για εσάς σε μία λίστα: πρώτα ό,τι χρειάζεται εσάς, μετά ό,τι τρέχει, περιμένει, είναι έτοιμο για έλεγχο ή τελείωσε πρόσφατα.",
+      "badge_needs_you": "Σας χρειάζεται ({{count}})",
+      "badge_running": "{{count}} σε εξέλιξη",
+      "badge_review": "{{count}} για έλεγχο",
+      "badge_queued": "{{count}} σε αναμονή",
+      "section": {
+        "needs_you": "Σας χρειάζεται",
+        "running": "Σε εξέλιξη",
+        "queued": "Αναμένει να ξεκινήσει",
+        "review": "Έτοιμο για έλεγχο",
+        "done": "Ολοκληρώθηκε πρόσφατα"
+      },
+      "pill": {
+        "approval": "Χρειάζεται έγκριση",
+        "input": "Χρειάζεται απάντηση",
+        "decision": "Χρειάζεται απόφαση",
+        "working": "Σε εργασία",
+        "failed": "Απέτυχε",
+        "queued": "Σε αναμονή",
+        "review": "Για έλεγχο",
+        "ready": "Έγινε",
+        "stopped": "Σταμάτησε"
+      },
+      "source": {
+        "job": "Εργασία",
+        "loop": "Βρόχος",
+        "mission": "Αποστολή",
+        "thread": "Νήμα",
+        "run": "Συνομιλία",
+        "ask": "Ερώτηση",
+        "budget": "Προϋπολογισμός"
+      },
+      "asks_for": "ζητά να χρησιμοποιήσει {{tool}}",
+      "nothing_waits": "Τίποτα δεν σας περιμένει.",
+      "empty": "Καμία εργασία ακόμη.",
+      "partial": "Δεν ήταν δυνατή η ανάγνωση μέρους της εργασίας: {{error}}",
+      "notify": {
+        "approval": "Χρειάζεται έγκριση: {{title}}",
+        "input": "Χρειάζεται απάντηση: {{title}}",
+        "decision": "Χρειάζεται απόφαση: {{title}}",
+        "failed": "Απέτυχε: {{title}}",
+        "ready": "Έγινε: {{title}}",
+        "review": "Έτοιμο για έλεγχο: {{title}}",
+        "more": "Και {{count}} ακόμη στην Εργασία"
+      }
+    },
+    "budget": {
+      "title": "Προϋπολογισμοί",
+      "refresh": "Ανανέωση",
+      "lede": "Όρια για τους πράκτορές σας: για όλα, έναν πράκτορα, έναν λογαριασμό, έναν βρόχο, μια εργασία ή μια αποστολή, σε δολάρια, σταθμισμένα tokens ή μερίδιο του παραθύρου 5 ω / 7 η μιας συνδρομής. Μετά από αυστηρό όριο το πεδίο παύει και η δουλειά του σταματά μέχρι να το αυξήσετε. Χωρίς όριο τίποτα δεν περιορίζεται.",
+      "read_error": "Δεν ήταν δυνατή η ανάγνωση των προϋπολογισμών.",
+      "empty": "Κανένα όριο ακόμη: τίποτα δεν περιορίζεται.",
+      "hard": "παύει",
+      "soft": "ρωτά",
+      "paused": "Σε παύση",
+      "remove": "Αφαίρεση",
+      "no_reading": "Καμία μέτρηση ορίου ακόμη (έρχεται από τη ροή του ίδιου του CLI)",
+      "warn_at": "προειδοποιεί στο {{pct}}%",
+      "estimate_note": "τα δολάρια μιας συνδρομής είναι εκτίμηση του τιμοκαταλόγου",
+      "add": "Προσθήκη ορίου",
+      "scope": "Για",
+      "scope_id": "Id",
+      "metric_label": "Μετράται σε",
+      "window_label": "Παράθυρο",
+      "amount": "Όριο",
+      "warn_label": "Προειδοποίηση στο (%)",
+      "soft_label": "Ερώτηση αντί για παύση",
+      "save": "Αποθήκευση",
+      "hard_hint": "Μετά το όριο το πεδίο παύει: η τρέχουσα και η δουλειά σε αναμονή ακυρώνονται και ένα συμβάν σας περιμένει (αύξηση και συνέχεια ή διατήρηση σε παύση).",
+      "soft_hint": "Μετά το όριο η επόμενη σειρά ρωτά «συνέχεια;» μία φορά ανά παράθυρο, όπως κάθε έγκριση (και από το CLI και το κινητό). Ένα όχι θέτει το πεδίο σε παύση.",
+      "quota_hint": "Τα όρια ποσόστωσης διαβάζουν μόνο ό,τι ανέφερε το CLI στη δική του ροή. Για λογαριασμό (ή για όλα) το όριο είναι το ποσοστό του παραθύρου· για βρόχο, εργασία, πράκτορα ή αποστολή είναι οι μονάδες που κινήθηκαν από την έναρξή του.",
+      "warn_toast": "Προϋπολογισμός {{scope}}: {{used}} από {{limit}}",
+      "metric": {
+        "usd": "Δολάρια",
+        "weighted_tokens": "Σταθμισμένα tokens",
+        "quota_pct": "Μερίδιο του παραθύρου ορίου"
+      },
+      "window": {
+        "turn": "ανά σειρά",
+        "day": "ανά ημέρα",
+        "week": "ανά εβδομάδα",
+        "5h": "παράθυρο 5 ω",
+        "7d": "παράθυρο 7 η",
+        "run": "όλη η εκτέλεση"
+      },
+      "scope_kind": {
+        "global": "Όλα",
+        "agent": "Πράκτορας",
+        "account": "Λογαριασμός",
+        "loop": "Βρόχος",
+        "job": "Εργασία",
+        "mission": "Αποστολή"
+      },
+      "incident": {
+        "open": "Ο προϋπολογισμός εξαντλήθηκε",
+        "kept": "Παραμένει σε παύση",
+        "hard_line": "Χρησιμοποιήθηκαν {{used}} από {{limit}}. Τίποτα δεν ξεκινά εδώ μέχρι να αυξήσετε το όριο.",
+        "checkpoint_line": "Στο σημείο ελέγχου {{limit}} απαντήθηκε όχι ({{used}} σε χρήση). Τίποτα δεν ξεκινά εδώ μέχρι να το αυξήσετε.",
+        "new_limit": "Νέο όριο",
+        "raise": "Αύξηση και συνέχεια",
+        "keep": "Διατήρηση σε παύση",
+        "too_low": "Το νέο όριο πρέπει να είναι πάνω από όσα έχουν ήδη χρησιμοποιηθεί."
       }
     }
   },
@@ -6176,9 +6527,6 @@
       "tool_calls": "{{count}} εργαλεία",
       "permissions_title": "Περιμένει την απάντησή σου",
       "permission_label": "Θέλει να χρησιμοποιήσει {{action}}",
-      "answer_once": "Μία φορά",
-      "answer_always": "Πάντα",
-      "answer_deny": "Άρνηση",
       "expires_in": "Λήγει σε {{seconds}} δλ",
       "request_title": "Τι ζήτησες",
       "summary_title": "Απάντηση",
@@ -6212,7 +6560,8 @@
         "approved": "επιτράπηκε",
         "denied": "απορρίφθηκε",
         "expired": "έληξε",
-        "cancelled": "ακυρώθηκε"
+        "cancelled": "ακυρώθηκε",
+        "stale": "από επανεκκίνηση"
       },
       "unknown_hint": "Το OmniGet έκλεισε ενώ αυτή η εκτέλεση δούλευε, οπότε το αποτέλεσμά της είναι άγνωστο. Τίποτα δεν στάλθηκε ξανά αυτόματα: έλεγξε τις αλλαγές παρακάτω και διάλεξε τι θα κάνεις.",
       "interrupted_hint": "Το OmniGet έκλεισε πριν αυτή η εκτέλεση φτάσει στο μοντέλο. Δεν έγινε τίποτα.",
@@ -6247,7 +6596,14 @@
       "routine_app_open": "τρέχει μόνο όσο το OmniGet είναι ανοιχτό",
       "routine_mute": "Σίγαση",
       "routine_unmute": "Άρση σίγασης",
-      "routine_muted": "σε σίγαση"
+      "routine_muted": "σε σίγαση",
+      "stale_title": "Ερωτήσεις που άφησε αναπάντητες μια επανεκκίνηση",
+      "stale_hint": "Η εφαρμογή έκλεισε ενώ περίμεναν. Δεν εκτελέστηκε τίποτα. Ξεκινήστε ξανά τον γύρο για να ρωτήσει πάλι.",
+      "dismiss": "Απόρριψη",
+      "answer_on_card": "Απαντήστε στην κάρτα της, στην κορυφή αυτής της σελίδας.",
+      "answer_once": "Μία φορά",
+      "answer_always": "Πάντα",
+      "answer_deny": "Άρνηση"
     },
     "conversation": {
       "status_working": "Σε εξέλιξη…",
@@ -6806,7 +7162,10 @@
       "adv_events": "Συμβάντα",
       "blocked_before_call": "Σταμάτησε πριν από οποιαδήποτε κλήση: τίποτα δεν εκτελέστηκε σε αυτό το βήμα.",
       "verify_started": "Έλεγχος στο παρασκήνιο. Το αποτέλεσμα εμφανίζεται εδώ όταν τελειώσει.",
-      "verify_already_running": "Ένας έλεγχος τρέχει ήδη για αυτή την αποστολή."
+      "verify_already_running": "Ένας έλεγχος τρέχει ήδη για αυτή την αποστολή.",
+      "changes": "Αλλαγές",
+      "changes_no_job": "Αυτή η εργασία δεν έχει εκτελέσει ακόμη κάποιο job.",
+      "changes_job": "Job {{job}}"
     },
     "log": {
       "loading": "Φόρτωση αρχείου καταγραφής…",
@@ -6925,7 +7284,7 @@
     "auth_origin": {
       "user_ui": "Εσείς, στη σελίδα Αποστολές",
       "chat": "Εσείς, από μια συνομιλία",
-      "trigger": "Ένα έναυσμα που ορίσατε",
+      "trigger": "Ένας προγραμματισμός που ορίσατε",
       "external_mcp": "Ένας πελάτης MCP"
     }
   },
@@ -7015,7 +7374,11 @@
     "native_active": "Native access",
     "native_revoke": "Revoke access",
     "system_read": "Ανάγνωση της κατάστασης, των σαρώσεων και των σχεδίων αυτού του υπολογιστή (washmybelly)",
-    "system_change": "Προετοιμασία σχεδίων καθαρισμού, διατήρηση ισχύος, λειτουργίας παιχνιδιού και καταγραφών FPS (washmybelly)"
+    "system_change": "Προετοιμασία σχεδίων καθαρισμού, διατήρηση ισχύος, λειτουργίας παιχνιδιού και καταγραφών FPS (washmybelly)",
+    "approvals_respond": "Απάντηση σε ερωτήσεις άδειας των αποστολών του",
+    "approvals_respond_help": "Με αυτό, ο πελάτης μπορεί να επιτρέπει τις κλήσεις εργαλείων των δικών του αποστολών, μαζί και εντολές shell, σαν να πατούσατε Να επιτρέπεται εδώ. Δώστε το μόνο σε πελάτη που εμπιστεύεστε όσο τον εαυτό σας. Δεν μπορεί ποτέ να δημιουργήσει κανόνα «να επιτρέπεται πάντα», και ένας πράκτορας δεν απαντά ποτέ στις δικές του ερωτήσεις.",
+    "agents_run": "Εκτέλεση των πρακτόρων σας ως εργασίες στο παρασκήνιο",
+    "agents_run_help": "Με αυτό, ο πελάτης μπορεί να βάλει οποιονδήποτε πράκτορα της λίστας σας να δουλέψει σε μια εργασία, στον φάκελο που ορίζει, στο παρασκήνιο, όπως το `omniget agent run`. Βλέπει και σταματά μόνο τις εργασίες που ξεκίνησε ο ίδιος. Οι ερωτήσεις άδειας των πρακτόρων συνεχίζουν να περιμένουν εσάς, εκτός αν επιτρέψετε και σε αυτόν τον πελάτη να τις απαντά."
   },
   "mcp_auth": {
     "title": "Ένας πελάτης AI σας ζητά να συνδεθείτε",

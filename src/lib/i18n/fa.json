@@ -1311,7 +1311,10 @@
       "reset_hints": "Reset hints",
       "reset_hints_desc": "Show all dismissed tips again",
       "restore": "Restore",
-      "hints_restored": "All hints restored"
+      "hints_restored": "All hints restored",
+      "run_in_background": "اجرای عامل‌ها در پس‌زمینه",
+      "run_in_background_desc": "OmniGet هنگام ورود به سیستم پنهان باز می‌شود و بستن پنجره آن را در سینی سیستم نگه می‌دارد، تا کارها، Loopها و روال‌ها ادامه پیدا کنند و فرمان omniget آن را پیدا کند. گزینهٔ «خروج هنگام بستن پنجره» را خاموش می‌کند.",
+      "run_in_background_flatpak": "Flatpak: اجرا هنگام ورود و باز شدن از خط فرمان هنوز بررسی نشده‌اند."
     },
     "appearance": {
       "title": "Appearance",
@@ -2772,12 +2775,10 @@
       "mcp": "MCP",
       "skills": "Skills",
       "accounts": "Accounts",
-      "local": "Local",
       "arena": "Arena",
       "jobs": "Jobs",
       "loops": "Loops"
     },
-    "demo_banner": "Demo data: the LLM backend is not wired yet.",
     "rail": {
       "title": "Agents",
       "unassigned": "Unassigned",
@@ -2785,7 +2786,8 @@
       "new_chat": "New chat",
       "empty": "No agents yet.",
       "no_profile": "No local profile",
-      "search": "Search agents"
+      "search": "Search agents",
+      "load_failed": "گفتگوهای ذخیره‌شده خوانده نشد."
     },
     "role": {
       "coordinator": "Coordinator",
@@ -2896,14 +2898,11 @@
       "connect": "Connect or manage providers",
       "local_hint": "Local server: make sure it is running and has models installed. No saved API key is required.",
       "no_models": "This provider returned no models. Check the models available on the server or enter an identifier manually.",
-      "load_failed": "Could not load models: {{error}}"
+      "load_failed": "ارائه‌دهندگان شما خوانده نشد: {{error}}"
     },
     "err": {
       "unavailable": "The LLM backend is not wired yet.",
       "turn_failed": "The turn could not start."
-    },
-    "local": {
-      "explanation": "Local model management is not available here yet. Configure an existing local provider in Models & Routing."
     },
     "skills": {
       "title": "Skills",
@@ -2911,7 +2910,6 @@
       "installed_title": "Installed",
       "loading": "Reading the installed skills…",
       "empty": "No skill installed yet. Install one from a folder, a zip or a git repository.",
-      "demo": "Demo data — nothing here is installed on this machine.",
       "remove": "Remove",
       "install": "Install",
       "installing": "Installing…",
@@ -2993,7 +2991,6 @@
       "lede": "نقطهٔ پایانی‌ای که عامل‌های دیگر به آن وصل می‌شوند، و سرورهایی که OmniGet به آن‌ها وصل می‌شود.",
       "half_client": "سرورهایی که استفاده می‌کنید",
       "half_server": "نقطهٔ پایانی شما",
-      "demo": "سرورهای نمایشی: بک‌اند MCP هنوز پاسخ نمی‌دهد. هیچ‌کدام از این‌ها اتصال واقعی نیست.",
       "servers": "سرورهای متصل",
       "add": "افزودن سرور",
       "loading": "در حال خواندن سرورهای ذخیره‌شده…",
@@ -3218,7 +3215,12 @@
         "connecting": "Connecting…",
         "err_unknown_provider": "Unknown provider",
         "err_credential_failed": "Credential validation failed"
-      }
+      },
+      "sandbox_full": "دسترسی کامل مجاز است",
+      "sandbox_full_hint": "نوبت‌های این حساب می‌توانند فایل ویرایش کنند و نوبتی که حالت اجرایش دسترسی کامل است بدون پرسیدن اجرا می‌شود.",
+      "sandbox_allow_full": "اجازهٔ دسترسی کامل",
+      "sandbox_allow_full_confirm": "تأیید: اجازهٔ دسترسی کامل",
+      "sandbox_make_write": "بازگشت به فقط نوشتن"
     },
     "rules": {
       "title": "Always rules",
@@ -3277,10 +3279,8 @@
       "undone": "Undone: {{count}} file(s) restored",
       "chat": "Chat",
       "agents": "Agents",
-      "activity": "Activity",
       "configure": "Configure",
       "tasks": "Tasks",
-      "routines": "Routines",
       "performance": "Usage and performance",
       "monitor": "Usage monitor",
       "off": "Off",
@@ -3302,7 +3302,10 @@
       "retro": "Retrospective",
       "installed": "Installed",
       "remote": "Remote access",
-      "wizard": "Project setup"
+      "wizard": "Project setup",
+      "work": "کارها",
+      "more": "بیشتر",
+      "loops": "حلقه‌ها"
     },
     "jobs": {
       "lede": "Agent runs that work in the background while you do something else.",
@@ -3318,6 +3321,12 @@
       "list_title": "Recent jobs",
       "empty": "No jobs yet. Start one above and it shows up here.",
       "result": "Result",
+      "outcome": {
+        "title": "حکم عامل",
+        "succeeded": "موفق شد",
+        "failed": "ناموفق بود",
+        "missing": "عامل بدون خط OUTCOME تمام کرد: پیش از تکیه بر نتیجه، آن را بخوانید."
+      },
       "error": "Error",
       "log": "Log",
       "log_empty": "Nothing logged yet.",
@@ -3332,26 +3341,31 @@
         "done": "Done",
         "failed": "Failed",
         "cancelled": "Cancelled",
-        "waiting_workspace": "در انتظار پوشه"
+        "waiting_workspace": "در انتظار پوشه",
+        "review": "نیازمند بازبینی",
+        "done_unreported": "انجام شد، بدون گزارش"
       },
       "kind": {
         "run": "Run",
         "chat": "Chat",
         "loop": "Loop",
-        "trigger": "Trigger",
+        "trigger": "زمان‌بندی‌شده",
         "mission": "مأموریت"
       },
       "ask": {
         "title": "Wants to use {{tool}}",
         "allow": "Allow",
         "always": "Always allow",
-        "deny": "Deny"
+        "deny": "Deny",
+        "session": "اجازه برای این نوبت",
+        "stop": "رد و توقف",
+        "cli": "از ترمینال: omniget agent approve {{id}}"
       },
       "trigger": {
-        "title": "Triggers",
-        "lede": "Start a job on a schedule or when a webhook is called.",
-        "empty": "No triggers yet. Create one below.",
-        "new_title": "New trigger",
+        "title": "زمان‌بندی‌ها و وب‌هوک‌ها",
+        "lede": "یک وظیفه را در زمان‌های مشخص یا هنگام فراخوانی وب‌هوک شروع کنید.",
+        "empty": "هنوز زمان‌بندی‌ای نیست. یکی در پایین بسازید.",
+        "new_title": "زمان‌بندی تازه",
         "kind": "Kind",
         "kind_cron": "Schedule",
         "kind_webhook": "Webhook",
@@ -3359,10 +3373,10 @@
         "cron": "Cron line",
         "cron_hint": "Five fields (minute hour day month weekday), or @hourly, @daily, @weekly, @monthly.",
         "body_hint": "{{token}} is replaced by the webhook body.",
-        "create": "Create trigger",
+        "create": "ساخت زمان‌بندی",
         "enabled": "Enabled",
         "fire": "Fire now",
-        "fired": "Trigger fired",
+        "fired": "زمان‌بندی یک وظیفه را شروع کرد",
         "fired_count": "Fired {{count}}×",
         "copy_curl": "Copy curl",
         "catch_up": "از دست رفته هنگام بسته بودن برنامه",
@@ -3387,7 +3401,9 @@
         "no_start": "متوقف شد: عامل هرگز شروع نشد",
         "deadline": "متوقف شد: به سقف زمانی رسید",
         "limit": "متوقف شد: به سقف بودجه رسید",
-        "ask_expired": "یک پرسش بی‌پاسخ ماند"
+        "ask_expired": "یک پرسش بی‌پاسخ ماند",
+        "app_restart": "برنامه در حین این کار بسته شد",
+        "budget": "متوقف شد: سقف بودجه این دامنه را نگه داشته"
       },
       "queue": {
         "title": "صف",
@@ -3411,6 +3427,121 @@
         "unavailable_no_snapshot": "معلوم نیست این کار چه چیزی را تغییر داد: نوبت‌های آن از پوشه عکس فوری نگرفتند.",
         "unavailable_no_workspace": "این کار بدون پوشه اجرا شد، پس diff وجود ندارد.",
         "unavailable_error": "عکس فوری پوشهٔ این کار خوانده نشد."
+      },
+      "tokens": {
+        "title": "توکن‌های دسترسی",
+        "lede": "اسکریپت‌ها، وب‌هوک‌ها و CLI ‏omniget با یک توکن دارای دامنه به مسیرهای عامل پل محلی دسترسی دارند. کلید افزونهٔ مرورگر برای این مسیرها نیست.",
+        "empty": "هنوز توکنی وجود ندارد.",
+        "name": "نام",
+        "scopes": "چه کاری می‌تواند بکند",
+        "scope_jobs_read": "دیدن کارها (jobs:read)",
+        "scope_jobs_operate": "شروع و لغو کارها (jobs:operate)",
+        "scope_approvals_respond": "پاسخ به تأییدها (approvals:respond)",
+        "expires": "انقضا",
+        "expires_never": "هرگز",
+        "expires_days": "تا {{days}} روز دیگر",
+        "expires_at": "انقضا {{when}}",
+        "create": "ساخت توکن",
+        "created": "توکن ساخته شد. همین حالا آن را کپی کنید: دوباره نمایش داده نمی‌شود.",
+        "copy": "کپی توکن",
+        "revoke": "لغو",
+        "kind_cli": "CLI ‏omniget این رایانه",
+        "last_used": "آخرین استفاده {{when}}",
+        "never_used": "هرگز استفاده نشده",
+        "legacy_toggle": "هنوز کلید افزونهٔ مرورگر در مسیرهای عامل پذیرفته شود (منسوخ)",
+        "legacy_hint": "برای یک نسخه نگه داشته می‌شود تا اسکریپت‌های قدیمی کار کنند. نسخهٔ بعدی آن را رد می‌کند.",
+        "legacy_seen": "کلید افزونهٔ مرورگر در {{when}} روی {{route}} استفاده شد. آن اسکریپت را به یک توکن دارای دامنه تغییر دهید.",
+        "curl_hint": "OMNIGET_TOKEN را روی توکنی با دامنهٔ jobs:operate تنظیم کنید (توکن‌های دسترسی، پایین).",
+        "scope_audit_read": "خواندن گزارش ممیزی (audit:read)",
+        "scope_budget_write": "تعیین و افزایش بودجه (budget:write)",
+        "scope_workflow_trust": "اعتماد به گردش کار مخزن‌ها (workflow:trust)"
+      },
+      "isolation": {
+        "label": "کجا می‌نویسد",
+        "auto": "خودکار: worktree جداگانه فقط اگر کار دیگری همان‌جا در حال نوشتن باشد",
+        "worktree": "همیشه در worktree گیتِ مخصوص خودش",
+        "shared": "در خود پوشه (منتظر نوبتش می‌ماند)"
+      },
+      "worktree": {
+        "title": "Worktree",
+        "chip": "{{branch}} از {{base}}",
+        "gone": "worktree حذف شد؛ شاخه کار را نگه می‌دارد.",
+        "remove": "حذف worktree",
+        "removed": "worktree حذف شد.",
+        "kept_branch": "worktree حذف شد. شاخهٔ {{branch}} کار این کار را نگه می‌دارد.",
+        "saved": "{{count}} فایلِ کامیت‌نشده ابتدا روی شاخه ذخیره شد."
+      },
+      "proof": {
+        "title": "رسید",
+        "summary": "{{files}} فایل تغییر کرد · {{tokens}} توکن · {{time}}",
+        "check": "{{command}} ← کد خروج {{code}}",
+        "by_host": "مهر شده توسط OmniGet روی همین رایانه بر اساس آنچه ثبت کرده، نه نوشتهٔ عامل."
+      },
+      "review": {
+        "mark": "علامت‌گذاری به‌عنوان بازبینی‌شده",
+        "title": "بازبینی",
+        "lede": "یک تکه را کنار بگذارید، برای عامل یادداشت بگذارید، سپس کار را ادغام یا کنار بگذارید.",
+        "discard_hunk": "کنار گذاشتن",
+        "hunk_discarded": "تکه کنار گذاشته شد.",
+        "hunk_stale": "این کد پس از بارگذاری تغییر کرده است. diff تازه شد؛ دوباره امتحان کنید.",
+        "busy": "یک کار همین حالا در این پوشه می‌نویسد. پس از پایان آن دوباره امتحان کنید.",
+        "not_actionable": "worktree این کار حذف شده است، پس دیگر نمی‌توان تکه‌ها را یکی‌یکی کنار گذاشت.",
+        "notes_title": "یادداشت‌ها برای عامل",
+        "notes_hint": "خط‌هایی را در diff انتخاب کنید و نظر بدهید. ارسال، ادامه‌ای در همان گفتگو شروع می‌کند که فقط هزینهٔ یادداشت‌ها را دارد.",
+        "notes_empty": "هنوز یادداشتی نیست.",
+        "note_file": "کل فایل",
+        "note_sent": "فرستاده‌شده به {{job}}",
+        "note_delete": "حذف یادداشت",
+        "notes_send": "ارسال {{count}} یادداشت به عامل",
+        "notes_sent": "یادداشت‌ها فرستاده شد: کار ادامه {{job}} شروع شد.",
+        "walkthrough_title": "راهنمای گام‌به‌گام",
+        "walkthrough": "توضیح تغییرات",
+        "walkthrough_refresh": "توضیح دوباره",
+        "walkthrough_loading": "در حال نوشتن راهنما…",
+        "walkthrough_too_large": "این diff برای راهنما بیش از حد بزرگ است. آن را فایل‌به‌فایل بازبینی کنید.",
+        "walkthrough_uncovered": "{{count}} تکه در هیچ ایستگاهی نیست",
+        "walkthrough_cached": "از حافظهٔ نهان",
+        "importance_critical": "حیاتی",
+        "integrate_title": "ادغام",
+        "integrate_into": "ادغام {{branch}} در {{target}}",
+        "commits": "{{count}} کامیت برای آوردن",
+        "worktree_dirty": "{{count}} فایل کامیت‌نشده در worktree ابتدا روی شاخه ذخیره می‌شود.",
+        "blocked": "الان نمی‌توان ادغام کرد: {{reason}}",
+        "strategy_merge": "کامیت ادغام",
+        "strategy_squash": "squash در یک کامیت",
+        "integrate": "ادغام",
+        "integrated": "در {{target}} ادغام شد.",
+        "up_to_date": "{{target}} این کار را از قبل دارد.",
+        "conflict": "تعارض در {{files}}. در checkout شما چیزی تغییر نکرد.",
+        "failed": "git ادغام را رد کرد (شاید یک hook). در checkout شما چیزی تغییر نکرد.",
+        "discard_work": "کنار گذاشتن کار",
+        "discard_confirm": "کار این کار کنار گذاشته شود؟ worktree و شاخهٔ {{branch}} حذف می‌شوند.",
+        "discarded": "کار کنار گذاشته شد. شاخهٔ {{branch}} روی {{tip}} بود."
+      },
+      "resumed_by_itself": "خودکار ادامه یافت ({{count}}×)",
+      "workflow": {
+        "title": "گردش کار مخزن",
+        "state": {
+          "trusted": "فعال",
+          "untrusted": "مورد اعتماد نیست",
+          "invalid": "نامعتبر",
+          "none": "هیچ"
+        },
+        "last_good": "آخرین نسخهٔ معتبر تا اصلاح فایل همچنان اعمال می‌شود.",
+        "no_last_good": "نسخهٔ معتبر قبلی وجود ندارد: تا اصلاح فایل، کارهای این پوشه رد می‌شوند.",
+        "defaults": "پیش‌فرض‌ها:",
+        "commands": "فرمان‌هایی که روی این رایانه اجرا می‌کند:",
+        "kind": {
+          "after_create": "پس از ساخت worktree",
+          "before_remove": "پیش از حذف worktree",
+          "check": "بررسی پس از کار"
+        },
+        "untrusted_hint": "تا وقتی به همین نسخهٔ دقیق اعتماد نکنید، این فرمان‌ها رد می‌شوند و حالت اجرای آزادتر اعمال نمی‌شود. هر تغییری در فایل دوباره تأیید می‌خواهد.",
+        "trust": "اعتماد به این نسخه",
+        "revoke": "لغو اعتماد",
+        "template": "قالب پرامپت",
+        "trusted_toast": "گردش کار مورد اعتماد است: فرمان‌هایش از این پس اجرا می‌شوند",
+        "untrusted_toast": "گردش کار دیگر مورد اعتماد نیست"
       }
     },
     "loops": {
@@ -3440,13 +3571,56 @@
         "running": "Running",
         "done": "Done",
         "failed": "Failed",
-        "cancelled": "Cancelled"
+        "cancelled": "Cancelled",
+        "paused": "متوقف",
+        "blocked": "مسدود",
+        "budget_limited": "بودجه تمام شد"
       },
       "check_passed": "Condition met",
       "summary": "Up to {{rounds}} rounds. Stops earlier when a configured condition or time limit is reached.",
-      "no_check": "No check command: completion will be controlled by the round or time limit.",
+      "no_check": "بدون فرمان بررسی: پس از هر دور یک ممیز مستقل (کوچک‌ترین مدل عامل) تصمیم می‌گیرد که آیا کار تمام شده است، حداکثر تا ۲۰ دور.",
       "review": "Review loop",
-      "edit": "Edit configuration"
+      "edit": "Edit configuration",
+      "auto_resume": "ادامهٔ خودکار پس از راه‌اندازی دوباره",
+      "auto_resume_hint": "اگر برنامه وسط یک دور بسته شود، Loop پس از باز شدن دوباره ادامه می‌دهد، مگر اینکه آن دور در پوشهٔ شما چیزی نوشته باشد.",
+      "run_mode_hint": "هر دور حلقه با این حالت اجرا می‌شود. با «پیش از هر کاری بپرس»، هر دور پیش از هر ویرایش یا فرمانی می‌ایستد و منتظر شما می‌ماند.",
+      "max_cost": "بودجه (دلار)",
+      "paused_budget": "متوقف: بودجه تمام شد",
+      "paused_budget_hint": "تا سقف بالا نرود هیچ دوری شروع نمی‌شود؛ بالا بردن آن حلقه را ادامه می‌دهد.",
+      "open_incident": "باز کردن رخداد",
+      "cost_estimated": "(برآورد)",
+      "cost_tokens": "{{tokens}} توکن وزن‌دار",
+      "cost_unknown": "{{count}} دور با هزینهٔ نامعلوم",
+      "stop": {
+        "audit_complete": "تأییدشده توسط ممیز",
+        "audit_blocked": "ممیز عامل را ۳ دور پشت سر هم مسدود دید",
+        "audit_unavailable": "ممیزی دو بار پشت سر هم در دسترس نبود",
+        "token_budget": "بودجه توکن تمام شد",
+        "max_rounds": "به سقف دورها رسید",
+        "round_failed": "یک دور شکست خورد: {{error}}",
+        "audit_disagrees": "عامل ۳ بار پشت سر هم گفت کار تمام است و ممیز مخالفت کرد: شما تصمیم بگیرید"
+      },
+      "token_budget": "بودجه توکن",
+      "tokens": "{{used}} / {{budget}} توکن",
+      "guided": "{{count}} دور فقط ادامه را فرستادند (کار دوباره فرستاده نشد).",
+      "audits": "رأی‌های ممیز",
+      "verdict": {
+        "continue": "ادامه",
+        "complete": "کامل",
+        "blocked": "مسدود",
+        "none": "بدون رأی"
+      },
+      "claimed_done": "گفت تمام شد",
+      "claimed_done_hint": "عامل گفت کار تمام شده است؛ فقط رأی ممیز حلقه را تمام می‌کند.",
+      "side_reason": {
+        "provider_small": "کوچک‌ترین مدل همان حساب",
+        "session_model": "مدل کوچک‌تری شناخته نشده: مدل خود عامل",
+        "requested": "برای این حلقه انتخاب شده",
+        "setting": "تنظیم مدل جانبی"
+      },
+      "overhead": "ممیز {{audit}} برای دورهایی به هزینه {{rounds}} ({{percent}}٪).",
+      "blocked_hint": "حلقه متوقف شد و به شما نیاز دارد. ادامه یک دور تازه اجرا می‌کند که دوباره ممیزی می‌شود.",
+      "note": "پیشرفت"
     },
     "limits": {
       "title": "Limits strip",
@@ -3559,22 +3733,18 @@
       "model": "Connection and model",
       "customize": "Tools and limits",
       "tasks": "Tasks",
-      "routines": "Routines",
       "active": "Running",
       "attention": "Needs attention",
       "done": "Finished",
       "create": "Create a task",
-      "create_routine": "Create a routine",
       "jobs_hint": "Run a task in the background. Open its details to see the result, approve a tool or stop execution.",
       "loops_hint": "Repeat a task until a check passes or its limit is reached. Review the stop conditions before starting.",
       "models_hint": "Connect an API provider, then choose its model for an agent. Chat subscriptions are configured in Connections.",
       "mcp_hint": "Connect a tool, test it, then choose which agents may use it. Adding a connection does not grant permission.",
       "skills_hint": "Skills give agents reusable instructions. Review the source and scan result before installing, then assign the skill to an agent.",
       "observatory_hint": "Inspect measured activity and provider quotas. Missing measurements are unavailable, never zero. Diagnostics run only when you open them.",
-      "local_hint": "Use a local model through a compatible server. Connect the running server and select one of its actual models before creating an agent.",
       "arena_hint": "Model comparison is not available yet. You can choose a model and run a conversation with the current tools.",
       "unavailable_feature": "Not available yet",
-      "local_steps": "Start your local model server|Connect its endpoint in AI settings|Choose the model for an agent",
       "arena_steps": "Select a model|Open a conversation|Review the result",
       "roster_hint": "Start with one agent and give it a clear purpose. Add a team when your task needs it.",
       "suggestion_1": "List my downloads and explain which need attention",
@@ -3587,7 +3757,8 @@
       "search": "Find an agent",
       "no_matches": "No matching agents",
       "templates_impact": "Review the template and its effect on the existing team before applying it.",
-      "mcp_server_hint": "بگذارید برنامه‌های هوش مصنوعی دیگر از OmniGet استفاده کنند: سرور را روشن کنید، کلاینتی فقط با مجوزهای لازم بسازید و قطعهٔ آن را در آن برنامه بچسبانید."
+      "mcp_server_hint": "بگذارید برنامه‌های هوش مصنوعی دیگر از OmniGet استفاده کنند: سرور را روشن کنید، کلاینتی فقط با مجوزهای لازم بسازید و قطعهٔ آن را در آن برنامه بچسبانید.",
+      "create_loop": "ساخت حلقه"
     },
     "prompts": {
       "omni": "You are Omni, the assistant inside OmniGet. Answer briefly and in the language the user writes in. Use a tool only when it is clearly needed.",
@@ -3618,14 +3789,16 @@
       "start": "مهلت شروع (ثانیه)",
       "start_desc": "عاملی که پس از شروع در این مدت هیچ چیزی نگوید، هرگز پرامپت را دریافت نکرده است.",
       "deadline": "سقف زمانی کار (دقیقه)",
-      "deadline_desc": "هر کار پس‌زمینه (اجرا، دور حلقه، روال) اینجا متوقف می‌شود مگر اینکه سقف خودش را داشته باشد.",
+      "deadline_desc": "هر کار پس‌زمینه (اجرا، دور حلقه، اجرای زمان‌بندی‌شده) اینجا متوقف می‌شود مگر اینکه سقف خودش را داشته باشد.",
       "ask_chat": "انتظار پرسش در گفتگو (دقیقه)",
       "ask_chat_desc": "پس از آن پرسش منقضی می‌شود: کار اجرا نمی‌شود و دلیلش به شما گفته می‌شود.",
       "ask_job": "انتظار پرسش در کارها (دقیقه)",
       "ask_job_desc": "برای انتظار تا سقف زمانی خود کار، 0 بگذارید.",
       "notify_delay": "اعلان پس از (ثانیه)",
       "notify_delay_desc": "پرسشی که پس از این مدت هنوز باز است به اعلان سیستم تبدیل می‌شود. اگر زودتر پاسخ دهید، هرگز.",
-      "offline": "ذخیره نشد: بک‌اند پاسخ نداد."
+      "offline": "ذخیره نشد: بک‌اند پاسخ نداد.",
+      "auto_resume": "ادامهٔ خودکار پس از راه‌اندازی دوباره",
+      "auto_resume_desc": "وقتی برنامه بسته می‌شود یا عاملی ساکت می‌ماند، کاری که در worktree خودش اجرا می‌شد یا فقط فایل می‌خواند خودش دوباره شروع می‌شود: نشستش را ادامه می‌دهد و از او خواسته می‌شود پیش از تکرار هر کاری بررسی کند چه چیزی انجام شده است. کاری که در پوشهٔ شما نوشته است همچنان منتظر شما می‌ماند. یک کار یا یک Loop می‌تواند خلاف این را بخواهد."
     },
     "central": {
       "agentkit": {
@@ -5350,7 +5523,6 @@
         "verify_hint": "Runs in every worktree; the exit code decides pass or fail.",
         "cleanup": "Clean up",
         "cleanup_lede": "Archives the threads (their worktrees go; the work stays in the arena's refs).",
-        "cleanup_losers": "Only the losers",
         "cleanup_all": "Every entry (discard the arena)",
         "delete": "Delete arena",
         "delete_lede": "Removes this arena from the history and its refs. The threads stay.",
@@ -5466,10 +5638,11 @@
           "verify_hint": "Optional; runs in each worktree when its turn ends. Timeout",
           "timeout": "Timeout in minutes",
           "minutes": "min",
-          "start": "Start in {{count}} tools"
+          "start": "Start in {{count}} tools",
+          "min_tools": "دست‌کم {{count}} ابزار برای مقایسه انتخاب کنید."
         },
         "apply": {
-          "title": "Apply the winner",
+          "title": "انتخاب همین",
           "lede": "{{name}}'s branch goes into the target branch. Nothing else is touched.",
           "target": "Target branch",
           "strategy": "How",
@@ -5480,22 +5653,49 @@
           "conflicts": "{{count}} files conflict; resolve in the thread first.",
           "checked_out": "The branch is checked out at {{path}}.",
           "dirty": "That checkout has uncommitted changes: commit or stash them first.",
-          "touch_checkout": "Update my checkout too (fast-forward only)",
+          "touch_checkout": "ادغام در checkout من (git merge با هویت و hookهای من؛ در صورت تعارض برگردانده می‌شود)",
           "ref_only": "Only the branch moves; no checkout is touched.",
-          "clean_losers": "Archive the losing threads and remove their worktrees",
+          "clean_losers": "سپس حذف بقیه (worktreeها؛ کارشان در refهای آرنا می‌ماند)",
           "delete_branches": "Also delete their branches (only OmniGet's)",
           "confirm": "I want to change {{branch}}",
           "do": "Apply",
           "ok": "Applied to {{branch}}",
-          "updated_checkout": "your checkout moved forward",
-          "updated_ref": "only the branch ref moved",
-          "cleaned": "{{count}} threads archived"
+          "updated_checkout": "در checkout شما ادغام شد",
+          "updated_ref": "only the branch ref moved"
         },
         "plan": {
           "implement_n": "Implement in N tools",
           "hint": "Open the Arena with this plan as the prompt"
         },
-        "apply_winner": "Apply winner"
+        "apply_winner": "Apply winner",
+        "removed": "{{count}} worktree حذف شد",
+        "branches_kept": "{{count}} شاخه نگه داشته شد",
+        "remove_others": "حذف بقیه",
+        "choose": "انتخاب همین",
+        "choose_hint": "کار این ستون را در شاخهٔ پایه ادغام کن",
+        "estimate": {
+          "total": "هزینهٔ تخمینی پیش از شروع: {{total}} برای {{count}} ابزار",
+          "unknown": "{{count}} بدون تخمین",
+          "rough": "تقریبی: قیمت فهرست × یک نوبت معمول",
+          "source": {
+            "history": "میانگین {{runs}} اجرای قبلی در آرنا",
+            "price": "قیمت فهرست × یک نوبت معمول کدنویسی (تقریبی)",
+            "unknown": "قیمت نامعلوم (اشتراک، یا مدلی که در جدول قیمت نیست)"
+          }
+        },
+        "compare": {
+          "title": "جایی که از هم جدا می‌شوند",
+          "toggle": "مقایسه",
+          "divergent": "{{count}} فایل متفاوت است",
+          "agreed": "{{count}} یکسان",
+          "pending": "{{count}} هنوز در حال اجرا",
+          "show_agreed": "نمایش فایل‌های یکسان",
+          "file": "فایل",
+          "untouched": "مثل پایه",
+          "none_divergent": "همهٔ ستون‌ها به فایل‌های یکسانی رسیدند.",
+          "column": "{{count}} متفاوت",
+          "column_hint": "فایل‌هایی که این ستون در آن‌ها با بقیه فرق دارد"
+        }
       },
       "run": {
         "back": "Back",
@@ -5512,7 +5712,8 @@
           "done": "Done",
           "failed": "Failed",
           "cancelled": "Cancelled",
-          "skipped": "Skipped"
+          "skipped": "Skipped",
+          "review": "نیازمند بازبینی"
         },
         "runner": {
           "label": "Runs with",
@@ -5662,6 +5863,156 @@
           "review_started": "Review job started",
           "open_jobs": "Open Jobs"
         }
+      }
+    },
+    "run_mode": {
+      "label": "حالت اجرا",
+      "approval_required": "پیش از هر کاری بپرس",
+      "auto_edits": "ویرایش خودکار",
+      "auto": "خودکار (بازبین CLI)",
+      "full_access": "دسترسی کامل",
+      "approval_required_hint": "هر ویرایش و هر فرمان اول از شما می‌پرسد.",
+      "auto_edits_hint": "ویرایش فایل‌ها انجام می‌شود؛ فرمان‌ها اول می‌پرسند.",
+      "auto_hint": "بازبین خود CLI تصمیم می‌گیرد؛ اگر CLI بازبین نداشته باشد، مثل ویرایش خودکار کار می‌کند.",
+      "full_access_hint": "هیچ چیز نمی‌پرسد. حساب CLI هم باید دسترسی کامل را مجاز کند.",
+      "full_access_warning": "دسترسی کامل هر ویرایش و هر فرمان را بدون پرسیدن اجرا می‌کند. فقط در پوشه‌ای از آن استفاده کنید که از دست دادنش مهم نیست.",
+      "full_access_confirm": "اجازهٔ دسترسی کامل",
+      "cancel": "لغو"
+    },
+    "audit": {
+      "title": "گزارش ممیزی",
+      "lede": "چه کسی روی کارها، پرسش‌ها، مجوزها، توکن‌ها و عامل‌ها چه کرد و از چه راهی. پرامپت‌ها، محتوای فایل‌ها و رازها هرگز ذخیره نمی‌شوند.",
+      "since": "بازه",
+      "since_1h": "یک ساعت اخیر",
+      "since_1d": "یک روز اخیر",
+      "since_7d": "۷ روز اخیر",
+      "since_30d": "۳۰ روز اخیر",
+      "since_90d": "۹۰ روز اخیر",
+      "kind": "نوع",
+      "kind_all": "همه",
+      "kind_job": "کارها",
+      "kind_ask": "پرسش‌ها",
+      "kind_grant": "مجوزهای دائمی",
+      "kind_token": "توکن‌ها",
+      "kind_agent": "عامل‌ها",
+      "kind_loop": "حلقه‌ها",
+      "refresh": "تازه‌سازی",
+      "export": "خروجی CSV",
+      "empty": "در این بازه چیزی نیست.",
+      "error": "خواندن گزارش ممیزی ممکن نشد.",
+      "who": "چه کسی",
+      "through": "از راه",
+      "on": "روی",
+      "retention": "نگه‌داری خطوط (روز)",
+      "retention_days": "خطوط {{days}} روز نگه داشته می‌شوند.",
+      "retention_save": "ذخیره",
+      "retention_saved": "ذخیره شد؛ خطوط قدیمی‌تر حذف شدند.",
+      "cli_hint": "همین گزارش از ترمینال، با توکنی که audit:read دارد."
+    },
+    "work": {
+      "nav": "همه کارها",
+      "lede": "همه کارهایی که عامل‌ها برایتان انجام می‌دهند در یک فهرست: اول آنچه به شما نیاز دارد، بعد آنچه در حال اجرا، در انتظار، آماده بازبینی یا تازه تمام‌شده است.",
+      "badge_needs_you": "به شما نیاز دارد ({{count}})",
+      "badge_running": "{{count}} در حال اجرا",
+      "badge_review": "{{count}} برای بازبینی",
+      "badge_queued": "{{count}} در صف",
+      "section": {
+        "needs_you": "به شما نیاز دارد",
+        "running": "در حال اجرا",
+        "queued": "در انتظار شروع",
+        "review": "آماده بازبینی",
+        "done": "تازه تمام‌شده"
+      },
+      "pill": {
+        "approval": "نیاز به تأیید",
+        "input": "نیاز به پاسخ",
+        "decision": "نیاز به تصمیم",
+        "working": "در حال کار",
+        "failed": "ناموفق",
+        "queued": "در صف",
+        "review": "بازبینی",
+        "ready": "انجام شد",
+        "stopped": "متوقف شد"
+      },
+      "source": {
+        "job": "وظیفه",
+        "loop": "حلقه",
+        "mission": "مأموریت",
+        "thread": "رشته",
+        "run": "گفتگو",
+        "ask": "پرسش",
+        "budget": "بودجه"
+      },
+      "asks_for": "اجازه استفاده از {{tool}} را می‌خواهد",
+      "nothing_waits": "چیزی منتظر شما نیست.",
+      "empty": "هنوز کاری نیست.",
+      "partial": "بخشی از کارها خوانده نشد: {{error}}",
+      "notify": {
+        "approval": "نیاز به تأیید: {{title}}",
+        "input": "نیاز به پاسخ: {{title}}",
+        "decision": "نیاز به تصمیم: {{title}}",
+        "failed": "ناموفق: {{title}}",
+        "ready": "انجام شد: {{title}}",
+        "review": "آماده بازبینی: {{title}}",
+        "more": "و {{count}} مورد دیگر در کارها"
+      }
+    },
+    "budget": {
+      "title": "بودجه‌ها",
+      "refresh": "به‌روزرسانی",
+      "lede": "سقف برای عامل‌های شما: برای همه، یک عامل، یک حساب، یک حلقه، یک کار یا یک مأموریت، به دلار، توکن وزن‌دار یا سهمی از پنجرهٔ ۵ ساعته / ۷ روزهٔ اشتراک. پس از عبور از سقف سخت، آن دامنه متوقف می‌شود و کارش تا وقتی سقف را بالا ببرید متوقف می‌ماند. بدون سقف هیچ محدودیتی نیست.",
+      "read_error": "خواندن بودجه‌ها ممکن نشد.",
+      "empty": "هنوز سقفی نیست: هیچ چیز محدود نیست.",
+      "hard": "توقف",
+      "soft": "می‌پرسد",
+      "paused": "متوقف",
+      "remove": "حذف",
+      "no_reading": "هنوز خوانشی از سهمیه نیست (از جریان خود CLI می‌آید)",
+      "warn_at": "هشدار در {{pct}}٪",
+      "estimate_note": "دلارِ اشتراک برآورد جدول قیمت است",
+      "add": "افزودن سقف",
+      "scope": "برای",
+      "scope_id": "شناسه",
+      "metric_label": "واحد",
+      "window_label": "بازه",
+      "amount": "سقف",
+      "warn_label": "هشدار در (٪)",
+      "soft_label": "به جای توقف بپرس",
+      "save": "ذخیره",
+      "hard_hint": "پس از عبور از سقف، دامنه متوقف می‌شود: کارهای در حال اجرا و در صف لغو می‌شوند و یک رخداد منتظر شماست (افزایش و ادامه، یا نگه‌داشتن در توقف).",
+      "soft_hint": "پس از عبور از سقف، نوبت بعدی در هر بازه یک بار می‌پرسد «ادامه؟»، مثل هر تأیید دیگری (از CLI و تلفن هم). پاسخ نه دامنه را متوقف می‌کند.",
+      "quota_hint": "سقف‌های سهمیه فقط آنچه CLI در جریان خودش گزارش کرده را می‌خوانند. برای یک حساب (یا همه) سقف همان درصد پنجره است؛ برای حلقه، کار، عامل یا مأموریت، واحدهایی است که از شروعش مصرف کرده.",
+      "warn_toast": "بودجهٔ {{scope}}: {{used}} از {{limit}} مصرف شد",
+      "metric": {
+        "usd": "دلار",
+        "weighted_tokens": "توکن وزن‌دار",
+        "quota_pct": "سهم از پنجرهٔ سهمیه"
+      },
+      "window": {
+        "turn": "در هر نوبت",
+        "day": "روزانه",
+        "week": "هفتگی",
+        "5h": "پنجرهٔ ۵ ساعته",
+        "7d": "پنجرهٔ ۷ روزه",
+        "run": "کل اجرا"
+      },
+      "scope_kind": {
+        "global": "همه",
+        "agent": "عامل",
+        "account": "حساب",
+        "loop": "حلقه",
+        "job": "کار",
+        "mission": "مأموریت"
+      },
+      "incident": {
+        "open": "بودجه تمام شد",
+        "kept": "در توقف نگه داشته شد",
+        "hard_line": "{{used}} از {{limit}} مصرف شد. تا سقف را بالا نبرید، اینجا چیزی شروع نمی‌شود.",
+        "checkpoint_line": "به نقطهٔ بررسی {{limit}} پاسخ نه داده شد ({{used}} مصرف شده). تا آن را بالا نبرید، اینجا چیزی شروع نمی‌شود.",
+        "new_limit": "سقف تازه",
+        "raise": "افزایش و ادامه",
+        "keep": "در توقف بماند",
+        "too_low": "سقف تازه باید بیشتر از مصرف فعلی باشد."
       }
     }
   },
@@ -6176,9 +6527,6 @@
       "tool_calls": "{{count}} ابزار",
       "permissions_title": "منتظر پاسخ شما",
       "permission_label": "می‌خواهد از {{action}} استفاده کند",
-      "answer_once": "یک بار اجازه",
-      "answer_always": "همیشه اجازه",
-      "answer_deny": "رد",
       "expires_in": "انقضا تا {{seconds}} ثانیه",
       "request_title": "آنچه خواستید",
       "summary_title": "پاسخ",
@@ -6212,7 +6560,8 @@
         "approved": "مجاز",
         "denied": "ردشده",
         "expired": "منقضی",
-        "cancelled": "لغوشده"
+        "cancelled": "لغوشده",
+        "stale": "باقی‌مانده از راه‌اندازی دوباره"
       },
       "unknown_hint": "OmniGet هنگام کار این اجرا بسته شد، پس نتیجه‌اش نامعلوم است. چیزی خودبه‌خود دوباره فرستاده نشد: تغییرات زیر را بررسی کنید و تصمیم بگیرید.",
       "interrupted_hint": "OmniGet پیش از رسیدن این اجرا به مدل بسته شد. کاری انجام نشد.",
@@ -6247,7 +6596,14 @@
       "routine_app_open": "فقط وقتی OmniGet باز است اجرا می‌شود",
       "routine_mute": "بی‌صدا",
       "routine_unmute": "باصدا",
-      "routine_muted": "بی‌صدا شده"
+      "routine_muted": "بی‌صدا شده",
+      "stale_title": "پرسش‌هایی که یک راه‌اندازی دوباره بی‌پاسخ گذاشت",
+      "stale_hint": "برنامه وقتی این‌ها منتظر بودند بسته شد. هیچ چیزی اجرا نشد. برای پرسیدن دوباره، نوبت را از نو شروع کنید.",
+      "dismiss": "نادیده گرفتن",
+      "answer_on_card": "در کارت خودش، بالای همین صفحه، پاسخ دهید.",
+      "answer_once": "یک بار اجازه",
+      "answer_always": "همیشه اجازه",
+      "answer_deny": "رد"
     },
     "conversation": {
       "status_working": "در حال کار…",
@@ -6806,7 +7162,10 @@
       "adv_events": "رویدادها",
       "blocked_before_call": "پیش از هر فراخوانی متوقف شد: در این مرحله چیزی اجرا نشد.",
       "verify_started": "بررسی در پس‌زمینه. نتیجه پس از پایان اینجا نمایش داده می‌شود.",
-      "verify_already_running": "یک بررسی برای این مأموریت در حال اجراست."
+      "verify_already_running": "یک بررسی برای این مأموریت در حال اجراست.",
+      "changes": "تغییرات",
+      "changes_no_job": "این وظیفه هنوز هیچ کاری اجرا نکرده است.",
+      "changes_job": "کار {{job}}"
     },
     "log": {
       "loading": "در حال بارگذاری گزارش…",
@@ -6925,7 +7284,7 @@
     "auth_origin": {
       "user_ui": "شما، در صفحهٔ مأموریت‌ها",
       "chat": "شما، از یک گفتگو",
-      "trigger": "ماشه‌ای که تنظیم کرده‌اید",
+      "trigger": "زمان‌بندی‌ای که تنظیم کرده‌اید",
       "external_mcp": "یک کلاینت MCP"
     }
   },
@@ -7015,7 +7374,11 @@
     "native_active": "Native access",
     "native_revoke": "Revoke access",
     "system_read": "خواندن وضعیت، اسکن‌ها و برنامه‌های این رایانه (washmybelly)",
-    "system_change": "آماده‌سازی برنامه‌های پاک‌سازی، نگه‌داشتن برق، حالت گیم و ضبط FPS (washmybelly)"
+    "system_change": "آماده‌سازی برنامه‌های پاک‌سازی، نگه‌داشتن برق، حالت گیم و ضبط FPS (washmybelly)",
+    "approvals_respond": "پاسخ به پرسش‌های مجوز مأموریت‌های خودش",
+    "approvals_respond_help": "با این، کلاینت می‌تواند فراخوانی ابزارهای مأموریت‌های خودش را، از جمله فرمان‌های shell، مجاز کند؛ مثل اینکه شما اینجا «اجازه» را زده باشید. آن را فقط به کلاینتی بدهید که به اندازهٔ خودتان به آن اعتماد دارید. هرگز نمی‌تواند قانون «همیشه اجازه بده» بسازد و هیچ عاملی به پرسش‌های خودش پاسخ نمی‌دهد.",
+    "agents_run": "اجرای عامل‌های شما به‌صورت کار پس‌زمینه",
+    "agents_run_help": "با این، کلاینت می‌تواند هر عاملی از فهرست شما را روی یک کار، در پوشه‌ای که تعیین می‌کند، در پس‌زمینه به کار بیندازد، مانند `omniget agent run`. فقط کارهایی را می‌بیند و متوقف می‌کند که خودش شروع کرده است. پرسش‌های مجوز عامل‌ها همچنان منتظر شما می‌مانند، مگر اینکه به این کلاینت هم اجازهٔ پاسخ دادن بدهید."
   },
   "mcp_auth": {
     "title": "یک کلاینت هوش مصنوعی از شما می‌خواهد وارد شوید",

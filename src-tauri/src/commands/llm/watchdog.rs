@@ -87,6 +87,8 @@ fn view(s: &LlmSettings) -> Value {
         "ask_timeout_chat_s": l.ask_chat.as_secs(),
         "ask_timeout_job_s": l.ask_job.map(|d| d.as_secs()),
         "approval_notify_delay_s": l.notify_delay.as_secs(),
+        // Resume by itself after a restart (3.1); off by default.
+        "auto_resume": s.auto_resume,
     })
 }
 
@@ -107,6 +109,7 @@ pub struct WatchdogInput {
     pub ask_timeout_chat_s: Option<u32>,
     pub ask_timeout_job_s: Option<u32>,
     pub approval_notify_delay_s: Option<u32>,
+    pub auto_resume: Option<bool>,
 }
 
 /// Applies the input over the stored settings, clamped like [`limits_from`].
@@ -131,6 +134,9 @@ pub fn merge(mut s: LlmSettings, input: &WatchdogInput) -> LlmSettings {
     }
     if let Some(v) = input.approval_notify_delay_s {
         s.approval_notify_delay_s = v.min(300);
+    }
+    if let Some(v) = input.auto_resume {
+        s.auto_resume = v;
     }
     s
 }

@@ -198,6 +198,13 @@ pub async fn spawn(app: AppHandle) {
         }
     };
 
+    // 2.1: whether the extension token may still use the agent routes, and
+    // its value kept out of every agent child's environment.
+    crate::bridge_tokens::legacy_flag().store(
+        settings.bridge.legacy_agent_routes,
+        std::sync::atomic::Ordering::Relaxed,
+    );
+    omniget_core::core::llm::cli_runtime::session::register_secret_value(&token);
     let state = BridgeState {
         app: app.clone(),
         token: Arc::new(token),
@@ -242,7 +249,9 @@ pub async fn spawn(app: AppHandle) {
             crate::local_bridge_jobs::JobsBridgeState::from_bridge(&state),
         ))
         .merge(crate::local_bridge_observe::router(state.app.clone()))
-        .merge(crate::local_bridge_agentkit::router(state.token.clone()))
+        .merge(crate::local_bridge_agentkit::router(
+            crate::local_bridge_jobs::JobsBridgeState::from_bridge(&state).guard(),
+        ))
         .merge(crate::local_bridge_wmb::router(
             crate::local_bridge_wmb::WmbBridgeState::from_bridge(&state),
         ))

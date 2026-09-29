@@ -104,6 +104,7 @@ describe("normalizeSnapshot", () => {
 
   it("only the exact word write is a write", () => {
     expect(store.normalizeSandbox("write")).toBe("write");
+    expect(store.normalizeSandbox("full")).toBe("full");
     for (const bad of [undefined, null, "", "WRITE", "workspace-write", "danger-full-access", 1, {}]) {
       expect(store.normalizeSandbox(bad)).toBe("read-only");
     }

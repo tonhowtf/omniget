@@ -9,10 +9,9 @@
  *    the session unless the caller passes `force`.
  * 2. **Nothing reaches the network without a click.** `installFromGit` is the
  *    only path that clones, and it only runs from the install dialog.
- * 3. **`ERR_STUB` is not a failure.** While `core::skills` is a stub every
- *    command answers `ERR_STUB` (and the screenshot harness answers `null`):
- *    the store then shows `DEMO_SKILLS` / `DEMO_CATALOG` so the page is
- *    reviewable before the backend exists, with the demo banner on.
+ * 3. **A failure is shown, never dressed as data.** A list the backend cannot
+ *    give stays empty and the page says it is unavailable (U4: the demo lists
+ *    are gone; the screenshot harness answers with its own fixture).
  *
  * The wire shapes mirror `SkillManifest` from `core/skills/manifest.rs`
  * (f3-skills-core). Because that module is being written in parallel, every
@@ -283,10 +282,6 @@ export function isInstalled(installed: SkillManifest[], entry: SkillCatalogEntry
   return installed.some((s) => s.name === entry.name);
 }
 
-export function isUnavailable(err: unknown): boolean {
-  return String(err ?? "").includes("ERR_STUB");
-}
-
 /**
  * Maps a backend error to an i18n key the page can show. The codes are the
  * `ERR_SKILL_*` constants of `core/skills/mod.rs`; the command sends them as
@@ -294,7 +289,6 @@ export function isUnavailable(err: unknown): boolean {
  */
 export function skillErrorKey(err: unknown): string {
   const code = String(err ?? "");
-  if (code.includes("ERR_STUB")) return "llm.skills.err_unavailable";
   if (code.includes("ERR_SKILL_GIT")) return "llm.skills.err_git";
   if (code.includes("ERR_SKILL_ZIP")) return "llm.skills.err_zip";
   if (code.includes("ERR_SKILL_PARSE")) return "llm.skills.err_parse";
@@ -310,66 +304,12 @@ export function skillErrorKey(err: unknown): string {
   return "llm.skills.err_generic";
 }
 
-// ── Demo data (stub backend and screenshots only) ───────────────────────
-
-/**
- * The showcase as published in `OpenRouterTeam/skills` (read on 2026-09-18:
- * 17 folders under `skills/`, one more than the 16 the plan counted).
- * Descriptions are the first sentence of each `SKILL.md` frontmatter.
- * Only used when the backend has no catalogue to answer with.
- */
-export const DEMO_CATALOG: SkillCatalogEntry[] = [
-  ["create-agent-tui", "Scaffolds a complete agent TUI in TypeScript using @openrouter/agent — like create-react-app for terminal agents."],
-  ["create-headless-agent", "Scaffolds a headless agent in TypeScript using @openrouter/agent and Bun — for CLI tools, API servers, queue workers and pipelines."],
-  ["install-ori-harness", "Installs Ori and runs an existing coding agent CLI through Ori on OpenRouter, with OAuth sign-in and model selection."],
-  ["openrouter-agent-migration", "Migration guide from @openrouter/sdk to @openrouter/agent for callModel, tool() and stop conditions."],
-  ["openrouter-analytics", "Answers natural-language questions about OpenRouter usage: spend, request volume, model breakdown, latency and tokens."],
-  ["openrouter-analytics-query", "Builds and runs analytics queries against the OpenRouter API, with the full parameter reference."],
-  ["openrouter-analytics-schema", "Discovers the OpenRouter analytics schema: metrics, dimensions, filter operators and granularities."],
-  ["openrouter-benchmarks", "Queries the OpenRouter Benchmarks API for model rankings and benchmark-backed model selection."],
-  ["openrouter-generations", "Retrieves metadata and stored content for one generation: cost, latency, tokens, routing, prompt and completion."],
-  ["openrouter-images", "Generates images from text prompts and edits existing images through the OpenRouter Image API."],
-  ["openrouter-models", "Queries OpenRouter for models, pricing, context length, capabilities, throughput and provider performance."],
-  ["openrouter-oauth", "Implements “Sign in with OpenRouter” with OAuth PKCE — no client registration, no backend, no secrets."],
-  ["openrouter-stt", "Transcribes speech to text through the OpenRouter speech-to-text API."],
-  ["openrouter-tts", "Generates speech audio from text through the OpenRouter text-to-speech API."],
-  ["openrouter-typescript-sdk", "Reference for integrating with OpenRouter through the TypeScript SDK and the agent packages."],
-  ["openrouter-video", "Generates videos from text prompts and reference images through the async OpenRouter video API."],
-  ["spawn-ori-eval", "Spawns Ori as a subprocess to run a throwaway model eval on a pinned harness and model, then relays the result."],
-].map(([name, description]) => ({
-  name,
-  description,
-  subdir: `skills/${name}`,
-  repo_url: "https://github.com/OpenRouterTeam/skills",
-  html_url: `https://github.com/OpenRouterTeam/skills/tree/main/skills/${name}`,
-}));
-
-/** Two installed skills so the list is reviewable with a stub backend. */
-export const DEMO_SKILLS: SkillManifest[] = [
-  {
-    name: "openrouter-models",
-    description:
-      "Queries OpenRouter for models, pricing, context length, capabilities, throughput and provider performance.",
-    allowed_tools: ["Bash", "Read", "WebFetch"],
-    path: "~/.omniget/skills/openrouter-models",
-    source: { git: "https://github.com/OpenRouterTeam/skills" },
-  },
-  {
-    name: "release-notes",
-    description: "Writes the release notes of a version from the commits since the last tag.",
-    allowed_tools: ["Bash", "Read"],
-    path: "~/.omniget/skills/release-notes",
-    source: { dir: "~/projects/skills/release-notes" },
-  },
-];
-
 // ── State ───────────────────────────────────────────────────────────────
 
 let skills = $state<SkillManifest[]>([]);
 let catalog = $state<SkillCatalogEntry[]>([]);
 let loading = $state(false);
 let available = $state(true);
-let demo = $state(false);
 let busy = $state<string | null>(null);
 let errorKey = $state<string | null>(null);
 let lastInstalled = $state<string | null>(null);
@@ -393,14 +333,9 @@ export function isSkillsLoading(): boolean {
   return loading;
 }
 
-/** False once a command answered `ERR_STUB`. */
+/** False once the backend could not give the list or refused a change. */
 export function isSkillsAvailable(): boolean {
   return available;
-}
-
-/** True when the lists on screen are `DEMO_*`, not installed skills. */
-export function isDemoSkills(): boolean {
-  return demo;
 }
 
 /** Name of the skill an install or a removal is running for, or `null`. */
@@ -452,19 +387,14 @@ export function loadSkills(force = false): Promise<void> {
       if (Array.isArray(list)) {
         skills = list;
         available = true;
-        demo = false;
         return;
       }
-      // `null` is what the screenshot harness answers for an unknown command.
-      skills = DEMO_SKILLS;
-      demo = true;
+      // No list at all: a backend that does not answer.
       available = false;
     })
     .catch((err) => {
-      if (isUnavailable(err)) { skills = DEMO_SKILLS; demo = true; }
-      else if (demo) { skills = []; demo = false; }
-      available = !isUnavailable(err);
-      if (!isUnavailable(err)) errorKey = skillErrorKey(err);
+      // A real error names itself; the backend is still there.
+      errorKey = skillErrorKey(err);
     })
     .finally(() => {
       loading = false;
@@ -480,15 +410,10 @@ export async function loadCatalog(force = false): Promise<void> {
   catalogLoadedOnce = true;
   try {
     const list = await invoke<SkillCatalogEntry[] | null>("llm_skills_catalog");
-    if (Array.isArray(list)) {
-      catalog = list;
-      return;
-    }
-    catalog = DEMO_CATALOG;
-    demo = true;
+    catalog = Array.isArray(list) ? list : [];
   } catch (err) {
-    if (isUnavailable(err)) { catalog = DEMO_CATALOG; demo = true; }
-    else { catalog = []; errorKey = skillErrorKey(err); }
+    catalog = [];
+    errorKey = skillErrorKey(err);
   }
 }
 
@@ -568,7 +493,6 @@ async function install(
     const outcome = readOutcome(await invoke<unknown>(command, args));
     if (outcome) {
       available = true;
-      demo = false;
       if (outcome.needs_confirm) {
         // Parked, not installed: it does not join the list, and the page owes
         // the user a second click before it ever does.
@@ -589,7 +513,6 @@ async function install(
     return false;
   } catch (err) {
     errorKey = skillErrorKey(err);
-    available = !isUnavailable(err);
     return false;
   } finally {
     busy = null;
@@ -615,7 +538,6 @@ export async function confirmPendingInstall(): Promise<boolean> {
       lastInstalled = manifest.name;
       pending = null;
       available = true;
-      demo = false;
       return true;
     }
     errorKey = "llm.skills.err_unavailable";
@@ -623,7 +545,6 @@ export async function confirmPendingInstall(): Promise<boolean> {
     return false;
   } catch (err) {
     errorKey = skillErrorKey(err);
-    available = !isUnavailable(err);
     return false;
   } finally {
     busy = null;
@@ -640,7 +561,7 @@ export async function discardPendingInstall(): Promise<boolean> {
     return true;
   } catch (err) {
     // The folder may already be gone; say so but do not bring the dialog back.
-    if (!isUnavailable(err)) errorKey = skillErrorKey(err);
+    errorKey = skillErrorKey(err);
     return false;
   }
 }
@@ -692,7 +613,6 @@ export async function removeSkill(name: string): Promise<boolean> {
   } catch (err) {
     skills = before;
     errorKey = skillErrorKey(err);
-    available = !isUnavailable(err);
     return false;
   } finally {
     busy = null;
@@ -760,7 +680,6 @@ export function resetSkillsStore(): void {
   catalog = [];
   loading = false;
   available = true;
-  demo = false;
   busy = null;
   errorKey = null;
   lastInstalled = null;

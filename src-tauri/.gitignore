@@ -9,3 +9,4 @@
 # Generated platform-specific sidecars (MCP worker, washmybelly elevate).
 /binaries/omniget-worker-*
 /binaries/omniget-elevate-*
+/binaries/omniget-hook-*

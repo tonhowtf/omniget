@@ -72,8 +72,11 @@ impl std::fmt::Display for CliKind {
 
 /// How much the CLI is allowed to touch during a turn OmniGet drives.
 ///
-/// One knob for both CLIs, because the user thinks in "can it write?", not in
-/// vendor flags. It maps to:
+/// Since 2.7 this is the account's **ceiling**, not the mode of a turn: the
+/// job, Loop or conversation picks a [`crate::core::llm::run_mode::RunMode`]
+/// and the account caps it (`read-only` caps everything, `write` stops at
+/// `auto`, only `full` lets `full_access` through). Without a turn context
+/// (no run mode at all) it still maps as it always did:
 ///
 /// - Codex: `--sandbox read-only` / `--sandbox workspace-write`
 ///   (`codex-rs/utils/cli/src/sandbox_mode_cli_arg.rs`; `read-only` is also the
@@ -93,6 +96,10 @@ pub enum SandboxMode {
     /// Codex `workspace-write`, Claude `acceptEdits`: the agent may edit files
     /// in its working directory.
     Write,
+    /// Also lets a turn whose run mode is `full_access` run with nothing
+    /// asking (`bypassPermissions`, `danger-full-access`). Two explicit
+    /// choices are needed for that: this one and the run mode.
+    Full,
 }
 
 impl SandboxMode {
@@ -100,6 +107,7 @@ impl SandboxMode {
         match self {
             SandboxMode::ReadOnly => "read-only",
             SandboxMode::Write => "write",
+            SandboxMode::Full => "full",
         }
     }
 
@@ -110,6 +118,7 @@ impl SandboxMode {
             "write" | "workspace-write" | "workspace_write" | "accept-edits" | "acceptedits" => {
                 SandboxMode::Write
             }
+            "full" | "full-access" | "full_access" => SandboxMode::Full,
             _ => SandboxMode::ReadOnly,
         }
     }
@@ -117,7 +126,7 @@ impl SandboxMode {
     /// True when a turn in this mode can modify files. Used by the UI to decide
     /// whether switching needs a confirmation.
     pub fn writes(self) -> bool {
-        self == SandboxMode::Write
+        self != SandboxMode::ReadOnly
     }
 }
 
@@ -284,6 +293,18 @@ pub const SCRUB_ENV: &[&str] = &[
     "CLAUDE_CODE_USE_VERTEX",
     "OPENAI_API_KEY",
     "OPENAI_BASE_URL",
+    // OmniGet's own bridge credentials (2.1): a job's child gets only its
+    // job token, set explicitly, never a key the app was started with.
+    "OMNIGET_TOKEN",
+    "OMNIGET_BRIDGE_TOKEN",
+    "OMNIGET_MCP_TOKEN",
+    "OMNIGET_JOB_TOKEN",
+    // A job's identity (2.6): only a job's own child has it, set explicitly;
+    // a chat turn never inherits one and takes itself for a job.
+    "OMNIGET_ENV",
+    "OMNIGET_JOB_ID",
+    "OMNIGET_AGENT_ID",
+    "OMNIGET_BRIDGE_URL",
 ];
 
 /// Creates the directory for a new account. The directory is left **empty** on

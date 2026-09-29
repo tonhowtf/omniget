@@ -318,7 +318,7 @@ pub fn parse_percent(line: &str) -> Option<u8> {
     digits.parse::<u32>().ok().map(|n| n.min(100) as u8)
 }
 
-async fn current_branch(ctx: &GitCtx) -> VcsResult<Option<String>> {
+pub(super) async fn current_branch(ctx: &GitCtx) -> VcsResult<Option<String>> {
     let out = ctx
         .git()
         .args(["symbolic-ref", "--quiet", "--short", "HEAD"])
@@ -328,7 +328,7 @@ async fn current_branch(ctx: &GitCtx) -> VcsResult<Option<String>> {
     Ok(out.ok().then(|| out.trimmed()))
 }
 
-async fn branch_exists(ctx: &GitCtx, name: &str) -> VcsResult<bool> {
+pub(super) async fn branch_exists(ctx: &GitCtx, name: &str) -> VcsResult<bool> {
     Ok(ctx
         .git()
         .args([
@@ -343,7 +343,7 @@ async fn branch_exists(ctx: &GitCtx, name: &str) -> VcsResult<bool> {
         .ok())
 }
 
-fn main_ctx(common_dir: &Path) -> GitCtx {
+pub(super) fn main_ctx(common_dir: &Path) -> GitCtx {
     // Non-bare repo: the common dir is `<main>/.git`.
     let root = if common_dir.file_name().map(|n| n == ".git").unwrap_or(false) {
         common_dir
@@ -548,7 +548,17 @@ async fn create_inner(
         let r = ctx
             .git()
             .env("GIT_PROGRESS_DELAY", "0")
-            .args(["worktree", "add", "-b", &branch])
+            // `--no-track`: no "behind by N" before the first push (orca
+            // `worktree-add.ts`); long paths for deep trees on Windows.
+            .args([
+                "-c",
+                "core.longpaths=true",
+                "worktree",
+                "add",
+                "--no-track",
+                "-b",
+                &branch,
+            ])
             .arg(&path)
             .arg(&base_commit)
             .timeout(Some(Duration::from_secs(600)))
@@ -594,21 +604,14 @@ async fn create_inner(
         work_tree: path.clone(),
     };
     if base != "HEAD" && !base.chars().all(|c| c.is_ascii_hexdigit()) {
-        let _ = wctx
-            .git()
-            .args(["config", &format!("branch.{branch}.gh-merge-base"), &base])
-            .run()
-            .await;
+        config_set(&wctx, &format!("branch.{branch}.gh-merge-base"), &base).await;
     }
-    let _ = wctx
-        .git()
-        .args([
-            "config",
-            &format!("branch.{branch}.omniget-thread"),
-            &req.thread,
-        ])
-        .run()
-        .await;
+    config_set(
+        &wctx,
+        &format!("branch.{branch}.omniget-thread"),
+        &req.thread,
+    )
+    .await;
 
     let rollback = |path: PathBuf, branch: String, ctx: GitCtx| async move {
         let _ = ctx
@@ -802,6 +805,25 @@ fn strip_ansi(s: &str) -> String {
         out.push(c);
     }
     out
+}
+
+/// `git config <key> <value>`, retried while another git holds
+/// `config.lock`: worktrees created side by side (an Arena's columns) write
+/// the shared `.git/config` at the same moment, and a lost write here is a
+/// branch that no longer says which thread owns it. Best effort.
+async fn config_set(ctx: &GitCtx, key: &str, value: &str) {
+    for attempt in 0..8u64 {
+        match ctx.git().args(["config", key, value]).run().await {
+            Ok(_) => return,
+            Err(e) if attempt < 7 && e.to_string().contains("lock") => {
+                tokio::time::sleep(std::time::Duration::from_millis(40 * (attempt + 1))).await;
+            }
+            Err(e) => {
+                tracing::warn!("[vcs/worktree] git config {key}: {e}");
+                return;
+            }
+        }
+    }
 }
 
 /// Renames the worktree's branch (`git branch -m`), keeping it unique.

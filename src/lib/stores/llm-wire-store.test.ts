@@ -71,7 +71,7 @@ describe("pure helpers", () => {
       "llm.wire.error.no_provider",
     );
     expect(store.wireErrorKey("ERR_LLM_BUDGET: over 8 requests")).toBe("llm.wire.error.budget");
-    expect(store.wireErrorKey("ERR_STUB")).toBe("llm.wire.error.stub");
+    expect(store.wireErrorKey("ERR_LLM_STUB: not implemented yet")).toBe("llm.wire.error.stub");
     expect(store.wireErrorKey(new Error("boom"))).toBe("llm.wire.error.generic");
     expect(store.wireErrorKey(undefined)).toBe("llm.wire.error.generic");
   });
@@ -135,7 +135,7 @@ describe("actions", () => {
   });
 
   it("turns a failed load into an i18n key", async () => {
-    invoke.mockRejectedValue("ERR_STUB");
+    invoke.mockRejectedValue("ERR_LLM_STUB");
     await store.loadLast();
     expect(store.getWireError()).toBe("llm.wire.error.stub");
     store.clearWireError();

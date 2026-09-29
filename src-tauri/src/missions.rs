@@ -206,7 +206,8 @@ pub fn boot(app: &AppHandle) {
         let job_id = x.key.rsplit(":job:").next()?;
         let job = jobs.job(job_id)?;
         match job.state.as_str() {
-            "done" => Some(true),
+            // `review`: it ended well and wrote files (2.4).
+            "done" | "review" => Some(true),
             "failed" | "cancelled" => Some(false),
             // Interrupted before anything was sent: it never happened.
             "interrupted" | "queued" | "waiting_workspace"
@@ -1071,6 +1072,13 @@ impl Driver {
                 }
             })
         };
+        // Its turns also count against the mission's budget policies (3.3).
+        let _budget_scope = omniget_core::core::llm::budget::policy::Binding::new(
+            &crate::llm_manager::sanitize_id(&job.conversation_id),
+            vec![omniget_core::core::llm::budget::policy::Scope::Mission(
+                m.id.clone(),
+            )],
+        );
         let done: Option<Job> = jobs.run_prepared_guarded(&job.id, self.job_guard(m)).await;
         hb.abort();
         // F9: the round's calls are read before the conversation is detached.
@@ -1081,7 +1089,7 @@ impl Driver {
             learning::unpin(&sconv);
         }
         let Some(done) =
-            done.filter(|j| matches!(j.state.as_str(), "done" | "failed" | "cancelled"))
+            done.filter(|j| matches!(j.state.as_str(), "done" | "review" | "failed" | "cancelled"))
         else {
             // No terminal job is not proof that the turn did not run. Keep
             // its durable effect open; recovery must classify it as Unknown.
@@ -1119,7 +1127,7 @@ impl Driver {
             missions::book_spend(&self.db, &m.id, "work", usd, tokens.0 + tokens.1)?;
         }
         drop(reservation);
-        let ok = done.state == "done";
+        let ok = jobs::is_success(&done.state);
         missions::effect_settle(
             &self.db,
             &key,
@@ -1127,7 +1135,7 @@ impl Driver {
             &format!("job {} {}", done.id, done.state),
         )?;
         let end = match done.state.as_str() {
-            "done" => TaskEnd::Done {
+            "done" | "review" => TaskEnd::Done {
                 result: done.result.clone().unwrap_or_default(),
             },
             // While the mission is paused the domain turns this into an
@@ -1213,6 +1221,10 @@ impl Driver {
         let m = missions::get(&self.db, mission_id)?;
         let crit = missions::criteria(&self.db, mission_id, None)?;
         let ws = m.workspace.clone().map(PathBuf::from);
+        // What the receipts verified, by the head the mission's work reached
+        // (2.4): the `head` of the newest proof among its jobs (a commit in
+        // a worktree, a snapshot tree in the shared folder).
+        let head = self.work_head(&m.id);
         for c in crit {
             if omniget_core::core::assist::authority::external(&m.conversation_id)
                 && self.digest_fn(&m)(&c).is_none()
@@ -1258,7 +1270,7 @@ impl Driver {
                     mission_id: m.id.clone(),
                     criterion_id: c.id.clone(),
                     criterion_version: c.version,
-                    artifact_ref: o.artifact_ref.clone(),
+                    artifact_ref: artifact_ref_at(&o.artifact_ref, head.as_deref()),
                     artifact_digest: if o.digest.is_empty() {
                         verify::digest_for(Some(&self.db), ws.as_deref(), &c, m.created_ms)
                             .unwrap_or_default()
@@ -1285,6 +1297,19 @@ impl Driver {
             )?;
         }
         Ok(())
+    }
+
+    /// The `head` of the newest proof among the mission's jobs.
+    fn work_head(&self, mission_id: &str) -> Option<String> {
+        let jobs = jobs::get(&self.app).ok()?;
+        missions::effects(&self.db, mission_id)
+            .ok()?
+            .iter()
+            .filter(|e| e.kind == "agent_turn")
+            .filter_map(|e| jobs.job(e.key.rsplit(":job:").next()?))
+            .filter(|j| j.proof.is_some())
+            .max_by_key(|j| j.finished_ms.unwrap_or(0))
+            .and_then(|j| j.proof?.get("head")?.as_str().map(str::to_string))
     }
 
     async fn run_command(
@@ -1469,6 +1494,12 @@ impl Driver {
                         jobs: j.clone(),
                         id: Some(job.id.clone()),
                     };
+                    let _budget_scope = omniget_core::core::llm::budget::policy::Binding::new(
+                        &crate::llm_manager::sanitize_id(&job.conversation_id),
+                        vec![omniget_core::core::llm::budget::policy::Scope::Mission(
+                            m.id.clone(),
+                        )],
+                    );
                     let out = j.run_prepared_guarded(&job.id, self.job_guard(m)).await;
                     stop.id = None;
                     out
@@ -1762,9 +1793,31 @@ impl Driver {
     }
 }
 
+/// A receipt's `artifact_ref` with the head the verified work reached
+/// (2.4): `<ref>@<head>`, or `head:<head>` when the verifier named no
+/// artifact. Unchanged without a head.
+pub fn artifact_ref_at(artifact_ref: &str, head: Option<&str>) -> String {
+    match head.filter(|h| !h.is_empty()) {
+        Some(h) if artifact_ref.is_empty() => format!("head:{h}"),
+        Some(h) => format!("{artifact_ref}@{h}"),
+        None => artifact_ref.to_string(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_receipt_names_the_head_the_work_reached() {
+        assert_eq!(
+            artifact_ref_at("out/report.md", Some("abc123")),
+            "out/report.md@abc123"
+        );
+        assert_eq!(artifact_ref_at("", Some("tree:9f8e")), "head:tree:9f8e");
+        assert_eq!(artifact_ref_at("npm test", None), "npm test");
+        assert_eq!(artifact_ref_at("x", Some("")), "x");
+    }
 
     #[test]
     fn usage_weights_the_cache_a_hosted_cli_reports() {

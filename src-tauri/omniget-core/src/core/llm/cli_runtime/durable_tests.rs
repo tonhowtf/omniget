@@ -402,6 +402,64 @@ async fn a09_a_crash_after_dispatch_leaves_the_run_unknown_and_nothing_is_resent
     crate::core::llm::code_tools::set_conversation_workspace(&conv, None).unwrap();
 }
 
+/// 3.1: the app died in the middle of the first turn of a conversation, so
+/// OmniGet's history has no assistant reply, but the CLI had already named
+/// its session. The turn that picks the job up again resumes that session
+/// (`--resume`, only the new message on stdin): the agent sees what it
+/// already did instead of starting over from the whole transcript.
+#[tokio::test]
+async fn a_turn_after_a_crash_mid_first_turn_resumes_the_session_it_named() {
+    let lab = Lab::new("crash-resume");
+    std::fs::write(lab.root.join("calls/hang"), "").unwrap();
+    let conv = conv_id("crash-resume");
+    let ws = lab.workspace("ws");
+    crate::core::llm::code_tools::set_conversation_workspace(&conv, Some(ws)).unwrap();
+
+    let old = lab.registry("boot-old");
+    let c = lab.coordinator(old.clone(), Arc::new(BudgetStore::memory()));
+    let mut stream = c.run_turn_with_id(
+        "run-crash".into(),
+        &conv,
+        &agent(),
+        "change the file",
+        CancellationToken::new(),
+    );
+    let _ = stream.next().await;
+    wait_for(|| lab.calls() == 1 && lab.root.join("calls/child.pid").exists()).await;
+    wait_for(|| {
+        old.session(&conv, "coder")
+            .and_then(|s| s.provider_handle)
+            .is_some()
+    })
+    .await;
+    std::mem::forget(stream);
+    drop(c);
+    if let Some(pid) = read_pid(&lab.root.join("calls/child.pid")) {
+        unsafe {
+            libc::killpg(pid, libc::SIGKILL);
+        }
+    }
+    std::fs::remove_file(lab.root.join("calls/hang")).unwrap();
+
+    let fresh = lab.registry("boot-new");
+    fresh.reconcile().unwrap();
+    let c2 = lab.coordinator(fresh.clone(), Arc::new(BudgetStore::memory()));
+    let _ = turn(&c2, "run-again", &conv, "check what is done, then finish").await;
+    let args = lab.call_file(2, "args");
+    let lines: Vec<&str> = args.lines().collect();
+    let at = lines
+        .iter()
+        .position(|l| *l == "--resume")
+        .unwrap_or_else(|| panic!("--resume on the turn after the crash: {args}"));
+    assert_eq!(lines[at + 1], "sess-1");
+    assert_eq!(lab.call_file(2, "stdin"), "check what is done, then finish");
+    assert_eq!(
+        fresh.run("run-again").unwrap().resume_kind,
+        Some(ResumeKind::Native)
+    );
+    crate::core::llm::code_tools::set_conversation_workspace(&conv, None).unwrap();
+}
+
 /// A12 through the coordinator: cancel stops the CLI and its grandchild,
 /// spares a foreign process, releases the reservation, records `cancelled`
 /// and never a completion.

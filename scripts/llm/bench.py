@@ -26,6 +26,7 @@ import argparse
 import json
 import os
 import pathlib
+import shutil
 import subprocess
 import sys
 import time
@@ -47,6 +48,8 @@ BENCHES = {
     "bn2": (
         "jobs_parallel_eval.py",
         [CORE_LLM + "job_gate.rs", CORE_LLM + "folder_key.rs", CORE_LLM + "snapshot.rs", "src-tauri/src/jobs.rs",
+         "src-tauri/omniget-core/src/core/vcs/worktree.rs", "src-tauri/omniget-core/src/core/vcs/job_worktree",
+         "src-tauri/omniget-core/src/core/vcs/checkpoint.rs",
          "src-tauri/src/missions.rs", "scripts/llm/fake_claude.py", "scripts/llm/jobs_parallel_eval.py"],
         ["--reps", "5", "--read-s", "3"],
         ["omniget-core"],
@@ -54,16 +57,88 @@ BENCHES = {
     "bn3": (
         "approvals_eval.py",
         [CORE_LLM + "broker.rs", "src-tauri/src/llm_manager.rs", "src-tauri/src/llm_attention.rs",
-         "src-tauri/src/jobs.rs", "scripts/llm/approvals_eval.py"],
+         "src-tauri/src/jobs.rs", "src-tauri/src/approvals.rs", "src-tauri/omniget-core/src/core/assist/runs.rs",
+         "src-tauri/src/local_bridge_jobs.rs", "src-tauri/src/bridge_tokens.rs", "scripts/llm/approvals_eval.py"],
         [],
         ["omniget-core", "omniget"],
     ),
     "bn4": (
         "diff_eval.py",
         [CORE_LLM + "snapshot.rs", "src-tauri/src/jobs.rs", "src-tauri/src/local_bridge_jobs.rs",
-         "src-tauri/src/mcp/orchestration.rs", "scripts/llm/fake_claude.py", "scripts/llm/diff_eval.py"],
+         "src-tauri/src/mcp/orchestration.rs", "scripts/llm/fake_claude.py", "scripts/llm/diff_eval.py",
+         "src-tauri/omniget-core/src/core/vcs/job_worktree", "src-tauri/omniget-core/src/core/vcs/checkpoint.rs",
+         CORE_LLM + "review.rs", "src-tauri/omniget-core/src/core/vcs/integrate.rs",
+         "src-tauri/omniget-core/src/core/vcs/diff.rs", "src-tauri/src/jobs/review.rs"],
         ["--reps", "5"],
         ["omniget-core", "omniget"],
+    ),
+    "bn5": (
+        "delegation_e2e.py",
+        ["src-tauri/src/bridge_tokens.rs", "src-tauri/src/local_bridge_jobs.rs", "src-tauri/src/local_bridge.rs",
+         CORE_LLM + "cli_runtime/session.rs", CORE_LLM + "cli_runtime/accounts.rs", "src-tauri/src/jobs.rs",
+         "src-tauri/src/job_commands.rs", "src-tauri/src/job_commands/", "src-tauri/src/mcp/orchestration.rs",
+         "src-tauri/src/approvals.rs", "scripts/llm/delegation_e2e.py", "src-tauri/src/job_workflow",
+         CORE_LLM + "workflow", "claude-plugin/omniget/skills/omniget-agents/"],
+        [],
+        ["omniget-core", "omniget"],
+    ),
+    "bn9": (
+        "loops_eval.py",
+        [CORE_LLM + "goal_audit.rs", CORE_LLM + "goal_audit.json", CORE_LLM + "router.rs", "src-tauri/src/jobs.rs",
+         "src-tauri/src/jobs/loop_audit.rs", "scripts/llm/fake_claude.py", "scripts/llm/loops_eval.py",
+         "scripts/llm/missions_eval.py"],
+        [],
+        [],
+    ),
+    "bn10": (
+        "codex_eval.py",
+        [CORE_LLM + "cli_runtime/codex_app_server.rs", CORE_LLM + "cli_runtime/app_server_tests.rs",
+         CORE_LLM + "cli_runtime/session.rs", CORE_LLM + "cli_runtime/mod.rs", CORE_LLM + "caps.rs",
+         CORE_LLM + "drivers/codex/", "scripts/llm/fake_codex_app_server.py", "scripts/llm/codex_eval.py"],
+        [],
+        ["omniget-core"],
+    ),
+    "bn7": (
+        "budget_eval.py",
+        [CORE_LLM + "budget.rs", CORE_LLM + "budget/", CORE_LLM + "coordinator.rs", "src-tauri/src/llm_budget.rs",
+         "src-tauri/src/jobs.rs", "scripts/llm/fake_claude.py", "scripts/llm/budget_eval.py"],
+        [],
+        ["omniget-core"],
+    ),
+    "bn11": (
+        "arena_eval.py",
+        ["src-tauri/src/commands/central/arena", "src-tauri/omniget-core/src/core/vcs/worktree.rs",
+         "src-tauri/omniget-core/src/core/vcs/job_worktree", "src-tauri/omniget-core/src/core/vcs/integrate.rs",
+         "src-tauri/omniget-core/src/core/threads/", "scripts/llm/fake_claude.py", "scripts/llm/arena_eval.py"],
+        [],
+        ["omniget"],
+    ),
+    "bn6": (
+        "daemon_survival.py",
+        ["src-tauri/src/jobs.rs", "src-tauri/src/lib.rs", "src-tauri/src/commands/settings.rs",
+         "src-tauri/omniget-core/src/core/app_launch.rs", "src-tauri/omniget-core/src/core/process.rs",
+         CORE_LLM + "cli_runtime/mod.rs", "src-tauri/omniget-cli/src/commands/launch.rs",
+         "src-tauri/omniget-cli/src/commands/agent.rs", "src-tauri/src/local_bridge_jobs.rs",
+         "scripts/llm/fake_claude.py", "scripts/llm/daemon_survival.py"],
+        [],
+        # Builds and runs the real app binary itself (no prepared tests).
+        [],
+    ),
+    "bn12": (
+        "runmode_matrix.py",
+        [CORE_LLM + "run_mode.rs", CORE_LLM + "cli_runtime/", CORE_LLM + "caps.rs", "scripts/llm/fake_claude.py",
+         "scripts/llm/runmode_matrix.py"],
+        [],
+        ["omniget-core"],
+    ),
+    "bn8": (
+        "perm_parity.py",
+        [CORE_LLM + "perm.rs", CORE_LLM + "claude_hooks", CORE_LLM + "broker.rs", CORE_LLM + "run_mode.rs",
+         CORE_LLM + "cli_runtime/", "src-tauri/omniget-core/src/core/assist/projection.rs",
+         "src-tauri/omniget-core/src/core/agentkit/convert/hook_shim.rs", "src-tauri/omniget-cli/src/bin/omniget-hook-shim.rs",
+         "scripts/llm/fake_claude.py", "scripts/llm/perm_parity.py"],
+        [],
+        ["omniget-core"],
     ),
     "bn13": (
         "company_eval.py",
@@ -73,6 +148,8 @@ BENCHES = {
         ["omniget-core", "omniget"],
     ),
 }
+# Real app binary, ~10 min (a 3-minute cron and 10 kill -9 reps): not for --quick.
+QUICK_SKIP = {"bn6"}
 # The argv of a real turn: if any of these moved, B0 no longer measures production.
 B0_PATHS = [CORE_LLM + "cli_runtime/claude.rs", CORE_LLM + "cli_runtime/mod.rs", "scripts/llm/missions_eval.py"]
 EVERYTHING = ["src-tauri/Cargo.toml", "src-tauri/Cargo.lock", "src-tauri/omniget-core/Cargo.toml"]
@@ -135,10 +212,22 @@ def run_bench(name, quick, run_dir):
             "exit": p.returncode}
 
 
+def hook_shim_copy(run_dir):
+    """3.4: B0 turns carry the permission hooks. The target dir is shared by
+    worktrees, so the binary is built and copied here before the run."""
+    subprocess.run(["cargo", "build", "-p", "omniget-cli", "--bin", "omniget-hook-shim"], cwd=TAURI, check=True,
+                   capture_output=True)
+    name = "omniget-hook-shim" + (".exe" if os.name == "nt" else "")
+    target = pathlib.Path(os.environ.get("CARGO_TARGET_DIR") or TAURI / "target")
+    dest = run_dir / name
+    shutil.copy2(target / "debug" / name, dest)
+    return dest
+
+
 def run_b0(run_dir, reps, jobs):
     out = run_dir / "b0.json"
     cmd = [sys.executable, str(ROOT / "scripts" / "llm" / "missions_eval.py"), "--reps", str(reps),
-           "--jobs", str(jobs), "--out", str(out)]
+           "--jobs", str(jobs), "--out", str(out), "--hook-bin", str(hook_shim_copy(run_dir))]
     t0 = time.time()
     p = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True)
     (run_dir / "b0.log").write_text(p.stdout + "\n--- stderr ---\n" + p.stderr)
@@ -159,7 +248,7 @@ def main():
     ap.add_argument("--prepared", help="immutable prepared.json; execute without Cargo")
     ap.add_argument("--all", action="store_true", help="every fake bench, whatever changed")
     ap.add_argument("--quick", action="store_true", help="fewer repetitions (iteration, not a gate)")
-    ap.add_argument("--only", default="", help="comma-separated: bn1,bn2,bn3,bn4")
+    ap.add_argument("--only", default="", help="comma-separated: bn1,bn2,bn3,bn4,bn5,bn6,bn7,bn8,bn9,bn10,bn11,bn12")
     ap.add_argument("--real", action="store_true", help="also run B0 (real Claude turns; spends quota)")
     ap.add_argument("--real-if-needed", action="store_true",
                     help="run B0 only when the turn argv or the harness changed")
@@ -174,6 +263,8 @@ def main():
     if unknown:
         raise SystemExit(f"bench: unknown {sorted(unknown)}; choose from {sorted(BENCHES)}")
     names, why = select(files, only, args.all)
+    if args.quick and not only:
+        names = [n for n in names if n not in QUICK_SKIP]
     b0 = args.real or (args.real_if_needed and any(f.startswith(p) for f in files for p in B0_PATHS))
     print(f"bench: {len(files)} changed file(s); fake benches ({why}): {', '.join(names) or 'none'}; "
           f"B0: {'yes' if b0 else 'no'}{' (quick)' if args.quick else ''}", flush=True)

@@ -69,7 +69,7 @@
   let scopes = $state(["discover", "enqueue", "control", "diagnostics", "artifacts", "history"]);
   let gatewayWrite = $state(false);
   let gatewayTransfer = $state(false);
-  const gatewayCanWrite = $derived(scopes.some(scope => ["enqueue", "control", "orchestration_create", "orchestration_control"].includes(scope)));
+  const gatewayCanWrite = $derived(scopes.some(scope => ["enqueue", "control", "orchestration_create", "orchestration_control", "approvals_respond", "agents_run"].includes(scope)));
   const gatewayCanTransfer = $derived(scopes.includes("transfer"));
   $effect(() => {
     if (!gatewayCanWrite) gatewayWrite = false;
@@ -81,7 +81,7 @@
   let reveal = $state(false);
   let snippets = $state<[string,string][]>([]);
   let client = $state(0);
-  const options = ["app_observe", "app_control", "app_capture", "discover", "enqueue", "control", "diagnostics", "artifacts", "history", "local_network", "transfer", "orchestration_read", "orchestration_control", "orchestration_create", "auth", "catalog", "system_read", "system_change"];
+  const options = ["app_observe", "app_control", "app_capture", "discover", "enqueue", "control", "diagnostics", "artifacts", "history", "local_network", "transfer", "orchestration_read", "orchestration_control", "orchestration_create", "auth", "catalog", "system_read", "system_change", "approvals_respond", "agents_run"];
   async function chooseFolder() {
     const selected = await open({ directory: true, multiple: false });
     if (typeof selected === "string") folder = selected;
@@ -194,6 +194,12 @@
         <label class="scope"><input type="checkbox" bind:group={scopes} {value} />{$t(`mcp_connections.${value}`)}</label>
       {/each}
     </fieldset>
+    {#if scopes.includes("approvals_respond")}
+      <p>{$t("mcp_connections.approvals_respond_help")}</p>
+    {/if}
+    {#if scopes.includes("agents_run")}
+      <p>{$t("mcp_connections.agents_run_help")}</p>
+    {/if}
     {#if scopes.includes("local_network")}
       <label>{$t("mcp_connections.endpoints")} <textarea bind:value={endpoints} rows="2" placeholder="127.0.0.1:8080" required></textarea></label>
       <p>{$t("mcp_connections.endpoints_help")}</p>

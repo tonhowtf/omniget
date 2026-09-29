@@ -5682,7 +5682,7 @@
         "openWorldHint": false,
         "readOnlyHint": true
       },
-      "description": "Pending permission questions of an owned mission's runs. Read-only: approvals are given by a person in the OmniGet window, never through this API.",
+      "description": "Pending permission questions of an owned mission's runs. Answering one needs approval_respond, a separate grant the person gives in OmniGet (off by default).",
       "inputSchema": {
         "additionalProperties": false,
         "properties": {
@@ -5763,6 +5763,1038 @@
           },
           "remoteApproval": {
             "type": "boolean"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "readOnlyHint": false
+      },
+      "description": "Answer one pending permission question of an owned mission's run, as the person would in the OmniGet window: accept (this call), accept_session (this tool for the rest of the turn), decline, or cancel (decline and stop the turn). Exactly one answer applies; a second one is ERR_NO_ASK. accept_always stays a desktop decision. Needs the approvals_respond grant; an agent session can never answer.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "approvalId": {
+            "maxLength": 64,
+            "minLength": 1,
+            "type": "string"
+          },
+          "decision": {
+            "enum": [
+              "accept",
+              "accept_session",
+              "decline",
+              "cancel"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "approvalId",
+          "decision"
+        ],
+        "type": "object"
+      },
+      "name": "approval_respond",
+      "outputSchema": {
+        "anyOf": [
+          {
+            "required": [
+              "approvalId",
+              "state"
+            ]
+          },
+          {
+            "required": [
+              "error"
+            ]
+          }
+        ],
+        "properties": {
+          "approvalId": {
+            "type": "string"
+          },
+          "decision": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "error": {
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "type": "object"
+          },
+          "jobId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "readOnlyHint": false
+      },
+      "description": "Start one of the person's agents (roster id) on a task as a background job in OmniGet, and return at once with its jobId and stateSeq. When workspace is in a repository with .omniget/workflow.md, the fields you leave out (agentId, runMode, isolation, base, deadline, budget, model, effort) come from that file and the task goes through its prompt template; workflow=false starts without it. commandId makes it idempotent: the same id again returns the same job; the same id with other fields is ERR_COMMAND_CONFLICT. workspace is an absolute folder (a git repository gets its own worktree when another job is writing there). Permission questions of the job wait for an answer (approval_respond, with that grant, or the OmniGet window). A job never starts another job. Needs the agents_run grant; you only see the jobs you started.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "agentId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          },
+          "autoResume": {
+            "description": "Start again by itself (with --resume and a check-before-repeating note) if the app closes or the agent goes silent, when it ran in its own worktree or wrote nothing. Omitted = the person's setting.",
+            "type": "boolean"
+          },
+          "base": {
+            "maxLength": 256,
+            "type": "string"
+          },
+          "budgetUsd": {
+            "exclusiveMinimum": 0,
+            "maximum": 1000,
+            "type": "number"
+          },
+          "commandId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          },
+          "deadlineMin": {
+            "maximum": 1440,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "effort": {
+            "enum": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ],
+            "type": "string"
+          },
+          "isolation": {
+            "enum": [
+              "shared",
+              "worktree",
+              "auto"
+            ],
+            "type": "string"
+          },
+          "model": {
+            "maxLength": 100,
+            "type": "string"
+          },
+          "prompt": {
+            "maxLength": 65536,
+            "minLength": 1,
+            "type": "string"
+          },
+          "purpose": {
+            "maxLength": 1000,
+            "type": "string"
+          },
+          "resumeOf": {
+            "description": "A finished job of yours whose conversation this one continues.",
+            "maxLength": 64,
+            "type": "string"
+          },
+          "runMode": {
+            "maxLength": 32,
+            "type": "string"
+          },
+          "task": {
+            "description": "Same as prompt; give one.",
+            "maxLength": 65536,
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 200,
+            "type": "string"
+          },
+          "workflow": {
+            "description": "false = ignore the repository's .omniget/workflow.md.",
+            "type": "boolean"
+          },
+          "workspace": {
+            "maxLength": 4096,
+            "type": "string"
+          }
+        },
+        "required": [
+          "commandId"
+        ],
+        "type": "object"
+      },
+      "name": "agent_run",
+      "outputSchema": {
+        "anyOf": [
+          {
+            "required": [
+              "commandId",
+              "jobId",
+              "state",
+              "stateSeq",
+              "replayed"
+            ]
+          },
+          {
+            "required": [
+              "error"
+            ]
+          }
+        ],
+        "properties": {
+          "commandId": {
+            "type": "string"
+          },
+          "error": {
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "type": "object"
+          },
+          "jobId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "next": {
+            "type": "string"
+          },
+          "replayed": {
+            "type": "boolean"
+          },
+          "state": {
+            "type": "string"
+          },
+          "stateSeq": {
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "readOnlyHint": true
+      },
+      "description": "Read one job you started (or a job of a mission you own): state and stateSeq, title, the agent's OUTCOME, result (cut), error, what changed (counts), and pendingApprovals with the approvalId to answer. With afterSeq, changed says whether the state moved since.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "afterSeq": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "jobId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "jobId"
+        ],
+        "type": "object"
+      },
+      "name": "job_get",
+      "outputSchema": {
+        "anyOf": [
+          {
+            "required": [
+              "id",
+              "state",
+              "state_seq",
+              "pendingApprovals"
+            ]
+          },
+          {
+            "required": [
+              "error"
+            ]
+          }
+        ],
+        "properties": {
+          "additions": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "agent_id": {
+            "type": "string"
+          },
+          "branch": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "changed": {
+            "type": "boolean"
+          },
+          "created_ms": {
+            "type": "integer"
+          },
+          "deletions": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "error": {
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "type": "object"
+          },
+          "failure_reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "files_changed": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "finished_ms": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "head_oid": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "jobError": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "kind": {
+            "type": "string"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "properties": {
+                  "status": {
+                    "type": "string"
+                  },
+                  "summary": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "status"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "pendingApprovals": {
+            "items": {
+              "properties": {
+                "approvalId": {
+                  "type": "string"
+                },
+                "preview": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "tool": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "approvalId"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "result": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "run_mode": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "started_ms": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "state": {
+            "type": "string"
+          },
+          "state_seq": {
+            "type": "integer"
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "wait_reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "readOnlyHint": true
+      },
+      "description": "Wait (up to timeoutMs, max 25000) until one of your jobs reaches one of the until states (any state change when empty; \"terminal\" = every end state) with a stateSeq above afterSeq, so an old state never ends the wait. A timeout is the error ERR_WAIT_TIMEOUT: call again. A job that ended elsewhere is ERR_WAIT_UNREACHABLE.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "afterSeq": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "jobId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          },
+          "timeoutMs": {
+            "maximum": 25000,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "until": {
+            "items": {
+              "enum": [
+                "queued",
+                "waiting_workspace",
+                "running",
+                "waiting_approval",
+                "done",
+                "review",
+                "done_unreported",
+                "failed",
+                "cancelled",
+                "interrupted",
+                "terminal"
+              ],
+              "type": "string"
+            },
+            "maxItems": 10,
+            "type": "array"
+          }
+        },
+        "required": [
+          "jobId"
+        ],
+        "type": "object"
+      },
+      "name": "job_wait",
+      "outputSchema": {
+        "anyOf": [
+          {
+            "required": [
+              "id",
+              "state",
+              "state_seq",
+              "pendingApprovals"
+            ]
+          },
+          {
+            "required": [
+              "error"
+            ]
+          }
+        ],
+        "properties": {
+          "additions": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "agent_id": {
+            "type": "string"
+          },
+          "branch": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "changed": {
+            "type": "boolean"
+          },
+          "created_ms": {
+            "type": "integer"
+          },
+          "deletions": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "error": {
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "type": "object"
+          },
+          "failure_reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "files_changed": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "finished_ms": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "head_oid": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "jobError": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "kind": {
+            "type": "string"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "properties": {
+                  "status": {
+                    "type": "string"
+                  },
+                  "summary": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "status"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "pendingApprovals": {
+            "items": {
+              "properties": {
+                "approvalId": {
+                  "type": "string"
+                },
+                "preview": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "tool": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "approvalId"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "result": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "run_mode": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "started_ms": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "state": {
+            "type": "string"
+          },
+          "state_seq": {
+            "type": "integer"
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "wait_reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "annotations": {
+        "destructiveHint": true,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "readOnlyHint": false
+      },
+      "description": "Stop one of your jobs (queued or running). commandId makes it idempotent. Needs the agents_run grant.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "commandId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          },
+          "jobId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "jobId",
+          "commandId"
+        ],
+        "type": "object"
+      },
+      "name": "job_cancel",
+      "outputSchema": {
+        "anyOf": [
+          {
+            "required": [
+              "jobId",
+              "state",
+              "replayed"
+            ]
+          },
+          {
+            "required": [
+              "error"
+            ]
+          }
+        ],
+        "properties": {
+          "error": {
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "type": "object"
+          },
+          "jobId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "replayed": {
+            "type": "boolean"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "readOnlyHint": false
+      },
+      "description": "Everything you need to report one of your jobs back to the person, in one call: verdict (succeeded, needs_review, unreported, checks_failed, failed_by_agent, failed, cancelled, running, waiting_approval), the agent's OUTCOME, result (cut), error, the host's proof (base→head, checks with exit codes, tokens, cost, time), the diff summary (files with +/-), what the repository's .omniget/workflow.md filled in or held back, and what to do next. No host paths. Needs the agents_run grant.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "afterSeq": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "jobId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "jobId"
+        ],
+        "type": "object"
+      },
+      "name": "job_report",
+      "outputSchema": {
+        "anyOf": [
+          {
+            "required": [
+              "jobId",
+              "state",
+              "stateSeq",
+              "verdict",
+              "diff",
+              "proof",
+              "next"
+            ]
+          },
+          {
+            "required": [
+              "error"
+            ]
+          }
+        ],
+        "properties": {
+          "agentId": {
+            "type": "string"
+          },
+          "changed": {
+            "type": "boolean"
+          },
+          "diff": {
+            "properties": {
+              "available": {
+                "type": "boolean"
+              },
+              "files": {
+                "items": {
+                  "properties": {
+                    "path": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "path",
+                    "status"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "filesChanged": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "available",
+              "files"
+            ],
+            "type": "object"
+          },
+          "error": {
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "type": "object"
+          },
+          "failureReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "isolation": {
+            "type": "string"
+          },
+          "jobError": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "jobId": {
+            "type": "string"
+          },
+          "next": {
+            "type": "string"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "properties": {
+                  "status": {
+                    "type": "string"
+                  },
+                  "summary": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "status"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "proof": {
+            "properties": {
+              "checks": {},
+              "tokens": {}
+            },
+            "required": [],
+            "type": "object"
+          },
+          "result": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "runMode": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "stateSeq": {
+            "type": "integer"
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "verdict": {
+            "type": "string"
+          },
+          "workflow": {}
+        },
+        "type": "object"
+      }
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "readOnlyHint": true
+      },
+      "description": "Your last 25 jobs (id, state, stateSeq, title) and how many are still active.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "required": [],
+        "type": "object"
+      },
+      "name": "jobs_state",
+      "outputSchema": {
+        "anyOf": [
+          {
+            "required": [
+              "jobs",
+              "active"
+            ]
+          },
+          {
+            "required": [
+              "error"
+            ]
+          }
+        ],
+        "properties": {
+          "active": {
+            "type": "integer"
+          },
+          "error": {
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "type": "object"
+          },
+          "jobs": {
+            "items": {
+              "properties": {
+                "createdMs": {
+                  "type": "integer"
+                },
+                "jobId": {
+                  "type": "string"
+                },
+                "state": {
+                  "type": "string"
+                },
+                "stateSeq": {
+                  "type": "integer"
+                },
+                "title": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "jobId",
+                "state",
+                "stateSeq"
+              ],
+              "type": "object"
+            },
+            "type": "array"
           }
         },
         "type": "object"

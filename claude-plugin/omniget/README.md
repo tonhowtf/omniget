@@ -81,6 +81,14 @@ bash claude-plugin/omniget/scripts/keys.sh check
 The two skills (`omniget-fetch`, `omniget-transcribe`) trigger on their own when a
 media URL is pasted with a request, so the slash commands are optional.
 
+A third skill, `omniget-agents`, only acts when you explicitly ask Claude to hand a
+task to one of your OmniGet agents (the desktop app must be running). It starts the
+job with `omniget agent run`, waits for it and reports back from `omniget agent report`
+(the agent's `OUTCOME:` line, the checks and the files changed); `omniget guide agents`
+is its reference. In a repository with `.omniget/workflow.md` it lets that file choose
+the agent, mode and prompt template, and it never trusts the file for you. Inside an
+OmniGet job it never delegates.
+
 ## Transcription backends
 
 `--backend auto` (the default) walks this ladder and uses the first that works:

@@ -511,6 +511,55 @@ fn own(name: &str) -> Option<Value> {
             }),
             &["missionId", "pending"],
         ),
+        "approval_respond" => obj(
+            json!({"approvalId": ty("string"), "state": ty("string"), "decision": nullable("string"), "jobId": nullable("string")}),
+            &["approvalId", "state"],
+        ),
+        "agent_run" => obj(
+            json!({"commandId": ty("string"), "jobId": nullable("string"), "state": ty("string"), "stateSeq": ty("integer"), "replayed": ty("boolean"), "next": ty("string")}),
+            &["commandId", "jobId", "state", "stateSeq", "replayed"],
+        ),
+        "job_get" | "job_wait" => obj(
+            json!({
+                "id": ty("string"), "state": ty("string"), "state_seq": ty("integer"), "kind": ty("string"),
+                "agent_id": ty("string"), "title": nullable("string"), "run_mode": nullable("string"),
+                "created_ms": ty("integer"), "started_ms": nullable("integer"), "finished_ms": nullable("integer"),
+                "wait_reason": nullable("string"), "failure_reason": nullable("string"), "jobError": nullable("string"),
+                "outcome": or_null(obj(json!({"status": ty("string"), "summary": ty("string")}), &["status"])),
+                "branch": nullable("string"), "head_oid": nullable("string"), "files_changed": nullable("integer"),
+                "additions": nullable("integer"), "deletions": nullable("integer"), "result": nullable("string"),
+                "changed": ty("boolean"),
+                "pendingApprovals": arr(obj(json!({"approvalId": ty("string"), "tool": nullable("string"), "preview": nullable("string")}), &["approvalId"])),
+            }),
+            &["id", "state", "state_seq", "pendingApprovals"],
+        ),
+        "job_report" => obj(
+            json!({
+                "jobId": ty("string"), "state": ty("string"), "stateSeq": ty("integer"), "verdict": ty("string"),
+                "title": nullable("string"), "agentId": ty("string"), "runMode": ty("string"), "isolation": ty("string"),
+                "outcome": or_null(obj(json!({"status": ty("string"), "summary": ty("string")}), &["status"])),
+                "result": nullable("string"), "jobError": nullable("string"), "failureReason": nullable("string"),
+                "diff": obj(json!({"available": ty("boolean"), "filesChanged": nullable("integer"), "files": arr(obj(json!({"path": ty("string"), "status": ty("string")}), &["path", "status"]))}), &["available", "files"]),
+                "proof": obj(json!({"checks": {}, "tokens": {}}), &[]),
+                "workflow": {},
+                "changed": ty("boolean"),
+                "next": ty("string"),
+            }),
+            &[
+                "jobId", "state", "stateSeq", "verdict", "diff", "proof", "next",
+            ],
+        ),
+        "job_cancel" => obj(
+            json!({"jobId": nullable("string"), "state": ty("string"), "replayed": ty("boolean")}),
+            &["jobId", "state", "replayed"],
+        ),
+        "jobs_state" => obj(
+            json!({
+                "jobs": arr(obj(json!({"jobId": ty("string"), "state": ty("string"), "stateSeq": ty("integer"), "title": nullable("string"), "createdMs": ty("integer")}), &["jobId", "state", "stateSeq"])),
+                "active": ty("integer"),
+            }),
+            &["jobs", "active"],
+        ),
         "agents_prepare" => derived_bot(),
         "agents_derived_list" => obj(json!({"items": arr(derived_bot())}), &["items"]),
         "groups_prepare" => room(),
@@ -858,6 +907,43 @@ mod tests {
         check(
             "approvals_list",
             &json!({"missionId":"m","pending":[{"requestId":"r","runId":"u","action":"a","scope":"s","preview":"p","deadlineMs":null}],"remoteApproval":false,"approveIn":"OmniGet window"}),
+        );
+        check(
+            "approval_respond",
+            &json!({"approvalId":"apr_0","state":"resolved","decision":"accept","jobId":"j1"}),
+        );
+        // `job_commands::mcp_call` literals (2.5).
+        check(
+            "agent_run",
+            &json!({"commandId":"c1","jobId":"j1","state":"queued","stateSeq":1,"replayed":false,"next":"job_wait"}),
+        );
+        let job = json!({"id":"j1","state":"waiting_approval","state_seq":3,"kind":"run","agent_id":"a","title":null,"run_mode":null,"created_ms":1,"started_ms":2,"finished_ms":null,"wait_reason":null,"failure_reason":null,"jobError":null,"outcome":{"status":"succeeded","summary":"did it"},"branch":null,"head_oid":null,"files_changed":null,"additions":null,"deletions":null,"result":null,"changed":true,"pendingApprovals":[{"approvalId":"apr_1","tool":"shell_exec","preview":"npm test"}]});
+        check("job_get", &job);
+        check("job_wait", &job);
+        check(
+            "job_cancel",
+            &json!({"jobId":"j1","state":"cancelled","replayed":false}),
+        );
+        // `job_workflow::report(job, false)` of a real job (3.10).
+        let mut done = crate::jobs::Job {
+            id: "j1".into(),
+            state: "review".into(),
+            agent_id: "a".into(),
+            outcome: Some(json!({"status": "succeeded", "summary": "did it"})),
+            diff_files: Some(vec![omniget_core::core::llm::snapshot::FileChange {
+                path: "a.txt".into(),
+                status: "A".into(),
+                additions: Some(1),
+                deletions: Some(0),
+                binary: false,
+            }]),
+            ..Default::default()
+        };
+        done.proof = Some(crate::jobs::build_proof(&done, None, "h"));
+        check("job_report", &crate::job_workflow::report(&done, false));
+        check(
+            "jobs_state",
+            &json!({"jobs":[{"jobId":"j1","state":"done","stateSeq":4,"title":"t","createdMs":1}],"active":0}),
         );
         // `orchestration::job_diff_reply` literals: available with a patch,
         // and unavailable (no patch key).

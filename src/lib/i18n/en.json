@@ -1311,7 +1311,10 @@
       "reset_hints": "Reset hints",
       "reset_hints_desc": "Show all dismissed tips again",
       "restore": "Restore",
-      "hints_restored": "All hints restored"
+      "hints_restored": "All hints restored",
+      "run_in_background": "Run agents in the background",
+      "run_in_background_desc": "OmniGet starts hidden when you log in, and closing the window keeps it in the tray, so jobs, Loops and routines keep running and the omniget command finds it. Turns off “Quit when the window is closed”.",
+      "run_in_background_flatpak": "Flatpak: starting at login and being started from the command line are not verified yet."
     },
     "appearance": {
       "title": "Appearance",
@@ -2772,12 +2775,10 @@
       "mcp": "MCP",
       "skills": "Skills",
       "accounts": "Accounts",
-      "local": "Local",
       "arena": "Arena",
       "jobs": "Jobs",
       "loops": "Loops"
     },
-    "demo_banner": "Demo data: the LLM backend is not wired yet.",
     "rail": {
       "title": "Agents",
       "unassigned": "Unassigned",
@@ -2785,7 +2786,8 @@
       "new_chat": "New chat",
       "empty": "No agents yet.",
       "no_profile": "No local profile",
-      "search": "Search agents"
+      "search": "Search agents",
+      "load_failed": "Your saved chats could not be read."
     },
     "role": {
       "coordinator": "Coordinator",
@@ -2896,14 +2898,11 @@
       "connect": "Connect or manage providers",
       "local_hint": "Local server: make sure it is running and has models installed. No saved API key is required.",
       "no_models": "This provider returned no models. Check the models available on the server or enter an identifier manually.",
-      "load_failed": "Could not load models: {{error}}"
+      "load_failed": "Could not read your providers: {{error}}"
     },
     "err": {
       "unavailable": "The LLM backend is not wired yet.",
       "turn_failed": "The turn could not start."
-    },
-    "local": {
-      "explanation": "Local model management is not available here yet. Configure an existing local provider in Models & Routing."
     },
     "skills": {
       "title": "Skills",
@@ -2911,7 +2910,6 @@
       "installed_title": "Installed",
       "loading": "Reading the installed skills…",
       "empty": "No skill installed yet. Install one from a folder, a zip or a git repository.",
-      "demo": "Demo data — nothing here is installed on this machine.",
       "remove": "Remove",
       "install": "Install",
       "installing": "Installing…",
@@ -2993,7 +2991,6 @@
       "lede": "The endpoint other agents connect to, and the servers OmniGet connects to.",
       "half_client": "Servers you use",
       "half_server": "Your endpoint",
-      "demo": "Demo servers: the MCP backend is not answering yet. Nothing here is a real connection.",
       "servers": "Connected servers",
       "add": "Add a server",
       "loading": "Reading the saved servers…",
@@ -3218,7 +3215,12 @@
         "connecting": "Connecting…",
         "err_unknown_provider": "Unknown provider",
         "err_credential_failed": "Credential validation failed"
-      }
+      },
+      "sandbox_full": "full access allowed",
+      "sandbox_full_hint": "Turns on this account can edit files, and a turn whose run mode is Full access runs without asking.",
+      "sandbox_allow_full": "Allow full access",
+      "sandbox_allow_full_confirm": "Confirm: allow full access",
+      "sandbox_make_write": "Back to write only"
     },
     "rules": {
       "title": "Always rules",
@@ -3277,10 +3279,8 @@
       "undone": "Undone: {{count}} file(s) restored",
       "chat": "Chat",
       "agents": "Agents",
-      "activity": "Activity",
       "configure": "Configure",
       "tasks": "Tasks",
-      "routines": "Routines",
       "performance": "Usage and performance",
       "monitor": "Usage monitor",
       "off": "Off",
@@ -3302,7 +3302,10 @@
       "retro": "Retrospective",
       "installed": "Installed",
       "remote": "Remote access",
-      "wizard": "Project setup"
+      "wizard": "Project setup",
+      "work": "Work",
+      "more": "More",
+      "loops": "Loops"
     },
     "jobs": {
       "lede": "Agent runs that work in the background while you do something else.",
@@ -3318,6 +3321,12 @@
       "list_title": "Recent jobs",
       "empty": "No jobs yet. Start one above and it shows up here.",
       "result": "Result",
+      "outcome": {
+        "title": "Agent's verdict",
+        "succeeded": "Succeeded",
+        "failed": "Failed",
+        "missing": "The agent ended without its OUTCOME line: read the result before relying on it."
+      },
       "error": "Error",
       "log": "Log",
       "log_empty": "Nothing logged yet.",
@@ -3332,26 +3341,31 @@
         "done": "Done",
         "failed": "Failed",
         "cancelled": "Cancelled",
-        "waiting_workspace": "Waiting for folder"
+        "waiting_workspace": "Waiting for folder",
+        "review": "Needs review",
+        "done_unreported": "Done, no report"
       },
       "kind": {
         "run": "Run",
         "chat": "Chat",
         "loop": "Loop",
-        "trigger": "Trigger",
+        "trigger": "Scheduled",
         "mission": "Mission"
       },
       "ask": {
         "title": "Wants to use {{tool}}",
         "allow": "Allow",
         "always": "Always allow",
-        "deny": "Deny"
+        "deny": "Deny",
+        "session": "Allow for this turn",
+        "stop": "Deny and stop",
+        "cli": "From a terminal: omniget agent approve {{id}}"
       },
       "trigger": {
-        "title": "Triggers",
-        "lede": "Start a job on a schedule or when a webhook is called.",
-        "empty": "No triggers yet. Create one below.",
-        "new_title": "New trigger",
+        "title": "Schedules and webhooks",
+        "lede": "Start a task at set times, or when a webhook is called.",
+        "empty": "No schedules yet. Create one below.",
+        "new_title": "New schedule",
         "kind": "Kind",
         "kind_cron": "Schedule",
         "kind_webhook": "Webhook",
@@ -3359,10 +3373,10 @@
         "cron": "Cron line",
         "cron_hint": "Five fields (minute hour day month weekday), or @hourly, @daily, @weekly, @monthly.",
         "body_hint": "{{token}} is replaced by the webhook body.",
-        "create": "Create trigger",
+        "create": "Create schedule",
         "enabled": "Enabled",
         "fire": "Fire now",
-        "fired": "Trigger fired",
+        "fired": "Schedule started a task",
         "fired_count": "Fired {{count}}×",
         "copy_curl": "Copy curl",
         "catch_up": "Missed while closed",
@@ -3387,7 +3401,9 @@
         "no_start": "Stopped: the agent never started",
         "deadline": "Stopped: time limit reached",
         "limit": "Stopped: budget limit reached",
-        "ask_expired": "A question went unanswered"
+        "ask_expired": "A question went unanswered",
+        "app_restart": "The app closed during this job",
+        "budget": "Stopped: a budget ceiling holds this scope"
       },
       "queue": {
         "title": "Queue",
@@ -3411,6 +3427,121 @@
         "unavailable_no_snapshot": "What this job changed is unknown: its turns took no snapshot of the folder.",
         "unavailable_no_workspace": "This job ran without a folder, so there is no diff.",
         "unavailable_error": "The snapshot of this job's folder could not be read."
+      },
+      "tokens": {
+        "title": "Access tokens",
+        "lede": "Scripts, webhooks and the omniget CLI reach the agent routes of the local bridge with a scoped token. The browser extension's key is not meant for them.",
+        "empty": "No tokens yet.",
+        "name": "Name",
+        "scopes": "What it can do",
+        "scope_jobs_read": "See jobs (jobs:read)",
+        "scope_jobs_operate": "Start and cancel jobs (jobs:operate)",
+        "scope_approvals_respond": "Answer approvals (approvals:respond)",
+        "expires": "Expires",
+        "expires_never": "Never",
+        "expires_days": "In {{days}} days",
+        "expires_at": "expires {{when}}",
+        "create": "Create token",
+        "created": "Token created. Copy it now: it is not shown again.",
+        "copy": "Copy token",
+        "revoke": "Revoke",
+        "kind_cli": "omniget CLI on this computer",
+        "last_used": "last used {{when}}",
+        "never_used": "never used",
+        "legacy_toggle": "Still accept the browser extension's key on agent routes (deprecated)",
+        "legacy_hint": "Kept for one version so old scripts keep working. The next version refuses it.",
+        "legacy_seen": "The browser extension's key was used on {{route}} at {{when}}. Switch that script to a scoped token.",
+        "curl_hint": "Set OMNIGET_TOKEN to a token with the jobs:operate scope (Access tokens, below).",
+        "scope_audit_read": "Read the audit log (audit:read)",
+        "scope_budget_write": "Set and raise budgets (budget:write)",
+        "scope_workflow_trust": "Trust repository workflows (workflow:trust)"
+      },
+      "isolation": {
+        "label": "Where it writes",
+        "auto": "Automatic: its own worktree only if another job is writing there",
+        "worktree": "Always in a git worktree of its own",
+        "shared": "In the folder itself (waits its turn)"
+      },
+      "worktree": {
+        "title": "Worktree",
+        "chip": "{{branch}} from {{base}}",
+        "gone": "Worktree removed; the branch keeps the work.",
+        "remove": "Remove worktree",
+        "removed": "Worktree removed.",
+        "kept_branch": "Worktree removed. The branch {{branch}} keeps the job's work.",
+        "saved": "{{count}} uncommitted file(s) saved on the branch first."
+      },
+      "proof": {
+        "title": "Proof",
+        "summary": "{{files}} file(s) changed · {{tokens}} tokens · {{time}}",
+        "check": "{{command}} → exit {{code}}",
+        "by_host": "Stamped by OmniGet on this computer from what it recorded, not written by the agent."
+      },
+      "review": {
+        "mark": "Mark reviewed",
+        "title": "Review",
+        "lede": "Discard a hunk, leave notes for the agent, then integrate or discard the work.",
+        "discard_hunk": "Discard",
+        "hunk_discarded": "Hunk discarded.",
+        "hunk_stale": "That code changed since it was loaded. The diff was refreshed; try again.",
+        "busy": "A job is writing in this folder right now. Try again when it ends.",
+        "not_actionable": "This job's worktree was removed, so hunks can no longer be discarded one by one.",
+        "notes_title": "Notes for the agent",
+        "notes_hint": "Select lines in the diff and comment. Sending starts a follow-up in the same conversation, so it costs only the notes.",
+        "notes_empty": "No notes yet.",
+        "note_file": "whole file",
+        "note_sent": "sent to {{job}}",
+        "note_delete": "Delete note",
+        "notes_send": "Send {{count}} note(s) to the agent",
+        "notes_sent": "Notes sent: follow-up job {{job}} started.",
+        "walkthrough_title": "Walkthrough",
+        "walkthrough": "Explain changes",
+        "walkthrough_refresh": "Explain again",
+        "walkthrough_loading": "Writing the walkthrough…",
+        "walkthrough_too_large": "This diff is too large for a walkthrough. Review it file by file.",
+        "walkthrough_uncovered": "{{count}} hunk(s) are not in any stop",
+        "walkthrough_cached": "from cache",
+        "importance_critical": "critical",
+        "integrate_title": "Integrate",
+        "integrate_into": "Merge {{branch}} into {{target}}",
+        "commits": "{{count}} commit(s) to bring in",
+        "worktree_dirty": "{{count}} uncommitted file(s) in the worktree will be saved on the branch first.",
+        "blocked": "Cannot integrate now: {{reason}}",
+        "strategy_merge": "Merge commit",
+        "strategy_squash": "Squash into one commit",
+        "integrate": "Integrate",
+        "integrated": "Integrated into {{target}}.",
+        "up_to_date": "{{target}} already has this work.",
+        "conflict": "Conflict in {{files}}. Nothing was changed in your checkout.",
+        "failed": "Git refused the merge (a hook, maybe). Nothing was changed in your checkout.",
+        "discard_work": "Discard work",
+        "discard_confirm": "Discard this job's work? Its worktree and the branch {{branch}} are deleted.",
+        "discarded": "Work discarded. The branch {{branch}} was at {{tip}}."
+      },
+      "resumed_by_itself": "Resumed by itself ({{count}}×)",
+      "workflow": {
+        "title": "Repository workflow",
+        "state": {
+          "trusted": "In effect",
+          "untrusted": "Not trusted",
+          "invalid": "Invalid",
+          "none": "None"
+        },
+        "last_good": "The last valid version stays in effect until the file is fixed.",
+        "no_last_good": "No earlier valid version: jobs in this folder are refused until the file is fixed.",
+        "defaults": "Defaults:",
+        "commands": "Commands it runs on this computer:",
+        "kind": {
+          "after_create": "after the worktree is made",
+          "before_remove": "before the worktree is removed",
+          "check": "check after the job"
+        },
+        "untrusted_hint": "Until you trust this exact version, these commands are skipped and a looser run mode is not applied. Any change to the file asks again.",
+        "trust": "Trust this version",
+        "revoke": "Stop trusting",
+        "template": "Prompt template",
+        "trusted_toast": "Workflow trusted: its commands run from now on",
+        "untrusted_toast": "Workflow no longer trusted"
       }
     },
     "loops": {
@@ -3440,13 +3571,56 @@
         "running": "Running",
         "done": "Done",
         "failed": "Failed",
-        "cancelled": "Cancelled"
+        "cancelled": "Cancelled",
+        "paused": "Paused",
+        "blocked": "Blocked",
+        "budget_limited": "Budget reached"
       },
       "check_passed": "Condition met",
       "summary": "Up to {{rounds}} rounds. Stops earlier when a configured condition or time limit is reached.",
-      "no_check": "No check command: completion will be controlled by the round or time limit.",
+      "no_check": "No check command: after each round an independent auditor (the agent's smallest model) decides whether the work is done, for up to 20 rounds.",
       "review": "Review loop",
-      "edit": "Edit configuration"
+      "edit": "Edit configuration",
+      "auto_resume": "Resume by itself after a restart",
+      "auto_resume_hint": "If the app closes during a round, the Loop continues when it opens again, unless that round had already written in your folder.",
+      "run_mode_hint": "Every round of the loop runs with this mode. With “Ask before anything”, each round stops and waits for you before any edit or command.",
+      "max_cost": "Budget (US$)",
+      "paused_budget": "Paused: budget reached",
+      "paused_budget_hint": "No round starts until the ceiling is raised; raising it resumes the loop.",
+      "open_incident": "Open the incident",
+      "cost_estimated": "(estimated)",
+      "cost_tokens": "{{tokens}} weighted tokens",
+      "cost_unknown": "{{count}} round(s) of unknown cost",
+      "stop": {
+        "audit_complete": "Verified by the auditor",
+        "audit_blocked": "The auditor saw the agent blocked 3 rounds in a row",
+        "audit_unavailable": "Audit unavailable twice in a row",
+        "token_budget": "Token budget reached",
+        "max_rounds": "Round limit reached",
+        "round_failed": "A round failed: {{error}}",
+        "audit_disagrees": "The agent kept saying it was done and the auditor kept disagreeing: you decide"
+      },
+      "token_budget": "Token budget",
+      "tokens": "{{used}} / {{budget}} tokens",
+      "guided": "{{count}} rounds sent only the continuation (the task was not resent).",
+      "audits": "Auditor verdicts",
+      "verdict": {
+        "continue": "Continue",
+        "complete": "Complete",
+        "blocked": "Blocked",
+        "none": "No verdict"
+      },
+      "claimed_done": "said done",
+      "claimed_done_hint": "The agent said it was done; only the auditor's verdict ends the loop.",
+      "side_reason": {
+        "provider_small": "Smallest model of the same account",
+        "session_model": "No smaller model known: the agent's own",
+        "requested": "Chosen for this loop",
+        "setting": "Side model setting"
+      },
+      "overhead": "Auditor {{audit}} for rounds costing {{rounds}} ({{percent}}%).",
+      "blocked_hint": "The loop stopped and needs you. Resume runs a new round, audited again.",
+      "note": "Progress"
     },
     "limits": {
       "title": "Limits strip",
@@ -3559,22 +3733,18 @@
       "model": "Connection and model",
       "customize": "Tools and limits",
       "tasks": "Tasks",
-      "routines": "Routines",
       "active": "Running",
       "attention": "Needs attention",
       "done": "Finished",
       "create": "Create a task",
-      "create_routine": "Create a routine",
       "jobs_hint": "Run a task in the background. Open its details to see the result, approve a tool or stop execution.",
       "loops_hint": "Repeat a task until a check passes or its limit is reached. Review the stop conditions before starting.",
       "models_hint": "Connect an API provider, then choose its model for an agent. Chat subscriptions are configured in Connections.",
       "mcp_hint": "Connect a tool, test it, then choose which agents may use it. Adding a connection does not grant permission.",
       "skills_hint": "Skills give agents reusable instructions. Review the source and scan result before installing, then assign the skill to an agent.",
       "observatory_hint": "Inspect measured activity and provider quotas. Missing measurements are unavailable, never zero. Diagnostics run only when you open them.",
-      "local_hint": "Use a local model through a compatible server. Connect the running server and select one of its actual models before creating an agent.",
       "arena_hint": "Model comparison is not available yet. You can choose a model and run a conversation with the current tools.",
       "unavailable_feature": "Not available yet",
-      "local_steps": "Start your local model server|Connect its endpoint in AI settings|Choose the model for an agent",
       "arena_steps": "Select a model|Open a conversation|Review the result",
       "roster_hint": "Start with one agent and give it a clear purpose. Add a team when your task needs it.",
       "suggestion_1": "List my downloads and explain which need attention",
@@ -3587,7 +3757,8 @@
       "search": "Find an agent",
       "no_matches": "No matching agents",
       "templates_impact": "Review the template and its effect on the existing team before applying it.",
-      "mcp_server_hint": "Let other AI apps use OmniGet: turn the server on, create a client with only the permissions it needs, then paste its snippet into that app."
+      "mcp_server_hint": "Let other AI apps use OmniGet: turn the server on, create a client with only the permissions it needs, then paste its snippet into that app.",
+      "create_loop": "Create a loop"
     },
     "prompts": {
       "omni": "You are Omni, the assistant inside OmniGet. Answer briefly and in the language the user writes in. Use a tool only when it is clearly needed.",
@@ -3618,14 +3789,16 @@
       "start": "Start timeout (seconds)",
       "start_desc": "An agent that says nothing at all this long after it starts never got the prompt.",
       "deadline": "Job time limit (minutes)",
-      "deadline_desc": "Every background job (run, loop round, routine) stops here unless it sets its own.",
+      "deadline_desc": "Every background task (a run, a loop round, a scheduled run) stops here unless it sets its own.",
       "ask_chat": "Question wait in chat (minutes)",
       "ask_chat_desc": "After this the question expires: the action does not run and you are told why.",
       "ask_job": "Question wait in jobs (minutes)",
       "ask_job_desc": "Leave at 0 to wait until the job's own time limit.",
       "notify_delay": "Notify after (seconds)",
       "notify_delay_desc": "A question still open this long becomes a system notification. One you answer sooner never does.",
-      "offline": "Could not save: the backend did not answer."
+      "offline": "Could not save: the backend did not answer.",
+      "auto_resume": "Resume by itself after a restart",
+      "auto_resume_desc": "When the app closes or an agent goes silent, a job that ran in its own worktree or only read files starts again on its own: it continues its session and is told to check what is done before repeating anything. A job that wrote in your folder still waits for you. A job or a Loop can say otherwise."
     },
     "central": {
       "agentkit": {
@@ -5350,7 +5523,6 @@
         "verify_hint": "Runs in every worktree; the exit code decides pass or fail.",
         "cleanup": "Clean up",
         "cleanup_lede": "Archives the threads (their worktrees go; the work stays in the arena's refs).",
-        "cleanup_losers": "Only the losers",
         "cleanup_all": "Every entry (discard the arena)",
         "delete": "Delete arena",
         "delete_lede": "Removes this arena from the history and its refs. The threads stay.",
@@ -5466,10 +5638,11 @@
           "verify_hint": "Optional; runs in each worktree when its turn ends. Timeout",
           "timeout": "Timeout in minutes",
           "minutes": "min",
-          "start": "Start in {{count}} tools"
+          "start": "Start in {{count}} tools",
+          "min_tools": "Pick at least {{count}} tools to compare."
         },
         "apply": {
-          "title": "Apply the winner",
+          "title": "Choose this one",
           "lede": "{{name}}'s branch goes into the target branch. Nothing else is touched.",
           "target": "Target branch",
           "strategy": "How",
@@ -5480,22 +5653,49 @@
           "conflicts": "{{count}} files conflict; resolve in the thread first.",
           "checked_out": "The branch is checked out at {{path}}.",
           "dirty": "That checkout has uncommitted changes: commit or stash them first.",
-          "touch_checkout": "Update my checkout too (fast-forward only)",
+          "touch_checkout": "Merge into my checkout (git merge with my identity and hooks; undone on a conflict)",
           "ref_only": "Only the branch moves; no checkout is touched.",
-          "clean_losers": "Archive the losing threads and remove their worktrees",
+          "clean_losers": "Then remove the others (worktrees; their work stays in the arena's refs)",
           "delete_branches": "Also delete their branches (only OmniGet's)",
           "confirm": "I want to change {{branch}}",
           "do": "Apply",
           "ok": "Applied to {{branch}}",
-          "updated_checkout": "your checkout moved forward",
-          "updated_ref": "only the branch ref moved",
-          "cleaned": "{{count}} threads archived"
+          "updated_checkout": "merged in your checkout",
+          "updated_ref": "only the branch ref moved"
         },
         "plan": {
           "implement_n": "Implement in N tools",
           "hint": "Open the Arena with this plan as the prompt"
         },
-        "apply_winner": "Apply winner"
+        "apply_winner": "Apply winner",
+        "removed": "{{count}} worktrees removed",
+        "branches_kept": "{{count}} branches kept",
+        "remove_others": "Remove the others",
+        "choose": "Choose this",
+        "choose_hint": "Merge this column's work into the base branch",
+        "estimate": {
+          "total": "Estimated cost before starting: {{total}} for {{count}} tools",
+          "unknown": "{{count}} without an estimate",
+          "rough": "rough: list price × a typical turn",
+          "source": {
+            "history": "Average of {{runs}} past runs in the arena",
+            "price": "List price × a typical coding turn (rough)",
+            "unknown": "No price known (subscription, or a model not in the price table)"
+          }
+        },
+        "compare": {
+          "title": "Where they split",
+          "toggle": "Compare",
+          "divergent": "{{count}} files differ",
+          "agreed": "{{count}} identical",
+          "pending": "{{count}} still running",
+          "show_agreed": "Show identical files",
+          "file": "File",
+          "untouched": "same as base",
+          "none_divergent": "Every column ended with the same files.",
+          "column": "{{count}} divergent",
+          "column_hint": "Files where this column differs from the others"
+        }
       },
       "run": {
         "back": "Back",
@@ -5512,7 +5712,8 @@
           "done": "Done",
           "failed": "Failed",
           "cancelled": "Cancelled",
-          "skipped": "Skipped"
+          "skipped": "Skipped",
+          "review": "Needs review"
         },
         "runner": {
           "label": "Runs with",
@@ -5662,6 +5863,156 @@
           "review_started": "Review job started",
           "open_jobs": "Open Jobs"
         }
+      }
+    },
+    "run_mode": {
+      "label": "Run mode",
+      "approval_required": "Ask before anything",
+      "auto_edits": "Auto edits",
+      "auto": "Auto (CLI reviewer)",
+      "full_access": "Full access",
+      "approval_required_hint": "Every edit and command asks you first.",
+      "auto_edits_hint": "File edits go through; commands ask first.",
+      "auto_hint": "The CLI's own reviewer decides; where the CLI has none, it works like Auto edits.",
+      "full_access_hint": "Nothing asks. The CLI account must also allow full access.",
+      "full_access_warning": "Full access runs every edit and command without asking. Use it only in a folder you can afford to lose.",
+      "full_access_confirm": "Allow full access",
+      "cancel": "Cancel"
+    },
+    "audit": {
+      "title": "Audit log",
+      "lede": "Who did what to jobs, questions, grants, tokens and agents, and through what. Prompts, file content and secrets are never stored.",
+      "since": "Period",
+      "since_1h": "Last hour",
+      "since_1d": "Last day",
+      "since_7d": "Last 7 days",
+      "since_30d": "Last 30 days",
+      "since_90d": "Last 90 days",
+      "kind": "Kind",
+      "kind_all": "Everything",
+      "kind_job": "Jobs",
+      "kind_ask": "Questions",
+      "kind_grant": "Always grants",
+      "kind_token": "Tokens",
+      "kind_agent": "Agents",
+      "kind_loop": "Loops",
+      "refresh": "Refresh",
+      "export": "Export CSV",
+      "empty": "Nothing in this period.",
+      "error": "The audit log could not be read.",
+      "who": "Who",
+      "through": "Through",
+      "on": "On",
+      "retention": "Keep lines for (days)",
+      "retention_days": "Lines are kept {{days}} days.",
+      "retention_save": "Save",
+      "retention_saved": "Saved; older lines were removed.",
+      "cli_hint": "the same log from a terminal, with a token that has audit:read."
+    },
+    "work": {
+      "nav": "All work",
+      "lede": "Everything your agents are doing for you in one list: what needs you first, then what is running, waiting, ready for review or done recently.",
+      "badge_needs_you": "Needs you ({{count}})",
+      "badge_running": "{{count}} running",
+      "badge_review": "{{count}} to review",
+      "badge_queued": "{{count}} queued",
+      "section": {
+        "needs_you": "Needs you",
+        "running": "Running",
+        "queued": "Waiting to start",
+        "review": "Ready for review",
+        "done": "Done recently"
+      },
+      "pill": {
+        "approval": "Approval needed",
+        "input": "Answer needed",
+        "decision": "Decision needed",
+        "working": "Working",
+        "failed": "Failed",
+        "queued": "Queued",
+        "review": "Review",
+        "ready": "Done",
+        "stopped": "Stopped"
+      },
+      "source": {
+        "job": "Task",
+        "loop": "Loop",
+        "mission": "Mission",
+        "thread": "Thread",
+        "run": "Chat",
+        "ask": "Question",
+        "budget": "Budget"
+      },
+      "asks_for": "asks to use {{tool}}",
+      "nothing_waits": "Nothing waits for you.",
+      "empty": "No work yet.",
+      "partial": "Part of the work could not be read: {{error}}",
+      "notify": {
+        "approval": "Approval needed: {{title}}",
+        "input": "Answer needed: {{title}}",
+        "decision": "Decision needed: {{title}}",
+        "failed": "Failed: {{title}}",
+        "ready": "Done: {{title}}",
+        "review": "Ready for review: {{title}}",
+        "more": "And {{count}} more in Work"
+      }
+    },
+    "budget": {
+      "title": "Budgets",
+      "refresh": "Refresh",
+      "lede": "Ceilings for your agents: for everything, one agent, one account, a loop, a job or a mission, in dollars, weighted tokens or a share of a subscription's 5 h / 7 d window. Past a hard ceiling the scope pauses and its work stops until you raise it. Without a ceiling nothing is limited.",
+      "read_error": "Could not read the budgets.",
+      "empty": "No ceilings yet: nothing is limited.",
+      "hard": "pauses",
+      "soft": "asks",
+      "paused": "Paused",
+      "remove": "Remove",
+      "no_reading": "No quota reading yet (it comes from the CLI's own stream)",
+      "warn_at": "warns at {{pct}}%",
+      "estimate_note": "dollars of a subscription are the price table's estimate",
+      "add": "Add a ceiling",
+      "scope": "For",
+      "scope_id": "Id",
+      "metric_label": "Measured in",
+      "window_label": "Window",
+      "amount": "Ceiling",
+      "warn_label": "Warn at (%)",
+      "soft_label": "Ask instead of pausing",
+      "save": "Save",
+      "hard_hint": "Past the ceiling the scope pauses: its running and queued work is cancelled and an incident waits for you (raise and resume, or keep paused).",
+      "soft_hint": "Past the ceiling the next turn asks \"continue?\" once per window, like any approval (also from the CLI and the phone). No pauses the scope.",
+      "quota_hint": "Quota ceilings read only what the CLI reported on its own stream. For an account (or everything) the ceiling is the window's own percentage; for a loop, job, agent or mission it is the points it moved since it began.",
+      "warn_toast": "Budget of {{scope}}: {{used}} of {{limit}} used",
+      "metric": {
+        "usd": "Dollars",
+        "weighted_tokens": "Weighted tokens",
+        "quota_pct": "Share of the quota window"
+      },
+      "window": {
+        "turn": "per turn",
+        "day": "per day",
+        "week": "per week",
+        "5h": "5 h window",
+        "7d": "7 d window",
+        "run": "whole run"
+      },
+      "scope_kind": {
+        "global": "Everything",
+        "agent": "Agent",
+        "account": "Account",
+        "loop": "Loop",
+        "job": "Task",
+        "mission": "Mission"
+      },
+      "incident": {
+        "open": "Budget reached",
+        "kept": "Kept paused",
+        "hard_line": "Used {{used}} of {{limit}}. Nothing starts here until you raise the ceiling.",
+        "checkpoint_line": "The checkpoint at {{limit}} was answered no ({{used}} used). Nothing starts here until you raise it.",
+        "new_limit": "New ceiling",
+        "raise": "Raise and resume",
+        "keep": "Keep paused",
+        "too_low": "The new ceiling must be above what is already used."
       }
     }
   },
@@ -6176,9 +6527,6 @@
       "tool_calls": "{{count}} tools",
       "permissions_title": "Waiting for your answer",
       "permission_label": "Wants to use {{action}}",
-      "answer_once": "Allow once",
-      "answer_always": "Always allow",
-      "answer_deny": "Deny",
       "expires_in": "Expires in {{seconds}} s",
       "request_title": "What you asked",
       "summary_title": "Answer",
@@ -6212,7 +6560,8 @@
         "approved": "allowed",
         "denied": "denied",
         "expired": "expired",
-        "cancelled": "cancelled"
+        "cancelled": "cancelled",
+        "stale": "left by a restart"
       },
       "unknown_hint": "OmniGet closed while this run was working, so its result is unknown. Nothing was sent again on its own: check the changes below and choose what to do.",
       "interrupted_hint": "OmniGet closed before this run reached the model. Nothing was done.",
@@ -6247,7 +6596,14 @@
       "routine_app_open": "runs only while OmniGet is open",
       "routine_mute": "Silence",
       "routine_unmute": "Unsilence",
-      "routine_muted": "silenced"
+      "routine_muted": "silenced",
+      "stale_title": "Questions a restart left unanswered",
+      "stale_hint": "The app closed while these waited. Nothing ran. Restart the turn to ask again.",
+      "dismiss": "Dismiss",
+      "answer_on_card": "Answer it on its card at the top of this page.",
+      "answer_once": "Allow once",
+      "answer_always": "Always allow",
+      "answer_deny": "Deny"
     },
     "conversation": {
       "status_working": "Working…",
@@ -6806,7 +7162,10 @@
       "adv_events": "Events",
       "blocked_before_call": "Stopped before any call: nothing ran for this step.",
       "verify_started": "Checking in the background. The result shows up here when it ends.",
-      "verify_already_running": "A check is already running for this mission."
+      "verify_already_running": "A check is already running for this mission.",
+      "changes": "Changes",
+      "changes_no_job": "This task has not run a job yet.",
+      "changes_job": "Job {{job}}"
     },
     "log": {
       "loading": "Loading the log…",
@@ -6925,7 +7284,7 @@
     "auth_origin": {
       "user_ui": "You, in the Missions page",
       "chat": "You, from a chat",
-      "trigger": "A trigger you set",
+      "trigger": "A schedule you set",
       "external_mcp": "An MCP client"
     }
   },
@@ -7015,7 +7374,11 @@
     "native_active": "Native access",
     "native_revoke": "Revoke access",
     "system_read": "Read this computer's status, scans and plans (washmybelly)",
-    "system_change": "Prepare cleanup plans, hold power, game mode and FPS captures (washmybelly)"
+    "system_change": "Prepare cleanup plans, hold power, game mode and FPS captures (washmybelly)",
+    "approvals_respond": "Answer permission questions of owned missions",
+    "approvals_respond_help": "With this, the client can allow the tool calls of its own missions, shell commands included, as if you pressed Allow here. Give it only to a client you trust like yourself. It can never create an “always allow” rule, and an agent can never answer its own questions.",
+    "agents_run": "Run your agents as background jobs",
+    "agents_run_help": "With this, the client can start any agent of your roster on a task, in a folder it names, as a background job, just like `omniget agent run`. It only sees and stops the jobs it started. The agents' permission questions still wait for you, unless you also let this client answer them."
   },
   "mcp_auth": {
     "title": "An AI client asks you to sign in",

@@ -342,7 +342,9 @@ mod agentkit_tests {
             &uuid::Uuid::new_v4().simple().to_string()[..8]
         ));
         std::fs::create_dir_all(root.join("home")).unwrap();
-        std::env::set_var("OMNIGET_DATA_DIR", root.join("data"));
+        // The env is process-wide: held for the whole test, restored after.
+        let env = crate::secrets::test_env::EnvGuard::acquire();
+        env.set("OMNIGET_DATA_DIR", root.join("data").to_str());
         super::install_catalog_resolver();
         let id = "cct:agents/development-team/frontend-developer";
         let c = ak::plan::resolve_id(id).expect("catalog id resolves");

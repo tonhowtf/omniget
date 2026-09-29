@@ -31,6 +31,12 @@ use tokio_util::sync::CancellationToken;
 
 use crate::llm_manager::{now_ms, sanitize_id, LlmManager};
 
+mod changes;
+mod loop_audit;
+mod review;
+
+pub use loop_audit::LoopAudit;
+
 pub const EVENT_JOB: &str = "llm://job";
 pub const EVENT_LOOP: &str = "llm://loop";
 /// A routine's schedule or counters changed (fired, missed, saved): the
@@ -41,6 +47,8 @@ pub const EVENT_TRIGGER: &str = "llm://trigger";
 pub const EVENT_QUEUE: &str = "llm://queue";
 pub const EVENT_PLAYBOOK: &str = "llm://playbook";
 pub const ERR_JOBS: &str = "ERR_LLM_JOBS";
+/// A job's worktree could not be made, found or recreated (2.3).
+pub const ERR_WORKTREE: &str = "ERR_JOB_WORKTREE";
 
 const LOG_MAX: usize = 64 * 1024;
 const RESULT_MAX: usize = 32 * 1024;
@@ -120,6 +128,185 @@ pub struct Job {
     /// The playbook run this job is a step of.
     #[serde(default)]
     pub playbook_id: Option<String>,
+    /// Where the job writes (2.3, D3): the folder itself, a git worktree of
+    /// its own, or `auto` (a worktree only when another job is already
+    /// writing in the same canonical folder of a git repository).
+    #[serde(default)]
+    pub isolation: Isolation,
+    /// The ref a worktree starts from (`--base`); `None` = the user's
+    /// checkout as it is on disk, uncommitted work included.
+    #[serde(default)]
+    pub base_ref: Option<String>,
+    /// The job's worktree (`<app data>/worktrees/<repo>-job-<id>`), set when
+    /// it runs in one; the folder its turns see.
+    #[serde(default)]
+    pub worktree_path: Option<String>,
+    /// `omniget/job-<id>`: holds the job's work once the worktree is gone.
+    #[serde(default)]
+    pub branch: Option<String>,
+    /// The commit the worktree started from.
+    #[serde(default)]
+    pub base_oid: Option<String>,
+    /// The worktree's `HEAD` when the diff was recorded: the commit that
+    /// holds the job's work on its branch (2.4, worktree mode).
+    #[serde(default)]
+    pub head_oid: Option<String>,
+    /// What the job did, stamped by the host when it ended (2.4, 83#P4):
+    /// `host:workspace@base→head`, the files, the checks with their exit
+    /// code, tokens, cost and time. Never written by the agent; 0 tokens.
+    #[serde(default)]
+    pub proof: Option<Value>,
+    /// A short name for lists, given by whoever started the job (2.5).
+    #[serde(default)]
+    pub title: Option<String>,
+    /// Who started the job through the command surface (2.5): `token:<id>`
+    /// for a bridge token, `mcp:<client>` for an MCP client. An MCP client
+    /// reads, waits on, cancels and answers the asks of the jobs it owns.
+    #[serde(default)]
+    pub owner: Option<String>,
+    /// How much the job's turns may do without asking (2.7, D2): a job from
+    /// outside the window asks before every edit and command unless the
+    /// caller chose otherwise; older rows keep what they did (`auto_edits`).
+    #[serde(default)]
+    pub run_mode: RunMode,
+    /// The agent's own last word (2.6): `{status: succeeded|failed, summary}`
+    /// from its `OUTCOME:` line. `None` when it wrote none (a `run` job then
+    /// ends `done_unreported`).
+    #[serde(default)]
+    pub outcome: Option<Value>,
+    /// The rest of the `job.start` command: `command_id`, `purpose`,
+    /// `model`, `effort`, `budget_usd`, `resume_of`.
+    #[serde(default)]
+    pub origin: Option<Value>,
+    /// The CLI's own session id, copied onto the row at the first event of
+    /// the turn that names it (3.1, S16), not at the end: a job the app
+    /// loses mid-turn still knows which session `--resume` continues.
+    #[serde(default)]
+    pub session_id: Option<String>,
+    /// The agent process of the turn running now, with the start token the
+    /// OS gives it ([`omniget_core::core::process::start_token`]): on boot a
+    /// process that is still alive is stopped before anything runs again,
+    /// and a pid the OS reused (another start token) is never touched.
+    /// Cleared when the turn ends.
+    #[serde(default)]
+    pub pid: Option<u32>,
+    #[serde(default)]
+    pub pid_start: Option<u64>,
+    /// How many times the host started this job again by itself after an
+    /// infrastructure failure (3.1); at most [`AUTO_RESUME_MAX`].
+    #[serde(default)]
+    pub attempt: u32,
+    /// This job's own answer to "resume by itself after a restart";
+    /// `None` = the setting `llm.auto_resume` (a Loop round takes its Loop's).
+    #[serde(default)]
+    pub auto_resume: Option<bool>,
+    /// A tool that can change something (anything but reading and
+    /// searching) started in one of the job's turns: a job that ran in the
+    /// shared folder is then never re-run by itself.
+    #[serde(default)]
+    pub side_effects: bool,
+}
+
+pub use omniget_core::core::llm::run_mode::RunMode;
+
+/// How a job is placed in its folder (2.3). `Auto` is the default of a job
+/// a person starts in the background (`run`, `trigger`); missions, Loop
+/// rounds, chat turns and catalog tool runs stay `Shared` unless asked.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum Isolation {
+    #[default]
+    Shared,
+    Worktree,
+    Auto,
+}
+
+impl Isolation {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Isolation::Shared => "shared",
+            Isolation::Worktree => "worktree",
+            Isolation::Auto => "auto",
+        }
+    }
+
+    /// `shared | worktree | auto`; anything else is an error the caller
+    /// shows (a typo must not silently mean "shared").
+    pub fn parse(s: &str) -> Result<Isolation, String> {
+        match s.trim().to_ascii_lowercase().as_str() {
+            "shared" => Ok(Isolation::Shared),
+            "worktree" | "isolate" => Ok(Isolation::Worktree),
+            "auto" => Ok(Isolation::Auto),
+            other => Err(format!(
+                "{ERR_JOBS}: isolation must be shared, worktree or auto (got `{other}`)"
+            )),
+        }
+    }
+
+    /// The default for a new job of `kind` run by `agent_id`.
+    pub fn default_for(kind: &str, agent_id: &str) -> Isolation {
+        if agent_id.starts_with(TOOL_PREFIX) {
+            return Isolation::Shared;
+        }
+        match kind {
+            "run" | "trigger" => Isolation::Auto,
+            _ => Isolation::Shared,
+        }
+    }
+}
+
+/// Where a job's worktree comes from and why, decided before the gate.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Placement {
+    /// The git repository of the job's folder (with a commit), when there is one.
+    pub repo: Option<std::path::PathBuf>,
+    /// A worktree whatever the gate says (`isolation = worktree`, or a job
+    /// that already has one).
+    pub force: bool,
+    /// Ask the gate for a worktree only if the folder is busy (`auto`).
+    pub if_busy: bool,
+}
+
+/// The placement of `job` given the repository of its folder (`repo`,
+/// `None` = no git repository with a commit). `Err` = the job cannot run as
+/// asked (a worktree without a repository).
+pub fn placement(job: &Job, repo: Option<std::path::PathBuf>) -> Result<Placement, String> {
+    if job.worktree_path.is_some() {
+        return Ok(Placement {
+            repo,
+            force: true,
+            if_busy: false,
+        });
+    }
+    match job.isolation {
+        Isolation::Shared => Ok(Placement {
+            repo,
+            force: false,
+            if_busy: false,
+        }),
+        Isolation::Worktree if repo.is_none() => Err(format!(
+            "{ERR_WORKTREE}: isolation=worktree needs a folder in a git repository with at least one commit"
+        )),
+        Isolation::Worktree => Ok(Placement {
+            repo,
+            force: true,
+            if_busy: false,
+        }),
+        Isolation::Auto => Ok(Placement {
+            if_busy: repo.is_some(),
+            repo,
+            force: false,
+        }),
+    }
+}
+
+/// The folder a job's turns see: its worktree when it has one, else the
+/// folder it was given.
+pub fn effective_workspace(job: &Job) -> Option<String> {
+    job.worktree_path
+        .clone()
+        .or_else(|| job.workspace.clone())
+        .filter(|w| !w.trim().is_empty())
 }
 
 /// How a `tool:<id>` job runs: the agent as the system prompt, model and
@@ -231,7 +418,8 @@ pub struct LoopDef {
     /// Ceiling of each round (one job), in minutes; `None` = the setting.
     #[serde(default)]
     pub deadline_min: Option<u32>,
-    /// `running|done|failed|cancelled|interrupted`
+    /// `running|done|failed|cancelled|interrupted|blocked|budget_limited`
+    /// (`blocked` and `budget_limited` come from the auditor's rules, 3.7).
     #[serde(default)]
     pub state: String,
     #[serde(default)]
@@ -267,6 +455,67 @@ pub struct LoopDef {
     /// Time spent inside rounds (the minute budget of a scheduled loop).
     #[serde(default)]
     pub active_ms: u64,
+    /// "Resume by itself after a restart" for this Loop (3.1); `None` = the
+    /// setting `llm.auto_resume`.
+    #[serde(default)]
+    pub auto_resume: Option<bool>,
+    /// The host restarted this Loop by itself: the next round starts with
+    /// the "check before repeating" note. Cleared once that round starts.
+    #[serde(default)]
+    pub restarted: bool,
+    /// Restarts by the host since the last round that finished; at most
+    /// [`AUTO_RESUME_MAX`] in a row.
+    #[serde(default)]
+    pub auto_restarts: u32,
+    /// The run mode of every round (2.7). `None` = a Loop saved before the
+    /// field: its rounds keep `auto_edits`. The bridge fills
+    /// `approval_required` when the caller sends none.
+    #[serde(default)]
+    pub run_mode: Option<RunMode>,
+    /// Weighted tokens of all rounds (3.3, PROB C5): what the loop cost when
+    /// its dollars are unknown.
+    #[serde(default)]
+    pub spent_tokens: u64,
+    /// The part of `spent_usd` that is the price table's estimate (a CLI
+    /// that reported no price), not what the provider billed.
+    #[serde(default)]
+    pub spent_usd_estimated: f64,
+    /// Rounds whose cost nobody knows (no report, no price).
+    #[serde(default)]
+    pub unpriced_rounds: u32,
+    /// Stop when the rounds and their audits spent this many billable tokens
+    /// (`billable_of`: input weighted by cache, plus output) → state
+    /// `budget_limited` (3.7, 84#P1).
+    #[serde(default)]
+    pub token_budget: Option<u64>,
+    #[serde(default)]
+    pub tokens_used: u64,
+    /// The auditor's model; `None` = the side model of the agent's own
+    /// provider/account (`router::resolve_side`).
+    #[serde(default)]
+    pub audit_model: Option<String>,
+    /// `blocked` verdicts in a row (3 end the Loop).
+    #[serde(default)]
+    pub blocked_streak: u32,
+    /// Audits in a row without a verdict (2 end the Loop).
+    #[serde(default)]
+    pub audit_fail_streak: u32,
+    /// Rounds in a row the agent said done and the auditor `continue` (3
+    /// end the Loop as `blocked`: a person settles it).
+    #[serde(default)]
+    pub disagree_streak: u32,
+    /// The auditor's last note: the Loop's progress line.
+    #[serde(default)]
+    pub note: Option<String>,
+    /// One entry per audited round, newest last.
+    #[serde(default)]
+    pub audits: Vec<LoopAudit>,
+    /// What the audits cost together (also inside `spent_usd`).
+    #[serde(default)]
+    pub audit_usd: f64,
+    /// Rounds that went out as the short continuation guide (83#P7).
+    #[serde(default)]
+    pub rounds_guided: u32,
 }
 
 /// One step of a running playbook.
@@ -445,6 +694,14 @@ pub struct Jobs {
     pub attention: Arc<crate::llm_attention::Attention>,
     /// Wakes a Loop sleeping until its next scheduled round when it is cancelled.
     loop_waits: Mutex<HashMap<String, CancellationToken>>,
+    /// When the cron ticker last ran the worktree GC (epoch ms).
+    last_worktree_gc: std::sync::atomic::AtomicU64,
+    /// Bumped on every saved row, so `wait` (2.5) sleeps until something
+    /// changed instead of polling.
+    changes: tokio::sync::watch::Sender<u64>,
+    /// Per finished Loop round (job id): its tool calls and their real
+    /// output, rendered for the Loop's auditor (3.7), taken by `run_loop`.
+    round_evidence: Mutex<HashMap<String, String>>,
 }
 
 /// A question of a job's turn, as the bus forwarder hands it to the runner.
@@ -583,6 +840,30 @@ pub fn ensure_schema(db: &Connection, now_ms: i64) -> Result<(), String> {
         // Catalog runs (0.11): the tool run spec and the playbook of a step.
         "spec TEXT",
         "playbook_id TEXT",
+        // Worktree per job (2.3): older rows are `shared`, no worktree.
+        "isolation TEXT",
+        "base_ref TEXT",
+        "worktree_path TEXT",
+        "branch TEXT",
+        "base_oid TEXT",
+        // Diff by base..tip and the host's proof (2.4).
+        "head_oid TEXT",
+        "proof TEXT",
+        // One run mode per job (2.7): older rows read as `auto_edits`.
+        // Command surface and outcome (2.5, 2.6).
+        "title TEXT",
+        "owner TEXT",
+        "run_mode TEXT",
+        "outcome TEXT",
+        "origin TEXT",
+        // Resume after a restart (3.1): the CLI session, the process of the
+        // turn in flight, attempts, the per-job switch, whether it wrote.
+        "session_id TEXT",
+        "pid INTEGER",
+        "pid_start INTEGER",
+        "attempt INTEGER NOT NULL DEFAULT 0",
+        "auto_resume INTEGER",
+        "side_effects INTEGER NOT NULL DEFAULT 0",
     ] {
         let _ = db.execute(&format!("ALTER TABLE jobs ADD COLUMN {column}"), []);
     }
@@ -597,6 +878,14 @@ pub fn ensure_schema(db: &Connection, now_ms: i64) -> Result<(), String> {
     // The durable schedule (1.4): routines saved before it start from now.
     let _ = db.execute("ALTER TABLE triggers ADD COLUMN next_run_ms INTEGER", []);
     migrate_triggers(db, now_ms);
+    // Scoped control tokens of the bridge (2.1).
+    crate::bridge_tokens::ensure_schema(db).map_err(|e| format!("{ERR_JOBS}: {e}"))?;
+    // Receipts of `POST /v1/commands` and the MCP job tools (2.5).
+    crate::job_commands::ensure_schema(db).map_err(|e| format!("{ERR_JOBS}: {e}"))?;
+    // Review notes (3.5).
+    review::ensure_notes_schema(db)?;
+    // Per-file baselines of the CLI's own writes (3.4).
+    changes::ensure_schema(db)?;
     Ok(())
 }
 
@@ -627,6 +916,10 @@ pub fn get(app: &AppHandle) -> Result<Arc<Jobs>, String> {
         watchers: Mutex::new(HashMap::new()),
         attention: crate::llm_attention::Attention::new(Arc::new(TauriSink { app: app.clone() })),
         loop_waits: Mutex::new(HashMap::new()),
+        // The boot pass counts as a GC run.
+        last_worktree_gc: std::sync::atomic::AtomicU64::new(now_ms()),
+        changes: tokio::sync::watch::channel(0).0,
+        round_evidence: Mutex::new(HashMap::new()),
     });
     if JOBS.set(jobs.clone()).is_ok() {
         let limits = crate::commands::llm::watchdog::limits(app);
@@ -639,6 +932,16 @@ pub fn get(app: &AppHandle) -> Result<Arc<Jobs>, String> {
             .set_ask_timeout_resolver(Some(Arc::new(move |request: &str| {
                 weak.upgrade()?.ask_timeout_for(request)
             })));
+        // The "before" of every file a CLI turn writes lands under its job
+        // (3.4).
+        let weak = Arc::downgrade(&jobs);
+        omniget_core::core::llm::file_changes::set_sink(Some(Arc::new(
+            move |request: &str, touch| {
+                if let Some(jobs) = weak.upgrade() {
+                    jobs.record_change(request, touch);
+                }
+            },
+        )));
         // Waiting rows follow the gate: state, reason and `llm://queue`.
         let weak = Arc::downgrade(&jobs);
         let mut changed = jobs.gate.subscribe();
@@ -649,8 +952,21 @@ pub fn get(app: &AppHandle) -> Result<Arc<Jobs>, String> {
                 jobs.report_queue(&mut reported);
             }
         });
+        {
+            // No job runs yet: a token a crash left live dies here, and the
+            // CLI finds a valid token of its own (2.1).
+            let db = jobs.db();
+            let now = now_ms();
+            if let Err(e) = crate::bridge_tokens::revoke_orphan_job_tokens(&db, now) {
+                tracing::warn!("[jobs] job tokens: {e}");
+            }
+            if let Err(e) = crate::bridge_tokens::ensure_cli_token(&db, &dir, now) {
+                tracing::warn!("[jobs] cli token: {e}");
+            }
+        }
         jobs.clone().resume();
         jobs.clone().ensure_cron();
+        tauri::async_runtime::spawn(jobs.clone().gc_worktrees(true));
     }
     Ok(JOBS.get().cloned().unwrap_or(jobs))
 }
@@ -726,14 +1042,117 @@ fn row_to_job(r: &rusqlite::Row<'_>) -> rusqlite::Result<Job> {
             .get::<_, Option<String>>(28)?
             .and_then(|s| serde_json::from_str(&s).ok()),
         playbook_id: r.get(29)?,
+        isolation: r
+            .get::<_, Option<String>>(30)?
+            .and_then(|s| Isolation::parse(&s).ok())
+            .unwrap_or_default(),
+        base_ref: r.get(31)?,
+        worktree_path: r.get(32)?,
+        branch: r.get(33)?,
+        base_oid: r.get(34)?,
+        head_oid: r.get(35)?,
+        proof: r
+            .get::<_, Option<String>>(36)?
+            .and_then(|s| serde_json::from_str(&s).ok()),
+        title: r.get(37)?,
+        owner: r.get(38)?,
+        run_mode: r
+            .get::<_, Option<String>>(39)?
+            .and_then(|s| RunMode::parse(&s).ok())
+            .unwrap_or_default(),
+        outcome: r
+            .get::<_, Option<String>>(40)?
+            .and_then(|s| serde_json::from_str(&s).ok()),
+        origin: r
+            .get::<_, Option<String>>(41)?
+            .and_then(|s| serde_json::from_str(&s).ok()),
+        session_id: r.get(42)?,
+        pid: r
+            .get::<_, Option<i64>>(43)?
+            .and_then(|v| u32::try_from(v).ok()),
+        pid_start: r.get::<_, Option<i64>>(44)?.map(|v| v as u64),
+        attempt: r.get::<_, Option<i64>>(45)?.unwrap_or(0).max(0) as u32,
+        auto_resume: r.get::<_, Option<i64>>(46)?.map(|v| v != 0),
+        side_effects: r.get::<_, Option<i64>>(47)?.unwrap_or(0) != 0,
     })
 }
 
-const JOB_COLS: &str = "id, kind, agent_id, conversation_id, prompt, workspace, state, loop_id, trigger_id, request_id, created_ms, started_ms, finished_ms, result, error, log, usage, state_seq, seen_ms, failure_reason, deadline_min, deadline_ms, wait_reason, diff_files, additions, deletions, diff_clipped, diff_unavailable, spec, playbook_id";
+const JOB_COLS: &str = "id, kind, agent_id, conversation_id, prompt, workspace, state, loop_id, trigger_id, request_id, created_ms, started_ms, finished_ms, result, error, log, usage, state_seq, seen_ms, failure_reason, deadline_min, deadline_ms, wait_reason, diff_files, additions, deletions, diff_clipped, diff_unavailable, spec, playbook_id, isolation, base_ref, worktree_path, branch, base_oid, head_oid, proof, title, owner, run_mode, outcome, origin, session_id, pid, pid_start, attempt, auto_resume, side_effects";
 
 impl Jobs {
-    fn db(&self) -> std::sync::MutexGuard<'_, Connection> {
+    pub(crate) fn db(&self) -> std::sync::MutexGuard<'_, Connection> {
         self.db.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    // ── bridge tokens (2.1) ──────────────────────────────────────────
+
+    /// What a bearer presented to an agent route is (the bridge's guard).
+    pub fn token_lookup(&self, token: &str) -> crate::bridge_tokens::Lookup {
+        crate::bridge_tokens::lookup(&self.db(), token, now_ms())
+    }
+
+    pub fn token_mint(
+        &self,
+        name: &str,
+        scopes: &[String],
+        expires_ms: Option<u64>,
+    ) -> Result<crate::bridge_tokens::Minted, String> {
+        crate::bridge_tokens::mint(
+            &self.db(),
+            crate::bridge_tokens::Kind::User,
+            name,
+            scopes,
+            None,
+            expires_ms,
+            now_ms(),
+        )
+    }
+
+    pub fn token_list(&self) -> Vec<crate::bridge_tokens::TokenView> {
+        crate::bridge_tokens::list(&self.db(), now_ms())
+    }
+
+    pub fn token_revoke(&self, id: &str) -> Result<bool, String> {
+        crate::bridge_tokens::revoke(&self.db(), id, now_ms())
+    }
+
+    /// The job's own token for the length of its turn (see
+    /// [`crate::bridge_tokens::JobTokenLease`]). A failure to mint only
+    /// costs the child its token, never the job.
+    fn job_token_lease(
+        self: &Arc<Self>,
+        job: &Job,
+        conversation: &str,
+    ) -> Option<crate::bridge_tokens::JobTokenLease> {
+        let (minter, revoker) = (self.clone(), self.clone());
+        let (id_m, id_r) = (job.id.clone(), job.id.clone());
+        let expires = crate::bridge_tokens::job_token_expiry(job.deadline_ms, now_ms());
+        let port = crate::storage::config::load_settings(&self.app).bridge.port;
+        let bridge = (port > 0).then(|| format!("http://127.0.0.1:{port}"));
+        let (lease, error) = crate::bridge_tokens::JobTokenLease::start_with(
+            conversation,
+            crate::bridge_tokens::job_identity_env(&job.id, &job.agent_id, bridge.as_deref()),
+            move || {
+                crate::bridge_tokens::mint(
+                    &minter.db(),
+                    crate::bridge_tokens::Kind::Job,
+                    &format!("job {id_m}"),
+                    &crate::bridge_tokens::job_scopes(),
+                    Some(&id_m),
+                    Some(expires),
+                    now_ms(),
+                )
+            },
+            move || {
+                if let Err(e) = crate::bridge_tokens::revoke_job(&revoker.db(), &id_r, now_ms()) {
+                    tracing::warn!("[jobs] revoke the token of {id_r}: {e}");
+                }
+            },
+        );
+        if let Some(e) = error {
+            tracing::warn!("[jobs] token for {}: {e}", job.id);
+        }
+        Some(lease)
     }
 
     // ── jobs ─────────────────────────────────────────────────────────
@@ -764,19 +1183,63 @@ impl Jobs {
                 &job.state,
             );
             let seen = stored.and_then(|(_, _, seen)| seen).or(job.seen_ms);
+            let marks = (1..=JOB_COLS.split(',').count())
+                .map(|i| format!("?{i}"))
+                .collect::<Vec<_>>()
+                .join(",");
             db.execute(
-                &format!("INSERT OR REPLACE INTO jobs ({JOB_COLS}) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20,?21,?22,?23,?24,?25,?26,?27,?28,?29,?30)"),
+                &format!("INSERT OR REPLACE INTO jobs ({JOB_COLS}) VALUES ({marks})"),
                 params![
-                    job.id, job.kind, job.agent_id, job.conversation_id, job.prompt, job.workspace,
-                    job.state, job.loop_id, job.trigger_id, job.request_id, job.created_ms as i64,
-                    job.started_ms.map(|v| v as i64), job.finished_ms.map(|v| v as i64),
-                    job.result, job.error, job.log, job.usage.as_ref().map(|u| u.to_string()),
-                    seq, seen, job.failure_reason, job.deadline_min.map(i64::from),
-                    job.deadline_ms.map(|v| v as i64), job.wait_reason,
-                    job.diff_files.as_ref().and_then(|f| serde_json::to_string(f).ok()),
-                    job.additions.map(|v| v as i64), job.deletions.map(|v| v as i64),
-                    i64::from(job.diff_clipped), job.diff_unavailable,
-                    job.spec.as_ref().map(|u| u.to_string()), job.playbook_id
+                    job.id,
+                    job.kind,
+                    job.agent_id,
+                    job.conversation_id,
+                    job.prompt,
+                    job.workspace,
+                    job.state,
+                    job.loop_id,
+                    job.trigger_id,
+                    job.request_id,
+                    job.created_ms as i64,
+                    job.started_ms.map(|v| v as i64),
+                    job.finished_ms.map(|v| v as i64),
+                    job.result,
+                    job.error,
+                    job.log,
+                    job.usage.as_ref().map(|u| u.to_string()),
+                    seq,
+                    seen,
+                    job.failure_reason,
+                    job.deadline_min.map(i64::from),
+                    job.deadline_ms.map(|v| v as i64),
+                    job.wait_reason,
+                    job.diff_files
+                        .as_ref()
+                        .and_then(|f| serde_json::to_string(f).ok()),
+                    job.additions.map(|v| v as i64),
+                    job.deletions.map(|v| v as i64),
+                    i64::from(job.diff_clipped),
+                    job.diff_unavailable,
+                    job.spec.as_ref().map(|u| u.to_string()),
+                    job.playbook_id,
+                    job.isolation.as_str(),
+                    job.base_ref,
+                    job.worktree_path,
+                    job.branch,
+                    job.base_oid,
+                    job.head_oid,
+                    job.proof.as_ref().map(|p| p.to_string()),
+                    job.title,
+                    job.owner,
+                    job.run_mode.as_str(),
+                    job.outcome.as_ref().map(|o| o.to_string()),
+                    job.origin.as_ref().map(|o| o.to_string()),
+                    job.session_id,
+                    job.pid.map(i64::from),
+                    job.pid_start.map(|v| v as i64),
+                    i64::from(job.attempt),
+                    job.auto_resume.map(i64::from),
+                    i64::from(job.side_effects)
                 ],
             )
             .map_err(|_| "JOB_STORAGE_UNAVAILABLE".to_owned())?;
@@ -791,7 +1254,9 @@ impl Jobs {
         // Up to 1000 file entries: the totals travel, the list is read on
         // demand (`llm_job_diff`, `GET /v1/jobs/{id}/diff`).
         light.diff_files = None;
+        light.proof = None;
         let _ = self.app.emit(EVENT_JOB, &light);
+        self.changes.send_modify(|n| *n = n.wrapping_add(1));
         Ok(())
     }
 
@@ -828,6 +1293,7 @@ impl Jobs {
                     // list (see `save_job_checked`).
                     j.log = String::new();
                     j.diff_files = None;
+                    j.proof = None;
                     j
                 })
                 .collect()
@@ -856,6 +1322,14 @@ impl Jobs {
             return Err(format!("{ERR_JOBS}: empty prompt"));
         }
         let id = short_id("j");
+        // A job that continues an existing conversation (a chat turn the app
+        // closed on) keeps that conversation's mode, the chat default when
+        // it never chose one; a fresh job takes the default of its kind.
+        let run_mode = match &conversation_id {
+            Some(conv) => omniget_core::core::llm::run_mode::chosen(&sanitize_id(conv))
+                .unwrap_or(RunMode::AutoEdits),
+            None => RunMode::default_for(kind),
+        };
         Ok(Job {
             conversation_id: conversation_id.unwrap_or_else(|| format!("job-{id}")),
             id,
@@ -865,6 +1339,8 @@ impl Jobs {
             workspace,
             state: "queued".into(),
             created_ms: now_ms(),
+            isolation: Isolation::default_for(kind, agent_id),
+            run_mode,
             ..Default::default()
         })
     }
@@ -969,10 +1445,158 @@ impl Jobs {
         Ok(job)
     }
 
+    /// Starts the job of a `job.start` command (2.5), owned by `owner`. The
+    /// command's fields land on the row; `resume_of` continues that job's
+    /// conversation (and folder, unless another is named); `model` becomes
+    /// the conversation's model on the agent's own provider; `budget_usd`
+    /// guards the turn ([`with_budget`]). `effort` is recorded only.
+    pub fn submit_command(
+        self: &Arc<Self>,
+        s: &crate::job_commands::StartSpec,
+        owner: &str,
+    ) -> Result<Job, String> {
+        self.start_spec(s, Some(owner), RunMode::ApprovalRequired)
+    }
+
+    /// The job of a start spec from the window (3.10: the same path as a
+    /// command, so the folder's workflow applies), with no owner and the
+    /// window's default mode when none was chosen.
+    pub fn submit_window(
+        self: &Arc<Self>,
+        s: &crate::job_commands::StartSpec,
+    ) -> Result<Job, String> {
+        self.start_spec(s, None, RunMode::AutoEdits)
+    }
+
+    fn start_spec(
+        self: &Arc<Self>,
+        s: &crate::job_commands::StartSpec,
+        owner: Option<&str>,
+        default_mode: RunMode,
+    ) -> Result<Job, String> {
+        let earlier = match &s.resume_of {
+            Some(id) => {
+                let e = self
+                    .job(id)
+                    .ok_or_else(|| format!("{ERR_JOBS}: no job {id} to resume"))?;
+                if is_active(&e.state) {
+                    return Err(format!("{ERR_JOBS}: job {id} is still {}", e.state));
+                }
+                Some(e)
+            }
+            None => None,
+        };
+        let workspace = s
+            .workspace
+            .clone()
+            .or_else(|| earlier.as_ref().and_then(|e| e.workspace.clone()));
+        let mut job = self.new_job(
+            "run",
+            &s.agent_id,
+            &s.prompt,
+            workspace,
+            earlier.as_ref().map(|e| e.conversation_id.clone()),
+        )?;
+        job.deadline_min = s.deadline_min.map(|m| m.clamp(1, 24 * 60));
+        if let Some(i) = &s.isolation {
+            job.isolation = Isolation::parse(i)?;
+        }
+        job.base_ref = s
+            .base
+            .as_ref()
+            .map(|b| b.trim().to_string())
+            .filter(|b| !b.is_empty());
+        if job.base_ref.is_some() && job.isolation == Isolation::Shared {
+            return Err(format!(
+                "{ERR_JOBS}: a base ref needs a worktree (isolation worktree or auto)"
+            ));
+        }
+        job.title = s.title.clone();
+        job.owner = owner.map(str::to_string);
+        // The mode asked for (2.7); none = the resumed job's, else a job from
+        // outside asks first (D2).
+        job.run_mode = match s.run_mode.as_deref() {
+            Some(m) => RunMode::parse(m)?,
+            None => earlier.as_ref().map(|e| e.run_mode).unwrap_or(default_mode),
+        };
+        job.auto_resume = s.auto_resume;
+        job.origin = Some(json!({
+            "command_id": s.command_id,
+            "purpose": s.purpose,
+            "model": s.model,
+            "effort": s.effort,
+            "budget_usd": s.budget_usd,
+            "resume_of": s.resume_of,
+            // What `.omniget/workflow.md` filled in and held back (3.10);
+            // its hooks and checks append their runs here.
+            "workflow": s.applied_workflow,
+        }));
+        if let Some(model) = s.model.as_deref() {
+            let agent = self
+                .llm
+                .agent(&s.agent_id)
+                .ok_or_else(|| format!("{ERR_JOBS}: no agent `{}`", s.agent_id))?;
+            let omniget_core::core::llm::agent::ModelPolicy::Fixed { model: current } = agent.model
+            else {
+                return Err(format!(
+                    "{ERR_JOBS}: agent `{}` routes between models; pick one in the app instead of `model`",
+                    s.agent_id
+                ));
+            };
+            self.llm.switch_model(
+                &job.conversation_id,
+                omniget_core::core::llm::types::ModelRef {
+                    provider: current.provider,
+                    model: model.to_string(),
+                },
+            )?;
+        }
+        self.save_job_checked(&job)?;
+        // The US$ budget of the start (the caller's, or the folder's
+        // workflow `budget:`, 3.10) is also a hard policy on `job:<id>`
+        // (3.3): one budget mechanism, priced even when the CLI reports no
+        // cost, with an incident when crossed. The guard below still stops
+        // the turn in flight.
+        if let Some(usd) = s.budget_usd.filter(|b| *b > 0.0) {
+            budget_policy(
+                omniget_core::core::llm::budget::policy::Scope::Job(job.id.clone()),
+                omniget_core::core::llm::budget::policy::Metric::Usd,
+                usd,
+            );
+        }
+        let this = self.clone();
+        let id = job.id.clone();
+        tauri::async_runtime::spawn(async move {
+            this.run_job(&id, None).await;
+        });
+        Ok(job)
+    }
+
+    /// Something saved a job row since `seen` (see [`Self::changes`]).
+    pub fn subscribe(&self) -> tokio::sync::watch::Receiver<u64> {
+        self.changes.subscribe()
+    }
+
     pub fn cancel(&self, id: &str) -> Result<Job, String> {
+        self.cancel_by(id, omniget_core::core::llm::audit::Actor::system("system"))
+    }
+
+    /// [`Self::cancel`] on someone's behalf: the audit line (2.8) says who
+    /// asked and through what, when the job was still alive.
+    pub fn cancel_by(
+        &self,
+        id: &str,
+        actor: omniget_core::core::llm::audit::Actor,
+    ) -> Result<Job, String> {
         let mut job = self
             .job(id)
             .ok_or_else(|| format!("{ERR_JOBS}: no job {id}"))?;
+        if matches!(
+            job.state.as_str(),
+            "queued" | "waiting_workspace" | "running" | "waiting_approval"
+        ) {
+            crate::llm_audit::job_cancelled(actor, &job);
+        }
         // Persist before consulting the token. The runner either sees this
         // cancelled row on its re-read or has already registered its token
         // (a job waiting at the gate has one: the cancel wakes the wait).
@@ -998,9 +1622,39 @@ impl Jobs {
 
     pub fn delete(&self, id: &str) -> Result<(), String> {
         let _ = self.cancel(id);
+        // The worktree goes too, its work saved on the branch first (2.3),
+        // unless a follow-up job (3.5) still works in it.
+        let shared_worktree = |j: &Job| -> bool {
+            self.db()
+                .query_row(
+                    "SELECT COUNT(*) FROM jobs WHERE branch=?1 AND id<>?2",
+                    params![j.branch, j.id],
+                    |r| r.get::<_, i64>(0),
+                )
+                .unwrap_or(0)
+                > 0
+        };
+        if let Some(job) = self
+            .job(id)
+            .filter(|j| j.worktree_path.is_some() && !shared_worktree(j))
+        {
+            tauri::async_runtime::spawn(async move {
+                match remove_job_worktree(&job).await {
+                    Ok(out) => tracing::info!("[jobs] {}: {}", job.id, removal_note(&out).trim()),
+                    Err(e) => tracing::warn!("[jobs] {}: worktree kept: {e}", job.id),
+                }
+            });
+        }
+        forget_budget_policies(&omniget_core::core::llm::budget::policy::Scope::Job(
+            id.to_string(),
+        ));
         self.db()
             .execute("DELETE FROM jobs WHERE id=?1", params![id])
             .map_err(|e| e.to_string())?;
+        let _ = self
+            .db()
+            .execute("DELETE FROM job_notes WHERE job_id=?1", params![id]);
+        changes::forget(&self.db(), id);
         if let Some(path) = patch_path(id) {
             let _ = std::fs::remove_file(path);
         }
@@ -1014,34 +1668,62 @@ impl Jobs {
     /// job's own.
     fn diff_folder(&self, job: &Job) -> Option<std::path::PathBuf> {
         code_tools::workspace_of(&sanitize_id(&job.conversation_id)).or_else(|| {
-            job.workspace
-                .as_deref()
-                .filter(|w| !w.trim().is_empty())
-                .map(|w| std::fs::canonicalize(w).unwrap_or_else(|_| w.into()))
+            effective_workspace(job).map(|w| std::fs::canonicalize(&w).unwrap_or_else(|_| w.into()))
         })
     }
 
-    /// Fills the job's diff fields; returns the patch when there is one.
-    async fn compute_diff(&self, job: &mut Job, requests: &[String]) -> Option<String> {
-        let out = match self.diff_folder(job) {
-            Some(ws) => {
-                omniget_core::core::llm::snapshot::job_diff(
-                    &ws,
-                    &sanitize_id(&job.conversation_id),
-                    requests,
-                )
-                .await
+    /// Fills the job's diff fields; returns the patch when there is one,
+    /// and the two ends compared (for the proof). A job in a worktree is
+    /// diffed `merge-base(base_oid, HEAD)..worktree` (2.4); any other from
+    /// its shadow snapshots (1.7).
+    async fn compute_diff(
+        &self,
+        job: &mut Job,
+        requests: &[String],
+    ) -> (Option<String>, Option<(String, String)>) {
+        use omniget_core::core::llm::snapshot;
+        let out = match (job.worktree_path.is_some(), job.base_oid.clone()) {
+            (true, Some(base)) => match worktree_root(job).await {
+                Some((_, root)) => snapshot::worktree_diff(&root, &base).await,
+                None => Err(format!(
+                    "{}: the job's repository is gone",
+                    snapshot::ERR_DIFF_UNAVAILABLE
+                )),
+            },
+            _ => {
+                let folder = self.diff_folder(job);
+                let out = match &folder {
+                    Some(ws) => {
+                        snapshot::job_diff(ws, &sanitize_id(&job.conversation_id), requests).await
+                    }
+                    None => Err(format!("{NO_WORKSPACE}: the job ran without a folder")),
+                };
+                // No snapshot to diff: the baselines the stream gave (3.4).
+                match out {
+                    Err(e) => {
+                        let rows = self.changes(&job.id);
+                        if rows.is_empty() {
+                            Err(e)
+                        } else {
+                            Ok(changes::diff_from_baselines(folder.as_deref(), &rows))
+                        }
+                    }
+                    ok => ok,
+                }
             }
-            None => Err(format!("{NO_WORKSPACE}: the job ran without a folder")),
         };
-        apply_diff(job, out)
+        let ends = out
+            .as_ref()
+            .ok()
+            .and_then(|d| Some((d.base.clone()?, d.tip.clone()?)));
+        (apply_diff(job, out), ends)
     }
 
     /// [`Self::compute_diff`] and the patch file next to `jobs.db`.
-    async fn record_diff(&self, job: &mut Job, requests: &[String]) {
-        let patch = self.compute_diff(job, requests).await;
+    async fn record_diff(&self, job: &mut Job, requests: &[String]) -> Option<(String, String)> {
+        let (patch, ends) = self.compute_diff(job, requests).await;
         let Some(path) = patch_path(&job.id) else {
-            return;
+            return ends;
         };
         match patch.filter(|p| !p.is_empty()) {
             Some(text) => {
@@ -1056,18 +1738,20 @@ impl Jobs {
                 let _ = std::fs::remove_file(&path);
             }
         }
+        ends
     }
 
     fn store_diff_columns(&self, job: &Job) {
         let _ = self.db().execute(
-            "UPDATE jobs SET diff_files=?2, additions=?3, deletions=?4, diff_clipped=?5, diff_unavailable=?6 WHERE id=?1",
+            "UPDATE jobs SET diff_files=?2, additions=?3, deletions=?4, diff_clipped=?5, diff_unavailable=?6, head_oid=?7 WHERE id=?1",
             params![
                 job.id,
                 job.diff_files.as_ref().and_then(|f| serde_json::to_string(f).ok()),
                 job.additions.map(|v| v as i64),
                 job.deletions.map(|v| v as i64),
                 i64::from(job.diff_clipped),
-                job.diff_unavailable
+                job.diff_unavailable,
+                job.head_oid
             ],
         );
     }
@@ -1086,7 +1770,7 @@ impl Jobs {
         );
         let requests: Vec<String> = job.request_id.clone().into_iter().collect();
         if active {
-            let patch = self.compute_diff(&mut job, &requests).await;
+            let (patch, _) = self.compute_diff(&mut job, &requests).await;
             return Ok((job, patch, false));
         }
         if job.diff_files.is_none() && job.diff_unavailable.is_none() {
@@ -1179,9 +1863,27 @@ impl Jobs {
             .unwrap_or_else(|e| e.into_inner())
             .insert(id.to_string(), cancel.clone());
         let _unregister = Unregister { jobs: self, id };
+        // Where the job writes (2.3): its folder, or a worktree of its own
+        // (asked, or `auto` with the folder busy). Only a folder in a git
+        // repository with a commit can have one.
+        let repo = match queued
+            .workspace
+            .as_deref()
+            .filter(|w| !w.trim().is_empty() && queued.worktree_path.is_none())
+        {
+            Some(ws) if queued.isolation != Isolation::Shared => {
+                omniget_core::core::vcs::job_worktree::repo_root(std::path::Path::new(ws)).await
+            }
+            _ => None,
+        };
+        let place = match placement(&queued, repo) {
+            Ok(p) => p,
+            Err(e) => return self.fail_before_start(id, e),
+        };
         // One gate for a slot, the agent's share and the folder (1.5, 1.6):
         // the same for native, CLI and ACP agents, since it holds the job,
-        // not a tool. Chat turns never come here.
+        // not a tool. Chat turns never come here. A job going to a worktree
+        // takes no folder lock: nobody else writes there.
         let ticket = omniget_core::core::llm::job_gate::Ticket {
             job_id: id.to_string(),
             agent_id: queued.agent_id.clone(),
@@ -1190,12 +1892,16 @@ impl Jobs {
             } else {
                 omniget_core::core::llm::job_gate::Class::Manual
             },
-            folder: self.folder_of(&queued),
+            folder: if place.force {
+                None
+            } else {
+                self.folder_of(&queued)
+            },
         };
-        let lease = tokio::select! {
+        let (lease, isolated) = tokio::select! {
             biased;
             _ = cancel.cancelled() => return self.job(id),
-            lease = self.gate.acquire(ticket) => lease,
+            placed = self.gate.acquire_placed(ticket, place.if_busy) => placed,
         };
         // The slot is this job's; the spawn waits its turn (500 ms apart).
         if !lease.delay.is_zero() {
@@ -1213,8 +1919,15 @@ impl Jobs {
             return Some(job);
         }
         job.wait_reason = None;
+        if let Err(e) = self.enter_worktree(&mut job, &place, isolated).await {
+            job.state = "failed".into();
+            job.error = Some(e);
+            job.finished_ms = Some(now_ms());
+            self.save_job_checked(&job).ok()?;
+            return Some(job);
+        }
         let conv = sanitize_id(&job.conversation_id);
-        if let Some(ws) = job.workspace.clone().filter(|w| !w.is_empty()) {
+        if let Some(ws) = effective_workspace(&job) {
             if let Err(e) = code_tools::set_conversation_workspace(&conv, Some(ws.into())) {
                 job.state = "failed".into();
                 job.error = Some(e);
@@ -1236,8 +1949,21 @@ impl Jobs {
                 .remove(&job.id);
             return self.job(id);
         }
+        // A scope paused by a budget incident starts nothing (3.3): the job
+        // fails before its turn, and says which incident holds it.
+        if let Some(block) = self.budget_block(&job) {
+            job.state = "failed".into();
+            job.failure_reason = Some("budget".into());
+            job.error = Some(format!("{}: {}", block.error().code, block.message));
+            job.finished_ms = Some(now_ms());
+            self.save_job_checked(&job).ok()?;
+            return Some(job);
+        }
         job.state = "running".into();
         job.started_ms = Some(now_ms());
+        // The process of an earlier attempt is not this one (3.1).
+        job.pid = None;
+        job.pid_start = None;
         // A mission brings its own guard; every other background job gets the
         // default deadline (D4: a stuck run, Loop round or trigger can no
         // longer hold a slot until the app closes).
@@ -1259,6 +1985,11 @@ impl Jobs {
                     },
                 )
             });
+        // A budget from `job.start` (2.5) rides on whatever guard the job has.
+        let guard = with_budget(
+            guard,
+            job.origin.as_ref().and_then(|o| o["budget_usd"].as_f64()),
+        );
         job.deadline_ms = guard.as_ref().and_then(|g| g.deadline_ms);
         if self.save_job_checked(&job).is_err() {
             cancel.cancel();
@@ -1272,6 +2003,22 @@ impl Jobs {
         if job.agent_id.starts_with(TOOL_PREFIX) {
             return Some(self.run_tool_job(job, input).await);
         }
+        // The agent ends with its own verdict (2.6); the host still decides
+        // the state from what it saw.
+        let input = if asks_outcome(&job.kind) {
+            format!("{input}{OUTCOME_SUFFIX}")
+        } else {
+            input
+        };
+        // Held to the end of the job: however this returns, the token is
+        // revoked and leaves the conversation's env (2.1).
+        let _job_token = self.job_token_lease(&job, &conv);
+        // The turns of this job run in its run mode (2.7), whatever the
+        // conversation had chosen; the binding goes with the job.
+        let _run_mode = omniget_core::core::llm::run_mode::Binding::new(&conv, job.run_mode);
+        // Its turns count against `job:<id>` (and its Loop's) budgets (3.3).
+        let _budget_scope =
+            omniget_core::core::llm::budget::policy::Binding::new(&conv, work_scopes(&job));
         let (request_id, cancel, mut stream) = match self
             .llm
             .turn_stream_with_cancel(&conv, &job.agent_id, &input, cancel.clone())
@@ -1347,16 +2094,37 @@ impl Jobs {
                 )
             };
         let mut tick = tokio::time::interval(std::time::Duration::from_secs(1));
+        let mut first_event = true;
+        // A Loop round keeps what its tools did, for the auditor (3.7).
+        let mut evidence = job
+            .loop_id
+            .is_some()
+            .then(omniget_core::core::llm::goal_audit::Evidence::default);
         loop {
             tokio::select! {
                 event = stream.next() => {
                     let Some(event) = event else { break };
                     self.touch(&job.id);
+                    // The session and the process go on the row at the
+                    // first event, not at the end (3.1).
+                    if first_event {
+                        first_event = false;
+                        if self.capture_process(&mut job, &request_id, &conv) && self.save_job_checked(&job).is_err() {
+                            storage_failed = true;
+                            cancel.cancel();
+                        }
+                    }
                     self.llm.note_event(&job.agent_id, &event);
+                    if let Some(e) = evidence.as_mut() {
+                        e.feed(&event);
+                    }
                     match event {
                         TurnEvent::Finished { .. } => saw_finished = true,
                         TurnEvent::TextDelta { text: t } => text.push_str(&t),
                         TurnEvent::ToolCallStart { name, .. } => {
+                            if tool_may_write(&name) {
+                                job.side_effects = true;
+                            }
                             job.log.push_str(&format!("→ {name}\n"));
                             job.log = clip(&job.log, LOG_MAX);
                             if self.save_job_checked(&job).is_err() { storage_failed = true; cancel.cancel(); }
@@ -1418,6 +2186,12 @@ impl Jobs {
                     if self.save_job_checked(&job).is_err() { storage_failed = true; cancel.cancel(); }
                 }
                 _ = tick.tick() => {
+                    // A session named after the first event (the CLI's init
+                    // line comes a moment after the spawn) still lands.
+                    if self.capture_process(&mut job, &request_id, &conv) && self.save_job_checked(&job).is_err() {
+                        storage_failed = true;
+                        cancel.cancel();
+                    }
                     if let (Some(deadline), None) = (guard.as_ref().and_then(|g| g.deadline_ms), &limit_hit) {
                         if now_ms() > deadline {
                             let why = guard.as_ref().map(|g| g.deadline_reason.clone()).filter(|r| !r.is_empty()).unwrap_or_else(|| "the time limit was reached".into());
@@ -1440,6 +2214,12 @@ impl Jobs {
             }
         }
         self.llm.finish_turn(&request_id, &job.agent_id);
+        if let Some(e) = evidence.filter(|e| !e.is_empty()) {
+            self.round_evidence
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .insert(job.id.clone(), e.render());
+        }
         self.cancels
             .lock()
             .unwrap_or_else(|e| e.into_inner())
@@ -1457,6 +2237,9 @@ impl Jobs {
             cancel.cancel();
             return None;
         }
+        // The turn's process is over (3.1).
+        job.pid = None;
+        job.pid_start = None;
         job.state = if limit_hit.is_some() {
             "failed"
         } else if cancel.is_cancelled() {
@@ -1469,6 +2252,9 @@ impl Jobs {
         .into();
         job.result = Some(clip(&text, RESULT_MAX));
         job.error = limit_hit.or(error);
+        if asks_outcome(&job.kind) {
+            job.outcome = parse_outcome(&text);
+        }
         // What the job changed, from the snapshots its turns took: host-side
         // post-processing, not a token more (1.7). The Coordinator records
         // the tree after the turn before the stream says `Finished`.
@@ -1476,7 +2262,15 @@ impl Jobs {
             .into_iter()
             .chain(std::iter::once(request_id.clone()))
             .collect();
-        self.record_diff(&mut job, &requests).await;
+        // In a worktree the job's work becomes a commit on its branch, so
+        // `head_oid` names the result (2.4); the diff still counts anything
+        // left uncommitted, through a private index.
+        self.commit_worktree(&mut job).await;
+        let ends = self.record_diff(&mut job, &requests).await;
+        // A job that wrote waits for a person: `review`, not `done` (2.4).
+        job.state = settle_state(&job.state, job.diff_files.as_deref()).into();
+        // A run that ended without its `OUTCOME:` line says so (2.6).
+        job.state = settle_outcome(&job.kind, &job.state, job.outcome.is_some()).into();
         job.failure_reason = (job.state == "failed")
             .then(|| {
                 limit_kind
@@ -1484,13 +2278,66 @@ impl Jobs {
                     .map(String::from)
             })
             .flatten();
+        // Cancelled by a budget crossing (`cancel_scope`): the mark stays.
+        if job.state == "cancelled"
+            && self
+                .job(&job.id)
+                .is_some_and(|row| row.failure_reason.as_deref() == Some("budget"))
+        {
+            job.failure_reason = Some("budget".into());
+        }
         job.finished_ms = Some(now_ms());
+        job.proof = Some(build_proof(
+            &job,
+            ends.as_ref(),
+            &omniget_core::core::vcs::job_worktree::host_label(),
+        ));
+        // The repository's checks from its workflow (3.10), when trusted:
+        // each exit code lands in the proof.
+        crate::job_workflow::run_checks(crate::job_workflow::store().as_deref(), &mut job).await;
+        // A worktree the job did not change has nothing to review: it goes
+        // now, with its branch (2.3).
+        if job.worktree_path.is_some()
+            && job.diff_unavailable.is_none()
+            && job.diff_files.as_ref().is_some_and(|f| f.is_empty())
+        {
+            match remove_job_worktree(&job).await {
+                Ok(out) => {
+                    job.log.push_str(&removal_note(&out));
+                    job.worktree_path = None;
+                }
+                Err(e) => job.log.push_str(&format!("! worktree kept: {e}\n")),
+            }
+        }
         self.save_job_checked(&job).ok()?;
+        // How it ended (2.8); a cancel already has its line, with who asked.
+        // A run the watchdog stopped ends here too, even when it goes
+        // again by itself below (that start gets its own line, 3.1).
+        if job.state != "cancelled" {
+            crate::llm_audit::job_ended(&job);
+        }
+        // Stopped by the watchdog: the host's problem, not the agent's. When
+        // asked, and when it is safe (3.1), the job goes again by itself.
+        if let Some(reason) = job
+            .failure_reason
+            .as_deref()
+            .and_then(FailureReason::parse)
+            .filter(|r| r.is_infrastructure())
+        {
+            if job.loop_id.is_none() && self.auto_resume(&mut job, reason, None) {
+                return Some(job);
+            }
+        }
         if let Some(tid) = job.trigger_id.clone() {
             // Routines keep their own rule (only a changed result, muted).
             self.notify_routine(&tid, &job);
-        } else if job.kind == "run" && matches!(job.state.as_str(), "done" | "failed") {
-            let ok = job.state == "done";
+        } else if job.kind == "run"
+            && matches!(
+                job.state.as_str(),
+                "done" | "review" | "done_unreported" | "failed"
+            )
+        {
+            let ok = job.state != "failed";
             let detail = if ok {
                 job.result.clone().unwrap_or_default()
             } else {
@@ -1500,6 +2347,220 @@ impl Jobs {
             self.attention.job_ended(&self.target_of(&job), ok, first);
         }
         Some(job)
+    }
+
+    /// Commits what the job left in its worktree onto its branch (2.4), as
+    /// OmniGet through a private index: no hook of the repository runs and
+    /// nothing is signed. A failure leaves the work uncommitted in the
+    /// worktree (the diff still counts it) and says so in the log.
+    async fn commit_worktree(&self, job: &mut Job) {
+        use omniget_core::core::vcs::job_worktree;
+        if job.worktree_path.is_none() {
+            return;
+        }
+        let Some((_, root)) = worktree_root(job).await else {
+            return;
+        };
+        // The task as asked, not the workflow's template around it (3.10).
+        let task = job
+            .origin
+            .as_ref()
+            .and_then(|o| o["workflow"]["task"].as_str())
+            .unwrap_or(&job.prompt)
+            .to_string();
+        let first: String = task
+            .lines()
+            .find(|l| !l.trim().is_empty())
+            .unwrap_or("")
+            .chars()
+            .take(72)
+            .collect();
+        match job_worktree::save_work(&root, &format!("omniget job {}: {first}", job.id)).await {
+            Ok(Some(commit)) => job.log.push_str(&format!(
+                "⎇ the job's work is commit {} on {}\n",
+                commit.chars().take(7).collect::<String>(),
+                job.branch.as_deref().unwrap_or("its branch")
+            )),
+            Ok(None) => {}
+            Err(e) => job.log.push_str(&format!(
+                "! the job's work stays uncommitted in its worktree: {e}\n"
+            )),
+        }
+    }
+
+    /// Adds a check that ran after the job (a Loop's `check_command`) to its
+    /// proof, with the exit code.
+    fn attach_check(&self, job_id: &str, command: &str, ok: bool, out: &str) {
+        let Some(mut job) = self.job(job_id) else {
+            return;
+        };
+        push_check(job.proof.get_or_insert_with(|| json!({})), command, ok, out);
+        self.save_job(&job);
+    }
+
+    /// Ends a job that cannot start as asked (before the gate).
+    fn fail_before_start(&self, id: &str, error: String) -> Option<Job> {
+        let mut job = self.job(id)?;
+        job.state = "failed".into();
+        job.error = Some(error);
+        job.finished_ms = Some(now_ms());
+        self.save_job_checked(&job).ok()?;
+        crate::llm_audit::job_ended(&job);
+        Some(job)
+    }
+
+    /// Puts the job in its worktree when it goes to one (2.3): made now
+    /// (with the user's uncommitted work carried in, or from `base_ref`), or
+    /// recreated from the job's branch when a resumed job finds it gone.
+    async fn enter_worktree(
+        &self,
+        job: &mut Job,
+        place: &Placement,
+        isolated: bool,
+    ) -> Result<(), String> {
+        use omniget_core::core::vcs::job_worktree;
+        if let (Some(_), Some(branch)) = (job.worktree_path.clone(), job.branch.clone()) {
+            let (repo, root) = self
+                .worktree_root(job)
+                .await
+                .ok_or_else(|| format!("{ERR_WORKTREE}: the job's repository is gone"))?;
+            let recreated = job_worktree::ensure(&repo, &root, &branch)
+                .await
+                .map_err(|e| format!("{ERR_WORKTREE}: {e}"))?;
+            if recreated {
+                job.log
+                    .push_str(&format!("⎇ worktree recreated from {branch}\n"));
+                // A fresh checkout again: the workflow's hook runs again (3.10).
+                crate::job_workflow::after_create(
+                    crate::job_workflow::store().as_deref(),
+                    job,
+                    &repo,
+                    &root,
+                )
+                .await?;
+            }
+            return Ok(());
+        }
+        if !(place.force || isolated) {
+            return Ok(());
+        }
+        let repo = place
+            .repo
+            .clone()
+            .ok_or_else(|| format!("{ERR_WORKTREE}: no git repository for this job"))?;
+        let wt = job_worktree::create(&repo, &job.id, job.base_ref.as_deref())
+            .await
+            .map_err(|e| format!("{ERR_WORKTREE}: {e}"))?;
+        if isolated {
+            job.log
+                .push_str("⎇ another job is writing in this folder: this one runs in a worktree\n");
+        }
+        job.log.push_str(&worktree_note(&wt));
+        // A job given a subfolder of the repository works in the same
+        // subfolder of its worktree.
+        let sub = job
+            .workspace
+            .as_deref()
+            .and_then(|w| std::fs::canonicalize(w).ok())
+            .zip(std::fs::canonicalize(&repo).ok())
+            .and_then(|(w, r)| w.strip_prefix(&r).ok().map(std::path::Path::to_path_buf))
+            .unwrap_or_default();
+        job.worktree_path = Some(wt.path.join(sub).to_string_lossy().into_owned());
+        job.branch = Some(wt.branch);
+        job.base_oid = Some(wt.base_oid);
+        self.save_job_checked(job)?;
+        // The repository's `after_create` hook, only when its workflow is
+        // trusted (3.10; the hooks 2.3 deferred). A failure fails the job;
+        // the worktree stays until it is removed like any other.
+        let hooked = crate::job_workflow::after_create(
+            crate::job_workflow::store().as_deref(),
+            job,
+            &repo,
+            &wt.path,
+        )
+        .await;
+        self.save_job_checked(job)?;
+        hooked
+    }
+
+    /// Removes the job's worktree (2.3), never losing work: what is not
+    /// committed is saved on its branch first, and a branch holding work is
+    /// kept and named in the job's log. Refused while the job runs.
+    pub async fn remove_worktree(
+        &self,
+        id: &str,
+    ) -> Result<omniget_core::core::vcs::job_worktree::RemoveOutcome, String> {
+        let mut job = self
+            .job(id)
+            .ok_or_else(|| format!("{ERR_JOBS}: no job {id}"))?;
+        if is_active(&job.state) {
+            return Err(format!(
+                "{ERR_JOBS}: job {id} is {}; cancel it before removing its worktree",
+                job.state
+            ));
+        }
+        if job.worktree_path.is_none() {
+            return Err(format!("{ERR_WORKTREE}: job {id} has no worktree"));
+        }
+        let out = remove_job_worktree(&job).await?;
+        job.log.push_str(&removal_note(&out));
+        job.log = clip(&job.log, LOG_MAX);
+        job.worktree_path = None;
+        self.save_job_checked(&job)?;
+        Ok(out)
+    }
+
+    /// Removes the worktrees nobody needs any more (2.3): an orphan (its job
+    /// row is gone) and one of a job that ended more than
+    /// [`WORKTREE_TTL_MS`] ago. Work is saved on the branch first, as in
+    /// every removal. On boot the trash left by a crash is emptied too.
+    async fn gc_worktrees(self: Arc<Self>, boot: bool) {
+        use omniget_core::core::vcs::job_worktree;
+        if boot {
+            job_worktree::empty_trash();
+        }
+        let now = now_ms();
+        let live = self.live_folders("");
+        for (id, path) in job_worktree::list_job_worktrees() {
+            // A follow-up job (3.5) may be working in a finished job's worktree.
+            if omniget_core::core::llm::snapshot::shared_with(&path, &live).is_some() {
+                continue;
+            }
+            let job = self.job(&id);
+            let Some(why) = worktree_gc_verdict(job.as_ref(), now) else {
+                continue;
+            };
+            let result = match job {
+                Some(j) if j.worktree_path.is_some() => self.remove_worktree(&j.id).await,
+                _ => {
+                    // Only a folder on the job's own branch is taken for it.
+                    let branch = job_worktree::branch_of(&id);
+                    if job_worktree::branch_at(&path).await.as_deref() != Some(branch.as_str()) {
+                        continue;
+                    }
+                    match job_worktree::main_repo_of(&path).await {
+                        Some(repo) => job_worktree::remove(&repo, &path, &branch, None)
+                            .await
+                            .map_err(|e| e.to_string()),
+                        None => continue,
+                    }
+                }
+            };
+            match result {
+                Ok(out) => tracing::info!(
+                    "[jobs] worktree gc ({why}) {}: {}",
+                    path.display(),
+                    removal_note(&out).trim()
+                ),
+                Err(e) => tracing::warn!("[jobs] worktree gc ({why}) {}: {e}", path.display()),
+            }
+        }
+    }
+
+    /// The repository of a job's worktree and the worktree's root folder
+    /// (`worktree_path` may be a subfolder of it).
+    async fn worktree_root(&self, job: &Job) -> Option<(std::path::PathBuf, std::path::PathBuf)> {
+        worktree_root(job).await
     }
 
     /// Marks that the turn of a running job was just heard from.
@@ -1579,6 +2640,19 @@ impl Jobs {
     /// its row), or the row of a chat turn directly.
     fn handle_bus(&self, event: &omniget_core::core::omni::bus::BusEvent) {
         use omniget_core::core::omni::bus::BusEvent;
+        if let BusEvent::BudgetCrossed {
+            scope,
+            kind,
+            incident,
+            request,
+            ..
+        } = event
+        {
+            if kind == "hard" {
+                self.cancel_scope(scope, incident.as_deref(), request);
+            }
+            return;
+        }
         let (request_id, signal) = match event {
             BusEvent::ToolAsk {
                 request_id,
@@ -1683,6 +2757,19 @@ impl Jobs {
         job_ask_timeout(now_ms(), deadline, ask_job)
     }
 
+    /// The job whose turn is `request_id` (the run id of its asks, 2.2).
+    pub fn job_of_request(&self, request_id: &str) -> Option<String> {
+        self.db()
+            .query_row(
+                "SELECT id FROM jobs WHERE request_id=?1 ORDER BY created_ms DESC LIMIT 1",
+                params![request_id],
+                |r| r.get::<_, String>(0),
+            )
+            .optional()
+            .ok()
+            .flatten()
+    }
+
     /// `GET /v1/jobs/{id}/explain` and `omniget agent explain`.
     pub fn explain(&self, id: &str) -> Option<Value> {
         let job = self.job(id)?;
@@ -1728,9 +2815,7 @@ impl Jobs {
     /// is already bound to. `None` = a personal job (the agent's private
     /// sandbox, no project tools), which takes no folder lock.
     fn folder_of(&self, job: &Job) -> Option<omniget_core::core::llm::folder_key::FolderKey> {
-        job.workspace
-            .as_deref()
-            .filter(|w| !w.trim().is_empty())
+        effective_workspace(job)
             .map(std::path::PathBuf::from)
             .or_else(|| code_tools::workspace_of(&sanitize_id(&job.conversation_id)))
             .map(|p| omniget_core::core::llm::folder_key::FolderKey::of(&p))
@@ -1774,7 +2859,20 @@ impl Jobs {
 
     /// `GET /v1/state`, `llm_jobs_state`, `omniget agent status`.
     pub fn state_view(&self) -> Value {
-        state_view(&self.gate.snapshot(), &|id| self.job(id))
+        let mut v = state_view(&self.gate.snapshot(), &|id| self.job(id));
+        // Whether the app is running with no window (3.2): the CLI and the
+        // daemon benchmark read it; `pid` stays on the local bridge.
+        let visible = self
+            .app
+            .get_webview_window("main")
+            .and_then(|w| w.is_visible().ok())
+            .unwrap_or(false);
+        v["app"] = json!({
+            "pid": std::process::id(),
+            "window_visible": visible,
+            "run_in_background": crate::storage::config::load_settings(&self.app).run_in_background,
+        });
+        v
     }
 
     /// New caps from the settings, applied to running jobs at once (no
@@ -1798,7 +2896,7 @@ impl Jobs {
         let rows: Vec<(String, Option<String>)> = {
             let db = self.db();
             let Ok(mut stmt) = db.prepare(
-                "SELECT conversation_id, workspace FROM jobs WHERE state IN ('running','waiting_approval')",
+                "SELECT conversation_id, COALESCE(worktree_path, workspace) FROM jobs WHERE state IN ('running','waiting_approval')",
             ) else {
                 return Vec::new();
             };
@@ -1835,7 +2933,7 @@ impl Jobs {
             return;
         };
         let body = match job.state.as_str() {
-            "done" => job.result.clone().unwrap_or_default(),
+            "done" | "review" => job.result.clone().unwrap_or_default(),
             "cancelled" => return,
             _ => format!("error: {}", job.error.clone().unwrap_or_default()),
         };
@@ -1933,11 +3031,41 @@ impl Jobs {
         }
         def.rounds_done = 0;
         def.spent_usd = 0.0;
+        def.restarted = false;
+        def.auto_restarts = 0;
+        def.tokens_used = 0;
+        def.audit_usd = 0.0;
+        def.blocked_streak = 0;
+        def.audit_fail_streak = 0;
+        def.disagree_streak = 0;
+        def.note = None;
+        def.audits.clear();
+        def.rounds_guided = 0;
         def.active_ms = 0;
         def.next_round_ms = None;
         def.created_ms = now_ms();
         def.finished_ms = None;
+        def.spent_tokens = 0;
+        def.spent_usd_estimated = 0.0;
+        def.unpriced_rounds = 0;
         self.save_loop(&def);
+        // A cost ceiling (3.3) and a token budget (3.7) are hard budget
+        // policies on the loop: one mechanism, so crossing either pauses the
+        // loop with an incident ("raise and resume"), and the audits count
+        // too (they are bound to the loop's scope).
+        {
+            use omniget_core::core::llm::budget::policy::{Metric, Scope};
+            if let Some(max) = def.max_cost_usd.filter(|m| *m > 0.0) {
+                budget_policy(Scope::Loop(def.id.clone()), Metric::Usd, max);
+            }
+            if let Some(tokens) = def.token_budget.filter(|t| *t > 0) {
+                budget_policy(
+                    Scope::Loop(def.id.clone()),
+                    Metric::WeightedTokens,
+                    tokens as f64,
+                );
+            }
+        }
         let this = self.clone();
         let id = def.id.clone();
         tauri::async_runtime::spawn(async move { this.run_loop(id).await });
@@ -1948,7 +3076,7 @@ impl Jobs {
         let mut l = self
             .loop_get(id)
             .ok_or_else(|| format!("{ERR_JOBS}: no loop {id}"))?;
-        if l.state == "running" {
+        if l.state == "running" || l.state == "paused" {
             l.state = "cancelled".into();
             l.stop_reason = Some("cancelled".into());
             l.finished_ms = Some(now_ms());
@@ -1982,6 +3110,10 @@ impl Jobs {
 
     pub fn loop_delete(&self, id: &str) -> Result<(), String> {
         let _ = self.loop_cancel(id);
+        // Its budget policies go with it (3.3): nothing else can cross them.
+        forget_budget_policies(&omniget_core::core::llm::budget::policy::Scope::Loop(
+            id.to_string(),
+        ));
         self.db()
             .execute("DELETE FROM loops WHERE id=?1", params![id])
             .map_err(|e| e.to_string())?;
@@ -2039,6 +3171,19 @@ impl Jobs {
                 Some(ws.into()),
             );
         }
+        // No check command and an agent to ask: an independent auditor
+        // decides when the work is done (84#P1), never the agent's own "DONE".
+        let audited = !l.agent_id.starts_with(TOOL_PREFIX)
+            && l.check_command
+                .as_deref()
+                .is_none_or(|c| c.trim().is_empty());
+        let max_rounds = omniget_core::core::llm::goal_audit::effective_max(l.max_rounds, audited);
+        let mut streaks = omniget_core::core::llm::goal_audit::Streaks {
+            blocked: l.blocked_streak,
+            failed: l.audit_fail_streak,
+            disagree: l.disagree_streak,
+        };
+        let mut last_audit = loop_audit::last_audit(&l);
         // Already green? Then there is nothing to do.
         if l.rounds_done == 0 {
             if let Some((true, out)) = self.run_check(&l).await {
@@ -2056,8 +3201,22 @@ impl Jobs {
                 Some(cur) if cur.state == "running" => {}
                 _ => return,
             }
-            if l.max_rounds.map(|m| l.rounds_done >= m).unwrap_or(false) {
+            if max_rounds.map(|m| l.rounds_done >= m).unwrap_or(false) {
                 l.stop_reason = Some("max_rounds".into());
+                // The auditor never said `complete`: not done, needs a person.
+                if audited {
+                    l.state = "blocked".into();
+                }
+                break;
+            }
+            // With the budget engine the token budget is a policy of the loop
+            // (paused with an incident, above in `loop_create`); this count is
+            // the fallback when no engine runs (3.7's `budget_limited`).
+            if l.token_budget.is_some_and(|b| l.tokens_used >= b)
+                && omniget_core::core::llm::budget::policy::active().is_none()
+            {
+                l.state = "budget_limited".into();
+                l.stop_reason = Some(omniget_core::core::llm::goal_audit::STOP_TOKEN_BUDGET.into());
                 break;
             }
             if deadline.map(|d| now_ms() >= d).unwrap_or(false) {
@@ -2071,6 +3230,17 @@ impl Jobs {
             {
                 l.stop_reason = Some("max_minutes".into());
                 break;
+            }
+            // A budget incident on any scope of the loop pauses it (3.3):
+            // no round starts until someone raises the ceiling.
+            if let Some(block) = self.loop_budget_block(&l) {
+                l.state = "paused".into();
+                l.stop_reason = Some(format!(
+                    "budget:{}",
+                    block.incident.clone().unwrap_or_default()
+                ));
+                self.save_loop(&l);
+                return;
             }
             if l.max_cost_usd.map(|m| l.spent_usd >= m).unwrap_or(false) {
                 l.stop_reason = Some("max_cost".into());
@@ -2094,16 +3264,30 @@ impl Jobs {
                 }
             }
             let round = l.rounds_done + 1;
-            let prompt = if round == 1 {
-                match &l.check_command {
-                    Some(c) if !c.trim().is_empty() => format!("{}\n\nYou are done when this command exits 0: `{c}`. Run it yourself before you stop.", l.prompt),
-                    _ => l.prompt.clone(),
-                }
+            // Round 2+ on a runtime that resumes its session: the task is in
+            // the conversation already, only the guide goes (83#P7).
+            let resumed = round > 1 && self.loop_resumable(&l);
+            let (prompt, guided) = omniget_core::core::llm::goal_audit::round_prompt(
+                &omniget_core::core::llm::goal_audit::Round {
+                    round,
+                    max: max_rounds,
+                    prompt: &l.prompt,
+                    check_command: l.check_command.as_deref(),
+                    last_check: l.last_check.as_deref(),
+                    last_audit: last_audit.as_ref(),
+                    audited,
+                    resumed,
+                },
+            );
+            if guided {
+                l.rounds_guided += 1;
+            }
+            // Restarted by the host (3.1): the round in flight was stopped
+            // and its result is unknown.
+            let prompt = if l.restarted {
+                format!("This Loop was interrupted (the app restarted or the agent went silent) and the round in flight was stopped. Check what is already done before changing anything, and do not repeat an action that already happened.\n\n{prompt}")
             } else {
-                match &l.last_check {
-                    Some(out) => format!("Round {round}. The check still fails:\n```\n{out}\n```\nKeep working on the task: {}", l.prompt),
-                    None => format!("Round {round}. Continue the task; say DONE on a line of its own when nothing is left. Task: {}", l.prompt),
-                }
+                prompt
             };
             let mut job = match self.new_job(
                 "loop",
@@ -2120,11 +3304,22 @@ impl Jobs {
                 }
             };
             job.loop_id = Some(l.id.clone());
+            job.run_mode = l.run_mode.unwrap_or_default();
             job.deadline_min = l.deadline_min;
             job.spec = l.spec.clone();
             self.save_job(&job);
+            if l.restarted {
+                l.restarted = false;
+                self.save_loop(&l);
+            }
             let round_started = now_ms();
             let done = self.run_job(&job.id, None).await;
+            let evidence = self
+                .round_evidence
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .remove(&job.id)
+                .unwrap_or_default();
             l.rounds_done = round;
             l.active_ms += now_ms().saturating_sub(round_started);
             l.next_round_ms = l
@@ -2132,9 +3327,18 @@ impl Jobs {
                 .as_deref()
                 .and_then(|s| next_round_at(s, now_ms()));
             let Some(done) = done else { break };
-            if let Some(c) = done.usage.as_ref().and_then(|u| u["cost_usd"].as_f64()) {
-                l.spent_usd += c;
+            let round_cost = done.usage.as_ref().and_then(|u| u["cost_usd"].as_f64());
+            self.note_loop_cost(&mut l, &done);
+            // The round was stopped by a budget (refused, or cancelled when
+            // a scope of it crossed): pause at the top of the next pass.
+            if matches!(done.state.as_str(), "cancelled" | "failed")
+                && self.loop_budget_block(&l).is_some()
+            {
+                self.save_loop(&l);
+                continue;
             }
+            let round_tokens = done.usage.as_ref().map(billable_of).unwrap_or(0);
+            l.tokens_used += round_tokens;
             match done.state.as_str() {
                 "cancelled" => {
                     l.state = "cancelled".into();
@@ -2142,20 +3346,120 @@ impl Jobs {
                     break;
                 }
                 "failed" => {
+                    // A round the watchdog stopped is the host's problem:
+                    // when the Loop asked for it and nothing was written in
+                    // the shared folder, the round goes again (3.1).
+                    if let Some(reason) = done
+                        .failure_reason
+                        .as_deref()
+                        .and_then(FailureReason::parse)
+                    {
+                        let wanted = l.auto_resume.unwrap_or_else(|| {
+                            crate::storage::config::load_settings(&self.app)
+                                .llm
+                                .auto_resume
+                        });
+                        let v = auto_resume_verdict(&done, wanted, reason, None, l.auto_restarts);
+                        if v == ResumeVerdict::Resume {
+                            let mut row = done.clone();
+                            row.log
+                                .push_str("↻ the Loop runs this round again by itself\n");
+                            self.save_job(&row);
+                            l.auto_restarts += 1;
+                            l.rounds_done = round - 1;
+                            l.restarted = true;
+                            self.save_loop(&l);
+                            crate::llm_audit::loop_auto_resumed(
+                                &l.id,
+                                reason.as_str(),
+                                l.auto_restarts,
+                                Some(&done.id),
+                            );
+                            continue;
+                        }
+                    }
+                    if audited {
+                        // 84#P1: a failed turn blocks an audited Loop (a
+                        // person looks); only the host's own failure above
+                        // goes again, with `--resume` (3.1).
+                        l.state = "blocked".into();
+                        l.stop_reason = Some(format!(
+                            "{}: {}",
+                            omniget_core::core::llm::goal_audit::STOP_ROUND_FAILED,
+                            done.error.clone().unwrap_or_default()
+                        ));
+                        break;
+                    }
                     // Budget cut, no provider, no candidate: another round would fail the same way.
                     l.state = "failed".into();
                     l.stop_reason = done.error.clone();
                     break;
                 }
-                _ => {}
+                _ => l.auto_restarts = 0,
             }
-            match self.run_check(&l).await {
+            let check = self.run_check(&l).await;
+            if let (Some((ok, out)), Some(cmd)) = (&check, l.check_command.as_deref()) {
+                self.attach_check(&done.id, cmd, *ok, out);
+            }
+            match check {
                 Some((true, out)) => {
                     l.last_check = Some(out);
                     l.stop_reason = Some("check_passed".into());
                     break;
                 }
                 Some((false, out)) => l.last_check = Some(out),
+                None if audited => {
+                    use omniget_core::core::llm::goal_audit::{self, Step};
+                    let reply = done.result.as_deref().unwrap_or("");
+                    let (audit, mut entry) = self
+                        .audit_round(&l, round, reply, &evidence, last_audit.as_ref())
+                        .await;
+                    entry.round_cost_usd = round_cost;
+                    entry.round_tokens = round_tokens;
+                    entry.guided = guided;
+                    l.tokens_used += entry.tokens;
+                    if let Some(c) = entry.cost_usd {
+                        l.audit_usd += c;
+                    }
+                    // The audit ran bound to the loop's scope (3.3): the
+                    // ledger already has it; without one, add it here.
+                    if !self.loop_cost_from_ledger(&mut l) {
+                        l.spent_usd += entry.cost_usd.unwrap_or(0.0);
+                        l.spent_tokens += entry.tokens;
+                    }
+                    // Refused by a paused budget scope: no verdict to count,
+                    // the top of the next pass pauses the loop.
+                    if audit.is_none() && self.loop_budget_block(&l).is_some() {
+                        crate::llm_audit::loop_audited(&l.id, &entry);
+                        loop_audit::push_audit(&mut l, entry);
+                        self.save_loop(&l);
+                        continue;
+                    }
+                    crate::llm_audit::loop_audited(&l.id, &entry);
+                    let step = goal_audit::step(&mut streaks, audit.as_ref(), entry.claimed_done);
+                    l.blocked_streak = streaks.blocked;
+                    l.audit_fail_streak = streaks.failed;
+                    l.disagree_streak = streaks.disagree;
+                    if let Some(a) = &audit {
+                        if !a.note.is_empty() {
+                            l.note = Some(a.note.clone());
+                        }
+                    }
+                    loop_audit::push_audit(&mut l, entry);
+                    last_audit = audit;
+                    match step {
+                        Step::Complete => {
+                            l.stop_reason = Some(goal_audit::STOP_COMPLETE.into());
+                            break;
+                        }
+                        Step::Blocked(why) => {
+                            l.state = "blocked".into();
+                            l.stop_reason = Some(why.into());
+                            break;
+                        }
+                        Step::Continue => {}
+                    }
+                }
                 None => {
                     let said_done = done
                         .result
@@ -2177,7 +3481,7 @@ impl Jobs {
         l.next_round_ms = None;
         // A cancel may have landed while the last round ran.
         if let Some(cur) = self.loop_get(&id) {
-            if cur.state == "cancelled" {
+            if cur.state == "cancelled" || cur.state == "paused" {
                 l.state = "cancelled".into();
                 l.stop_reason = Some("cancelled".into());
             }
@@ -2186,7 +3490,10 @@ impl Jobs {
         self.save_loop(&l);
         // A Loop is one piece of background work: it says so once, when it
         // ends, not after every round.
-        if matches!(l.state.as_str(), "done" | "failed") {
+        if matches!(
+            l.state.as_str(),
+            "done" | "failed" | "blocked" | "budget_limited"
+        ) {
             let target = crate::llm_attention::AttentionTarget {
                 job_id: l.id.clone(),
                 conversation_id: l.conversation_id.clone(),
@@ -2200,6 +3507,138 @@ impl Jobs {
             self.attention
                 .job_ended(&target, l.state == "done", &detail);
         }
+    }
+
+    // ── budgets (3.3) ────────────────────────────────────────────────
+
+    /// The account a roster agent's turns are charged to.
+    fn account_of(&self, agent_id: &str) -> Option<String> {
+        match self.llm.agent(agent_id)?.runtime {
+            omniget_core::core::llm::agent::RuntimeKind::Cli { account, .. } => Some(account),
+            _ => None,
+        }
+    }
+
+    /// The budget incident that holds a job back, if one of its scopes
+    /// (global, agent, account, job, loop) is paused.
+    fn budget_block(&self, job: &Job) -> Option<omniget_core::core::llm::budget::policy::Block> {
+        use omniget_core::core::llm::budget::policy::{self, Scope};
+        let engine = policy::active()?;
+        if !engine.has_policies() || job.agent_id.starts_with(TOOL_PREFIX) {
+            return None;
+        }
+        let account = self.account_of(&job.agent_id);
+        let mut scopes = vec![Scope::Global, Scope::Agent(job.agent_id.clone())];
+        if let Some(a) = &account {
+            scopes.push(Scope::Account(a.clone()));
+        }
+        scopes.extend(work_scopes(job));
+        scopes.extend(policy::bound_scopes(&sanitize_id(&job.conversation_id)));
+        engine.blocked(&scopes, account.as_deref())
+    }
+
+    /// The same for a Loop's next round.
+    fn loop_budget_block(
+        &self,
+        l: &LoopDef,
+    ) -> Option<omniget_core::core::llm::budget::policy::Block> {
+        let probe = Job {
+            id: String::new(),
+            agent_id: l.agent_id.clone(),
+            conversation_id: l.conversation_id.clone(),
+            loop_id: Some(l.id.clone()),
+            ..Default::default()
+        };
+        self.budget_block(&probe)
+    }
+
+    /// What a round cost, added to its Loop: dollars (reported, or the
+    /// price table's estimate when a dollar ceiling applies), weighted
+    /// tokens, and the rounds nobody could price (PROB C5; `jobs.rs:63-65`
+    /// no longer reads a missing price as "no cost").
+    fn note_loop_cost(&self, l: &mut LoopDef, done: &Job) {
+        if self.loop_cost_from_ledger(l) {
+            return;
+        }
+        let u = done.usage.clone().unwrap_or_default();
+        match u["cost_usd"].as_f64() {
+            Some(c) => l.spent_usd += c,
+            None if done.usage.is_some() => l.unpriced_rounds += 1,
+            None => {}
+        }
+        l.spent_tokens += billable_of(&u);
+    }
+
+    /// The loop's cost as the budget ledger has it (every turn bound to
+    /// `loop:<id>`: rounds and their audits). `false` = no engine or no
+    /// turn there yet; the caller adds what it knows instead.
+    fn loop_cost_from_ledger(&self, l: &mut LoopDef) -> bool {
+        use omniget_core::core::llm::budget::policy::{self, Scope};
+        let Some(engine) = policy::active() else {
+            return false;
+        };
+        let spend = engine.spent(&Scope::Loop(l.id.clone()));
+        if spend.turns == 0 {
+            return false;
+        }
+        l.spent_usd = spend.usd;
+        l.spent_usd_estimated = spend.usd_estimated;
+        l.unpriced_rounds = spend.unpriced_turns;
+        l.spent_tokens = spend.tokens;
+        true
+    }
+
+    /// A hard budget crossing (`BudgetCrossed`): the scope's other running
+    /// and queued jobs are cancelled (a Loop's runner pauses the Loop itself, on
+    /// its next pass). Jobs of other scopes are left alone.
+    fn cancel_scope(&self, scope: &str, incident: Option<&str>, crossing_turn: &str) {
+        use omniget_core::core::llm::budget::policy::{self, Scope};
+        let Ok(scope) = Scope::parse(scope) else {
+            return;
+        };
+        let bound: Vec<String> = policy::conversations_in(&scope);
+        let victims: Vec<Job> = self
+            .list(500)
+            .into_iter()
+            .filter(|j| is_active(&j.state))
+            // The turn that crossed is ending by itself: its work stands.
+            .filter(|j| j.request_id.as_deref() != Some(crossing_turn))
+            .filter(|j| in_budget_scope(j, &scope, self.account_of(&j.agent_id).as_deref(), &bound))
+            .collect();
+        for j in victims {
+            // Marked first, so nothing starts it again by itself (3.1): the
+            // end of its run keeps the mark on the cancelled row.
+            if let Some(mut row) = self.job(&j.id).filter(|r| is_active(&r.state)) {
+                row.failure_reason = Some("budget".into());
+                self.save_job(&row);
+            }
+            tracing::info!(
+                "[jobs] {}: cancelled by the budget of {} ({})",
+                j.id,
+                scope.key(),
+                incident.unwrap_or("-")
+            );
+            let _ = self.cancel_by(
+                &j.id,
+                omniget_core::core::llm::audit::Actor::system("budget"),
+            );
+        }
+    }
+
+    /// After "raise and resume": every Loop paused by that incident runs
+    /// again, unless another incident still holds it.
+    pub fn budget_resumed(self: &Arc<Self>, incident: &str) -> Vec<String> {
+        let tag = format!("budget:{incident}");
+        let mut resumed = Vec::new();
+        for l in self.loops() {
+            if l.state == "paused" && l.stop_reason.as_deref() == Some(tag.as_str()) {
+                match self.loop_resume(&l.id) {
+                    Ok(_) => resumed.push(l.id),
+                    Err(e) => tracing::info!("[jobs] loop {} stays paused: {e}", l.id),
+                }
+            }
+        }
+        resumed
     }
 
     /// Sleeps until `at_ms`; `false` when the loop was cancelled meanwhile.
@@ -2515,7 +3954,7 @@ impl Jobs {
             };
             p.steps[i].output = done.result.clone();
             p.steps[i].state = done.state.clone();
-            if done.state != "done" {
+            if !is_success(&done.state) {
                 p.state = if done.state == "cancelled" {
                     "cancelled".into()
                 } else {
@@ -2557,6 +3996,9 @@ impl Jobs {
                 )
             })
             .collect();
+        // Rounds of a Loop that were in flight: decided with their Loop.
+        let mut rounds: HashMap<String, (Job, Option<omniget_core::core::process::StaleProcess>)> =
+            HashMap::new();
         for stale in open {
             let Some(mut job) = self.job(&stale.id) else {
                 continue;
@@ -2580,18 +4022,87 @@ impl Jobs {
                 });
                 continue;
             }
-            // Dispatched (or part of a Loop): the result is unknown. Never
-            // re-sent by itself; a person resumes, marks done or discards.
+            // Dispatched (or part of a Loop): the result is unknown. Its old
+            // process, if it outlived the app, is stopped first (3.1).
+            let process = self.reap(&mut job);
             job.state = "interrupted".into();
             job.error =
                 Some("interrupted: the app closed during this task; its result is unknown".into());
+            job.failure_reason = Some(FailureReason::AppRestart.as_str().into());
             job.finished_ms = Some(now_ms());
-            self.save_job(&job);
+            if let Some(lid) = job.loop_id.clone() {
+                self.save_job(&job);
+                rounds.insert(lid, (job, process));
+                continue;
+            }
+            // Never re-sent by itself unless it asked to be and it is safe
+            // (3.1); otherwise a person resumes, marks done or discards.
+            if !self.auto_resume(&mut job, FailureReason::AppRestart, process) {
+                self.save_job(&job);
+            }
         }
+        let setting = crate::storage::config::load_settings(&self.app)
+            .llm
+            .auto_resume;
         for mut l in self.loops().into_iter().filter(|l| l.state == "running") {
             l.state = "interrupted".into();
             l.stop_reason = Some("app_closed".into());
-            self.save_loop(&l);
+            let wanted = l.auto_resume.unwrap_or(setting);
+            // Between two rounds nothing was in flight; a round that was
+            // follows the rule of a job (worktree or no write, process gone).
+            let mut lost_round = None;
+            let verdict = match rounds.remove(&l.id) {
+                Some((mut round, process)) => {
+                    lost_round = Some(round.id.clone());
+                    let v = auto_resume_verdict(
+                        &round,
+                        wanted,
+                        FailureReason::AppRestart,
+                        process,
+                        l.auto_restarts,
+                    );
+                    if v == ResumeVerdict::Resume {
+                        // The Loop runs this round again; this row is done.
+                        round.state = "failed".into();
+                        round.error = Some(
+                            "the app closed during this round; the Loop ran it again by itself"
+                                .into(),
+                        );
+                        round
+                            .log
+                            .push_str("↻ the Loop ran this round again by itself\n");
+                        self.save_job(&round);
+                    } else if wanted {
+                        round.log.push_str(&format!(
+                            "· the Loop did not resume by itself: {}\n",
+                            v.as_str()
+                        ));
+                        self.save_job(&round);
+                    }
+                    v
+                }
+                None if !wanted => ResumeVerdict::Off,
+                None if l.auto_restarts >= AUTO_RESUME_MAX => ResumeVerdict::Attempts,
+                None => ResumeVerdict::Resume,
+            };
+            if verdict == ResumeVerdict::Resume {
+                l.state = "running".into();
+                l.stop_reason = None;
+                l.restarted = true;
+                l.auto_restarts += 1;
+                self.save_loop(&l);
+                crate::llm_audit::loop_auto_resumed(
+                    &l.id,
+                    FailureReason::AppRestart.as_str(),
+                    l.auto_restarts,
+                    lost_round.as_deref(),
+                );
+                let this = self.clone();
+                let lid = l.id.clone();
+                tauri::async_runtime::spawn(async move { this.run_loop(lid).await });
+            } else {
+                self.save_loop(&l);
+            }
         }
         // A playbook resumes at the step that was running (it starts again).
         for mut p in self
@@ -2607,6 +4118,138 @@ impl Jobs {
             let this = self.clone();
             tauri::async_runtime::spawn(async move { this.run_playbook(p.id).await });
         }
+    }
+
+    // ── resume after a restart (3.1) ─────────────────────────────────
+
+    /// Copies what the run registry knows about the turn in flight onto the
+    /// job: the CLI's session id and the pid of its process, with the OS
+    /// start token that tells it from a later process with the same pid.
+    /// `true` when something changed.
+    fn capture_process(&self, job: &mut Job, request_id: &str, conversation: &str) -> bool {
+        let Some(reg) = omniget_core::core::assist::runs::active() else {
+            return false;
+        };
+        let mut changed = false;
+        if job.pid.is_none() {
+            if let Some(pid) = reg
+                .run(request_id)
+                .and_then(|r| r.pid)
+                .and_then(|p| u32::try_from(p).ok())
+            {
+                job.pid = Some(pid);
+                job.pid_start = omniget_core::core::process::start_token(pid);
+                changed = true;
+            }
+        }
+        let handle = reg
+            .session(conversation, &job.agent_id)
+            .and_then(|s| s.provider_handle);
+        if handle.is_some() && handle != job.session_id {
+            job.session_id = handle;
+            changed = true;
+        }
+        changed
+    }
+
+    /// The process a job's turn had when the app died: stopped (with its
+    /// tree) if it still runs, so a new run never runs beside it. Written to
+    /// the job's log; `None` when nothing was recorded.
+    fn reap(&self, job: &mut Job) -> Option<omniget_core::core::process::StaleProcess> {
+        use omniget_core::core::process::{stop_stale, StaleProcess};
+        let (pid, start) = (job.pid?, job.pid_start?);
+        let out = stop_stale(pid, start);
+        match out {
+            StaleProcess::Killed => job.log.push_str(&format!(
+                "↻ the agent process of the last session (pid {pid}) was still running: stopped, so a new run never runs beside it\n"
+            )),
+            StaleProcess::Survived => job.log.push_str(&format!(
+                "! the agent process of the last session (pid {pid}) is still running and could not be stopped\n"
+            )),
+            StaleProcess::Gone | StaleProcess::NotOurs => {}
+        }
+        if out != StaleProcess::Survived {
+            job.pid = None;
+            job.pid_start = None;
+        }
+        Some(out)
+    }
+
+    /// Whether this job wants to come back by itself: its own switch, else
+    /// the setting.
+    fn wants_auto_resume(&self, job: &Job) -> bool {
+        job.auto_resume.unwrap_or_else(|| {
+            crate::storage::config::load_settings(&self.app)
+                .llm
+                .auto_resume
+        })
+    }
+
+    /// Starts a lost job again by itself when [`auto_resume_verdict`] says
+    /// so, with the note and `--resume` of its conversation; otherwise
+    /// leaves it as it is. The verdict goes to the log either way. `true`
+    /// when it was started again.
+    fn auto_resume(
+        self: &Arc<Self>,
+        job: &mut Job,
+        reason: FailureReason,
+        process: Option<omniget_core::core::process::StaleProcess>,
+    ) -> bool {
+        let wanted = self.wants_auto_resume(job);
+        let mut verdict = auto_resume_verdict(job, wanted, reason, process, job.attempt);
+        // A scope of it is paused by a budget incident (3.3): it would only
+        // fail again before its turn, so it waits for "raise and resume".
+        if verdict == ResumeVerdict::Resume && self.budget_block(job).is_some() {
+            verdict = ResumeVerdict::BudgetPaused;
+        }
+        if verdict != ResumeVerdict::Resume {
+            if wanted && verdict != ResumeVerdict::NotThisKind {
+                job.log.push_str(&format!(
+                    "· not resumed by itself ({}): {}\n",
+                    reason.as_str(),
+                    verdict.as_str()
+                ));
+                self.save_job(job);
+            }
+            return false;
+        }
+        job.attempt += 1;
+        job.log.push_str(&format!(
+            "↻ resumed by itself after {} (attempt {} of {AUTO_RESUME_MAX}){}\n",
+            reason.as_str(),
+            job.attempt,
+            job.session_id
+                .as_deref()
+                .map(|s| format!(", session {s}"))
+                .unwrap_or_default()
+        ));
+        job.state = "queued".into();
+        job.error = None;
+        job.finished_ms = None;
+        job.failure_reason = Some(reason.as_str().into());
+        self.save_job(job);
+        crate::llm_audit::job_auto_resumed(job, reason.as_str());
+        let note = resume_note(reason, &job.prompt);
+        let this = self.clone();
+        let jid = job.id.clone();
+        tauri::async_runtime::spawn(async move {
+            // After a stall the run that failed is still unwinding (its
+            // cancel token and gate slot go when it returns): start once it
+            // is gone, so its cleanup never takes the new run's token.
+            for _ in 0..200 {
+                let busy = this
+                    .cancels
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .contains_key(&jid);
+                if !busy {
+                    break;
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            }
+            this.run_job(&jid, Some(note)).await;
+        });
+        true
     }
 
     // ── explicit recovery ────────────────────────────────────────────
@@ -2627,10 +4270,7 @@ impl Jobs {
         job.error = None;
         job.finished_ms = None;
         self.save_job(&job);
-        let note = format!(
-            "The app closed in the middle of this task and its result is unknown. Check what is already done before changing anything, and do not repeat an action that already happened. Task: {}",
-            job.prompt
-        );
+        let note = resume_note(FailureReason::AppRestart, &job.prompt);
         let this = self.clone();
         let jid = job.id.clone();
         tauri::async_runtime::spawn(async move {
@@ -2643,6 +4283,14 @@ impl Jobs {
         let mut job = self
             .job(id)
             .ok_or_else(|| format!("{ERR_JOBS}: no job {id}"))?;
+        // A job in review is done once a person looked at what it changed
+        // (2.4); its worktree and branch stay until removed or collected.
+        if job.state == "review" {
+            job.state = "done".into();
+            job.log.push_str("✓ reviewed by you\n");
+            self.save_job_checked(&job)?;
+            return Ok(job);
+        }
         if job.state != "interrupted" {
             return Err(format!(
                 "{ERR_JOBS}: job {id} is {}, not interrupted",
@@ -2670,6 +4318,16 @@ impl Jobs {
         job.error = Some("discarded after an interruption".into());
         job.finished_ms = Some(now_ms());
         self.save_job(&job);
+        if job.worktree_path.is_some() {
+            let jid = job.id.clone();
+            tauri::async_runtime::spawn(async move {
+                if let Some(jobs) = try_get() {
+                    if let Err(e) = jobs.remove_worktree(&jid).await {
+                        tracing::warn!("[jobs] {jid}: worktree kept: {e}");
+                    }
+                }
+            });
+        }
         Ok(job)
     }
 
@@ -2677,14 +4335,25 @@ impl Jobs {
         let mut l = self
             .loop_get(id)
             .ok_or_else(|| format!("{ERR_JOBS}: no loop {id}"))?;
-        if l.state != "interrupted" {
+        // A blocked Loop resumes too: the next round is audited again, with
+        // the streaks from zero (84#P1: "blocked is resumable").
+        if !matches!(l.state.as_str(), "interrupted" | "paused" | "blocked") {
             return Err(format!(
-                "{ERR_JOBS}: loop {id} is {}, not interrupted",
+                "{ERR_JOBS}: loop {id} is {}, not interrupted, paused or blocked",
                 l.state
             ));
         }
+        if l.state == "paused" {
+            if let Some(block) = self.loop_budget_block(&l) {
+                return Err(format!("{}: {}", block.error().code, block.message));
+            }
+        }
         l.state = "running".into();
         l.stop_reason = None;
+        l.finished_ms = None;
+        l.blocked_streak = 0;
+        l.audit_fail_streak = 0;
+        l.disagree_streak = 0;
         self.save_loop(&l);
         let this = self.clone();
         let lid = l.id.clone();
@@ -2858,6 +4527,10 @@ impl Jobs {
             Some(t.id.clone()),
             t.deadline_min,
         )?;
+        crate::llm_audit::job_created(
+            omniget_core::core::llm::audit::Actor::via("trigger", &format!("trigger:{}", t.id)),
+            &job,
+        );
         self.note_fired(&t.id, &job.id);
         Ok(job)
     }
@@ -2902,6 +4575,16 @@ impl Jobs {
     fn cron_tick(self: &Arc<Self>, grace_ms: i64) {
         let _pass = self.cron_pass.lock().unwrap_or_else(|e| e.into_inner());
         let now = now_ms() as i64;
+        // Worktree GC rides the same ticker, at most once an hour (2.3).
+        let last = self.last_worktree_gc.load(Ordering::SeqCst);
+        if (now as u64).saturating_sub(last) >= WORKTREE_GC_EVERY_MS
+            && self
+                .last_worktree_gc
+                .compare_exchange(last, now as u64, Ordering::SeqCst, Ordering::SeqCst)
+                .is_ok()
+        {
+            tauri::async_runtime::spawn(self.clone().gc_worktrees(false));
+        }
         for t in self
             .triggers()
             .into_iter()
@@ -3415,12 +5098,13 @@ pub fn next_round_at(schedule: &str, from_ms: u64) -> Option<u64> {
         .map(|secs| from_ms + secs * 1000)
 }
 
-/// `{ base_url, token }` of the local bridge, for the webhook URL in the UI.
+/// `{ base_url }` of the local bridge, for the webhook URL in the UI.
 pub fn bridge_info(app: &AppHandle) -> Value {
     let settings = crate::storage::config::load_settings(app);
+    // No bearer here: the page shows `$OMNIGET_TOKEN` and the token list
+    // (U6, 2.1), never a secret in plain text.
     json!({
         "base_url": format!("http://127.0.0.1:{}", settings.bridge.port),
-        "token": settings.bridge.token,
     })
 }
 
@@ -3456,9 +5140,189 @@ pub fn failure_reason_of(error: &str) -> Option<&'static str> {
         Some("no_start")
     } else if error.starts_with(ERR_TOOL_TIMEOUT) {
         Some("ask_expired")
+    } else if error.starts_with(omniget_core::core::llm::error::ERR_LLM_BUDGET) {
+        Some("budget")
     } else {
         None
     }
+}
+
+/// Why a job stopped, typed (3.1, S16). The row keeps the word
+/// ([`FailureReason::as_str`]) so older rows and the UI's labels stay as
+/// they are; what matters here is which of them are the host's fault.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FailureReason {
+    /// The app closed (or was killed) while the job ran.
+    AppRestart,
+    /// The watchdog heard nothing for too long.
+    Stalled,
+    /// The CLI never started talking.
+    NoStart,
+    Deadline,
+    Limit,
+    AskExpired,
+}
+
+impl FailureReason {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            FailureReason::AppRestart => "app_restart",
+            FailureReason::Stalled => "stalled",
+            FailureReason::NoStart => "no_start",
+            FailureReason::Deadline => "deadline",
+            FailureReason::Limit => "limit",
+            FailureReason::AskExpired => "ask_expired",
+        }
+    }
+
+    pub fn parse(s: &str) -> Option<Self> {
+        Some(match s {
+            "app_restart" => FailureReason::AppRestart,
+            "stalled" => FailureReason::Stalled,
+            "no_start" => FailureReason::NoStart,
+            "deadline" => FailureReason::Deadline,
+            "limit" => FailureReason::Limit,
+            "ask_expired" => FailureReason::AskExpired,
+            _ => return None,
+        })
+    }
+
+    /// The run died around the agent, not because of what it did: the app
+    /// went away, or the process went silent. A deadline, a budget or an
+    /// unanswered question are verdicts on the job; running it again would
+    /// meet them again.
+    pub fn is_infrastructure(self) -> bool {
+        matches!(
+            self,
+            FailureReason::AppRestart | FailureReason::Stalled | FailureReason::NoStart
+        )
+    }
+}
+
+/// Runs the host starts by itself for one job (or one Loop between two
+/// finished rounds) before it leaves the rest to a person: a crash that
+/// repeats is not retried forever.
+pub const AUTO_RESUME_MAX: u32 = 2;
+
+/// Whether a tool call can change something. Only reading and searching is
+/// known to be harmless; anything else, an unknown MCP tool included, counts
+/// as a write, so a doubt never re-runs a job in the shared folder.
+pub fn tool_may_write(name: &str) -> bool {
+    const READS: &[&str] = &[
+        // Claude Code / Codex
+        "read",
+        "glob",
+        "grep",
+        "ls",
+        "webfetch",
+        "websearch",
+        "todowrite",
+        "todoread",
+        "notebookread",
+        "bashoutput",
+        "exitplanmode",
+        // OmniGet's own tools
+        "kb_search",
+        "web_search",
+        "web_fetch",
+    ];
+    let n = name.trim().to_ascii_lowercase();
+    !(READS.contains(&n.as_str()) || code_tools::READ_TOOLS.contains(&n.as_str()))
+}
+
+/// Why the host does or does not start a lost job again by itself (3.1).
+/// Written to the job's log either way, so "why did it (not) come back" has
+/// an answer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ResumeVerdict {
+    Resume,
+    /// Neither the job, its Loop nor the setting asked for it.
+    Off,
+    /// A deadline, a budget, an unanswered question: not the host's fault.
+    NotInfrastructure,
+    /// Chat turns, missions, playbook steps and catalog tool runs have their
+    /// own owners.
+    NotThisKind,
+    Attempts,
+    /// It started a tool that writes, in the folder the person works in.
+    WroteInSharedFolder,
+    /// Its old process could not be stopped: never two at once.
+    ProcessAlive,
+    /// A budget stopped it or holds one of its scopes (3.3): only "raise and
+    /// resume" (a person) starts it again.
+    BudgetPaused,
+}
+
+impl ResumeVerdict {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            ResumeVerdict::Resume => "resume",
+            ResumeVerdict::Off => "off",
+            ResumeVerdict::NotInfrastructure => "not_infrastructure",
+            ResumeVerdict::NotThisKind => "not_this_kind",
+            ResumeVerdict::Attempts => "attempts",
+            ResumeVerdict::WroteInSharedFolder => "wrote_in_shared_folder",
+            ResumeVerdict::ProcessAlive => "process_alive",
+            ResumeVerdict::BudgetPaused => "budget_paused",
+        }
+    }
+}
+
+/// The rule of 3.1: again with `--resume` only after an infrastructure
+/// failure, only when asked (`wanted`: the job's own switch, else its
+/// Loop's, else the setting), only for a job that ran in its own worktree
+/// or never started a tool that writes, never while its old process lives,
+/// and at most [`AUTO_RESUME_MAX`] times.
+pub fn auto_resume_verdict(
+    job: &Job,
+    wanted: bool,
+    reason: FailureReason,
+    process: Option<omniget_core::core::process::StaleProcess>,
+    attempts: u32,
+) -> ResumeVerdict {
+    use omniget_core::core::process::StaleProcess;
+    if !wanted {
+        return ResumeVerdict::Off;
+    }
+    if !reason.is_infrastructure() {
+        return ResumeVerdict::NotInfrastructure;
+    }
+    // Cancelled or refused by a budget (3.3): never the host's failure,
+    // whatever reason the watchdog or the boot put on it afterwards.
+    if job.failure_reason.as_deref() == Some("budget") {
+        return ResumeVerdict::BudgetPaused;
+    }
+    if job.state == "cancelled" {
+        return ResumeVerdict::NotInfrastructure;
+    }
+    if !matches!(job.kind.as_str(), "run" | "trigger" | "loop")
+        || job.agent_id.starts_with(TOOL_PREFIX)
+        || job.playbook_id.is_some()
+        || (job.kind != "loop" && job.loop_id.is_some())
+    {
+        return ResumeVerdict::NotThisKind;
+    }
+    if process == Some(StaleProcess::Survived) {
+        return ResumeVerdict::ProcessAlive;
+    }
+    if attempts >= AUTO_RESUME_MAX {
+        return ResumeVerdict::Attempts;
+    }
+    if job.side_effects && job.worktree_path.is_none() {
+        return ResumeVerdict::WroteInSharedFolder;
+    }
+    ResumeVerdict::Resume
+}
+
+/// What a job run again by the host is told before its task.
+pub fn resume_note(reason: FailureReason, prompt: &str) -> String {
+    let why = match reason {
+        FailureReason::AppRestart => "The app closed in the middle of this task",
+        _ => "This task stopped because the agent went silent",
+    };
+    format!(
+        "{why} and its result is unknown. Check what is already done before changing anything, and do not repeat an action that already happened. Task: {prompt}"
+    )
 }
 
 /// D4: the deadline of a background job that has no guard of its own. A chat
@@ -3525,6 +5389,12 @@ pub fn explain_view(
         "deadline_left_s": deadline.filter(|_| running).map(|d| secs(now_ms, d)),
         // Holds one of the parallel job slots right now.
         "slot": running,
+        // Resume after a restart (3.1): the session `--resume` continues,
+        // the host's own attempts, this job's switch, whether it wrote.
+        "session_id": job.session_id,
+        "attempt": job.attempt,
+        "auto_resume": job.auto_resume,
+        "side_effects": job.side_effects,
     });
     if let Some(pid) = pid.filter(|_| running) {
         v["pid"] = json!(pid);
@@ -3658,6 +5528,413 @@ pub fn state_view(view: &GateView, job: &dyn Fn(&str) -> Option<Job>) -> Value {
 // ── job diff: the pure half (1.7) ─────────────────────────────────────
 
 /// `diff_unavailable` code of a job that ran without a folder.
+/// A job that ended well: `done`, or `review` (it wrote files a person has
+/// not looked at yet, 2.4).
+pub fn is_success(state: &str) -> bool {
+    matches!(state, "done" | "review" | "done_unreported")
+}
+
+/// A job that ended, one way or another: nothing will move it by itself.
+pub fn is_terminal(state: &str) -> bool {
+    matches!(
+        state,
+        "done" | "review" | "done_unreported" | "failed" | "cancelled" | "interrupted"
+    )
+}
+
+/// What a background job's prompt ends with (2.6, 78#P7): the agent's own
+/// verdict in one line the host can read. Kept short, it is paid on every
+/// job; `scripts/llm/missions_eval.py` sends the same text (B0 measures it).
+/// `succeeded` is tied to the change being done: with a bare "succeeded or
+/// failed", an agent whose test command was denied reported `failed` for
+/// work that passed, so doubt goes into the sentences instead.
+pub const OUTCOME_SUFFIX: &str = "\n\nEnd your reply with one line: `OUTCOME: succeeded` if the requested change is done, `OUTCOME: failed` if not, then ` — ` and up to 3 sentences on what you did and anything left unverified.";
+
+/// Jobs whose prompt asks for the `OUTCOME:` line: a run (from the CLI,
+/// the window, the bridge or MCP) and a mission task. Routines keep their
+/// text as it is (its digest decides whether to notify); Loop rounds and
+/// chat turns have their own end.
+pub fn asks_outcome(kind: &str) -> bool {
+    matches!(kind, "run" | "mission")
+}
+
+/// The agent's `OUTCOME:` line, the last one of the text: `{status,
+/// summary}`, status `succeeded|failed`. Markdown around it (`**`, `` ` ``)
+/// and the dash between the two halves (`—`, `–`, `-`, `:`) are tolerated.
+pub fn parse_outcome(text: &str) -> Option<Value> {
+    text.lines().rev().find_map(|line| {
+        let l = line
+            .trim()
+            .trim_matches(|c| c == '*' || c == '`' || c == '_' || c == '>')
+            .trim();
+        let rest = l
+            .get(..8)
+            .filter(|p| p.eq_ignore_ascii_case("outcome:"))
+            .map(|_| l[8..].trim_start())?;
+        let rest = rest.trim_start_matches(['*', '`']);
+        let lower = rest.to_ascii_lowercase();
+        let status = ["succeeded", "failed"]
+            .into_iter()
+            .find(|s| lower.starts_with(s))?;
+        let summary = rest[status.len()..]
+            .trim_start_matches(['*', '`'])
+            .trim_start()
+            .trim_start_matches(['—', '–', '-', ':'])
+            .trim()
+            .trim_end_matches(['*', '`'])
+            .trim();
+        Some(json!({ "status": status, "summary": clip(summary, 1_000) }))
+    })
+}
+
+/// A `run` that ended `done` without its `OUTCOME:` line becomes
+/// `done_unreported` (2.6): the process ended well, the agent did not say
+/// how. `review` stays `review` (a person looks anyway), and missions keep
+/// `done` (their criteria decide).
+pub fn settle_outcome<'a>(kind: &str, state: &'a str, reported: bool) -> &'a str {
+    if kind == "run" && state == "done" && !reported {
+        "done_unreported"
+    } else {
+        state
+    }
+}
+
+/// The budget scopes a job's turns count against besides global, agent and
+/// account (3.3): the job itself and its Loop.
+pub fn work_scopes(job: &Job) -> Vec<omniget_core::core::llm::budget::policy::Scope> {
+    use omniget_core::core::llm::budget::policy::Scope;
+    let mut out = Vec::new();
+    if !job.id.is_empty() {
+        out.push(Scope::Job(job.id.clone()));
+    }
+    if let Some(l) = &job.loop_id {
+        out.push(Scope::Loop(l.clone()));
+    }
+    out
+}
+
+/// Whether a job's work is inside a budget scope (what a hard crossing of
+/// that scope cancels). `bound` = the conversations a mission bound.
+pub fn in_budget_scope(
+    job: &Job,
+    scope: &omniget_core::core::llm::budget::policy::Scope,
+    account: Option<&str>,
+    bound: &[String],
+) -> bool {
+    use omniget_core::core::llm::budget::policy::Scope;
+    match scope {
+        Scope::Global => true,
+        Scope::Agent(a) => &job.agent_id == a,
+        Scope::Account(a) => account == Some(a.as_str()),
+        Scope::Job(id) => &job.id == id,
+        Scope::Loop(id) => job.loop_id.as_deref() == Some(id.as_str()),
+        Scope::Mission(_) => bound.contains(&sanitize_id(&job.conversation_id)),
+    }
+}
+
+/// A hard budget policy (warn at 80 %) for the whole run of a job or Loop,
+/// the one budget mechanism (3.3) behind `budget_usd`, `max_cost_usd` and
+/// `token_budget`. No engine (tests, a failed boot) = nothing to do.
+fn budget_policy(
+    scope: omniget_core::core::llm::budget::policy::Scope,
+    metric: omniget_core::core::llm::budget::policy::Metric,
+    amount: f64,
+) {
+    use omniget_core::core::llm::budget::policy::{self, BudgetPolicy, Window};
+    let Some(engine) = policy::active() else {
+        return;
+    };
+    let key = scope.key();
+    let saved = engine.upsert(
+        BudgetPolicy {
+            id: String::new(),
+            scope,
+            metric,
+            window: Window::Run,
+            amount,
+            warn_pct: Some(80.0),
+            hard_stop: true,
+            enabled: true,
+            created_ms: 0,
+            updated_ms: 0,
+        },
+        omniget_core::core::llm::audit::Actor::window(),
+    );
+    if let Err(e) = saved {
+        tracing::warn!("[jobs] {key} budget: {e}");
+    }
+}
+
+/// The policies of a job or Loop that is gone: nothing can cross them.
+fn forget_budget_policies(scope: &omniget_core::core::llm::budget::policy::Scope) {
+    let Some(engine) = omniget_core::core::llm::budget::policy::active() else {
+        return;
+    };
+    for p in engine.policies().into_iter().filter(|p| &p.scope == scope) {
+        let _ = engine.delete(&p.id, omniget_core::core::llm::audit::Actor::window());
+    }
+}
+
+/// Adds a `job.start` budget (US$) to the job's guard: the job stops
+/// `failed` (reason `limit`) once its known cost passes it. A provider with
+/// no price never trips it (the cost stays unknown).
+pub fn with_budget(guard: Option<JobGuard>, budget_usd: Option<f64>) -> Option<JobGuard> {
+    let Some(budget) = budget_usd.filter(|b| *b > 0.0) else {
+        return guard;
+    };
+    let mut g = guard.unwrap_or_default();
+    let before = g.check.take();
+    g.check = Some(Arc::new(move |tokens, usd| {
+        if let Some(check) = &before {
+            check(tokens, usd)?;
+        }
+        match usd {
+            Some(spent) if spent > budget => Err(format!(
+                "the job spent US$ {spent:.4}, past its budget of US$ {budget:.4}"
+            )),
+            _ => Ok(()),
+        }
+    }));
+    Some(g)
+}
+
+/// The state a job ends in once its diff is known: a `done` job that
+/// changed files goes to `review` (2.4, 83#P4); nothing else moves.
+pub fn settle_state<'a>(
+    state: &'a str,
+    files: Option<&[omniget_core::core::llm::snapshot::FileChange]>,
+) -> &'a str {
+    if state == "done" && files.is_some_and(|f| !f.is_empty()) {
+        "review"
+    } else {
+        state
+    }
+}
+
+/// Most files a proof lists (the totals count them all).
+pub const PROOF_MAX_FILES: usize = 200;
+
+/// The proof of a finished job (2.4, symphony P4), built by the host from
+/// what it recorded, never from the agent's words: 0 tokens. `ends` = the
+/// two ends of the diff (merge base and worktree tree, or the shadow trees
+/// in shared mode); `host` = the machine's name.
+pub fn build_proof(job: &Job, ends: Option<&(String, String)>, host: &str) -> Value {
+    let short = |s: &str| s.chars().take(7).collect::<String>();
+    let worktree = job.branch.is_some() && job.base_oid.is_some();
+    let workspace = effective_workspace(job).unwrap_or_default();
+    // Worktree mode stamps commits (merge base → HEAD of the branch);
+    // shared mode the snapshot trees, marked so nobody takes them for
+    // commits.
+    let (base, head) = if worktree {
+        (
+            ends.map(|e| e.0.clone()).or_else(|| job.base_oid.clone()),
+            job.head_oid.clone(),
+        )
+    } else {
+        (
+            ends.map(|e| format!("tree:{}", e.0)),
+            ends.map(|e| format!("tree:{}", e.1)),
+        )
+    };
+    let label = |v: &Option<String>| match v {
+        Some(x) => match x.strip_prefix("tree:") {
+            Some(t) => format!("tree:{}", short(t)),
+            None => short(x),
+        },
+        None => "?".into(),
+    };
+    let stamp = format!("{host}:{workspace}@{}→{}", label(&base), label(&head));
+    let files = job.diff_files.clone().unwrap_or_default();
+    let usage = job.usage.clone().unwrap_or_default();
+    let duration_ms = job
+        .finished_ms
+        .zip(job.started_ms)
+        .map(|(f, s)| f.saturating_sub(s));
+    json!({
+        "generated_by": "host",
+        "stamp": stamp,
+        "host": host,
+        "workspace": workspace,
+        "mode": if worktree { "worktree" } else { "shared" },
+        "branch": job.branch,
+        "base": base,
+        "head": head,
+        "state": job.state,
+        "files": files.iter().take(PROOF_MAX_FILES).collect::<Vec<_>>(),
+        "file_count": files.len(),
+        "additions": job.additions,
+        "deletions": job.deletions,
+        "clipped": job.diff_clipped,
+        "diff_unavailable": job.diff_unavailable,
+        "checks": [],
+        "tokens": {
+            "input": usage["input_tokens"].as_u64(),
+            "output": usage["output_tokens"].as_u64(),
+            "cache_read": usage["cache_read_tokens"].as_u64(),
+            "billable": job.usage.as_ref().map(billable_of),
+        },
+        "cost_usd": usage["cost_usd"].as_f64(),
+        "duration_ms": duration_ms,
+        "at_ms": job.finished_ms,
+    })
+}
+
+/// Appends a check to a proof's `checks`, its exit code read from the
+/// `exit N` first line `run_check` writes.
+pub fn push_check(proof: &mut Value, command: &str, ok: bool, out: &str) {
+    let code = out
+        .strip_prefix("exit ")
+        .and_then(|r| r.split_whitespace().next())
+        .and_then(|c| c.parse::<i64>().ok());
+    if !proof["checks"].is_array() {
+        proof["checks"] = json!([]);
+    }
+    if let Some(list) = proof["checks"].as_array_mut() {
+        list.push(json!({ "command": command, "exit_code": code, "ok": ok, "at_ms": now_ms() }));
+    }
+}
+
+/// What `GET /v1/jobs/{id}/proof` answers: the proof, or why there is none
+/// (409 while the job runs, 404 for a job that ended before 2.4).
+pub fn proof_view(job: &Job) -> Result<Value, (u16, String)> {
+    if is_active(&job.state) {
+        return Err((
+            409,
+            format!(
+                "{ERR_JOBS}: job {} is {}; the proof is stamped when it ends",
+                job.id, job.state
+            ),
+        ));
+    }
+    match &job.proof {
+        Some(p) => Ok(json!({ "job_id": job.id, "state": job.state, "proof": p })),
+        None => Err((404, format!("{ERR_JOBS}: job {} has no proof", job.id))),
+    }
+}
+
+/// A job still at the gate or running: its folder or worktree is in use.
+pub fn is_active(state: &str) -> bool {
+    matches!(
+        state,
+        "queued" | "waiting_workspace" | "running" | "waiting_approval"
+    )
+}
+
+/// How long a finished job keeps its worktree before the GC removes it
+/// (its work stays on the branch).
+pub const WORKTREE_TTL_MS: u64 = 7 * 24 * 3600 * 1000;
+/// Least time between two GC passes of the cron ticker.
+pub const WORKTREE_GC_EVERY_MS: u64 = 3600 * 1000;
+
+/// Why the GC removes the worktree of a job (`None` = keep it): `orphan`
+/// when the job row is gone, `ttl` when it ended long enough ago. An active
+/// job's worktree is never touched.
+pub fn worktree_gc_verdict(job: Option<&Job>, now: u64) -> Option<&'static str> {
+    match job {
+        None => Some("orphan"),
+        Some(j) if is_active(&j.state) => None,
+        Some(j) => {
+            let ended = j.finished_ms.or(j.started_ms).unwrap_or(j.created_ms);
+            (now.saturating_sub(ended) >= WORKTREE_TTL_MS).then_some("ttl")
+        }
+    }
+}
+
+/// The repository of a job's worktree and the worktree's root folder
+/// (`worktree_path` may be a subfolder of it).
+async fn worktree_root(job: &Job) -> Option<(std::path::PathBuf, std::path::PathBuf)> {
+    use omniget_core::core::vcs::job_worktree;
+    let path = job.worktree_path.as_ref()?;
+    let repo = match job.workspace.as_deref().filter(|w| !w.trim().is_empty()) {
+        Some(ws) => job_worktree::repo_root(std::path::Path::new(ws)).await,
+        None => None,
+    };
+    let repo = match repo {
+        Some(r) => r,
+        None => job_worktree::main_repo_of(std::path::Path::new(path)).await?,
+    };
+    let root = job_worktree::path_of(&repo, review::worktree_owner(job)).ok()?;
+    Some((repo, root))
+}
+
+/// [`Jobs::remove_worktree`] without the row: for a job being deleted.
+async fn remove_job_worktree(
+    job: &Job,
+) -> Result<omniget_core::core::vcs::job_worktree::RemoveOutcome, String> {
+    remove_job_worktree_with(crate::job_workflow::store().as_deref(), job).await
+}
+
+/// [`remove_job_worktree`] with the workflow store given (tests bring their own).
+pub(crate) async fn remove_job_worktree_with(
+    store: Option<&omniget_core::core::llm::workflow::Store>,
+    job: &Job,
+) -> Result<omniget_core::core::vcs::job_worktree::RemoveOutcome, String> {
+    use omniget_core::core::vcs::job_worktree;
+    let (repo, root) = worktree_root(job)
+        .await
+        .ok_or_else(|| format!("{ERR_WORKTREE}: the job's repository is gone"))?;
+    let branch = job
+        .branch
+        .clone()
+        .unwrap_or_else(|| job_worktree::branch_of(&job.id));
+    // The workflow's `before_remove` hook (3.10), when trusted: a failure
+    // blocks the removal.
+    let hook = crate::job_workflow::before_remove(store, job, &repo, &root).await?;
+    let mut out = job_worktree::remove(&repo, &root, &branch, job.base_oid.as_deref())
+        .await
+        .map_err(|e| format!("{ERR_WORKTREE}: {e}"))?;
+    out.hook_note = (!hook.is_empty()).then_some(hook);
+    Ok(out)
+}
+
+/// The job log line of a removal: what was saved, what the branch became.
+pub fn removal_note(out: &omniget_core::core::vcs::job_worktree::RemoveOutcome) -> String {
+    let mut line = out.hook_note.clone().unwrap_or_default();
+    line.push_str("⎇ worktree removed");
+    if let Some(c) = &out.saved {
+        line.push_str(&format!(
+            "; {} uncommitted file(s) saved as {}",
+            out.dirty.len(),
+            c.chars().take(7).collect::<String>()
+        ));
+    }
+    if let Some(b) = &out.preserved_branch {
+        line.push_str(&format!(
+            "; branch {b} kept (it has work not merged anywhere)"
+        ));
+    } else if let Some(b) = &out.branch_deleted {
+        line.push_str(&format!("; branch {b} deleted"));
+    }
+    line.push('\n');
+    line
+}
+
+/// The job log line of a new worktree: where, from what, what came along.
+pub fn worktree_note(wt: &omniget_core::core::vcs::job_worktree::JobWorktree) -> String {
+    let short = |s: &str| s.chars().take(7).collect::<String>();
+    let mut line = format!(
+        "⎇ worktree {} on {} from {} in {} ms",
+        wt.path.display(),
+        wt.branch,
+        short(&wt.base_oid),
+        wt.took_ms
+    );
+    if !wt.carried.is_empty() {
+        line.push_str(&format!(
+            "; {} uncommitted file(s) of yours carried in (your checkout untouched)",
+            wt.carried.len()
+        ));
+    }
+    if !wt.shared.is_empty() {
+        line.push_str(&format!("; linked {}", wt.shared.join(", ")));
+    }
+    if !wt.copied.is_empty() {
+        line.push_str(&format!("; copied {}", wt.copied.join(", ")));
+    }
+    line.push('\n');
+    line
+}
+
 const NO_WORKSPACE: &str = "no_workspace";
 
 /// `<llm dir>/jobs/<id>.patch`.
@@ -3684,6 +5961,7 @@ pub fn apply_diff(
             job.deletions = Some(d.deletions);
             job.diff_clipped = d.clipped;
             job.diff_unavailable = None;
+            job.head_oid = d.head_oid;
             Some(d.patch)
         }
         Err(e) => {
@@ -3748,7 +6026,7 @@ pub fn diff_view(
                 "deletions": job.deletions.unwrap_or(0),
                 "clipped": job.diff_clipped,
                 "complete": complete,
-                "head_oid": Value::Null,
+                "head_oid": job.head_oid,
                 "patch_path": patch.and(patch_path).map(|p| p.to_string_lossy().to_string()),
             })))
         }
@@ -4226,6 +6504,41 @@ mod watchdog_tests {
     }
 
     #[test]
+    fn a_budget_scope_reaches_the_jobs_inside_it() {
+        use omniget_core::core::llm::budget::policy::Scope;
+        let job = Job {
+            id: "j1".into(),
+            agent_id: "worker".into(),
+            conversation_id: "loop-l1".into(),
+            loop_id: Some("l1".into()),
+            ..Default::default()
+        };
+        assert_eq!(
+            work_scopes(&job),
+            vec![Scope::Job("j1".into()), Scope::Loop("l1".into())]
+        );
+        let inside =
+            |s: Scope, acct: Option<&str>, bound: &[String]| in_budget_scope(&job, &s, acct, bound);
+        assert!(inside(Scope::Global, None, &[]));
+        assert!(inside(Scope::Agent("worker".into()), None, &[]));
+        assert!(!inside(Scope::Agent("other".into()), None, &[]));
+        assert!(inside(Scope::Account("max-1".into()), Some("max-1"), &[]));
+        assert!(!inside(Scope::Account("max-1".into()), Some("max-2"), &[]));
+        assert!(inside(Scope::Loop("l1".into()), None, &[]));
+        assert!(!inside(Scope::Job("j2".into()), None, &[]));
+        assert!(inside(
+            Scope::Mission("m".into()),
+            None,
+            &["loop-l1".to_string()]
+        ));
+        assert!(!inside(Scope::Mission("m".into()), None, &[]));
+        assert_eq!(
+            failure_reason_of("ERR_LLM_BUDGET: budget paused: loop:l1 0.06 of 0.05 USD (run)"),
+            Some("budget")
+        );
+    }
+
+    #[test]
     fn a_stall_is_failure_reason_stalled() {
         assert_eq!(
             failure_reason_of("ERR_CLI_STALLED: the CLI printed nothing for 600 s"),
@@ -4296,9 +6609,12 @@ mod watchdog_tests {
             deadline_ms: Some(70_000),
         };
         let asks = vec![
-            json!({"request_id": "r1", "tool": "cli:Bash", "tool_call_id": "c1", "asked_ms": 25_000u64}),
+            json!({"id": "apr_0123456789abcdef0123456789abcdef", "request_id": "r1", "tool": "cli:Bash", "tool_call_id": "c1", "asked_ms": 25_000u64}),
         ];
         let v = explain_view(&job, Some(&live), 30_000, &asks, Some(4242));
+        // 2.2: a job's own token reads its explain; the ask id (what answers
+        // it) never goes there.
+        assert!(!v.to_string().contains("apr_"), "{v}");
         assert_eq!(v["id"], "j1");
         assert_eq!(v["state"], "waiting_approval");
         assert_eq!(v["state_seq"], 3);
@@ -4798,5 +7114,504 @@ mod billing_tests {
         assert_eq!(t["cache_read_tokens"].as_u64(), Some(80_000));
         // 2 x (6k fresh + 4k read-weighted + 5k write-weighted + 100 out).
         assert_eq!(billable_of(&t), 30_200);
+    }
+}
+
+#[cfg(test)]
+mod worktree_tests {
+    use super::*;
+
+    fn job(kind: &str, isolation: Isolation) -> Job {
+        Job {
+            id: "j0123456789".into(),
+            kind: kind.into(),
+            agent_id: "a".into(),
+            workspace: Some("/w/repo".into()),
+            isolation,
+            state: "queued".into(),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn background_runs_default_to_auto_and_missions_stay_shared() {
+        assert_eq!(Isolation::default_for("run", "claude"), Isolation::Auto);
+        assert_eq!(Isolation::default_for("trigger", "claude"), Isolation::Auto);
+        for kind in ["mission", "loop", "chat"] {
+            assert_eq!(Isolation::default_for(kind, "claude"), Isolation::Shared);
+        }
+        assert_eq!(
+            Isolation::default_for("run", "tool:codex"),
+            Isolation::Shared
+        );
+        assert_eq!(Isolation::parse(" Worktree "), Ok(Isolation::Worktree));
+        assert_eq!(Isolation::parse("auto"), Ok(Isolation::Auto));
+        assert!(Isolation::parse("sharde").is_err(), "a typo is an error");
+        assert_eq!(
+            serde_json::to_value(Isolation::Auto).unwrap(),
+            json!("auto")
+        );
+    }
+
+    #[test]
+    fn the_placement_follows_the_isolation_and_the_repository() {
+        let repo = Some(std::path::PathBuf::from("/w/repo"));
+        let p = placement(&job("run", Isolation::Auto), repo.clone()).unwrap();
+        assert!(p.if_busy && !p.force, "auto asks the gate");
+        let p = placement(&job("run", Isolation::Auto), None).unwrap();
+        assert!(!p.if_busy && !p.force, "auto without git = shared");
+        let p = placement(&job("run", Isolation::Shared), repo.clone()).unwrap();
+        assert!(!p.if_busy && !p.force);
+        let p = placement(&job("run", Isolation::Worktree), repo).unwrap();
+        assert!(p.force);
+        let e = placement(&job("run", Isolation::Worktree), None).unwrap_err();
+        assert!(e.starts_with(ERR_WORKTREE), "{e}");
+        // A job that already has one (resumed) goes back to it.
+        let mut resumed = job("run", Isolation::Auto);
+        resumed.worktree_path = Some("/wt".into());
+        assert!(placement(&resumed, None).unwrap().force);
+        assert_eq!(effective_workspace(&resumed).as_deref(), Some("/wt"));
+        assert_eq!(
+            effective_workspace(&job("run", Isolation::Auto)).as_deref(),
+            Some("/w/repo")
+        );
+    }
+
+    #[test]
+    fn the_gc_removes_orphans_and_old_ones_never_active_ones() {
+        let now = 10 * WORKTREE_TTL_MS;
+        assert_eq!(worktree_gc_verdict(None, now), Some("orphan"));
+        let mut j = job("run", Isolation::Auto);
+        for st in ["queued", "waiting_workspace", "running", "waiting_approval"] {
+            j.state = st.into();
+            j.finished_ms = Some(0);
+            assert_eq!(worktree_gc_verdict(Some(&j), now), None, "{st}");
+        }
+        j.state = "done".into();
+        j.finished_ms = Some(now - WORKTREE_TTL_MS + 1);
+        assert_eq!(worktree_gc_verdict(Some(&j), now), None, "still fresh");
+        j.finished_ms = Some(now - WORKTREE_TTL_MS);
+        assert_eq!(worktree_gc_verdict(Some(&j), now), Some("ttl"));
+    }
+
+    #[test]
+    fn the_placement_columns_round_trip() {
+        let db = Connection::open_in_memory().unwrap();
+        ensure_schema(&db, 0).unwrap();
+        db.execute(
+            "INSERT INTO jobs (id, kind, agent_id, conversation_id, prompt, state, created_ms, isolation, base_ref, worktree_path, branch, base_oid)
+             VALUES ('j0', 'run', 'a', 'c', 'p', 'done', 1, 'worktree', 'main', '/wt/x', 'omniget/job-j0', 'abc')",
+            [],
+        )
+        .unwrap();
+        db.execute(
+            "INSERT INTO jobs (id, kind, agent_id, conversation_id, prompt, state, created_ms)
+             VALUES ('j1', 'run', 'a', 'c', 'p', 'done', 1)",
+            [],
+        )
+        .unwrap();
+        let read = |id: &str| {
+            db.query_row(
+                &format!("SELECT {JOB_COLS} FROM jobs WHERE id=?1"),
+                [id],
+                row_to_job,
+            )
+            .unwrap()
+        };
+        let j = read("j0");
+        assert_eq!(j.isolation, Isolation::Worktree);
+        assert_eq!(j.base_ref.as_deref(), Some("main"));
+        assert_eq!(j.worktree_path.as_deref(), Some("/wt/x"));
+        assert_eq!(j.branch.as_deref(), Some("omniget/job-j0"));
+        assert_eq!(j.base_oid.as_deref(), Some("abc"));
+        assert_eq!(read("j1").isolation, Isolation::Shared, "older rows");
+    }
+
+    #[test]
+    fn the_notes_say_what_came_along_and_what_was_kept() {
+        use omniget_core::core::vcs::job_worktree::{JobWorktree, RemoveOutcome};
+        let note = worktree_note(&JobWorktree {
+            path: "/wt/r-job-j1".into(),
+            branch: "omniget/job-j1".into(),
+            base_oid: "0123456789abcdef".into(),
+            carried: vec!["a.txt".into()],
+            shared: vec!["node_modules".into()],
+            took_ms: 42,
+            ..Default::default()
+        });
+        assert!(
+            note.contains("omniget/job-j1 from 0123456 in 42 ms"),
+            "{note}"
+        );
+        assert!(note.contains("1 uncommitted file(s) of yours carried in"));
+        assert!(note.contains("linked node_modules"));
+        let kept = removal_note(&RemoveOutcome {
+            dirty: vec!["a".into(), "b".into()],
+            saved: Some("fedcba987".into()),
+            preserved_branch: Some("omniget/job-j1".into()),
+            ..Default::default()
+        });
+        assert!(
+            kept.contains("2 uncommitted file(s) saved as fedcba9"),
+            "{kept}"
+        );
+        assert!(kept.contains("branch omniget/job-j1 kept"));
+    }
+}
+
+#[cfg(test)]
+mod proof_tests {
+    use super::*;
+    use omniget_core::core::llm::snapshot::FileChange;
+
+    fn change(path: &str) -> FileChange {
+        FileChange {
+            path: path.into(),
+            status: "M".into(),
+            additions: Some(2),
+            deletions: Some(1),
+            binary: false,
+        }
+    }
+
+    fn ended(state: &str) -> Job {
+        Job {
+            id: "j0123456789".into(),
+            kind: "run".into(),
+            state: state.into(),
+            workspace: Some("/w/repo".into()),
+            started_ms: Some(1_000),
+            finished_ms: Some(4_500),
+            diff_files: Some(vec![change("a.txt")]),
+            additions: Some(2),
+            deletions: Some(1),
+            usage: Some(
+                json!({"model": "m", "input_tokens": 100, "output_tokens": 20, "cache_read_tokens": 1000, "cost_usd": 0.01, "calls": 1}),
+            ),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn a_job_that_wrote_ends_in_review_and_nothing_else_moves() {
+        let files = [change("a.txt")];
+        assert_eq!(settle_state("done", Some(&files)), "review");
+        assert_eq!(settle_state("done", Some(&[])), "done", "read-only job");
+        assert_eq!(settle_state("done", None), "done", "no diff known");
+        assert_eq!(settle_state("failed", Some(&files)), "failed");
+        assert_eq!(settle_state("cancelled", Some(&files)), "cancelled");
+        assert!(is_success("review") && is_success("done") && !is_success("failed"));
+    }
+
+    #[test]
+    fn the_worktree_proof_stamps_host_folder_base_and_head() {
+        let mut job = ended("review");
+        job.worktree_path = Some("/data/worktrees/repo-job-j0123456789".into());
+        job.branch = Some("omniget/job-j0123456789".into());
+        job.base_oid = Some("1111111aaaa".into());
+        job.head_oid = Some("2222222bbbb".into());
+        let ends = ("1111111aaaa".to_string(), "treeeeeee".to_string());
+        let p = build_proof(&job, Some(&ends), "mac");
+        assert_eq!(p["generated_by"], "host");
+        assert_eq!(
+            p["stamp"],
+            "mac:/data/worktrees/repo-job-j0123456789@1111111→2222222"
+        );
+        assert_eq!(p["mode"], "worktree");
+        assert_eq!(p["base"], "1111111aaaa");
+        assert_eq!(p["head"], "2222222bbbb");
+        assert_eq!(p["file_count"], 1);
+        assert_eq!(p["files"][0]["path"], "a.txt");
+        assert_eq!(p["tokens"]["input"], 100);
+        assert_eq!(p["cost_usd"], 0.01);
+        assert_eq!(p["duration_ms"], 3_500);
+        assert_eq!(p["checks"], json!([]));
+    }
+
+    #[test]
+    fn the_shared_proof_stamps_the_snapshot_trees() {
+        let job = ended("review");
+        let ends = ("abcdef0123".to_string(), "9876543210".to_string());
+        let p = build_proof(&job, Some(&ends), "pc");
+        assert_eq!(p["mode"], "shared");
+        assert_eq!(p["stamp"], "pc:/w/repo@tree:abcdef0→tree:9876543");
+        assert_eq!(p["base"], "tree:abcdef0123");
+        // Unknown ends: said, not made up.
+        let p = build_proof(&job, None, "pc");
+        assert_eq!(p["stamp"], "pc:/w/repo@?→?");
+    }
+
+    #[test]
+    fn a_check_lands_in_the_proof_with_its_exit_code() {
+        let mut p = build_proof(&ended("review"), None, "h");
+        push_check(&mut p, "npm test", false, "exit 1\nFAIL x");
+        let mut empty = json!({});
+        push_check(&mut empty, "true", true, "exit 0\n");
+        assert_eq!(p["checks"][0]["command"], "npm test");
+        assert_eq!(p["checks"][0]["exit_code"], 1);
+        assert_eq!(p["checks"][0]["ok"], false);
+        assert_eq!(empty["checks"][0]["exit_code"], 0);
+        push_check(&mut empty, "x", false, "ERR_TOOL_DENIED");
+        assert_eq!(empty["checks"][1]["exit_code"], Value::Null);
+    }
+
+    #[test]
+    fn the_proof_route_answers_by_state() {
+        let mut job = ended("running");
+        assert_eq!(proof_view(&job).unwrap_err().0, 409);
+        job.state = "done".into();
+        assert_eq!(proof_view(&job).unwrap_err().0, 404, "ended before 2.4");
+        job.proof = Some(json!({"stamp": "h:/w@a→b"}));
+        let v = proof_view(&job).unwrap();
+        assert_eq!(v["proof"]["stamp"], "h:/w@a→b");
+    }
+
+    #[test]
+    fn head_and_proof_round_trip_and_leave_the_list() {
+        let db = Connection::open_in_memory().unwrap();
+        ensure_schema(&db, 0).unwrap();
+        db.execute(
+            "INSERT INTO jobs (id, kind, agent_id, conversation_id, prompt, state, created_ms, head_oid, proof)
+             VALUES ('j0', 'run', 'a', 'c', 'p', 'review', 1, 'abc', '{\"stamp\":\"h:/w@a→b\"}')",
+            [],
+        )
+        .unwrap();
+        let j = db
+            .query_row(
+                &format!("SELECT {JOB_COLS} FROM jobs WHERE id='j0'"),
+                [],
+                row_to_job,
+            )
+            .unwrap();
+        assert_eq!(j.head_oid.as_deref(), Some("abc"));
+        assert_eq!(j.proof.unwrap()["stamp"], "h:/w@a→b");
+        let mut with_head = ended("review");
+        with_head.head_oid = Some("abc".into());
+        let v = match diff_view(&with_head, None, None, "files", true).unwrap() {
+            DiffBody::Json(v) => v,
+            other => panic!("{other:?}"),
+        };
+        assert_eq!(v["head_oid"], "abc");
+    }
+}
+
+#[cfg(test)]
+mod auto_resume_tests {
+    use super::*;
+    use omniget_core::core::process::StaleProcess;
+
+    fn job(kind: &str) -> Job {
+        Job {
+            id: "j1".into(),
+            kind: kind.into(),
+            agent_id: "coder".into(),
+            conversation_id: "c".into(),
+            prompt: "fix it".into(),
+            state: "interrupted".into(),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn only_the_hosts_failures_are_infrastructure() {
+        for r in [
+            FailureReason::AppRestart,
+            FailureReason::Stalled,
+            FailureReason::NoStart,
+        ] {
+            assert!(r.is_infrastructure(), "{r:?}");
+            assert_eq!(FailureReason::parse(r.as_str()), Some(r));
+        }
+        for r in [
+            FailureReason::Deadline,
+            FailureReason::Limit,
+            FailureReason::AskExpired,
+        ] {
+            assert!(!r.is_infrastructure(), "{r:?}");
+            assert_eq!(FailureReason::parse(r.as_str()), Some(r));
+        }
+        assert_eq!(FailureReason::parse("nope"), None);
+    }
+
+    #[test]
+    fn reading_and_searching_are_the_only_harmless_tools() {
+        for t in [
+            "Read",
+            "Glob",
+            "Grep",
+            "WebSearch",
+            "fs_read",
+            "fs_grep",
+            "TodoWrite",
+        ] {
+            assert!(!tool_may_write(t), "{t}");
+        }
+        for t in [
+            "Edit",
+            "Write",
+            "Bash",
+            "fs_edit",
+            "shell_exec",
+            "mcp__x__y",
+            "Task",
+        ] {
+            assert!(tool_may_write(t), "{t}");
+        }
+    }
+
+    /// A job a budget stopped (3.3) never comes back by itself (3.1), even
+    /// when the watchdog or the boot put a host reason on it afterwards; a
+    /// cancelled one neither.
+    #[test]
+    fn a_job_stopped_by_a_budget_is_not_resumed_by_itself() {
+        let mut cut = job("run");
+        cut.failure_reason = Some("budget".into());
+        for r in [FailureReason::AppRestart, FailureReason::Stalled] {
+            assert_eq!(
+                auto_resume_verdict(&cut, true, r, None, 0),
+                ResumeVerdict::BudgetPaused
+            );
+        }
+        assert_eq!(ResumeVerdict::BudgetPaused.as_str(), "budget_paused");
+        let mut cancelled = job("run");
+        cancelled.state = "cancelled".into();
+        assert_eq!(
+            auto_resume_verdict(&cancelled, true, FailureReason::Stalled, None, 0),
+            ResumeVerdict::NotInfrastructure
+        );
+    }
+
+    /// The rule of 3.1, one condition at a time.
+    #[test]
+    fn a_lost_job_comes_back_only_when_asked_safe_and_not_too_often() {
+        let r = FailureReason::AppRestart;
+        let clean = job("run");
+        assert_eq!(
+            auto_resume_verdict(&clean, false, r, None, 0),
+            ResumeVerdict::Off
+        );
+        assert_eq!(
+            auto_resume_verdict(&clean, true, r, None, 0),
+            ResumeVerdict::Resume
+        );
+        assert_eq!(
+            auto_resume_verdict(&clean, true, FailureReason::Deadline, None, 0),
+            ResumeVerdict::NotInfrastructure
+        );
+        assert_eq!(
+            auto_resume_verdict(&clean, true, FailureReason::Stalled, None, 0),
+            ResumeVerdict::Resume
+        );
+        // Wrote in the shared folder: never again by itself…
+        let mut wrote = job("run");
+        wrote.side_effects = true;
+        assert_eq!(
+            auto_resume_verdict(&wrote, true, r, None, 0),
+            ResumeVerdict::WroteInSharedFolder
+        );
+        // …but in its own worktree it may.
+        wrote.worktree_path = Some("/wt/j1".into());
+        assert_eq!(
+            auto_resume_verdict(&wrote, true, r, None, 0),
+            ResumeVerdict::Resume
+        );
+        // Never beside its old process.
+        assert_eq!(
+            auto_resume_verdict(&clean, true, r, Some(StaleProcess::Survived), 0),
+            ResumeVerdict::ProcessAlive
+        );
+        assert_eq!(
+            auto_resume_verdict(&clean, true, r, Some(StaleProcess::Killed), 0),
+            ResumeVerdict::Resume
+        );
+        assert_eq!(
+            auto_resume_verdict(&clean, true, r, None, AUTO_RESUME_MAX),
+            ResumeVerdict::Attempts
+        );
+        for kind in ["chat", "mission", "playbook"] {
+            assert_eq!(
+                auto_resume_verdict(&job(kind), true, r, None, 0),
+                ResumeVerdict::NotThisKind,
+                "{kind}"
+            );
+        }
+        let mut tool = job("run");
+        tool.agent_id = "tool:codex".into();
+        assert_eq!(
+            auto_resume_verdict(&tool, true, r, None, 0),
+            ResumeVerdict::NotThisKind
+        );
+        let mut round = job("loop");
+        round.loop_id = Some("l1".into());
+        assert_eq!(
+            auto_resume_verdict(&round, true, r, None, 0),
+            ResumeVerdict::Resume
+        );
+    }
+
+    #[test]
+    fn the_note_says_to_check_before_repeating() {
+        let n = resume_note(FailureReason::AppRestart, "fix it");
+        assert!(n.starts_with("The app closed in the middle of this task"));
+        assert!(n.contains("do not repeat an action that already happened"));
+        assert!(n.ends_with("Task: fix it"));
+        assert!(resume_note(FailureReason::Stalled, "x").contains("went silent"));
+    }
+
+    #[test]
+    fn the_resume_columns_round_trip_and_older_rows_read_as_before() {
+        let db = Connection::open_in_memory().unwrap();
+        ensure_schema(&db, 0).unwrap();
+        db.execute(
+            "INSERT INTO jobs (id, kind, agent_id, conversation_id, prompt, state, created_ms)
+             VALUES ('old', 'run', 'a', 'c', 'p', 'done', 1)",
+            [],
+        )
+        .unwrap();
+        db.execute(
+            "INSERT INTO jobs (id, kind, agent_id, conversation_id, prompt, state, created_ms, session_id, pid, pid_start, attempt, auto_resume, side_effects)
+             VALUES ('new', 'run', 'a', 'c', 'p', 'running', 1, 'sess-9', 4242, 1700000000123456, 1, 1, 1)",
+            [],
+        )
+        .unwrap();
+        let read = |id: &str| {
+            db.query_row(
+                &format!("SELECT {JOB_COLS} FROM jobs WHERE id=?1"),
+                [id],
+                row_to_job,
+            )
+            .unwrap()
+        };
+        let old = read("old");
+        assert_eq!(
+            (
+                old.session_id,
+                old.pid,
+                old.pid_start,
+                old.attempt,
+                old.auto_resume,
+                old.side_effects
+            ),
+            (None, None, None, 0, None, false)
+        );
+        let new = read("new");
+        assert_eq!(new.session_id.as_deref(), Some("sess-9"));
+        assert_eq!(new.pid, Some(4242));
+        assert_eq!(new.pid_start, Some(1_700_000_000_123_456));
+        assert_eq!(new.attempt, 1);
+        assert_eq!(new.auto_resume, Some(true));
+        assert!(new.side_effects);
+    }
+
+    #[test]
+    fn the_setting_is_off_by_default_and_a_loop_keeps_its_own_switch() {
+        assert!(!omniget_core::models::settings::LlmSettings::default().auto_resume);
+        let l: LoopDef =
+            serde_json::from_value(json!({"agent_id": "a", "prompt": "p", "auto_resume": true}))
+                .unwrap();
+        assert_eq!(l.auto_resume, Some(true));
+        assert!(!l.restarted);
+        let old: LoopDef = serde_json::from_value(json!({"agent_id": "a", "prompt": "p"})).unwrap();
+        assert_eq!(old.auto_resume, None);
     }
 }

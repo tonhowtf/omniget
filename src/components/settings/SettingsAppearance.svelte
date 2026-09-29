@@ -20,6 +20,8 @@
   let selectedInMore = $derived(MORE_THEME_IDS.has(settings?.appearance?.theme ?? ""));
   let moreThemesOpen = $state(false);
   let rpcDrillOpen = $state(false);
+  /** The Flatpak limit of "agents in the background" only concerns Linux (3.2). */
+  const onLinux = typeof navigator !== "undefined" && /linux/i.test(navigator.userAgent);
 
   $effect(() => {
     if (selectedInMore) moreThemesOpen = true;
@@ -80,6 +82,26 @@
           role="switch"
           aria-checked={settings.exit_on_close}
           aria-label={$t('settings.general.exit_on_close') as string}
+        >
+          <span class="toggle-knob"></span>
+        </button>
+      </div>
+      <div class="divider"></div>
+      <div class="setting-row">
+        <div class="setting-col">
+          <span class="setting-label">{$t('settings.general.run_in_background')}</span>
+          <span class="setting-path">{$t('settings.general.run_in_background_desc')}</span>
+          {#if onLinux}
+            <span class="setting-path">{$t('settings.general.run_in_background_flatpak')}</span>
+          {/if}
+        </div>
+        <button
+          class="toggle"
+          class:on={settings.run_in_background}
+          onclick={() => updateSettings({ run_in_background: !settings.run_in_background })}
+          role="switch"
+          aria-checked={settings.run_in_background}
+          aria-label={$t('settings.general.run_in_background') as string}
         >
           <span class="toggle-knob"></span>
         </button>

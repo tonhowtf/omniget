@@ -605,6 +605,21 @@
     }
   },
   {
+    "screenId": "/llm/work",
+    "route": "/llm/work",
+    "windowId": "main",
+    "sensitive": false,
+    "kind": "page",
+    "navigation": "main-route",
+    "preconditions": [],
+    "capabilities": {
+      "inspect": true,
+      "capture": true,
+      "actions": "Only actions returned by inspect",
+      "conditionalStates": "Inspect currently rendered state; hidden dialogs and tabs are not enumerated"
+    }
+  },
+  {
     "screenId": "/llm/sessions",
     "route": "/llm/sessions",
     "windowId": "main",

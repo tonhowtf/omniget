@@ -1311,7 +1311,10 @@
       "reset_hints": "重置提示",
       "reset_hints_desc": "重新显示所有已关闭的提示",
       "restore": "恢复",
-      "hints_restored": "All hints restored"
+      "hints_restored": "All hints restored",
+      "run_in_background": "在背景執行代理",
+      "run_in_background_desc": "登入時 OmniGet 會隱藏啟動，關閉視窗後仍留在系統匣中，因此工作、Loop 與例行工作會繼續執行，omniget 指令也找得到它。會關閉「關閉視窗時結束」。",
+      "run_in_background_flatpak": "Flatpak：登入時啟動以及從命令列啟動尚未驗證。"
     },
     "appearance": {
       "title": "外觀",
@@ -2772,12 +2775,10 @@
       "mcp": "MCP",
       "skills": "Skills",
       "accounts": "Accounts",
-      "local": "Local",
       "arena": "Arena",
       "jobs": "Jobs",
       "loops": "Loops"
     },
-    "demo_banner": "Demo data: the LLM backend is not wired yet.",
     "rail": {
       "title": "Agents",
       "unassigned": "Unassigned",
@@ -2785,7 +2786,8 @@
       "new_chat": "New chat",
       "empty": "No agents yet.",
       "no_profile": "No local profile",
-      "search": "Search agents"
+      "search": "Search agents",
+      "load_failed": "無法讀取已儲存的聊天。"
     },
     "role": {
       "coordinator": "Coordinator",
@@ -2896,14 +2898,11 @@
       "connect": "Connect or manage providers",
       "local_hint": "Local server: make sure it is running and has models installed. No saved API key is required.",
       "no_models": "This provider returned no models. Check the models available on the server or enter an identifier manually.",
-      "load_failed": "Could not load models: {{error}}"
+      "load_failed": "無法讀取你的供應商：{{error}}"
     },
     "err": {
       "unavailable": "The LLM backend is not wired yet.",
       "turn_failed": "The turn could not start."
-    },
-    "local": {
-      "explanation": "Local model management is not available here yet. Configure an existing local provider in Models & Routing."
     },
     "skills": {
       "title": "Skills",
@@ -2911,7 +2910,6 @@
       "installed_title": "Installed",
       "loading": "Reading the installed skills…",
       "empty": "No skill installed yet. Install one from a folder, a zip or a git repository.",
-      "demo": "Demo data — nothing here is installed on this machine.",
       "remove": "Remove",
       "install": "Install",
       "installing": "Installing…",
@@ -2993,7 +2991,6 @@
       "lede": "其他代理程式連線的端點，以及 OmniGet 連線的伺服器。",
       "half_client": "你使用的伺服器",
       "half_server": "你的端點",
-      "demo": "示範伺服器：MCP 後端尚未回應。這裡的都不是真實連線。",
       "servers": "已連線的伺服器",
       "add": "新增伺服器",
       "loading": "正在讀取已儲存的伺服器…",
@@ -3218,7 +3215,12 @@
         "connecting": "Connecting…",
         "err_unknown_provider": "Unknown provider",
         "err_credential_failed": "Credential validation failed"
-      }
+      },
+      "sandbox_full": "已允許完全存取",
+      "sandbox_full_hint": "此帳戶的回合可以編輯檔案，執行模式為「完全存取」的回合不經詢問直接執行。",
+      "sandbox_allow_full": "允許完全存取",
+      "sandbox_allow_full_confirm": "確認：允許完全存取",
+      "sandbox_make_write": "退回僅寫入"
     },
     "rules": {
       "title": "Always rules",
@@ -3277,10 +3279,8 @@
       "undone": "Undone: {{count}} file(s) restored",
       "chat": "Chat",
       "agents": "Agents",
-      "activity": "Activity",
       "configure": "Configure",
       "tasks": "Tasks",
-      "routines": "Routines",
       "performance": "Usage and performance",
       "monitor": "Usage monitor",
       "off": "Off",
@@ -3302,7 +3302,10 @@
       "retro": "Retrospective",
       "installed": "Installed",
       "remote": "Remote access",
-      "wizard": "Project setup"
+      "wizard": "Project setup",
+      "work": "工作",
+      "more": "更多",
+      "loops": "循環"
     },
     "jobs": {
       "lede": "Agent runs that work in the background while you do something else.",
@@ -3318,6 +3321,12 @@
       "list_title": "Recent jobs",
       "empty": "No jobs yet. Start one above and it shows up here.",
       "result": "Result",
+      "outcome": {
+        "title": "代理程式的結論",
+        "succeeded": "成功",
+        "failed": "失敗",
+        "missing": "代理程式結束時沒有寫 OUTCOME 行：依賴結果之前請先閱讀。"
+      },
       "error": "Error",
       "log": "Log",
       "log_empty": "Nothing logged yet.",
@@ -3332,26 +3341,31 @@
         "done": "Done",
         "failed": "Failed",
         "cancelled": "Cancelled",
-        "waiting_workspace": "等待資料夾"
+        "waiting_workspace": "等待資料夾",
+        "review": "待審閱",
+        "done_unreported": "已完成，未回報"
       },
       "kind": {
         "run": "Run",
         "chat": "Chat",
         "loop": "Loop",
-        "trigger": "Trigger",
+        "trigger": "排程",
         "mission": "任務"
       },
       "ask": {
         "title": "Wants to use {{tool}}",
         "allow": "Allow",
         "always": "Always allow",
-        "deny": "Deny"
+        "deny": "Deny",
+        "session": "本輪允許",
+        "stop": "拒絕並停止",
+        "cli": "在終端機中：omniget agent approve {{id}}"
       },
       "trigger": {
-        "title": "Triggers",
-        "lede": "Start a job on a schedule or when a webhook is called.",
-        "empty": "No triggers yet. Create one below.",
-        "new_title": "New trigger",
+        "title": "排程與 Webhook",
+        "lede": "在設定的時間或呼叫 Webhook 時啟動任務。",
+        "empty": "還沒有排程。在下方建立一個。",
+        "new_title": "新增排程",
         "kind": "Kind",
         "kind_cron": "Schedule",
         "kind_webhook": "Webhook",
@@ -3359,10 +3373,10 @@
         "cron": "Cron line",
         "cron_hint": "Five fields (minute hour day month weekday), or @hourly, @daily, @weekly, @monthly.",
         "body_hint": "{{token}} is replaced by the webhook body.",
-        "create": "Create trigger",
+        "create": "建立排程",
         "enabled": "Enabled",
         "fire": "Fire now",
-        "fired": "Trigger fired",
+        "fired": "排程已啟動一個任務",
         "fired_count": "Fired {{count}}×",
         "copy_curl": "Copy curl",
         "catch_up": "應用程式關閉期間錯過的",
@@ -3387,7 +3401,9 @@
         "no_start": "已停止：代理從未啟動",
         "deadline": "已停止：達到時間上限",
         "limit": "已停止：達到預算上限",
-        "ask_expired": "有一個問題無人回答"
+        "ask_expired": "有一個問題無人回答",
+        "app_restart": "此工作執行期間應用程式已關閉",
+        "budget": "已停止：預算上限阻止了此範圍"
       },
       "queue": {
         "title": "佇列",
@@ -3411,6 +3427,121 @@
         "unavailable_no_snapshot": "無法得知此工作變更了什麼：它的回合沒有為資料夾建立快照。",
         "unavailable_no_workspace": "此工作在沒有資料夾的情況下執行，因此沒有差異。",
         "unavailable_error": "無法讀取此工作資料夾的快照。"
+      },
+      "tokens": {
+        "title": "存取權杖",
+        "lede": "指令碼、Webhook 和 omniget CLI 使用具權限範圍的權杖存取本機橋接的代理程式路由。瀏覽器擴充功能的金鑰不適用於這些路由。",
+        "empty": "尚無權杖。",
+        "name": "名稱",
+        "scopes": "可執行的操作",
+        "scope_jobs_read": "檢視工作 (jobs:read)",
+        "scope_jobs_operate": "啟動與取消工作 (jobs:operate)",
+        "scope_approvals_respond": "回覆核准 (approvals:respond)",
+        "expires": "有效期限",
+        "expires_never": "永不過期",
+        "expires_days": "{{days}} 天後",
+        "expires_at": "{{when}} 到期",
+        "create": "建立權杖",
+        "created": "權杖已建立。請立即複製：它不會再次顯示。",
+        "copy": "複製權杖",
+        "revoke": "撤銷",
+        "kind_cli": "這台電腦的 omniget CLI",
+        "last_used": "上次使用 {{when}}",
+        "never_used": "從未使用",
+        "legacy_toggle": "仍在代理程式路由上接受瀏覽器擴充功能的金鑰（已淘汰）",
+        "legacy_hint": "保留一個版本，讓舊指令碼繼續運作。下一個版本將拒絕它。",
+        "legacy_seen": "瀏覽器擴充功能的金鑰於 {{when}} 在 {{route}} 上被使用。請將該指令碼改用具權限範圍的權杖。",
+        "curl_hint": "將 OMNIGET_TOKEN 設為具有 jobs:operate 權限範圍的權杖（見下方存取權杖）。",
+        "scope_audit_read": "讀取稽核日誌（audit:read）",
+        "scope_budget_write": "設定和提高預算（budget:write）",
+        "scope_workflow_trust": "信任儲存庫工作流程 (workflow:trust)"
+      },
+      "isolation": {
+        "label": "寫入位置",
+        "auto": "自動：只有在另一個工作正在該資料夾寫入時才使用獨立 worktree",
+        "worktree": "一律使用獨立的 git worktree",
+        "shared": "直接在資料夾中（排隊等候）"
+      },
+      "worktree": {
+        "title": "Worktree",
+        "chip": "{{branch}}，基於 {{base}}",
+        "gone": "worktree 已移除；分支保留了這些工作。",
+        "remove": "移除 worktree",
+        "removed": "worktree 已移除。",
+        "kept_branch": "worktree 已移除。分支 {{branch}} 保留了該工作的成果。",
+        "saved": "已先將 {{count}} 個未提交的檔案儲存到分支。"
+      },
+      "proof": {
+        "title": "憑證",
+        "summary": "修改了 {{files}} 個檔案 · {{tokens}} 個 token · {{time}}",
+        "check": "{{command}} → 結束碼 {{code}}",
+        "by_host": "由本機上的 OmniGet 依其紀錄蓋章，而非代理程式所寫。"
+      },
+      "review": {
+        "mark": "標記為已審閱",
+        "title": "審查",
+        "lede": "捨棄某個區塊，留備註給代理，然後合入或捨棄這項工作。",
+        "discard_hunk": "捨棄",
+        "hunk_discarded": "已捨棄該區塊。",
+        "hunk_stale": "載入後這段程式碼已變更。差異已重新整理，請再試一次。",
+        "busy": "有工作正在寫入此資料夾。請在它結束後再試。",
+        "not_actionable": "此工作的 worktree 已移除，無法再逐塊捨棄。",
+        "notes_title": "給代理的備註",
+        "notes_hint": "在差異中選取行並留言。送出會在同一對話中開始後續工作，只花費備註的成本。",
+        "notes_empty": "還沒有備註。",
+        "note_file": "整個檔案",
+        "note_sent": "已送給 {{job}}",
+        "note_delete": "刪除備註",
+        "notes_send": "送出 {{count}} 則備註給代理",
+        "notes_sent": "備註已送出：後續工作 {{job}} 已開始。",
+        "walkthrough_title": "導覽",
+        "walkthrough": "解釋變更",
+        "walkthrough_refresh": "重新解釋",
+        "walkthrough_loading": "正在撰寫導覽…",
+        "walkthrough_too_large": "此差異太大，無法產生導覽。請逐檔審查。",
+        "walkthrough_uncovered": "{{count}} 個區塊不在任何站點中",
+        "walkthrough_cached": "來自快取",
+        "importance_critical": "關鍵",
+        "integrate_title": "合入",
+        "integrate_into": "將 {{branch}} 合併到 {{target}}",
+        "commits": "要帶入的提交：{{count}}",
+        "worktree_dirty": "worktree 中 {{count}} 個未提交的檔案會先儲存到分支。",
+        "blocked": "目前無法合入：{{reason}}",
+        "strategy_merge": "合併提交",
+        "strategy_squash": "壓縮成一個提交",
+        "integrate": "合入",
+        "integrated": "已合入 {{target}}。",
+        "up_to_date": "{{target}} 已包含這項工作。",
+        "conflict": "{{files}} 發生衝突。你的檢出沒有任何變更。",
+        "failed": "git 拒絕了合併（可能是掛鉤）。你的檢出沒有任何變更。",
+        "discard_work": "捨棄工作",
+        "discard_confirm": "捨棄此工作的成果？其 worktree 和分支 {{branch}} 將被刪除。",
+        "discarded": "工作已捨棄。分支 {{branch}} 原指向 {{tip}}。"
+      },
+      "resumed_by_itself": "已自動繼續（{{count}} 次）",
+      "workflow": {
+        "title": "儲存庫工作流程",
+        "state": {
+          "trusted": "生效中",
+          "untrusted": "未信任",
+          "invalid": "無效",
+          "none": "無"
+        },
+        "last_good": "在檔案修正之前，最後一個有效版本會繼續生效。",
+        "no_last_good": "沒有先前的有效版本：在檔案修正之前，此資料夾中的工作會被拒絕。",
+        "defaults": "預設值：",
+        "commands": "它在這台電腦上執行的指令：",
+        "kind": {
+          "after_create": "建立 worktree 之後",
+          "before_remove": "移除 worktree 之前",
+          "check": "工作結束後的檢查"
+        },
+        "untrusted_hint": "在你信任這個確切版本之前，這些指令會被略過，也不會套用更寬鬆的執行模式。檔案的任何變更都需要重新確認。",
+        "trust": "信任此版本",
+        "revoke": "取消信任",
+        "template": "提示詞範本",
+        "trusted_toast": "已信任工作流程：從現在起執行其指令",
+        "untrusted_toast": "已不再信任工作流程"
       }
     },
     "loops": {
@@ -3440,13 +3571,56 @@
         "running": "Running",
         "done": "Done",
         "failed": "Failed",
-        "cancelled": "Cancelled"
+        "cancelled": "Cancelled",
+        "paused": "已暫停",
+        "blocked": "已受阻",
+        "budget_limited": "已達預算"
       },
       "check_passed": "Condition met",
       "summary": "Up to {{rounds}} rounds. Stops earlier when a configured condition or time limit is reached.",
-      "no_check": "No check command: completion will be controlled by the round or time limit.",
+      "no_check": "沒有檢查指令:每輪結束後,由獨立稽核者(代理最小的模型)判斷工作是否完成,最多 20 輪。",
       "review": "Review loop",
-      "edit": "Edit configuration"
+      "edit": "Edit configuration",
+      "auto_resume": "重新啟動後自動繼續",
+      "auto_resume_hint": "如果應用程式在某一輪中途關閉，Loop 會在重新開啟後繼續，除非那一輪已經寫入了你的資料夾。",
+      "run_mode_hint": "迴圈的每一輪都以此模式執行。選擇「事事先詢問」時，每一輪在任何編輯或指令之前都會停下來等你確認。",
+      "max_cost": "預算（美元）",
+      "paused_budget": "已暫停：預算已用盡",
+      "paused_budget_hint": "在提高上限之前不會開始新一輪；提高後循環會繼續。",
+      "open_incident": "開啟事件",
+      "cost_estimated": "（估算）",
+      "cost_tokens": "{{tokens}} 加權 token",
+      "cost_unknown": "{{count}} 輪成本未知",
+      "stop": {
+        "audit_complete": "已由稽核者確認",
+        "audit_blocked": "稽核者連續 3 輪看到代理受阻",
+        "audit_unavailable": "稽核連續兩次無法使用",
+        "token_budget": "已達 token 預算",
+        "max_rounds": "已達輪數上限",
+        "round_failed": "某一輪失敗:{{error}}",
+        "audit_disagrees": "代理連續 3 次自稱完成而稽核者不同意:由你決定"
+      },
+      "token_budget": "Token 預算",
+      "tokens": "{{used}} / {{budget}} tokens",
+      "guided": "有 {{count}} 輪只送出了繼續指引(未重新送出任務)。",
+      "audits": "稽核者判定",
+      "verdict": {
+        "continue": "繼續",
+        "complete": "完成",
+        "blocked": "已受阻",
+        "none": "無判定"
+      },
+      "claimed_done": "自稱完成",
+      "claimed_done_hint": "代理自稱已完成;只有稽核者的判定能結束迴圈。",
+      "side_reason": {
+        "provider_small": "同一帳號的最小模型",
+        "session_model": "未知更小的模型:使用代理自己的模型",
+        "requested": "為此迴圈指定",
+        "setting": "輔助模型設定"
+      },
+      "overhead": "稽核者 {{audit}},輪次花費 {{rounds}}({{percent}}%)。",
+      "blocked_hint": "迴圈已停止,需要你處理。繼續會再跑一輪,並再次稽核。",
+      "note": "進度"
     },
     "limits": {
       "title": "Limits strip",
@@ -3559,22 +3733,18 @@
       "model": "Connection and model",
       "customize": "Tools and limits",
       "tasks": "Tasks",
-      "routines": "Routines",
       "active": "Running",
       "attention": "Needs attention",
       "done": "Finished",
       "create": "Create a task",
-      "create_routine": "Create a routine",
       "jobs_hint": "Run a task in the background. Open its details to see the result, approve a tool or stop execution.",
       "loops_hint": "Repeat a task until a check passes or its limit is reached. Review the stop conditions before starting.",
       "models_hint": "Connect an API provider, then choose its model for an agent. Chat subscriptions are configured in Connections.",
       "mcp_hint": "Connect a tool, test it, then choose which agents may use it. Adding a connection does not grant permission.",
       "skills_hint": "Skills give agents reusable instructions. Review the source and scan result before installing, then assign the skill to an agent.",
       "observatory_hint": "Inspect measured activity and provider quotas. Missing measurements are unavailable, never zero. Diagnostics run only when you open them.",
-      "local_hint": "Use a local model through a compatible server. Connect the running server and select one of its actual models before creating an agent.",
       "arena_hint": "Model comparison is not available yet. You can choose a model and run a conversation with the current tools.",
       "unavailable_feature": "Not available yet",
-      "local_steps": "Start your local model server|Connect its endpoint in AI settings|Choose the model for an agent",
       "arena_steps": "Select a model|Open a conversation|Review the result",
       "roster_hint": "Start with one agent and give it a clear purpose. Add a team when your task needs it.",
       "suggestion_1": "List my downloads and explain which need attention",
@@ -3587,7 +3757,8 @@
       "search": "Find an agent",
       "no_matches": "No matching agents",
       "templates_impact": "Review the template and its effect on the existing team before applying it.",
-      "mcp_server_hint": "讓其他 AI 應用程式使用 OmniGet：開啟伺服器，建立只含所需權限的用戶端，再把它的程式碼片段貼到該應用程式中。"
+      "mcp_server_hint": "讓其他 AI 應用程式使用 OmniGet：開啟伺服器，建立只含所需權限的用戶端，再把它的程式碼片段貼到該應用程式中。",
+      "create_loop": "建立循環"
     },
     "prompts": {
       "omni": "You are Omni, the assistant inside OmniGet. Answer briefly and in the language the user writes in. Use a tool only when it is clearly needed.",
@@ -3618,14 +3789,16 @@
       "start": "啟動逾時（秒）",
       "start_desc": "啟動後這段時間內完全沒有輸出的代理，從未收到提示。",
       "deadline": "工作時間上限（分鐘）",
-      "deadline_desc": "每個背景工作（執行、迴圈的每一輪、例行工作）都會在此停止，除非它設定了自己的上限。",
+      "deadline_desc": "每個背景任務（一次執行、循環的每一輪、排程執行）都會在此停止，除非它設定了自己的上限。",
       "ask_chat": "聊天中問題的等待時間（分鐘）",
       "ask_chat_desc": "逾時後問題失效：動作不會執行，並會告訴你原因。",
       "ask_job": "工作中問題的等待時間（分鐘）",
       "ask_job_desc": "填 0 表示一直等到工作本身的時間上限。",
       "notify_delay": "多久後通知（秒）",
       "notify_delay_desc": "超過這個時間仍未回答的問題會變成系統通知。較早回答的不會通知。",
-      "offline": "無法儲存：後端沒有回應。"
+      "offline": "無法儲存：後端沒有回應。",
+      "auto_resume": "重新啟動後自動繼續",
+      "auto_resume_desc": "當應用程式關閉或代理沒有回應時，在自己的 worktree 中執行或只讀取檔案的工作會自動重新開始：它會延續原本的工作階段，並被要求在重複任何動作前先檢查已完成的部分。寫入過你的資料夾的工作仍會等你處理。個別工作或 Loop 可以另行設定。"
     },
     "central": {
       "agentkit": {
@@ -5350,7 +5523,6 @@
         "verify_hint": "Runs in every worktree; the exit code decides pass or fail.",
         "cleanup": "Clean up",
         "cleanup_lede": "Archives the threads (their worktrees go; the work stays in the arena's refs).",
-        "cleanup_losers": "Only the losers",
         "cleanup_all": "Every entry (discard the arena)",
         "delete": "Delete arena",
         "delete_lede": "Removes this arena from the history and its refs. The threads stay.",
@@ -5466,10 +5638,11 @@
           "verify_hint": "Optional; runs in each worktree when its turn ends. Timeout",
           "timeout": "Timeout in minutes",
           "minutes": "min",
-          "start": "Start in {{count}} tools"
+          "start": "Start in {{count}} tools",
+          "min_tools": "至少選 {{count}} 個工具來比較。"
         },
         "apply": {
-          "title": "Apply the winner",
+          "title": "選這個",
           "lede": "{{name}}'s branch goes into the target branch. Nothing else is touched.",
           "target": "Target branch",
           "strategy": "How",
@@ -5480,22 +5653,49 @@
           "conflicts": "{{count}} files conflict; resolve in the thread first.",
           "checked_out": "The branch is checked out at {{path}}.",
           "dirty": "That checkout has uncommitted changes: commit or stash them first.",
-          "touch_checkout": "Update my checkout too (fast-forward only)",
+          "touch_checkout": "合併到我的 checkout(用我的身分和 hook 執行 git merge;衝突時復原)",
           "ref_only": "Only the branch moves; no checkout is touched.",
-          "clean_losers": "Archive the losing threads and remove their worktrees",
+          "clean_losers": "然後移除其他(worktree;它們的成果保留在競技場的 ref 中)",
           "delete_branches": "Also delete their branches (only OmniGet's)",
           "confirm": "I want to change {{branch}}",
           "do": "Apply",
           "ok": "Applied to {{branch}}",
-          "updated_checkout": "your checkout moved forward",
-          "updated_ref": "only the branch ref moved",
-          "cleaned": "{{count}} threads archived"
+          "updated_checkout": "已合併到你的 checkout",
+          "updated_ref": "only the branch ref moved"
         },
         "plan": {
           "implement_n": "Implement in N tools",
           "hint": "Open the Arena with this plan as the prompt"
         },
-        "apply_winner": "Apply winner"
+        "apply_winner": "Apply winner",
+        "removed": "已移除 {{count}} 個 worktree",
+        "branches_kept": "保留了 {{count}} 個分支",
+        "remove_others": "移除其他",
+        "choose": "選這個",
+        "choose_hint": "把這一欄的成果合併到基礎分支",
+        "estimate": {
+          "total": "開始前的預估費用:{{count}} 個工具共 {{total}}",
+          "unknown": "{{count}} 個無法預估",
+          "rough": "粗略:標價 × 一次典型回合",
+          "source": {
+            "history": "競技場中過去 {{runs}} 次執行的平均值",
+            "price": "標價 × 一次典型程式回合(粗略)",
+            "unknown": "價格未知(訂閱,或模型不在價格表中)"
+          }
+        },
+        "compare": {
+          "title": "分歧之處",
+          "toggle": "比較",
+          "divergent": "{{count}} 個檔案不同",
+          "agreed": "{{count}} 個相同",
+          "pending": "{{count}} 個仍在執行",
+          "show_agreed": "顯示相同的檔案",
+          "file": "檔案",
+          "untouched": "與基礎相同",
+          "none_divergent": "所有欄最終的檔案都相同。",
+          "column": "{{count}} 處分歧",
+          "column_hint": "這一欄與其他欄不同的檔案"
+        }
       },
       "run": {
         "back": "Back",
@@ -5512,7 +5712,8 @@
           "done": "Done",
           "failed": "Failed",
           "cancelled": "Cancelled",
-          "skipped": "Skipped"
+          "skipped": "Skipped",
+          "review": "待審閱"
         },
         "runner": {
           "label": "Runs with",
@@ -5662,6 +5863,156 @@
           "review_started": "Review job started",
           "open_jobs": "Open Jobs"
         }
+      }
+    },
+    "run_mode": {
+      "label": "執行模式",
+      "approval_required": "事事先詢問",
+      "auto_edits": "自動編輯",
+      "auto": "自動（CLI 審查器）",
+      "full_access": "完全存取",
+      "approval_required_hint": "每次編輯和每個指令都會先詢問你。",
+      "auto_edits_hint": "檔案編輯直接通過；指令會先詢問。",
+      "auto_hint": "由 CLI 自帶的審查器決定；CLI 沒有審查器時，效果同「自動編輯」。",
+      "full_access_hint": "什麼都不詢問。CLI 帳戶也必須允許完全存取。",
+      "full_access_warning": "完全存取會不經詢問執行每次編輯和每個指令。只在你可以承受遺失的資料夾裡使用。",
+      "full_access_confirm": "允許完全存取",
+      "cancel": "取消"
+    },
+    "audit": {
+      "title": "稽核日誌",
+      "lede": "誰對工作、詢問、授權、權杖和代理做了什麼，經由哪個管道。從不儲存提示詞、檔案內容或密鑰。",
+      "since": "時間範圍",
+      "since_1h": "最近 1 小時",
+      "since_1d": "最近 1 天",
+      "since_7d": "最近 7 天",
+      "since_30d": "最近 30 天",
+      "since_90d": "最近 90 天",
+      "kind": "類型",
+      "kind_all": "全部",
+      "kind_job": "工作",
+      "kind_ask": "詢問",
+      "kind_grant": "永久授權",
+      "kind_token": "權杖",
+      "kind_agent": "代理",
+      "kind_loop": "迴圈",
+      "refresh": "重新整理",
+      "export": "匯出 CSV",
+      "empty": "這段時間內沒有紀錄。",
+      "error": "無法讀取稽核日誌。",
+      "who": "誰",
+      "through": "經由",
+      "on": "對象",
+      "retention": "紀錄保留（天）",
+      "retention_days": "紀錄保留 {{days}} 天。",
+      "retention_save": "儲存",
+      "retention_saved": "已儲存；較舊的紀錄已刪除。",
+      "cli_hint": "在終端機讀取同一份日誌，需要具有 audit:read 的權杖。"
+    },
+    "work": {
+      "nav": "全部工作",
+      "lede": "你的智慧代理為你做的所有事都在一個清單裡：先是需要你處理的，然後是執行中、等待中、待審閱和最近完成的。",
+      "badge_needs_you": "需要你 ({{count}})",
+      "badge_running": "{{count}} 個執行中",
+      "badge_review": "{{count}} 個待審閱",
+      "badge_queued": "{{count}} 個排隊中",
+      "section": {
+        "needs_you": "需要你",
+        "running": "執行中",
+        "queued": "等待開始",
+        "review": "待審閱",
+        "done": "最近完成"
+      },
+      "pill": {
+        "approval": "需要核准",
+        "input": "需要回答",
+        "decision": "需要決定",
+        "working": "進行中",
+        "failed": "失敗",
+        "queued": "排隊中",
+        "review": "待審閱",
+        "ready": "完成",
+        "stopped": "已停止"
+      },
+      "source": {
+        "job": "任務",
+        "loop": "循環",
+        "mission": "任務目標",
+        "thread": "對話串",
+        "run": "聊天",
+        "ask": "提問",
+        "budget": "預算"
+      },
+      "asks_for": "請求使用 {{tool}}",
+      "nothing_waits": "沒有需要你處理的事。",
+      "empty": "還沒有工作。",
+      "partial": "部分工作無法讀取：{{error}}",
+      "notify": {
+        "approval": "需要核准：{{title}}",
+        "input": "需要回答：{{title}}",
+        "decision": "需要決定：{{title}}",
+        "failed": "失敗：{{title}}",
+        "ready": "完成：{{title}}",
+        "review": "待審閱：{{title}}",
+        "more": "另有 {{count}} 項在「工作」中"
+      }
+    },
+    "budget": {
+      "title": "預算",
+      "refresh": "重新整理",
+      "lede": "為你的代理設定上限：針對全部、某個代理、某個帳戶、循環、任務或使命，單位可以是美元、加權 token 或訂閱 5 小時 / 7 天視窗的比例。超過硬上限後，該範圍會暫停，其工作會停止，直到你提高上限。沒有上限就不做任何限制。",
+      "read_error": "無法讀取預算。",
+      "empty": "還沒有上限：沒有任何限制。",
+      "hard": "暫停",
+      "soft": "詢問",
+      "paused": "已暫停",
+      "remove": "移除",
+      "no_reading": "還沒有配額讀數（來自 CLI 自己的輸出串流）",
+      "warn_at": "{{pct}}% 時提醒",
+      "estimate_note": "訂閱的美元是價格表的估算",
+      "add": "新增上限",
+      "scope": "對象",
+      "scope_id": "ID",
+      "metric_label": "計量單位",
+      "window_label": "視窗",
+      "amount": "上限",
+      "warn_label": "提醒比例 (%)",
+      "soft_label": "詢問而不是暫停",
+      "save": "儲存",
+      "hard_hint": "超過上限後該範圍暫停：正在執行和排隊的工作會被取消，並有一個事件等你處理（提高並繼續，或保持暫停）。",
+      "soft_hint": "超過上限後，下一輪會在每個視窗內詢問一次「繼續？」，和其他審批一樣（也可在 CLI 和手機上回答）。選否會暫停該範圍。",
+      "quota_hint": "配額上限只讀取 CLI 在自己輸出串流中回報的資料。對帳戶（或全部）來說上限是視窗本身的百分比；對循環、任務、代理或使命來說是它開始以來消耗的點數。",
+      "warn_toast": "{{scope}} 的預算：已用 {{used}} / {{limit}}",
+      "metric": {
+        "usd": "美元",
+        "weighted_tokens": "加權 token",
+        "quota_pct": "配額視窗的比例"
+      },
+      "window": {
+        "turn": "每輪",
+        "day": "每天",
+        "week": "每週",
+        "5h": "5 小時視窗",
+        "7d": "7 天視窗",
+        "run": "整個執行"
+      },
+      "scope_kind": {
+        "global": "全部",
+        "agent": "代理",
+        "account": "帳戶",
+        "loop": "循環",
+        "job": "任務",
+        "mission": "使命"
+      },
+      "incident": {
+        "open": "預算已用盡",
+        "kept": "保持暫停",
+        "hard_line": "已用 {{used}} / {{limit}}。在你提高上限之前，這裡不會啟動任何工作。",
+        "checkpoint_line": "{{limit}} 的檢查點被回答為否（已用 {{used}}）。在你提高之前，這裡不會啟動任何工作。",
+        "new_limit": "新上限",
+        "raise": "提高並繼續",
+        "keep": "保持暫停",
+        "too_low": "新上限必須高於已用量。"
       }
     }
   },
@@ -6176,9 +6527,6 @@
       "tool_calls": "{{count}} 個工具",
       "permissions_title": "等待你的回覆",
       "permission_label": "想要使用 {{action}}",
-      "answer_once": "允許一次",
-      "answer_always": "一律允許",
-      "answer_deny": "拒絕",
       "expires_in": "{{seconds}} 秒後過期",
       "request_title": "你的要求",
       "summary_title": "回答",
@@ -6212,7 +6560,8 @@
         "approved": "已允許",
         "denied": "已拒絕",
         "expired": "已過期",
-        "cancelled": "已取消"
+        "cancelled": "已取消",
+        "stale": "重新啟動遺留"
       },
       "unknown_hint": "OmniGet 在這次執行進行中關閉，因此結果不明。系統沒有自動重新傳送任何內容：請檢查下方的變更，再決定要怎麼做。",
       "interrupted_hint": "OmniGet 在這次執行送達模型前就關閉了。沒有做任何事。",
@@ -6247,7 +6596,14 @@
       "routine_app_open": "僅在 OmniGet 開啟時執行",
       "routine_mute": "靜音",
       "routine_unmute": "取消靜音",
-      "routine_muted": "已靜音"
+      "routine_muted": "已靜音",
+      "stale_title": "重新啟動後未回答的問題",
+      "stale_hint": "這些問題等待時應用程式關閉了。沒有執行任何動作。請重新開始這一輪以再次詢問。",
+      "dismiss": "忽略",
+      "answer_on_card": "請在本頁頂端它的卡片上回答。",
+      "answer_once": "允許一次",
+      "answer_always": "一律允許",
+      "answer_deny": "拒絕"
     },
     "conversation": {
       "status_working": "處理中…",
@@ -6806,7 +7162,10 @@
       "adv_events": "事件",
       "blocked_before_call": "在任何呼叫之前停止：此步驟沒有執行任何內容。",
       "verify_started": "正在背景檢查。結束後結果會顯示在這裡。",
-      "verify_already_running": "此任務已有檢查正在進行。"
+      "verify_already_running": "此任務已有檢查正在進行。",
+      "changes": "變更",
+      "changes_no_job": "此任務尚未執行任何工作。",
+      "changes_job": "工作 {{job}}"
     },
     "log": {
       "loading": "正在載入記錄檔…",
@@ -6925,7 +7284,7 @@
     "auth_origin": {
       "user_ui": "你（任務頁面）",
       "chat": "你（來自聊天）",
-      "trigger": "你設定的觸發器",
+      "trigger": "你設定的排程",
       "external_mcp": "MCP 用戶端"
     }
   },
@@ -7015,7 +7374,11 @@
     "native_active": "Native access",
     "native_revoke": "Revoke access",
     "system_read": "讀取這台電腦的狀態、掃描與計畫（washmybelly）",
-    "system_change": "準備清理計畫、維持效能電源、遊戲模式與 FPS 擷取（washmybelly）"
+    "system_change": "準備清理計畫、維持效能電源、遊戲模式與 FPS 擷取（washmybelly）",
+    "approvals_respond": "回答自己任務的權限請求",
+    "approvals_respond_help": "授予後，用戶端可以核准其自身任務的工具呼叫（包括 shell 指令），就像你在這裡按了「允許」。只授予你像信任自己一樣信任的用戶端。它永遠不能建立「永遠允許」規則，代理也永遠不能回答自己的問題。",
+    "agents_run": "將你的代理程式作為背景工作執行",
+    "agents_run_help": "開啟後，用戶端可以讓你清單中的任一代理程式在它指定的資料夾中於背景執行工作，與 `omniget agent run` 相同。它只能查看和停止自己啟動的工作。代理程式的權限請求仍會等待你回答，除非你也允許此用戶端回答。"
   },
   "mcp_auth": {
     "title": "AI 用戶端請求你登入",

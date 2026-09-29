@@ -1311,7 +1311,10 @@
       "reset_hints": "重置提示",
       "reset_hints_desc": "重新显示所有已关闭的提示",
       "restore": "恢复",
-      "hints_restored": "所有提示已恢复"
+      "hints_restored": "所有提示已恢复",
+      "run_in_background": "在后台运行智能体",
+      "run_in_background_desc": "登录时 OmniGet 会隐藏启动，关闭窗口后仍留在托盘中，因此任务、Loop 和例行任务会继续运行，omniget 命令也能找到它。会关闭“关闭窗口时退出”。",
+      "run_in_background_flatpak": "Flatpak：登录时启动以及从命令行启动尚未验证。"
     },
     "appearance": {
       "title": "外观",
@@ -2772,12 +2775,10 @@
       "mcp": "MCP",
       "skills": "Skills",
       "accounts": "Accounts",
-      "local": "Local",
       "arena": "Arena",
       "jobs": "Jobs",
       "loops": "Loops"
     },
-    "demo_banner": "Demo data: the LLM backend is not wired yet.",
     "rail": {
       "title": "Agents",
       "unassigned": "Unassigned",
@@ -2785,7 +2786,8 @@
       "new_chat": "New chat",
       "empty": "No agents yet.",
       "no_profile": "No local profile",
-      "search": "Search agents"
+      "search": "Search agents",
+      "load_failed": "无法读取已保存的聊天。"
     },
     "role": {
       "coordinator": "Coordinator",
@@ -2896,14 +2898,11 @@
       "connect": "Connect or manage providers",
       "local_hint": "Local server: make sure it is running and has models installed. No saved API key is required.",
       "no_models": "This provider returned no models. Check the models available on the server or enter an identifier manually.",
-      "load_failed": "Could not load models: {{error}}"
+      "load_failed": "无法读取你的提供商：{{error}}"
     },
     "err": {
       "unavailable": "The LLM backend is not wired yet.",
       "turn_failed": "The turn could not start."
-    },
-    "local": {
-      "explanation": "Local model management is not available here yet. Configure an existing local provider in Models & Routing."
     },
     "skills": {
       "title": "Skills",
@@ -2911,7 +2910,6 @@
       "installed_title": "Installed",
       "loading": "Reading the installed skills…",
       "empty": "No skill installed yet. Install one from a folder, a zip or a git repository.",
-      "demo": "Demo data — nothing here is installed on this machine.",
       "remove": "Remove",
       "install": "Install",
       "installing": "Installing…",
@@ -2993,7 +2991,6 @@
       "lede": "其他智能体连接的端点，以及 OmniGet 连接的服务器。",
       "half_client": "你使用的服务器",
       "half_server": "你的端点",
-      "demo": "演示服务器：MCP 后端尚未响应。这里的都不是真实连接。",
       "servers": "已连接的服务器",
       "add": "添加服务器",
       "loading": "正在读取已保存的服务器…",
@@ -3218,7 +3215,12 @@
         "connecting": "Connecting…",
         "err_unknown_provider": "Unknown provider",
         "err_credential_failed": "Credential validation failed"
-      }
+      },
+      "sandbox_full": "已允许完全访问",
+      "sandbox_full_hint": "此账户的回合可以编辑文件，运行模式为“完全访问”的回合不经询问直接运行。",
+      "sandbox_allow_full": "允许完全访问",
+      "sandbox_allow_full_confirm": "确认：允许完全访问",
+      "sandbox_make_write": "退回仅写入"
     },
     "rules": {
       "title": "Always rules",
@@ -3277,10 +3279,8 @@
       "undone": "Undone: {{count}} file(s) restored",
       "chat": "Chat",
       "agents": "Agents",
-      "activity": "Activity",
       "configure": "Configure",
       "tasks": "Tasks",
-      "routines": "Routines",
       "performance": "Usage and performance",
       "monitor": "Usage monitor",
       "off": "Off",
@@ -3302,7 +3302,10 @@
       "retro": "Retrospective",
       "installed": "Installed",
       "remote": "Remote access",
-      "wizard": "Project setup"
+      "wizard": "Project setup",
+      "work": "工作",
+      "more": "更多",
+      "loops": "循环"
     },
     "jobs": {
       "lede": "Agent runs that work in the background while you do something else.",
@@ -3318,6 +3321,12 @@
       "list_title": "Recent jobs",
       "empty": "No jobs yet. Start one above and it shows up here.",
       "result": "Result",
+      "outcome": {
+        "title": "智能体的结论",
+        "succeeded": "成功",
+        "failed": "失败",
+        "missing": "智能体结束时没有写 OUTCOME 行：依赖结果之前请先阅读。"
+      },
       "error": "Error",
       "log": "Log",
       "log_empty": "Nothing logged yet.",
@@ -3332,26 +3341,31 @@
         "done": "Done",
         "failed": "Failed",
         "cancelled": "Cancelled",
-        "waiting_workspace": "等待文件夹"
+        "waiting_workspace": "等待文件夹",
+        "review": "待审阅",
+        "done_unreported": "已完成，未报告"
       },
       "kind": {
         "run": "Run",
         "chat": "Chat",
         "loop": "Loop",
-        "trigger": "Trigger",
+        "trigger": "定时",
         "mission": "任务"
       },
       "ask": {
         "title": "Wants to use {{tool}}",
         "allow": "Allow",
         "always": "Always allow",
-        "deny": "Deny"
+        "deny": "Deny",
+        "session": "本轮允许",
+        "stop": "拒绝并停止",
+        "cli": "在终端中：omniget agent approve {{id}}"
       },
       "trigger": {
-        "title": "Triggers",
-        "lede": "Start a job on a schedule or when a webhook is called.",
-        "empty": "No triggers yet. Create one below.",
-        "new_title": "New trigger",
+        "title": "定时与 Webhook",
+        "lede": "在设定的时间或调用 Webhook 时启动任务。",
+        "empty": "还没有定时任务。在下方创建一个。",
+        "new_title": "新建定时",
         "kind": "Kind",
         "kind_cron": "Schedule",
         "kind_webhook": "Webhook",
@@ -3359,10 +3373,10 @@
         "cron": "Cron line",
         "cron_hint": "Five fields (minute hour day month weekday), or @hourly, @daily, @weekly, @monthly.",
         "body_hint": "{{token}} is replaced by the webhook body.",
-        "create": "Create trigger",
+        "create": "创建定时",
         "enabled": "Enabled",
         "fire": "Fire now",
-        "fired": "Trigger fired",
+        "fired": "定时已启动一个任务",
         "fired_count": "Fired {{count}}×",
         "copy_curl": "Copy curl",
         "catch_up": "应用关闭期间错过的",
@@ -3387,7 +3401,9 @@
         "no_start": "已停止：智能体从未启动",
         "deadline": "已停止：达到时间上限",
         "limit": "已停止：达到预算上限",
-        "ask_expired": "有一个问题无人回答"
+        "ask_expired": "有一个问题无人回答",
+        "app_restart": "此任务运行期间应用已关闭",
+        "budget": "已停止：预算上限阻止了此范围"
       },
       "queue": {
         "title": "队列",
@@ -3411,6 +3427,121 @@
         "unavailable_no_snapshot": "无法得知此作业更改了什么：它的轮次没有为文件夹创建快照。",
         "unavailable_no_workspace": "此作业在没有文件夹的情况下运行，因此没有差异。",
         "unavailable_error": "无法读取此作业文件夹的快照。"
+      },
+      "tokens": {
+        "title": "访问令牌",
+        "lede": "脚本、Webhook 和 omniget CLI 使用带权限范围的令牌访问本地桥接的智能体路由。浏览器扩展的密钥不用于这些路由。",
+        "empty": "还没有令牌。",
+        "name": "名称",
+        "scopes": "可执行的操作",
+        "scope_jobs_read": "查看任务 (jobs:read)",
+        "scope_jobs_operate": "启动和取消任务 (jobs:operate)",
+        "scope_approvals_respond": "回复审批 (approvals:respond)",
+        "expires": "有效期",
+        "expires_never": "永不过期",
+        "expires_days": "{{days}} 天后",
+        "expires_at": "{{when}} 过期",
+        "create": "创建令牌",
+        "created": "令牌已创建。请立即复制：它不会再次显示。",
+        "copy": "复制令牌",
+        "revoke": "撤销",
+        "kind_cli": "本机的 omniget CLI",
+        "last_used": "上次使用 {{when}}",
+        "never_used": "从未使用",
+        "legacy_toggle": "仍在智能体路由上接受浏览器扩展的密钥（已弃用）",
+        "legacy_hint": "保留一个版本，让旧脚本继续可用。下一个版本将拒绝它。",
+        "legacy_seen": "浏览器扩展的密钥于 {{when}} 在 {{route}} 上被使用。请把该脚本换成带权限范围的令牌。",
+        "curl_hint": "将 OMNIGET_TOKEN 设为具有 jobs:operate 权限范围的令牌（见下方访问令牌）。",
+        "scope_audit_read": "读取审计日志（audit:read）",
+        "scope_budget_write": "设置和提高预算（budget:write）",
+        "scope_workflow_trust": "信任仓库工作流 (workflow:trust)"
+      },
+      "isolation": {
+        "label": "写入位置",
+        "auto": "自动：仅当另一个任务正在该文件夹写入时才使用独立 worktree",
+        "worktree": "始终使用独立的 git worktree",
+        "shared": "直接在文件夹中（排队等候）"
+      },
+      "worktree": {
+        "title": "Worktree",
+        "chip": "{{branch}}，基于 {{base}}",
+        "gone": "worktree 已移除；分支保留了这些工作。",
+        "remove": "移除 worktree",
+        "removed": "worktree 已移除。",
+        "kept_branch": "worktree 已移除。分支 {{branch}} 保留了该任务的工作。",
+        "saved": "已先将 {{count}} 个未提交的文件保存到分支。"
+      },
+      "proof": {
+        "title": "凭证",
+        "summary": "修改了 {{files}} 个文件 · {{tokens}} 个 token · {{time}}",
+        "check": "{{command}} → 退出码 {{code}}",
+        "by_host": "由本机上的 OmniGet 根据其记录盖章，而非智能体所写。"
+      },
+      "review": {
+        "mark": "标记为已审阅",
+        "title": "审查",
+        "lede": "丢弃某个代码块，给代理留备注，然后合入或丢弃这项工作。",
+        "discard_hunk": "丢弃",
+        "hunk_discarded": "已丢弃该代码块。",
+        "hunk_stale": "加载后这段代码已变化。差异已刷新，请重试。",
+        "busy": "有任务正在写入此文件夹。请在它结束后重试。",
+        "not_actionable": "此任务的 worktree 已删除，无法再逐块丢弃。",
+        "notes_title": "给代理的备注",
+        "notes_hint": "在差异中选中行并评论。发送会在同一对话中开始后续任务，只花费备注的成本。",
+        "notes_empty": "还没有备注。",
+        "note_file": "整个文件",
+        "note_sent": "已发送给 {{job}}",
+        "note_delete": "删除备注",
+        "notes_send": "发送 {{count}} 条备注给代理",
+        "notes_sent": "备注已发送：后续任务 {{job}} 已开始。",
+        "walkthrough_title": "导览",
+        "walkthrough": "解释更改",
+        "walkthrough_refresh": "重新解释",
+        "walkthrough_loading": "正在撰写导览…",
+        "walkthrough_too_large": "此差异太大，无法生成导览。请逐个文件审查。",
+        "walkthrough_uncovered": "{{count}} 个代码块不在任何站点中",
+        "walkthrough_cached": "来自缓存",
+        "importance_critical": "关键",
+        "integrate_title": "合入",
+        "integrate_into": "将 {{branch}} 合并到 {{target}}",
+        "commits": "要带入的提交：{{count}}",
+        "worktree_dirty": "worktree 中 {{count}} 个未提交的文件会先保存到分支。",
+        "blocked": "暂时无法合入：{{reason}}",
+        "strategy_merge": "合并提交",
+        "strategy_squash": "压缩为一个提交",
+        "integrate": "合入",
+        "integrated": "已合入 {{target}}。",
+        "up_to_date": "{{target}} 已包含这项工作。",
+        "conflict": "{{files}} 中有冲突。你的检出没有任何变化。",
+        "failed": "git 拒绝了合并（可能是钩子）。你的检出没有任何变化。",
+        "discard_work": "丢弃工作",
+        "discard_confirm": "丢弃此任务的工作？其 worktree 和分支 {{branch}} 将被删除。",
+        "discarded": "工作已丢弃。分支 {{branch}} 原指向 {{tip}}。"
+      },
+      "resumed_by_itself": "已自动继续（{{count}} 次）",
+      "workflow": {
+        "title": "仓库工作流",
+        "state": {
+          "trusted": "生效中",
+          "untrusted": "未信任",
+          "invalid": "无效",
+          "none": "无"
+        },
+        "last_good": "在文件修复之前，最后一个有效版本继续生效。",
+        "no_last_good": "没有之前的有效版本：在文件修复之前，此文件夹中的任务会被拒绝。",
+        "defaults": "默认值：",
+        "commands": "它在这台电脑上运行的命令：",
+        "kind": {
+          "after_create": "创建 worktree 之后",
+          "before_remove": "移除 worktree 之前",
+          "check": "任务结束后的检查"
+        },
+        "untrusted_hint": "在你信任这个确切版本之前，这些命令会被跳过，也不会应用更宽松的运行模式。文件的任何改动都需要重新确认。",
+        "trust": "信任此版本",
+        "revoke": "取消信任",
+        "template": "提示词模板",
+        "trusted_toast": "已信任工作流：从现在起运行其命令",
+        "untrusted_toast": "已不再信任工作流"
       }
     },
     "loops": {
@@ -3440,13 +3571,56 @@
         "running": "Running",
         "done": "Done",
         "failed": "Failed",
-        "cancelled": "Cancelled"
+        "cancelled": "Cancelled",
+        "paused": "已暂停",
+        "blocked": "已阻塞",
+        "budget_limited": "已达预算"
       },
       "check_passed": "Condition met",
       "summary": "Up to {{rounds}} rounds. Stops earlier when a configured condition or time limit is reached.",
-      "no_check": "No check command: completion will be controlled by the round or time limit.",
+      "no_check": "没有检查命令:每轮结束后,由独立审核者(代理最小的模型)判断工作是否完成,最多 20 轮。",
       "review": "Review loop",
-      "edit": "Edit configuration"
+      "edit": "Edit configuration",
+      "auto_resume": "重启后自动继续",
+      "auto_resume_hint": "如果应用在某一轮中途关闭，Loop 会在重新打开后继续，除非那一轮已经写入了你的文件夹。",
+      "run_mode_hint": "循环的每一轮都以此模式运行。选择“事事先询问”时，每一轮在任何编辑或命令之前都会停下来等你确认。",
+      "max_cost": "预算（美元）",
+      "paused_budget": "已暂停：预算已用尽",
+      "paused_budget_hint": "在提高上限之前不会开始新一轮；提高后循环会继续。",
+      "open_incident": "打开事件",
+      "cost_estimated": "（估算）",
+      "cost_tokens": "{{tokens}} 加权 token",
+      "cost_unknown": "{{count}} 轮成本未知",
+      "stop": {
+        "audit_complete": "已由审核者确认",
+        "audit_blocked": "审核者连续 3 轮看到代理受阻",
+        "audit_unavailable": "审核连续两次不可用",
+        "token_budget": "已达 token 预算",
+        "max_rounds": "已达轮数上限",
+        "round_failed": "某一轮失败:{{error}}",
+        "audit_disagrees": "代理连续 3 次自称完成而审核者不同意:由你决定"
+      },
+      "token_budget": "Token 预算",
+      "tokens": "{{used}} / {{budget}} tokens",
+      "guided": "有 {{count}} 轮只发送了继续指引(未重新发送任务)。",
+      "audits": "审核者判定",
+      "verdict": {
+        "continue": "继续",
+        "complete": "完成",
+        "blocked": "已阻塞",
+        "none": "无判定"
+      },
+      "claimed_done": "自称完成",
+      "claimed_done_hint": "代理自称已完成;只有审核者的判定能结束循环。",
+      "side_reason": {
+        "provider_small": "同一账号的最小模型",
+        "session_model": "未知更小的模型:使用代理自己的模型",
+        "requested": "为此循环指定",
+        "setting": "辅助模型设置"
+      },
+      "overhead": "审核者 {{audit}},轮次花费 {{rounds}}({{percent}}%)。",
+      "blocked_hint": "循环已停止,需要你来处理。继续会再跑一轮,并再次审核。",
+      "note": "进度"
     },
     "limits": {
       "title": "Limits strip",
@@ -3559,22 +3733,18 @@
       "model": "Connection and model",
       "customize": "Tools and limits",
       "tasks": "Tasks",
-      "routines": "Routines",
       "active": "Running",
       "attention": "Needs attention",
       "done": "Finished",
       "create": "Create a task",
-      "create_routine": "Create a routine",
       "jobs_hint": "Run a task in the background. Open its details to see the result, approve a tool or stop execution.",
       "loops_hint": "Repeat a task until a check passes or its limit is reached. Review the stop conditions before starting.",
       "models_hint": "Connect an API provider, then choose its model for an agent. Chat subscriptions are configured in Connections.",
       "mcp_hint": "Connect a tool, test it, then choose which agents may use it. Adding a connection does not grant permission.",
       "skills_hint": "Skills give agents reusable instructions. Review the source and scan result before installing, then assign the skill to an agent.",
       "observatory_hint": "Inspect measured activity and provider quotas. Missing measurements are unavailable, never zero. Diagnostics run only when you open them.",
-      "local_hint": "Use a local model through a compatible server. Connect the running server and select one of its actual models before creating an agent.",
       "arena_hint": "Model comparison is not available yet. You can choose a model and run a conversation with the current tools.",
       "unavailable_feature": "Not available yet",
-      "local_steps": "Start your local model server|Connect its endpoint in AI settings|Choose the model for an agent",
       "arena_steps": "Select a model|Open a conversation|Review the result",
       "roster_hint": "Start with one agent and give it a clear purpose. Add a team when your task needs it.",
       "suggestion_1": "List my downloads and explain which need attention",
@@ -3587,7 +3757,8 @@
       "search": "Find an agent",
       "no_matches": "No matching agents",
       "templates_impact": "Review the template and its effect on the existing team before applying it.",
-      "mcp_server_hint": "让其他 AI 应用使用 OmniGet：打开服务器，创建只含所需权限的客户端，再把它的代码片段粘贴到该应用中。"
+      "mcp_server_hint": "让其他 AI 应用使用 OmniGet：打开服务器，创建只含所需权限的客户端，再把它的代码片段粘贴到该应用中。",
+      "create_loop": "创建循环"
     },
     "prompts": {
       "omni": "You are Omni, the assistant inside OmniGet. Answer briefly and in the language the user writes in. Use a tool only when it is clearly needed.",
@@ -3618,14 +3789,16 @@
       "start": "启动超时（秒）",
       "start_desc": "启动后这段时间内一句话都没有的智能体，从未收到提示。",
       "deadline": "任务时间上限（分钟）",
-      "deadline_desc": "每个后台任务（运行、循环的每一轮、例行任务）都会在此停止，除非它设置了自己的上限。",
+      "deadline_desc": "每个后台任务（一次运行、循环的每一轮、定时运行）都会在此停止，除非它设置了自己的上限。",
       "ask_chat": "聊天中问题的等待时间（分钟）",
       "ask_chat_desc": "超时后问题失效：操作不会执行，并会告诉你原因。",
       "ask_job": "任务中问题的等待时间（分钟）",
       "ask_job_desc": "填 0 表示一直等到任务自身的时间上限。",
       "notify_delay": "多久后通知（秒）",
       "notify_delay_desc": "超过这个时间仍未回答的问题会变成系统通知。更早回答的不会通知。",
-      "offline": "无法保存：后端没有响应。"
+      "offline": "无法保存：后端没有响应。",
+      "auto_resume": "重启后自动继续",
+      "auto_resume_desc": "当应用关闭或智能体没有响应时，在自己的 worktree 中运行或只读取文件的任务会自动重新开始：它会继续原来的会话，并被要求在重复任何操作前先检查已完成的内容。写入过你的文件夹的任务仍会等你处理。单个任务或 Loop 可以另行设置。"
     },
     "central": {
       "agentkit": {
@@ -5350,7 +5523,6 @@
         "verify_hint": "Runs in every worktree; the exit code decides pass or fail.",
         "cleanup": "Clean up",
         "cleanup_lede": "Archives the threads (their worktrees go; the work stays in the arena's refs).",
-        "cleanup_losers": "Only the losers",
         "cleanup_all": "Every entry (discard the arena)",
         "delete": "Delete arena",
         "delete_lede": "Removes this arena from the history and its refs. The threads stay.",
@@ -5466,10 +5638,11 @@
           "verify_hint": "Optional; runs in each worktree when its turn ends. Timeout",
           "timeout": "Timeout in minutes",
           "minutes": "min",
-          "start": "Start in {{count}} tools"
+          "start": "Start in {{count}} tools",
+          "min_tools": "至少选 {{count}} 个工具来比较。"
         },
         "apply": {
-          "title": "Apply the winner",
+          "title": "选这个",
           "lede": "{{name}}'s branch goes into the target branch. Nothing else is touched.",
           "target": "Target branch",
           "strategy": "How",
@@ -5480,22 +5653,49 @@
           "conflicts": "{{count}} files conflict; resolve in the thread first.",
           "checked_out": "The branch is checked out at {{path}}.",
           "dirty": "That checkout has uncommitted changes: commit or stash them first.",
-          "touch_checkout": "Update my checkout too (fast-forward only)",
+          "touch_checkout": "合并到我的检出(用我的身份和钩子执行 git merge;冲突时撤销)",
           "ref_only": "Only the branch moves; no checkout is touched.",
-          "clean_losers": "Archive the losing threads and remove their worktrees",
+          "clean_losers": "然后移除其他(worktree;它们的成果保留在竞技场的 ref 中)",
           "delete_branches": "Also delete their branches (only OmniGet's)",
           "confirm": "I want to change {{branch}}",
           "do": "Apply",
           "ok": "Applied to {{branch}}",
-          "updated_checkout": "your checkout moved forward",
-          "updated_ref": "only the branch ref moved",
-          "cleaned": "{{count}} threads archived"
+          "updated_checkout": "已合并到你的检出",
+          "updated_ref": "only the branch ref moved"
         },
         "plan": {
           "implement_n": "Implement in N tools",
           "hint": "Open the Arena with this plan as the prompt"
         },
-        "apply_winner": "Apply winner"
+        "apply_winner": "Apply winner",
+        "removed": "已移除 {{count}} 个 worktree",
+        "branches_kept": "保留了 {{count}} 个分支",
+        "remove_others": "移除其他",
+        "choose": "选这个",
+        "choose_hint": "把这一列的成果合并到基础分支",
+        "estimate": {
+          "total": "开始前的预估费用:{{count}} 个工具共 {{total}}",
+          "unknown": "{{count}} 个无法预估",
+          "rough": "粗略:标价 × 一次典型回合",
+          "source": {
+            "history": "竞技场中过去 {{runs}} 次运行的平均值",
+            "price": "标价 × 一次典型编码回合(粗略)",
+            "unknown": "价格未知(订阅,或模型不在价格表中)"
+          }
+        },
+        "compare": {
+          "title": "分歧之处",
+          "toggle": "比较",
+          "divergent": "{{count}} 个文件不同",
+          "agreed": "{{count}} 个相同",
+          "pending": "{{count}} 个仍在运行",
+          "show_agreed": "显示相同的文件",
+          "file": "文件",
+          "untouched": "与基础相同",
+          "none_divergent": "所有列最终的文件都相同。",
+          "column": "{{count}} 处分歧",
+          "column_hint": "这一列与其他列不同的文件"
+        }
       },
       "run": {
         "back": "Back",
@@ -5512,7 +5712,8 @@
           "done": "Done",
           "failed": "Failed",
           "cancelled": "Cancelled",
-          "skipped": "Skipped"
+          "skipped": "Skipped",
+          "review": "待审阅"
         },
         "runner": {
           "label": "Runs with",
@@ -5662,6 +5863,156 @@
           "review_started": "Review job started",
           "open_jobs": "Open Jobs"
         }
+      }
+    },
+    "run_mode": {
+      "label": "运行模式",
+      "approval_required": "事事先询问",
+      "auto_edits": "自动编辑",
+      "auto": "自动（CLI 审查器）",
+      "full_access": "完全访问",
+      "approval_required_hint": "每次编辑和每条命令都会先询问你。",
+      "auto_edits_hint": "文件编辑直接通过；命令会先询问。",
+      "auto_hint": "由 CLI 自带的审查器决定；CLI 没有审查器时，效果同“自动编辑”。",
+      "full_access_hint": "什么都不询问。CLI 账户也必须允许完全访问。",
+      "full_access_warning": "完全访问会不经询问执行每次编辑和每条命令。只在你可以承受丢失的文件夹里使用。",
+      "full_access_confirm": "允许完全访问",
+      "cancel": "取消"
+    },
+    "audit": {
+      "title": "审计日志",
+      "lede": "谁对任务、询问、授权、令牌和代理做了什么，经由哪个渠道。从不保存提示词、文件内容或密钥。",
+      "since": "时间段",
+      "since_1h": "最近 1 小时",
+      "since_1d": "最近 1 天",
+      "since_7d": "最近 7 天",
+      "since_30d": "最近 30 天",
+      "since_90d": "最近 90 天",
+      "kind": "类型",
+      "kind_all": "全部",
+      "kind_job": "任务",
+      "kind_ask": "询问",
+      "kind_grant": "永久授权",
+      "kind_token": "令牌",
+      "kind_agent": "代理",
+      "kind_loop": "循环",
+      "refresh": "刷新",
+      "export": "导出 CSV",
+      "empty": "这个时间段内没有记录。",
+      "error": "无法读取审计日志。",
+      "who": "谁",
+      "through": "经由",
+      "on": "对象",
+      "retention": "记录保留（天）",
+      "retention_days": "记录保留 {{days}} 天。",
+      "retention_save": "保存",
+      "retention_saved": "已保存；更早的记录已删除。",
+      "cli_hint": "在终端里读取同一份日志，需要带 audit:read 的令牌。"
+    },
+    "work": {
+      "nav": "全部工作",
+      "lede": "你的智能体为你做的所有事都在一个列表里：先是需要你处理的，然后是运行中、等待中、待审阅和最近完成的。",
+      "badge_needs_you": "需要你 ({{count}})",
+      "badge_running": "{{count}} 个运行中",
+      "badge_review": "{{count}} 个待审阅",
+      "badge_queued": "{{count}} 个排队中",
+      "section": {
+        "needs_you": "需要你",
+        "running": "运行中",
+        "queued": "等待开始",
+        "review": "待审阅",
+        "done": "最近完成"
+      },
+      "pill": {
+        "approval": "需要批准",
+        "input": "需要回答",
+        "decision": "需要决定",
+        "working": "进行中",
+        "failed": "失败",
+        "queued": "排队中",
+        "review": "待审阅",
+        "ready": "完成",
+        "stopped": "已停止"
+      },
+      "source": {
+        "job": "任务",
+        "loop": "循环",
+        "mission": "任务目标",
+        "thread": "会话串",
+        "run": "聊天",
+        "ask": "提问",
+        "budget": "预算"
+      },
+      "asks_for": "请求使用 {{tool}}",
+      "nothing_waits": "没有需要你处理的事。",
+      "empty": "还没有工作。",
+      "partial": "部分工作无法读取：{{error}}",
+      "notify": {
+        "approval": "需要批准：{{title}}",
+        "input": "需要回答：{{title}}",
+        "decision": "需要决定：{{title}}",
+        "failed": "失败：{{title}}",
+        "ready": "完成：{{title}}",
+        "review": "待审阅：{{title}}",
+        "more": "另有 {{count}} 项在“工作”中"
+      }
+    },
+    "budget": {
+      "title": "预算",
+      "refresh": "刷新",
+      "lede": "为你的代理设置上限：针对全部、某个代理、某个账户、循环、任务或使命，单位可以是美元、加权 token 或订阅 5 小时 / 7 天窗口的比例。超过硬上限后，该范围会暂停，其工作会停止，直到你提高上限。没有上限就不做任何限制。",
+      "read_error": "无法读取预算。",
+      "empty": "还没有上限：没有任何限制。",
+      "hard": "暂停",
+      "soft": "询问",
+      "paused": "已暂停",
+      "remove": "移除",
+      "no_reading": "还没有配额读数（来自 CLI 自己的输出流）",
+      "warn_at": "{{pct}}% 时提醒",
+      "estimate_note": "订阅的美元是价格表的估算",
+      "add": "添加上限",
+      "scope": "对象",
+      "scope_id": "ID",
+      "metric_label": "计量单位",
+      "window_label": "窗口",
+      "amount": "上限",
+      "warn_label": "提醒比例 (%)",
+      "soft_label": "询问而不是暂停",
+      "save": "保存",
+      "hard_hint": "超过上限后该范围暂停：正在运行和排队的工作会被取消，并有一个事件等你处理（提高并继续，或保持暂停）。",
+      "soft_hint": "超过上限后，下一轮会在每个窗口内询问一次“继续？”，和其他审批一样（也可在 CLI 和手机上回答）。选否会暂停该范围。",
+      "quota_hint": "配额上限只读取 CLI 在自己输出流中报告的数据。对账户（或全部）来说上限是窗口本身的百分比；对循环、任务、代理或使命来说是它开始以来消耗的点数。",
+      "warn_toast": "{{scope}} 的预算：已用 {{used}} / {{limit}}",
+      "metric": {
+        "usd": "美元",
+        "weighted_tokens": "加权 token",
+        "quota_pct": "配额窗口的比例"
+      },
+      "window": {
+        "turn": "每轮",
+        "day": "每天",
+        "week": "每周",
+        "5h": "5 小时窗口",
+        "7d": "7 天窗口",
+        "run": "整个运行"
+      },
+      "scope_kind": {
+        "global": "全部",
+        "agent": "代理",
+        "account": "账户",
+        "loop": "循环",
+        "job": "任务",
+        "mission": "使命"
+      },
+      "incident": {
+        "open": "预算已用尽",
+        "kept": "保持暂停",
+        "hard_line": "已用 {{used}} / {{limit}}。在你提高上限之前，这里不会启动任何工作。",
+        "checkpoint_line": "{{limit}} 的检查点被回答为否（已用 {{used}}）。在你提高之前，这里不会启动任何工作。",
+        "new_limit": "新上限",
+        "raise": "提高并继续",
+        "keep": "保持暂停",
+        "too_low": "新上限必须高于已用量。"
       }
     }
   },
@@ -6176,9 +6527,6 @@
       "tool_calls": "{{count}} 次工具调用",
       "permissions_title": "等待你的答复",
       "permission_label": "想要使用 {{action}}",
-      "answer_once": "允许一次",
-      "answer_always": "始终允许",
-      "answer_deny": "拒绝",
       "expires_in": "{{seconds}} 秒后过期",
       "request_title": "你的请求",
       "summary_title": "回答",
@@ -6212,7 +6560,8 @@
         "approved": "已允许",
         "denied": "已拒绝",
         "expired": "已过期",
-        "cancelled": "已取消"
+        "cancelled": "已取消",
+        "stale": "重启遗留"
       },
       "unknown_hint": "此运行进行期间 OmniGet 被关闭，因此结果未知。系统不会自动重新发送：请查看下方的更改并决定如何处理。",
       "interrupted_hint": "OmniGet 在此运行到达模型之前关闭，未执行任何操作。",
@@ -6247,7 +6596,14 @@
       "routine_app_open": "仅在 OmniGet 打开时运行",
       "routine_mute": "静音",
       "routine_unmute": "取消静音",
-      "routine_muted": "已静音"
+      "routine_muted": "已静音",
+      "stale_title": "重启后未回答的问题",
+      "stale_hint": "这些问题等待时应用关闭了。没有执行任何操作。请重新开始这一轮以再次询问。",
+      "dismiss": "忽略",
+      "answer_on_card": "请在本页顶部它的卡片上回答。",
+      "answer_once": "允许一次",
+      "answer_always": "始终允许",
+      "answer_deny": "拒绝"
     },
     "conversation": {
       "status_working": "工作中…",
@@ -6806,7 +7162,10 @@
       "adv_events": "事件",
       "blocked_before_call": "在任何调用之前停止：此步骤没有运行任何内容。",
       "verify_started": "正在后台检查。结束后结果会显示在这里。",
-      "verify_already_running": "此任务已有检查正在进行。"
+      "verify_already_running": "此任务已有检查正在进行。",
+      "changes": "更改",
+      "changes_no_job": "此任务尚未运行任何作业。",
+      "changes_job": "作业 {{job}}"
     },
     "log": {
       "loading": "正在加载日志…",
@@ -6925,7 +7284,7 @@
     "auth_origin": {
       "user_ui": "你（任务页面）",
       "chat": "你（来自聊天）",
-      "trigger": "你设置的触发器",
+      "trigger": "你设置的定时任务",
       "external_mcp": "MCP 客户端"
     }
   },
@@ -7015,7 +7374,11 @@
     "native_active": "Native access",
     "native_revoke": "Revoke access",
     "system_read": "读取本机状态、扫描结果和方案（washmybelly）",
-    "system_change": "准备清理方案，保持性能供电、游戏模式和 FPS 采集（washmybelly）"
+    "system_change": "准备清理方案，保持性能供电、游戏模式和 FPS 采集（washmybelly）",
+    "approvals_respond": "回答自己任务的权限请求",
+    "approvals_respond_help": "授予后，客户端可以批准其自身任务的工具调用（包括 shell 命令），就像你在这里点了“允许”。只授予你像信任自己一样信任的客户端。它永远不能创建“始终允许”规则，代理也永远不能回答自己的问题。",
+    "agents_run": "将你的智能体作为后台任务运行",
+    "agents_run_help": "开启后，客户端可以让你列表中的任意智能体在它指定的文件夹里于后台执行任务，与 `omniget agent run` 相同。它只能查看和停止自己启动的任务。智能体的权限请求仍会等待你来回答，除非你也允许此客户端回答。"
   },
   "mcp_auth": {
     "title": "AI 客户端请求你登录",

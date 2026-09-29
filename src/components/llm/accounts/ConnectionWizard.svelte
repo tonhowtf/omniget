@@ -171,7 +171,7 @@
         {#if loginOpened || account}<button class="button" disabled={busy} onclick={() => step = 2}>{$t('llm.accounts.wizard.signed_in_continue')}</button>{/if}
       {:else}
         <label>{$t('llm.accounts.wizard.provider_label')}<select class="input" bind:value={provider} onchange={() => changed(true)} disabled={busy}>{#if mode === 'api'}{#each kinds.filter(k => !['custom', 'newapi', 'ollama'].includes(k.id)) as k}<option value={k.id}>{k.name}</option>{/each}{:else}<option value="ollama">Ollama</option><option value="lmstudio">LM Studio</option><option value="llama-server">llama.cpp</option>{/if}</select></label>
-        {#if mode === 'api'}<label>{$t('llm.accounts.wizard.api_key')}<input class="input" type="password" autocomplete="off" bind:value={key} disabled={busy} /></label><p>{$t('llm.accounts.wizard.key_vault_note')}</p>{:else}<p>{$t('llm.accounts.wizard.local_server_note')}</p><a href="/llm/local">{$t('llm.accounts.wizard.open_local_models')}</a>{/if}
+        {#if mode === 'api'}<label>{$t('llm.accounts.wizard.api_key')}<input class="input" type="password" autocomplete="off" bind:value={key} disabled={busy} /></label><p>{$t('llm.accounts.wizard.key_vault_note')}</p>{:else}<p>{$t('llm.accounts.wizard.local_server_note')}</p><a href="/llm/models">{$t('llm.accounts.wizard.open_local_models')}</a>{/if}
         <button class="button active" disabled={busy} onclick={connect}>{$t('llm.accounts.wizard.check_connection')}</button>
       {/if}
     {:else if step === 2}
@@ -193,7 +193,7 @@
             {#if act === 'retry' && lastAction}<button class="button" disabled={busy} onclick={() => lastAction?.()}>{$t('assist.bots.connection.retry')}</button>
             {:else if act === 'sign_in' && mode === 'subscription' && account}<button class="button" disabled={busy} onclick={() => guard(async () => { await invoke('llm_accounts_login', { id: account }); loginOpened = true; verified = false; })}>{$t('llm.accounts.wizard.sign_in_again')}</button>
             {:else if act === 'switch'}<button class="button" disabled={busy} onclick={() => { error = ''; mode = ''; step = 0; }}>{$t('assist.bots.connection.switch')}</button>
-            {:else if act === 'open_local'}<button class="button" onclick={() => goto('/llm/local')}>{$t('llm.accounts.wizard.open_local_models')}</button>
+            {:else if act === 'open_local'}<button class="button" onclick={() => goto('/llm/models')}>{$t('llm.accounts.wizard.open_local_models')}</button>
             {:else if act === 'change_model' && mode !== 'subscription' && models.length}<button class="button" disabled={busy} onclick={() => { error = ''; step = 2; }}>{$t('assist.bots.connection.change_model')}</button>{/if}
           {/each}
         </div>

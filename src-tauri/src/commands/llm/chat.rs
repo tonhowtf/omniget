@@ -357,6 +357,41 @@ pub async fn llm_permission_rules_set(
     Ok(serde_json::json!({ "ok": true }))
 }
 
+/// The chat's run mode for one conversation (2.7): what it chose, or the
+/// chat default `auto_edits`, and the choices in picker order.
+#[tauri::command]
+pub async fn llm_conversation_run_mode(
+    conversation_id: String,
+) -> Result<serde_json::Value, String> {
+    use omniget_core::core::llm::run_mode;
+    let conv = crate::llm_manager::sanitize_id(&conversation_id);
+    let chosen = run_mode::chosen(&conv);
+    Ok(serde_json::json!({
+        "run_mode": chosen.unwrap_or(run_mode::RunMode::AutoEdits),
+        "chosen": chosen.is_some(),
+        "modes": run_mode::ALL,
+    }))
+}
+
+/// Sets (or, with `null`, forgets) the chat's run mode of a conversation.
+/// `full_access` is only ever stored here because the person picked it in
+/// the composer and confirmed.
+#[tauri::command]
+pub async fn llm_conversation_run_mode_set(
+    conversation_id: String,
+    run_mode: Option<String>,
+) -> Result<serde_json::Value, String> {
+    use omniget_core::core::llm::run_mode::{self, RunMode};
+    let conv = crate::llm_manager::sanitize_id(&conversation_id);
+    let mode = run_mode
+        .as_deref()
+        .filter(|s| !s.trim().is_empty())
+        .map(RunMode::parse)
+        .transpose()?;
+    run_mode::choose(&conv, mode);
+    Ok(serde_json::json!({ "run_mode": mode.unwrap_or(RunMode::AutoEdits) }))
+}
+
 #[cfg(test)]
 mod workspace_command_tests {
     use omniget_core::core::llm::code_tools;

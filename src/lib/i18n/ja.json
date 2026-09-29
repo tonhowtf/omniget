@@ -1311,7 +1311,10 @@
       "reset_hints": "ヒントをリセット",
       "reset_hints_desc": "非表示にしたヒントをすべて再表示します",
       "restore": "復元",
-      "hints_restored": "All hints restored"
+      "hints_restored": "All hints restored",
+      "run_in_background": "エージェントをバックグラウンドで実行",
+      "run_in_background_desc": "ログイン時に OmniGet を非表示で起動し、ウィンドウを閉じてもトレイに残します。ジョブ、Loop、ルーチンは動き続け、omniget コマンドからも見つかります。「ウィンドウを閉じたら終了」はオフになります。",
+      "run_in_background_flatpak": "Flatpak：ログイン時の起動とコマンドラインからの起動はまだ検証されていません。"
     },
     "appearance": {
       "title": "外観",
@@ -2772,12 +2775,10 @@
       "mcp": "MCP",
       "skills": "Skills",
       "accounts": "Accounts",
-      "local": "Local",
       "arena": "Arena",
       "jobs": "Jobs",
       "loops": "Loops"
     },
-    "demo_banner": "Demo data: the LLM backend is not wired yet.",
     "rail": {
       "title": "Agents",
       "unassigned": "Unassigned",
@@ -2785,7 +2786,8 @@
       "new_chat": "New chat",
       "empty": "No agents yet.",
       "no_profile": "No local profile",
-      "search": "Search agents"
+      "search": "Search agents",
+      "load_failed": "保存したチャットを読み込めませんでした。"
     },
     "role": {
       "coordinator": "Coordinator",
@@ -2896,14 +2898,11 @@
       "connect": "Connect or manage providers",
       "local_hint": "Local server: make sure it is running and has models installed. No saved API key is required.",
       "no_models": "This provider returned no models. Check the models available on the server or enter an identifier manually.",
-      "load_failed": "Could not load models: {{error}}"
+      "load_failed": "プロバイダーを読み込めませんでした: {{error}}"
     },
     "err": {
       "unavailable": "The LLM backend is not wired yet.",
       "turn_failed": "The turn could not start."
-    },
-    "local": {
-      "explanation": "Local model management is not available here yet. Configure an existing local provider in Models & Routing."
     },
     "skills": {
       "title": "Skills",
@@ -2911,7 +2910,6 @@
       "installed_title": "Installed",
       "loading": "Reading the installed skills…",
       "empty": "No skill installed yet. Install one from a folder, a zip or a git repository.",
-      "demo": "Demo data — nothing here is installed on this machine.",
       "remove": "Remove",
       "install": "Install",
       "installing": "Installing…",
@@ -2993,7 +2991,6 @@
       "lede": "他のエージェントが接続するエンドポイントと、OmniGet が接続するサーバー。",
       "half_client": "利用中のサーバー",
       "half_server": "あなたのエンドポイント",
-      "demo": "デモサーバー: MCP バックエンドはまだ応答していません。ここにあるものは実際の接続ではありません。",
       "servers": "接続済みサーバー",
       "add": "サーバーを追加",
       "loading": "保存済みのサーバーを読み込み中…",
@@ -3218,7 +3215,12 @@
         "connecting": "Connecting…",
         "err_unknown_provider": "Unknown provider",
         "err_credential_failed": "Credential validation failed"
-      }
+      },
+      "sandbox_full": "フルアクセス許可",
+      "sandbox_full_hint": "このアカウントのターンはファイルを編集でき、実行モードがフルアクセスのターンは確認なしで実行されます。",
+      "sandbox_allow_full": "フルアクセスを許可",
+      "sandbox_allow_full_confirm": "確認：フルアクセスを許可",
+      "sandbox_make_write": "書き込みのみに戻す"
     },
     "rules": {
       "title": "Always rules",
@@ -3277,10 +3279,8 @@
       "undone": "Undone: {{count}} file(s) restored",
       "chat": "Chat",
       "agents": "Agents",
-      "activity": "Activity",
       "configure": "Configure",
       "tasks": "Tasks",
-      "routines": "Routines",
       "performance": "Usage and performance",
       "monitor": "Usage monitor",
       "off": "Off",
@@ -3302,7 +3302,10 @@
       "retro": "Retrospective",
       "installed": "Installed",
       "remote": "Remote access",
-      "wizard": "Project setup"
+      "wizard": "Project setup",
+      "work": "作業",
+      "more": "その他",
+      "loops": "ループ"
     },
     "jobs": {
       "lede": "Agent runs that work in the background while you do something else.",
@@ -3318,6 +3321,12 @@
       "list_title": "Recent jobs",
       "empty": "No jobs yet. Start one above and it shows up here.",
       "result": "Result",
+      "outcome": {
+        "title": "エージェントの判定",
+        "succeeded": "成功",
+        "failed": "失敗",
+        "missing": "エージェントは OUTCOME 行を書かずに終了しました。頼る前に結果を読んでください。"
+      },
       "error": "Error",
       "log": "Log",
       "log_empty": "Nothing logged yet.",
@@ -3332,26 +3341,31 @@
         "done": "Done",
         "failed": "Failed",
         "cancelled": "Cancelled",
-        "waiting_workspace": "フォルダーの空き待ち"
+        "waiting_workspace": "フォルダーの空き待ち",
+        "review": "レビュー待ち",
+        "done_unreported": "完了（報告なし）"
       },
       "kind": {
         "run": "Run",
         "chat": "Chat",
         "loop": "Loop",
-        "trigger": "Trigger",
+        "trigger": "スケジュール",
         "mission": "ミッション"
       },
       "ask": {
         "title": "Wants to use {{tool}}",
         "allow": "Allow",
         "always": "Always allow",
-        "deny": "Deny"
+        "deny": "Deny",
+        "session": "このターンは許可",
+        "stop": "拒否して停止",
+        "cli": "ターミナルから: omniget agent approve {{id}}"
       },
       "trigger": {
-        "title": "Triggers",
-        "lede": "Start a job on a schedule or when a webhook is called.",
-        "empty": "No triggers yet. Create one below.",
-        "new_title": "New trigger",
+        "title": "スケジュールと Webhook",
+        "lede": "決まった時刻、または Webhook が呼ばれたときにタスクを開始します。",
+        "empty": "スケジュールはまだありません。下で作成してください。",
+        "new_title": "新しいスケジュール",
         "kind": "Kind",
         "kind_cron": "Schedule",
         "kind_webhook": "Webhook",
@@ -3359,10 +3373,10 @@
         "cron": "Cron line",
         "cron_hint": "Five fields (minute hour day month weekday), or @hourly, @daily, @weekly, @monthly.",
         "body_hint": "{{token}} is replaced by the webhook body.",
-        "create": "Create trigger",
+        "create": "スケジュールを作成",
         "enabled": "Enabled",
         "fire": "Fire now",
-        "fired": "Trigger fired",
+        "fired": "スケジュールがタスクを開始しました",
         "fired_count": "Fired {{count}}×",
         "copy_curl": "Copy curl",
         "catch_up": "アプリ終了中に逃した実行",
@@ -3387,7 +3401,9 @@
         "no_start": "停止: エージェントが起動しませんでした",
         "deadline": "停止: 制限時間に達しました",
         "limit": "停止: 予算の上限に達しました",
-        "ask_expired": "質問に回答がありませんでした"
+        "ask_expired": "質問に回答がありませんでした",
+        "app_restart": "このジョブの実行中にアプリが終了しました",
+        "budget": "停止: 予算の上限でこの範囲が止まっています"
       },
       "queue": {
         "title": "キュー",
@@ -3411,6 +3427,121 @@
         "unavailable_no_snapshot": "このジョブの変更内容は不明です: ターンがフォルダーのスナップショットを取っていません。",
         "unavailable_no_workspace": "このジョブはフォルダーなしで実行されたため、差分はありません。",
         "unavailable_error": "このジョブのフォルダーのスナップショットを読み取れませんでした。"
+      },
+      "tokens": {
+        "title": "アクセストークン",
+        "lede": "スクリプト、Webhook、omniget CLI は、スコープ付きトークンでローカルブリッジのエージェント用ルートにアクセスします。ブラウザー拡張機能のキーはこれらのためのものではありません。",
+        "empty": "トークンはまだありません。",
+        "name": "名前",
+        "scopes": "できること",
+        "scope_jobs_read": "ジョブを見る (jobs:read)",
+        "scope_jobs_operate": "ジョブを開始・キャンセルする (jobs:operate)",
+        "scope_approvals_respond": "承認に応答する (approvals:respond)",
+        "expires": "有効期限",
+        "expires_never": "なし",
+        "expires_days": "{{days}} 日後",
+        "expires_at": "{{when}} に期限切れ",
+        "create": "トークンを作成",
+        "created": "トークンを作成しました。今すぐコピーしてください。再表示はされません。",
+        "copy": "トークンをコピー",
+        "revoke": "取り消す",
+        "kind_cli": "このコンピューターの omniget CLI",
+        "last_used": "最終使用 {{when}}",
+        "never_used": "未使用",
+        "legacy_toggle": "エージェント用ルートでブラウザー拡張機能のキーを引き続き受け付ける (非推奨)",
+        "legacy_hint": "古いスクリプトが動き続けるよう 1 バージョンだけ残します。次のバージョンでは拒否されます。",
+        "legacy_seen": "ブラウザー拡張機能のキーが {{when}} に {{route}} で使われました。そのスクリプトをスコープ付きトークンに切り替えてください。",
+        "curl_hint": "OMNIGET_TOKEN に jobs:operate スコープのトークンを設定してください (下のアクセストークン)。",
+        "scope_audit_read": "監査ログを読む（audit:read）",
+        "scope_budget_write": "予算の設定と引き上げ (budget:write)",
+        "scope_workflow_trust": "リポジトリのワークフローを承認 (workflow:trust)"
+      },
+      "isolation": {
+        "label": "書き込み先",
+        "auto": "自動: 別のジョブが同じフォルダーに書き込み中のときだけ専用のワークツリー",
+        "worktree": "常に専用の git ワークツリー",
+        "shared": "フォルダーそのもの（順番を待つ）"
+      },
+      "worktree": {
+        "title": "ワークツリー",
+        "chip": "{{base}} からの {{branch}}",
+        "gone": "ワークツリーは削除済み。作業はブランチに残っています。",
+        "remove": "ワークツリーを削除",
+        "removed": "ワークツリーを削除しました。",
+        "kept_branch": "ワークツリーを削除しました。ジョブの作業はブランチ {{branch}} に残っています。",
+        "saved": "未コミットの {{count}} 個のファイルを先にブランチへ保存しました。"
+      },
+      "proof": {
+        "title": "証跡",
+        "summary": "{{files}} 個のファイルを変更 · {{tokens}} トークン · {{time}}",
+        "check": "{{command}} → 終了コード {{code}}",
+        "by_host": "エージェントではなく、このコンピューター上の OmniGet が記録内容から押印しました。"
+      },
+      "review": {
+        "mark": "レビュー済みにする",
+        "title": "レビュー",
+        "lede": "ハンクを破棄し、エージェントへのメモを残してから、作業を統合または破棄します。",
+        "discard_hunk": "破棄",
+        "hunk_discarded": "ハンクを破棄しました。",
+        "hunk_stale": "読み込んだ後にそのコードが変わりました。差分を更新したので、もう一度お試しください。",
+        "busy": "いまジョブがこのフォルダーに書き込んでいます。終わってから再度お試しください。",
+        "not_actionable": "このジョブの worktree は削除されたため、ハンクを個別に破棄できません。",
+        "notes_title": "エージェントへのメモ",
+        "notes_hint": "差分の行を選んでコメントします。送信すると同じ会話で続きが始まり、費用はメモの分だけです。",
+        "notes_empty": "メモはまだありません。",
+        "note_file": "ファイル全体",
+        "note_sent": "{{job}} に送信済み",
+        "note_delete": "メモを削除",
+        "notes_send": "{{count}} 件のメモをエージェントに送る",
+        "notes_sent": "メモを送信しました: 続きのジョブ {{job}} を開始しました。",
+        "walkthrough_title": "ウォークスルー",
+        "walkthrough": "変更を説明",
+        "walkthrough_refresh": "もう一度説明",
+        "walkthrough_loading": "ウォークスルーを作成中…",
+        "walkthrough_too_large": "この差分はウォークスルーには大きすぎます。ファイルごとに確認してください。",
+        "walkthrough_uncovered": "どのストップにも入っていないハンク: {{count}}",
+        "walkthrough_cached": "キャッシュから",
+        "importance_critical": "重要",
+        "integrate_title": "統合",
+        "integrate_into": "{{branch}} を {{target}} にマージ",
+        "commits": "取り込むコミット: {{count}}",
+        "worktree_dirty": "worktree の未コミットのファイル {{count}} 件は先にブランチに保存されます。",
+        "blocked": "いまは統合できません: {{reason}}",
+        "strategy_merge": "マージコミット",
+        "strategy_squash": "1 つのコミットに squash",
+        "integrate": "統合",
+        "integrated": "{{target}} に統合しました。",
+        "up_to_date": "{{target}} にはこの作業がすでにあります。",
+        "conflict": "{{files}} で衝突しました。チェックアウトは何も変わっていません。",
+        "failed": "git がマージを拒否しました (フックかもしれません)。チェックアウトは何も変わっていません。",
+        "discard_work": "作業を破棄",
+        "discard_confirm": "このジョブの作業を破棄しますか? worktree とブランチ {{branch}} が削除されます。",
+        "discarded": "作業を破棄しました。ブランチ {{branch}} は {{tip}} でした。"
+      },
+      "resumed_by_itself": "自動で再開（{{count}} 回）",
+      "workflow": {
+        "title": "リポジトリのワークフロー",
+        "state": {
+          "trusted": "有効",
+          "untrusted": "未承認",
+          "invalid": "無効",
+          "none": "なし"
+        },
+        "last_good": "ファイルが修正されるまで、最後の有効なバージョンが使われます。",
+        "no_last_good": "以前の有効なバージョンがありません。ファイルが修正されるまで、このフォルダーのジョブは拒否されます。",
+        "defaults": "既定値:",
+        "commands": "このコンピューターで実行するコマンド:",
+        "kind": {
+          "after_create": "worktree 作成後",
+          "before_remove": "worktree 削除前",
+          "check": "ジョブ後のチェック"
+        },
+        "untrusted_hint": "このバージョンそのものを承認するまで、これらのコマンドはスキップされ、より緩い実行モードも適用されません。ファイルを変更するたびに再承認が必要です。",
+        "trust": "このバージョンを承認",
+        "revoke": "承認を取り消す",
+        "template": "プロンプトのテンプレート",
+        "trusted_toast": "ワークフローを承認しました。今後そのコマンドが実行されます",
+        "untrusted_toast": "ワークフローの承認を取り消しました"
       }
     },
     "loops": {
@@ -3440,13 +3571,56 @@
         "running": "Running",
         "done": "Done",
         "failed": "Failed",
-        "cancelled": "Cancelled"
+        "cancelled": "Cancelled",
+        "paused": "一時停止中",
+        "blocked": "ブロック",
+        "budget_limited": "予算に到達"
       },
       "check_passed": "Condition met",
       "summary": "Up to {{rounds}} rounds. Stops earlier when a configured condition or time limit is reached.",
-      "no_check": "No check command: completion will be controlled by the round or time limit.",
+      "no_check": "チェックコマンドなし: 各ラウンドの後、独立した監査役(エージェントの最小モデル)が作業の完了を判定します。最大20ラウンドです。",
       "review": "Review loop",
-      "edit": "Edit configuration"
+      "edit": "Edit configuration",
+      "auto_resume": "再起動後に自動で再開",
+      "auto_resume_hint": "ラウンドの途中でアプリが終了した場合、そのラウンドがまだフォルダーに書き込んでいなければ、次に開いたときに Loop が続行します。",
+      "run_mode_hint": "ループの各ラウンドはこのモードで実行されます。「すべて事前に確認」では、各ラウンドが編集やコマンドの前に止まり、あなたを待ちます。",
+      "max_cost": "予算 (US$)",
+      "paused_budget": "一時停止: 予算に到達",
+      "paused_budget_hint": "上限を上げるまでラウンドは始まりません。上げるとループが再開します。",
+      "open_incident": "インシデントを開く",
+      "cost_estimated": "(推定)",
+      "cost_tokens": "重み付きトークン {{tokens}}",
+      "cost_unknown": "コスト不明のラウンド {{count}}",
+      "stop": {
+        "audit_complete": "監査役が確認済み",
+        "audit_blocked": "監査役がエージェントのブロックを3ラウンド連続で確認",
+        "audit_unavailable": "監査が2回連続で利用不可",
+        "token_budget": "トークン予算に到達",
+        "max_rounds": "ラウンド上限に到達",
+        "round_failed": "ラウンドが失敗しました: {{error}}",
+        "audit_disagrees": "エージェントの完了申告に監査役が3回連続で同意しませんでした。判断してください"
+      },
+      "token_budget": "トークン予算",
+      "tokens": "{{used}} / {{budget}} トークン",
+      "guided": "{{count}} ラウンドは続きの指示だけを送信しました(タスクは再送していません)。",
+      "audits": "監査役の判定",
+      "verdict": {
+        "continue": "継続",
+        "complete": "完了",
+        "blocked": "ブロック",
+        "none": "判定なし"
+      },
+      "claimed_done": "完了と申告",
+      "claimed_done_hint": "エージェントは完了と申告しました。ループを終えるのは監査役の判定だけです。",
+      "side_reason": {
+        "provider_small": "同じアカウントの最小モデル",
+        "session_model": "より小さいモデルが不明: エージェント自身のモデル",
+        "requested": "このループ用に選択",
+        "setting": "サブモデルの設定"
+      },
+      "overhead": "監査役 {{audit}}、ラウンド {{rounds}}({{percent}}%)。",
+      "blocked_hint": "ループが停止し、あなたの判断が必要です。再開すると新しいラウンドが再び監査付きで実行されます。",
+      "note": "進捗"
     },
     "limits": {
       "title": "Limits strip",
@@ -3559,22 +3733,18 @@
       "model": "Connection and model",
       "customize": "Tools and limits",
       "tasks": "Tasks",
-      "routines": "Routines",
       "active": "Running",
       "attention": "Needs attention",
       "done": "Finished",
       "create": "Create a task",
-      "create_routine": "Create a routine",
       "jobs_hint": "Run a task in the background. Open its details to see the result, approve a tool or stop execution.",
       "loops_hint": "Repeat a task until a check passes or its limit is reached. Review the stop conditions before starting.",
       "models_hint": "Connect an API provider, then choose its model for an agent. Chat subscriptions are configured in Connections.",
       "mcp_hint": "Connect a tool, test it, then choose which agents may use it. Adding a connection does not grant permission.",
       "skills_hint": "Skills give agents reusable instructions. Review the source and scan result before installing, then assign the skill to an agent.",
       "observatory_hint": "Inspect measured activity and provider quotas. Missing measurements are unavailable, never zero. Diagnostics run only when you open them.",
-      "local_hint": "Use a local model through a compatible server. Connect the running server and select one of its actual models before creating an agent.",
       "arena_hint": "Model comparison is not available yet. You can choose a model and run a conversation with the current tools.",
       "unavailable_feature": "Not available yet",
-      "local_steps": "Start your local model server|Connect its endpoint in AI settings|Choose the model for an agent",
       "arena_steps": "Select a model|Open a conversation|Review the result",
       "roster_hint": "Start with one agent and give it a clear purpose. Add a team when your task needs it.",
       "suggestion_1": "List my downloads and explain which need attention",
@@ -3587,7 +3757,8 @@
       "search": "Find an agent",
       "no_matches": "No matching agents",
       "templates_impact": "Review the template and its effect on the existing team before applying it.",
-      "mcp_server_hint": "他の AI アプリから OmniGet を使えるようにします。サーバーをオンにし、必要な権限だけのクライアントを作り、そのスニペットをアプリに貼り付けます。"
+      "mcp_server_hint": "他の AI アプリから OmniGet を使えるようにします。サーバーをオンにし、必要な権限だけのクライアントを作り、そのスニペットをアプリに貼り付けます。",
+      "create_loop": "ループを作成"
     },
     "prompts": {
       "omni": "You are Omni, the assistant inside OmniGet. Answer briefly and in the language the user writes in. Use a tool only when it is clearly needed.",
@@ -3618,14 +3789,16 @@
       "start": "起動タイムアウト (秒)",
       "start_desc": "起動後この時間まったく出力がないエージェントは、プロンプトを受け取れていません。",
       "deadline": "ジョブの制限時間 (分)",
-      "deadline_desc": "バックグラウンドのジョブ (実行、ループの各回、ルーチン) は、個別の設定がない限りここで停止します。",
+      "deadline_desc": "バックグラウンドのタスク (実行、ループの各回、スケジュール実行) は、個別の設定がない限りここで停止します。",
       "ask_chat": "チャットの質問の待ち時間 (分)",
       "ask_chat_desc": "過ぎると質問は期限切れになり、操作は実行されず、その理由が伝えられます。",
       "ask_job": "ジョブの質問の待ち時間 (分)",
       "ask_job_desc": "0 にするとジョブ自体の制限時間まで待ちます。",
       "notify_delay": "通知までの時間 (秒)",
       "notify_delay_desc": "この時間を過ぎても未回答の質問はシステム通知になります。それより早く回答すれば通知されません。",
-      "offline": "保存できませんでした: バックエンドが応答しません。"
+      "offline": "保存できませんでした: バックエンドが応答しません。",
+      "auto_resume": "再起動後に自動で再開",
+      "auto_resume_desc": "アプリが終了したりエージェントが応答しなくなったりしたとき、専用の worktree で動いていたジョブや読み取りだけのジョブは自動で再開します。セッションを引き継ぎ、何かを繰り返す前に完了済みの内容を確認するよう指示されます。フォルダーに書き込んだジョブは引き続きあなたを待ちます。ジョブや Loop ごとに変更できます。"
     },
     "central": {
       "agentkit": {
@@ -5350,7 +5523,6 @@
         "verify_hint": "Runs in every worktree; the exit code decides pass or fail.",
         "cleanup": "Clean up",
         "cleanup_lede": "Archives the threads (their worktrees go; the work stays in the arena's refs).",
-        "cleanup_losers": "Only the losers",
         "cleanup_all": "Every entry (discard the arena)",
         "delete": "Delete arena",
         "delete_lede": "Removes this arena from the history and its refs. The threads stay.",
@@ -5466,10 +5638,11 @@
           "verify_hint": "Optional; runs in each worktree when its turn ends. Timeout",
           "timeout": "Timeout in minutes",
           "minutes": "min",
-          "start": "Start in {{count}} tools"
+          "start": "Start in {{count}} tools",
+          "min_tools": "比較するツールを {{count}} つ以上選んでください。"
         },
         "apply": {
-          "title": "Apply the winner",
+          "title": "これを選ぶ",
           "lede": "{{name}}'s branch goes into the target branch. Nothing else is touched.",
           "target": "Target branch",
           "strategy": "How",
@@ -5480,22 +5653,49 @@
           "conflicts": "{{count}} files conflict; resolve in the thread first.",
           "checked_out": "The branch is checked out at {{path}}.",
           "dirty": "That checkout has uncommitted changes: commit or stash them first.",
-          "touch_checkout": "Update my checkout too (fast-forward only)",
+          "touch_checkout": "自分のチェックアウトにマージ(自分の ID とフックで git merge、競合時は元に戻す)",
           "ref_only": "Only the branch moves; no checkout is touched.",
-          "clean_losers": "Archive the losing threads and remove their worktrees",
+          "clean_losers": "その後ほかを削除(worktree。作業はアリーナの ref に残ります)",
           "delete_branches": "Also delete their branches (only OmniGet's)",
           "confirm": "I want to change {{branch}}",
           "do": "Apply",
           "ok": "Applied to {{branch}}",
-          "updated_checkout": "your checkout moved forward",
-          "updated_ref": "only the branch ref moved",
-          "cleaned": "{{count}} threads archived"
+          "updated_checkout": "チェックアウトにマージしました",
+          "updated_ref": "only the branch ref moved"
         },
         "plan": {
           "implement_n": "Implement in N tools",
           "hint": "Open the Arena with this plan as the prompt"
         },
-        "apply_winner": "Apply winner"
+        "apply_winner": "Apply winner",
+        "removed": "{{count}} 件の worktree を削除しました",
+        "branches_kept": "{{count}} 件のブランチを残しました",
+        "remove_others": "ほかを削除",
+        "choose": "これを選ぶ",
+        "choose_hint": "この列の作業をベースブランチにマージします",
+        "estimate": {
+          "total": "開始前の見積もり: {{count}} つのツールで {{total}}",
+          "unknown": "見積もりなし: {{count}}",
+          "rough": "概算: 定価 × 標準的な 1 ターン",
+          "source": {
+            "history": "アリーナでの過去 {{runs}} 回の平均",
+            "price": "定価 × 標準的なコーディング 1 ターン(概算)",
+            "unknown": "価格不明(サブスクリプション、または価格表にないモデル)"
+          }
+        },
+        "compare": {
+          "title": "分かれたところ",
+          "toggle": "比較",
+          "divergent": "{{count}} 件のファイルが異なります",
+          "agreed": "{{count}} 件は同一",
+          "pending": "{{count}} 件が実行中",
+          "show_agreed": "同一のファイルも表示",
+          "file": "ファイル",
+          "untouched": "ベースと同じ",
+          "none_divergent": "すべての列が同じファイルで終わりました。",
+          "column": "{{count}} 件が異なる",
+          "column_hint": "この列がほかと異なるファイル"
+        }
       },
       "run": {
         "back": "Back",
@@ -5512,7 +5712,8 @@
           "done": "Done",
           "failed": "Failed",
           "cancelled": "Cancelled",
-          "skipped": "Skipped"
+          "skipped": "Skipped",
+          "review": "レビュー待ち"
         },
         "runner": {
           "label": "Runs with",
@@ -5662,6 +5863,156 @@
           "review_started": "Review job started",
           "open_jobs": "Open Jobs"
         }
+      }
+    },
+    "run_mode": {
+      "label": "実行モード",
+      "approval_required": "すべて事前に確認",
+      "auto_edits": "編集は自動",
+      "auto": "自動（CLI のレビュアー）",
+      "full_access": "フルアクセス",
+      "approval_required_hint": "すべての編集とコマンドが先に確認します。",
+      "auto_edits_hint": "ファイルの編集はそのまま通り、コマンドは先に確認します。",
+      "auto_hint": "CLI 自身のレビュアーが判断します。CLI にない場合は「編集は自動」と同じ動作です。",
+      "full_access_hint": "何も確認しません。CLI アカウント側でもフルアクセスを許可する必要があります。",
+      "full_access_warning": "フルアクセスでは、すべての編集とコマンドが確認なしで実行されます。失っても構わないフォルダーでのみ使ってください。",
+      "full_access_confirm": "フルアクセスを許可",
+      "cancel": "キャンセル"
+    },
+    "audit": {
+      "title": "監査ログ",
+      "lede": "ジョブ、質問、許可、トークン、エージェントに対して誰が何をしたか、どの経路からかを記録します。プロンプト、ファイルの内容、秘密情報は保存しません。",
+      "since": "期間",
+      "since_1h": "直近 1 時間",
+      "since_1d": "直近 1 日",
+      "since_7d": "直近 7 日",
+      "since_30d": "直近 30 日",
+      "since_90d": "直近 90 日",
+      "kind": "種類",
+      "kind_all": "すべて",
+      "kind_job": "ジョブ",
+      "kind_ask": "質問",
+      "kind_grant": "常時許可",
+      "kind_token": "トークン",
+      "kind_agent": "エージェント",
+      "kind_loop": "ループ",
+      "refresh": "更新",
+      "export": "CSV を書き出す",
+      "empty": "この期間には何もありません。",
+      "error": "監査ログを読み込めませんでした。",
+      "who": "誰が",
+      "through": "経路",
+      "on": "対象",
+      "retention": "行の保存期間（日）",
+      "retention_days": "行は {{days}} 日間保存されます。",
+      "retention_save": "保存",
+      "retention_saved": "保存しました。古い行は削除されました。",
+      "cli_hint": "ターミナルから同じログを読めます（audit:read を持つトークンが必要）。"
+    },
+    "work": {
+      "nav": "すべての作業",
+      "lede": "エージェントがあなたのために行っている作業をひとつの一覧に。まずあなたの対応が必要なもの、次に実行中・待機中・レビュー待ち・最近完了したもの。",
+      "badge_needs_you": "対応が必要 ({{count}})",
+      "badge_running": "実行中 {{count}}",
+      "badge_review": "レビュー待ち {{count}}",
+      "badge_queued": "待機中 {{count}}",
+      "section": {
+        "needs_you": "対応が必要",
+        "running": "実行中",
+        "queued": "開始待ち",
+        "review": "レビュー待ち",
+        "done": "最近完了"
+      },
+      "pill": {
+        "approval": "承認が必要",
+        "input": "回答が必要",
+        "decision": "判断が必要",
+        "working": "作業中",
+        "failed": "失敗",
+        "queued": "待機中",
+        "review": "レビュー",
+        "ready": "完了",
+        "stopped": "停止"
+      },
+      "source": {
+        "job": "タスク",
+        "loop": "ループ",
+        "mission": "ミッション",
+        "thread": "スレッド",
+        "run": "チャット",
+        "ask": "質問",
+        "budget": "予算"
+      },
+      "asks_for": "{{tool}} の使用を求めています",
+      "nothing_waits": "対応待ちはありません。",
+      "empty": "まだ作業はありません。",
+      "partial": "作業の一部を読み込めませんでした: {{error}}",
+      "notify": {
+        "approval": "承認が必要: {{title}}",
+        "input": "回答が必要: {{title}}",
+        "decision": "判断が必要: {{title}}",
+        "failed": "失敗: {{title}}",
+        "ready": "完了: {{title}}",
+        "review": "レビュー待ち: {{title}}",
+        "more": "ほか {{count}} 件は「作業」に"
+      }
+    },
+    "budget": {
+      "title": "予算",
+      "refresh": "更新",
+      "lede": "エージェントの上限: 全体、エージェント、アカウント、ループ、ジョブ、ミッションごとに、ドル、重み付きトークン、またはサブスクリプションの 5 時間 / 7 日枠の割合で設定します。厳格な上限を超えるとその範囲は一時停止し、上限を上げるまで作業が止まります。上限がなければ何も制限されません。",
+      "read_error": "予算を読み込めませんでした。",
+      "empty": "上限はまだありません。何も制限されていません。",
+      "hard": "一時停止",
+      "soft": "確認する",
+      "paused": "一時停止中",
+      "remove": "削除",
+      "no_reading": "クォータの値はまだありません (CLI 自身のストリームから届きます)",
+      "warn_at": "{{pct}}% で通知",
+      "estimate_note": "サブスクリプションのドルは価格表による推定です",
+      "add": "上限を追加",
+      "scope": "対象",
+      "scope_id": "ID",
+      "metric_label": "単位",
+      "window_label": "期間",
+      "amount": "上限",
+      "warn_label": "通知する割合 (%)",
+      "soft_label": "一時停止せずに確認する",
+      "save": "保存",
+      "hard_hint": "上限を超えるとその範囲は一時停止し、実行中と待機中の作業は取り消され、インシデントが対応を待ちます (上げて再開、または一時停止のまま)。",
+      "soft_hint": "上限を超えると、次のターンで期間ごとに一度「続行しますか？」と確認します (他の承認と同じく CLI やスマホからも)。いいえで範囲は一時停止します。",
+      "quota_hint": "クォータの上限は CLI 自身のストリームが報告した値だけを読みます。アカウント (または全体) では枠そのものの割合、ループ・ジョブ・エージェント・ミッションでは開始から使ったポイントです。",
+      "warn_toast": "{{scope}} の予算: {{limit}} 中 {{used}} を使用",
+      "metric": {
+        "usd": "ドル",
+        "weighted_tokens": "重み付きトークン",
+        "quota_pct": "クォータ枠の割合"
+      },
+      "window": {
+        "turn": "ターンごと",
+        "day": "1 日あたり",
+        "week": "1 週間あたり",
+        "5h": "5 時間枠",
+        "7d": "7 日枠",
+        "run": "実行全体"
+      },
+      "scope_kind": {
+        "global": "全体",
+        "agent": "エージェント",
+        "account": "アカウント",
+        "loop": "ループ",
+        "job": "ジョブ",
+        "mission": "ミッション"
+      },
+      "incident": {
+        "open": "予算に到達",
+        "kept": "一時停止のまま",
+        "hard_line": "{{limit}} 中 {{used}} を使用しました。上限を上げるまでここでは何も始まりません。",
+        "checkpoint_line": "{{limit}} のチェックポイントで「いいえ」と回答されました ({{used}} 使用)。上げるまでここでは何も始まりません。",
+        "new_limit": "新しい上限",
+        "raise": "上げて再開",
+        "keep": "一時停止のままにする",
+        "too_low": "新しい上限は使用済みの量より大きくする必要があります。"
       }
     }
   },
@@ -6176,9 +6527,6 @@
       "tool_calls": "ツール {{count}} 件",
       "permissions_title": "あなたの応答待ち",
       "permission_label": "{{action}} を使用しようとしています",
-      "answer_once": "今回のみ許可",
-      "answer_always": "常に許可",
-      "answer_deny": "拒否",
       "expires_in": "{{seconds}} 秒後に期限切れ",
       "request_title": "依頼内容",
       "summary_title": "回答",
@@ -6212,7 +6560,8 @@
         "approved": "許可",
         "denied": "拒否",
         "expired": "期限切れ",
-        "cancelled": "キャンセル"
+        "cancelled": "キャンセル",
+        "stale": "再起動で残ったもの"
       },
       "unknown_hint": "この実行の作業中に OmniGet が終了したため、結果は不明です。自動で再送信はしていません。下の変更を確認し、どうするか選んでください。",
       "interrupted_hint": "この実行がモデルに届く前に OmniGet が終了しました。何も行われていません。",
@@ -6247,7 +6596,14 @@
       "routine_app_open": "OmniGet の起動中のみ実行",
       "routine_mute": "通知をミュート",
       "routine_unmute": "ミュートを解除",
-      "routine_muted": "ミュート中"
+      "routine_muted": "ミュート中",
+      "stale_title": "再起動で未回答のまま残った質問",
+      "stale_hint": "待っている間にアプリが閉じました。何も実行されていません。もう一度尋ねるにはターンをやり直してください。",
+      "dismiss": "閉じる",
+      "answer_on_card": "このページ上部のカードで回答してください。",
+      "answer_once": "今回のみ許可",
+      "answer_always": "常に許可",
+      "answer_deny": "拒否"
     },
     "conversation": {
       "status_working": "作業中…",
@@ -6806,7 +7162,10 @@
       "adv_events": "イベント",
       "blocked_before_call": "呼び出し前に止まりました。このステップでは何も実行されていません。",
       "verify_started": "バックグラウンドで確認中です。終わると結果がここに表示されます。",
-      "verify_already_running": "このミッションはすでに確認中です。"
+      "verify_already_running": "このミッションはすでに確認中です。",
+      "changes": "変更",
+      "changes_no_job": "このタスクはまだジョブを実行していません。",
+      "changes_job": "ジョブ {{job}}"
     },
     "log": {
       "loading": "ログを読み込み中…",
@@ -6925,7 +7284,7 @@
     "auth_origin": {
       "user_ui": "あなた（ミッションページ）",
       "chat": "あなた（チャットから）",
-      "trigger": "あなたが設定したトリガー",
+      "trigger": "あなたが設定したスケジュール",
       "external_mcp": "MCP クライアント"
     }
   },
@@ -7015,7 +7374,11 @@
     "native_active": "Native access",
     "native_revoke": "Revoke access",
     "system_read": "このコンピューターの状態、スキャン結果、計画を読み取る（washmybelly）",
-    "system_change": "クリーンアップ計画の作成、電源保持、ゲームモード、FPS計測を実行する（washmybelly）"
+    "system_change": "クリーンアップ計画の作成、電源保持、ゲームモード、FPS計測を実行する（washmybelly）",
+    "approvals_respond": "自分のミッションの許可の質問に回答する",
+    "approvals_respond_help": "これを許可すると、クライアントは自分のミッションのツール呼び出し（シェルコマンドを含む）を、ここで「許可」を押したのと同じように許可できます。自分と同じくらい信頼できるクライアントにだけ与えてください。「常に許可」のルールは作れず、エージェントが自分の質問に答えることもできません。",
+    "agents_run": "エージェントをバックグラウンドのジョブとして実行する",
+    "agents_run_help": "これを許可すると、クライアントは一覧の任意のエージェントに、指定したフォルダーでタスクをバックグラウンドで実行させられます（`omniget agent run` と同じ）。見たり止めたりできるのは自分が開始したジョブだけです。エージェントの許可の質問は、このクライアントに回答も許可しない限り、引き続きあなたを待ちます。"
   },
   "mcp_auth": {
     "title": "AI クライアントがサインインを求めています",

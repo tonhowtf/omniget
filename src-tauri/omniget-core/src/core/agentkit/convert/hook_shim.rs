@@ -1450,6 +1450,13 @@ fn dechunk(b: &[u8]) -> Vec<u8> {
 /// Entry point of the binary: process args + stdin → stdout/stderr/exit.
 pub fn main_entry() -> i32 {
     let argv: Vec<String> = std::env::args().skip(1).collect();
+    // `omniget-hook-shim hook claude …`: OmniGet's own permission hook of a
+    // Claude turn (3.4), the same entry as `omniget hook claude`.
+    if argv.first().map(String::as_str) == Some("hook")
+        && argv.get(1).map(String::as_str) == Some("claude")
+    {
+        return crate::core::llm::claude_hooks::main_with_args(&argv[2..]);
+    }
     let args = match parse_args(&argv) {
         Ok(a) => a,
         Err(e) => {

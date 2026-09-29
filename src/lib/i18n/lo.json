@@ -1311,7 +1311,10 @@
       "reset_hints": "ຣີເຊັດຄຳແນະນຳ",
       "reset_hints_desc": "ສະແດງເຄັດລັບທີ່ປິດໄປແລ້ວທັງໝົດອີກຄັ້ງ",
       "restore": "ກູ້ຄືນ",
-      "hints_restored": "ກູ້ຄືນຄຳແນະນຳທັງໝົດແລ້ວ"
+      "hints_restored": "ກູ້ຄືນຄຳແນະນຳທັງໝົດແລ້ວ",
+      "run_in_background": "ແລ່ນເອເຈນຢູ່ເບື້ອງຫຼັງ",
+      "run_in_background_desc": "OmniGet ຈະເປີດແບບເຊື່ອງເມື່ອທ່ານເຂົ້າສູ່ລະບົບ ແລະ ການປິດໜ້າຕ່າງຈະເກັບມັນໄວ້ໃນຖາດລະບົບ, ດັ່ງນັ້ນວຽກ, Loop ແລະ ກິດຈະວັດຈະແລ່ນຕໍ່ ແລະ ຄຳສັ່ງ omniget ຊອກເຫັນມັນໄດ້. ປິດຕົວເລືອກ “ອອກເມື່ອປິດໜ້າຕ່າງ”.",
+      "run_in_background_flatpak": "Flatpak: ການເປີດຕອນເຂົ້າສູ່ລະບົບ ແລະ ການຖືກເປີດຈາກແຖວຄຳສັ່ງ ຍັງບໍ່ໄດ້ກວດສອບ."
     },
     "appearance": {
       "title": "ລັກສະນະ",
@@ -2772,12 +2775,10 @@
       "mcp": "MCP",
       "skills": "Skills",
       "accounts": "Accounts",
-      "local": "Local",
       "arena": "Arena",
       "jobs": "Jobs",
       "loops": "Loops"
     },
-    "demo_banner": "Demo data: the LLM backend is not wired yet.",
     "rail": {
       "title": "Agents",
       "unassigned": "Unassigned",
@@ -2785,7 +2786,8 @@
       "new_chat": "New chat",
       "empty": "No agents yet.",
       "no_profile": "No local profile",
-      "search": "Search agents"
+      "search": "Search agents",
+      "load_failed": "ອ່ານແຊັດທີ່ບັນທຶກໄວ້ບໍ່ໄດ້."
     },
     "role": {
       "coordinator": "Coordinator",
@@ -2896,14 +2898,11 @@
       "connect": "Connect or manage providers",
       "local_hint": "Local server: make sure it is running and has models installed. No saved API key is required.",
       "no_models": "This provider returned no models. Check the models available on the server or enter an identifier manually.",
-      "load_failed": "Could not load models: {{error}}"
+      "load_failed": "ອ່ານຜູ້ໃຫ້ບໍລິການບໍ່ໄດ້: {{error}}"
     },
     "err": {
       "unavailable": "The LLM backend is not wired yet.",
       "turn_failed": "The turn could not start."
-    },
-    "local": {
-      "explanation": "Local model management is not available here yet. Configure an existing local provider in Models & Routing."
     },
     "skills": {
       "title": "Skills",
@@ -2911,7 +2910,6 @@
       "installed_title": "Installed",
       "loading": "Reading the installed skills…",
       "empty": "No skill installed yet. Install one from a folder, a zip or a git repository.",
-      "demo": "Demo data — nothing here is installed on this machine.",
       "remove": "Remove",
       "install": "Install",
       "installing": "Installing…",
@@ -2993,7 +2991,6 @@
       "lede": "ປາຍທາງທີ່ເອເຈນອື່ນເຊື່ອມຕໍ່ເຂົ້າມາ, ແລະ ເຊີບເວີທີ່ OmniGet ເຊື່ອມຕໍ່ໄປຫາ.",
       "half_client": "ເຊີບເວີທີ່ທ່ານໃຊ້",
       "half_server": "ປາຍທາງຂອງທ່ານ",
-      "demo": "ເຊີບເວີຕົວຢ່າງ: backend ຂອງ MCP ຍັງບໍ່ຕອບ. ບໍ່ມີອັນໃດຢູ່ນີ້ເປັນການເຊື່ອມຕໍ່ແທ້.",
       "servers": "ເຊີບເວີທີ່ເຊື່ອມຕໍ່ແລ້ວ",
       "add": "ເພີ່ມເຊີບເວີ",
       "loading": "ກຳລັງອ່ານເຊີບເວີທີ່ບັນທຶກໄວ້…",
@@ -3218,7 +3215,12 @@
         "connecting": "Connecting…",
         "err_unknown_provider": "Unknown provider",
         "err_credential_failed": "Credential validation failed"
-      }
+      },
+      "sandbox_full": "ອະນຸຍາດການເຂົ້າເຖິງເຕັມທີ່ແລ້ວ",
+      "sandbox_full_hint": "ຮອບຂອງບັນຊີນີ້ແກ້ໄຂໄຟລ໌ໄດ້, ແລະ ຮອບທີ່ໂໝດເປັນເຂົ້າເຖິງເຕັມທີ່ຈະເຮັດວຽກໂດຍບໍ່ຖາມ.",
+      "sandbox_allow_full": "ອະນຸຍາດການເຂົ້າເຖິງເຕັມທີ່",
+      "sandbox_allow_full_confirm": "ຢືນຢັນ: ອະນຸຍາດການເຂົ້າເຖິງເຕັມທີ່",
+      "sandbox_make_write": "ກັບໄປເປັນຂຽນໄດ້ຢ່າງດຽວ"
     },
     "rules": {
       "title": "Always rules",
@@ -3277,10 +3279,8 @@
       "undone": "Undone: {{count}} file(s) restored",
       "chat": "Chat",
       "agents": "Agents",
-      "activity": "Activity",
       "configure": "Configure",
       "tasks": "Tasks",
-      "routines": "Routines",
       "performance": "Usage and performance",
       "monitor": "Usage monitor",
       "off": "Off",
@@ -3302,7 +3302,10 @@
       "retro": "Retrospective",
       "installed": "Installed",
       "remote": "Remote access",
-      "wizard": "Project setup"
+      "wizard": "Project setup",
+      "work": "ວຽກ",
+      "more": "ເພີ່ມເຕີມ",
+      "loops": "ລູບ"
     },
     "jobs": {
       "lede": "Agent runs that work in the background while you do something else.",
@@ -3318,6 +3321,12 @@
       "list_title": "Recent jobs",
       "empty": "No jobs yet. Start one above and it shows up here.",
       "result": "Result",
+      "outcome": {
+        "title": "ຄຳຕັດສິນຂອງຕົວແທນ",
+        "succeeded": "ສຳເລັດ",
+        "failed": "ລົ້ມເຫຼວ",
+        "missing": "ຕົວແທນຈົບໂດຍບໍ່ມີແຖວ OUTCOME: ອ່ານຜົນກ່ອນຈະເຊື່ອຖືມັນ."
+      },
       "error": "Error",
       "log": "Log",
       "log_empty": "Nothing logged yet.",
@@ -3332,26 +3341,31 @@
         "done": "Done",
         "failed": "Failed",
         "cancelled": "Cancelled",
-        "waiting_workspace": "ລໍຖ້າໂຟນເດີ"
+        "waiting_workspace": "ລໍຖ້າໂຟນເດີ",
+        "review": "ລໍຖ້າການກວດ",
+        "done_unreported": "ສຳເລັດ, ບໍ່ມີລາຍງານ"
       },
       "kind": {
         "run": "Run",
         "chat": "Chat",
         "loop": "Loop",
-        "trigger": "Trigger",
+        "trigger": "ຕາມກຳນົດເວລາ",
         "mission": "ພາລະກິດ"
       },
       "ask": {
         "title": "Wants to use {{tool}}",
         "allow": "Allow",
         "always": "Always allow",
-        "deny": "Deny"
+        "deny": "Deny",
+        "session": "ອະນຸຍາດສຳລັບຮອບນີ້",
+        "stop": "ປະຕິເສດ ແລະ ຢຸດ",
+        "cli": "ຈາກເທີມິນອລ: omniget agent approve {{id}}"
       },
       "trigger": {
-        "title": "Triggers",
-        "lede": "Start a job on a schedule or when a webhook is called.",
-        "empty": "No triggers yet. Create one below.",
-        "new_title": "New trigger",
+        "title": "ກຳນົດເວລາ ແລະ webhook",
+        "lede": "ເລີ່ມໜ້າວຽກຕາມເວລາທີ່ກຳນົດ ຫຼື ເມື່ອມີການເອີ້ນ webhook.",
+        "empty": "ຍັງບໍ່ມີກຳນົດເວລາ. ສ້າງອັນໃໝ່ຢູ່ລຸ່ມນີ້.",
+        "new_title": "ກຳນົດເວລາໃໝ່",
         "kind": "Kind",
         "kind_cron": "Schedule",
         "kind_webhook": "Webhook",
@@ -3359,10 +3373,10 @@
         "cron": "Cron line",
         "cron_hint": "Five fields (minute hour day month weekday), or @hourly, @daily, @weekly, @monthly.",
         "body_hint": "{{token}} is replaced by the webhook body.",
-        "create": "Create trigger",
+        "create": "ສ້າງກຳນົດເວລາ",
         "enabled": "Enabled",
         "fire": "Fire now",
-        "fired": "Trigger fired",
+        "fired": "ກຳນົດເວລາເລີ່ມໜ້າວຽກແລ້ວ",
         "fired_count": "Fired {{count}}×",
         "copy_curl": "Copy curl",
         "catch_up": "ທີ່ພາດໄປຕອນແອັບປິດ",
@@ -3387,7 +3401,9 @@
         "no_start": "ຢຸດແລ້ວ: ເອເຈນບໍ່ເຄີຍເລີ່ມ",
         "deadline": "ຢຸດແລ້ວ: ຮອດເວລາສູງສຸດ",
         "limit": "ຢຸດແລ້ວ: ຮອດງົບປະມານສູງສຸດ",
-        "ask_expired": "ມີຄຳຖາມທີ່ບໍ່ມີຄົນຕອບ"
+        "ask_expired": "ມີຄຳຖາມທີ່ບໍ່ມີຄົນຕອບ",
+        "app_restart": "ແອັບປິດລະຫວ່າງວຽກນີ້",
+        "budget": "ຢຸດແລ້ວ: ເພດານງົບປະມານກັກຂອບເຂດນີ້ໄວ້"
       },
       "queue": {
         "title": "ຄິວ",
@@ -3411,6 +3427,121 @@
         "unavailable_no_snapshot": "ບໍ່ຮູ້ວ່າວຽກນີ້ປ່ຽນຫຍັງ: ຮອບຂອງມັນບໍ່ໄດ້ຖ່າຍພາບສະແນັບຊັອດຂອງໂຟນເດີ.",
         "unavailable_no_workspace": "ວຽກນີ້ແລ່ນໂດຍບໍ່ມີໂຟນເດີ, ຈຶ່ງບໍ່ມີ diff.",
         "unavailable_error": "ອ່ານສະແນັບຊັອດຂອງໂຟນເດີວຽກນີ້ບໍ່ໄດ້."
+      },
+      "tokens": {
+        "title": "ໂທເຄັນເຂົ້າເຖິງ",
+        "lede": "ສະຄຣິບ, webhook ແລະ omniget CLI ເຂົ້າເຖິງເສັ້ນທາງຂອງເອເຈັນໃນ bridge ທ້ອງຖິ່ນດ້ວຍໂທເຄັນທີ່ມີຂອບເຂດ. ກະແຈຂອງສ່ວນຂະຫຍາຍບຣາວເຊີບໍ່ແມ່ນສຳລັບພວກມັນ.",
+        "empty": "ຍັງບໍ່ມີໂທເຄັນ.",
+        "name": "ຊື່",
+        "scopes": "ມັນເຮັດຫຍັງໄດ້",
+        "scope_jobs_read": "ເບິ່ງວຽກ (jobs:read)",
+        "scope_jobs_operate": "ເລີ່ມ ແລະ ຍົກເລີກວຽກ (jobs:operate)",
+        "scope_approvals_respond": "ຕອບການອະນຸມັດ (approvals:respond)",
+        "expires": "ໝົດອາຍຸ",
+        "expires_never": "ບໍ່ມີກຳນົດ",
+        "expires_days": "ໃນອີກ {{days}} ມື້",
+        "expires_at": "ໝົດອາຍຸ {{when}}",
+        "create": "ສ້າງໂທເຄັນ",
+        "created": "ສ້າງໂທເຄັນແລ້ວ. ສຳເນົາດຽວນີ້: ມັນຈະບໍ່ສະແດງອີກ.",
+        "copy": "ສຳເນົາໂທເຄັນ",
+        "revoke": "ຖອນຄືນ",
+        "kind_cli": "omniget CLI ໃນຄອມພິວເຕີນີ້",
+        "last_used": "ໃຊ້ຄັ້ງລ່າສຸດ {{when}}",
+        "never_used": "ບໍ່ເຄີຍໃຊ້",
+        "legacy_toggle": "ຍັງຮັບກະແຈຂອງສ່ວນຂະຫຍາຍບຣາວເຊີໃນເສັ້ນທາງຂອງເອເຈັນ (ເຊົາໃຊ້ແລ້ວ)",
+        "legacy_hint": "ເກັບໄວ້ໜຶ່ງເວີຊັນເພື່ອໃຫ້ສະຄຣິບເກົ່າຍັງເຮັດວຽກ. ເວີຊັນຕໍ່ໄປຈະປະຕິເສດມັນ.",
+        "legacy_seen": "ກະແຈຂອງສ່ວນຂະຫຍາຍບຣາວເຊີຖືກໃຊ້ຢູ່ {{route}} ເວລາ {{when}}. ປ່ຽນສະຄຣິບນັ້ນໄປໃຊ້ໂທເຄັນທີ່ມີຂອບເຂດ.",
+        "curl_hint": "ຕັ້ງ OMNIGET_TOKEN ເປັນໂທເຄັນທີ່ມີຂອບເຂດ jobs:operate (ໂທເຄັນເຂົ້າເຖິງ, ດ້ານລຸ່ມ).",
+        "scope_audit_read": "ອ່ານບັນທຶກການກວດສອບ (audit:read)",
+        "scope_budget_write": "ຕັ້ງ ແລະ ເພີ່ມງົບປະມານ (budget:write)",
+        "scope_workflow_trust": "ເຊື່ອຖືຂັ້ນຕອນການເຮັດວຽກຂອງ repository (workflow:trust)"
+      },
+      "isolation": {
+        "label": "ບ່ອນທີ່ມັນຂຽນ",
+        "auto": "ອັດຕະໂນມັດ: worktree ຂອງຕົນເອງ ສະເພາະເມື່ອມີວຽກອື່ນກຳລັງຂຽນຢູ່ບ່ອນນັ້ນ",
+        "worktree": "ຢູ່ໃນ git worktree ຂອງຕົນເອງສະເໝີ",
+        "shared": "ໃນໂຟນເດີເອງ (ລໍຖ້າຄິວ)"
+      },
+      "worktree": {
+        "title": "Worktree",
+        "chip": "{{branch}} ຈາກ {{base}}",
+        "gone": "ລຶບ worktree ແລ້ວ; branch ຍັງເກັບວຽກໄວ້.",
+        "remove": "ລຶບ worktree",
+        "removed": "ລຶບ worktree ແລ້ວ.",
+        "kept_branch": "ລຶບ worktree ແລ້ວ. branch {{branch}} ເກັບວຽກຂອງງານນີ້ໄວ້.",
+        "saved": "ບັນທຶກ {{count}} ໄຟລ໌ທີ່ຍັງບໍ່ commit ລົງ branch ກ່ອນ."
+      },
+      "proof": {
+        "title": "ຫຼັກຖານ",
+        "summary": "ປ່ຽນ {{files}} ໄຟລ໌ · {{tokens}} tokens · {{time}}",
+        "check": "{{command}} → ລະຫັດອອກ {{code}}",
+        "by_host": "OmniGet ໃນຄອມພິວເຕີນີ້ເປັນຜູ້ປະທັບຕາຈາກສິ່ງທີ່ມັນບັນທຶກ, ບໍ່ແມ່ນຕົວແທນຂຽນ."
+      },
+      "review": {
+        "mark": "ໝາຍວ່າກວດແລ້ວ",
+        "title": "ກວດທານ",
+        "lede": "ຍົກເລີກບາງສ່ວນ, ຝາກບັນທຶກໃຫ້ຕົວແທນ, ແລ້ວລວມ ຫຼື ຍົກເລີກວຽກ.",
+        "discard_hunk": "ຍົກເລີກ",
+        "hunk_discarded": "ຍົກເລີກສ່ວນນັ້ນແລ້ວ.",
+        "hunk_stale": "ໂຄດນັ້ນປ່ຽນໄປຫຼັງຈາກໂຫຼດ. ໄດ້ໂຫຼດ diff ໃໝ່ແລ້ວ; ລອງອີກຄັ້ງ.",
+        "busy": "ມີວຽກກຳລັງຂຽນໃນໂຟນເດີນີ້. ລອງໃໝ່ເມື່ອມັນຈົບ.",
+        "not_actionable": "worktree ຂອງວຽກນີ້ຖືກລຶບແລ້ວ, ຈຶ່ງຍົກເລີກທີລະສ່ວນບໍ່ໄດ້ອີກ.",
+        "notes_title": "ບັນທຶກສຳລັບຕົວແທນ",
+        "notes_hint": "ເລືອກແຖວໃນ diff ແລ້ວໃຫ້ຄຳເຫັນ. ການສົ່ງຈະເລີ່ມວຽກຕໍ່ໃນການສົນທະນາດຽວກັນ, ເສຍຄ່າແຕ່ບັນທຶກ.",
+        "notes_empty": "ຍັງບໍ່ມີບັນທຶກ.",
+        "note_file": "ທັງໄຟລ໌",
+        "note_sent": "ສົ່ງໄປ {{job}} ແລ້ວ",
+        "note_delete": "ລຶບບັນທຶກ",
+        "notes_send": "ສົ່ງ {{count}} ບັນທຶກໃຫ້ຕົວແທນ",
+        "notes_sent": "ສົ່ງບັນທຶກແລ້ວ: ເລີ່ມວຽກຕໍ່ {{job}}.",
+        "walkthrough_title": "ນຳທາງ",
+        "walkthrough": "ອະທິບາຍການປ່ຽນແປງ",
+        "walkthrough_refresh": "ອະທິບາຍອີກຄັ້ງ",
+        "walkthrough_loading": "ກຳລັງຂຽນການນຳທາງ…",
+        "walkthrough_too_large": "diff ນີ້ໃຫຍ່ເກີນໄປສຳລັບການນຳທາງ. ກວດທີລະໄຟລ໌.",
+        "walkthrough_uncovered": "{{count}} ສ່ວນບໍ່ຢູ່ໃນຈຸດໃດ",
+        "walkthrough_cached": "ຈາກແຄຊ",
+        "importance_critical": "ສຳຄັນ",
+        "integrate_title": "ລວມ",
+        "integrate_into": "ລວມ {{branch}} ເຂົ້າ {{target}}",
+        "commits": "{{count}} commit ທີ່ຈະນຳເຂົ້າ",
+        "worktree_dirty": "{{count}} ໄຟລ໌ທີ່ຍັງບໍ່ commit ໃນ worktree ຈະຖືກບັນທຶກໃສ່ branch ກ່ອນ.",
+        "blocked": "ລວມຕອນນີ້ບໍ່ໄດ້: {{reason}}",
+        "strategy_merge": "Merge commit",
+        "strategy_squash": "Squash ເປັນ commit ດຽວ",
+        "integrate": "ລວມ",
+        "integrated": "ລວມເຂົ້າ {{target}} ແລ້ວ.",
+        "up_to_date": "{{target}} ມີວຽກນີ້ແລ້ວ.",
+        "conflict": "ຂັດແຍ່ງໃນ {{files}}. ບໍ່ມີຫຍັງປ່ຽນໃນ checkout ຂອງທ່ານ.",
+        "failed": "git ປະຕິເສດການລວມ (ອາດແມ່ນ hook). ບໍ່ມີຫຍັງປ່ຽນໃນ checkout ຂອງທ່ານ.",
+        "discard_work": "ຍົກເລີກວຽກ",
+        "discard_confirm": "ຍົກເລີກວຽກຂອງວຽກນີ້ບໍ? worktree ແລະ branch {{branch}} ຈະຖືກລຶບ.",
+        "discarded": "ຍົກເລີກວຽກແລ້ວ. branch {{branch}} ເຄີຍຢູ່ທີ່ {{tip}}."
+      },
+      "resumed_by_itself": "ສືບຕໍ່ເອງ ({{count}}×)",
+      "workflow": {
+        "title": "ຂັ້ນຕອນການເຮັດວຽກຂອງ repository",
+        "state": {
+          "trusted": "ນຳໃຊ້ຢູ່",
+          "untrusted": "ບໍ່ໄດ້ເຊື່ອຖື",
+          "invalid": "ບໍ່ຖືກຕ້ອງ",
+          "none": "ບໍ່ມີ"
+        },
+        "last_good": "ເວີຊັນທີ່ຖືກຕ້ອງຫຼ້າສຸດຍັງນຳໃຊ້ຢູ່ຈົນກວ່າຈະແກ້ໄຟລ໌.",
+        "no_last_good": "ບໍ່ມີເວີຊັນທີ່ຖືກຕ້ອງກ່ອນໜ້າ: ວຽກໃນໂຟນເດີນີ້ຈະຖືກປະຕິເສດຈົນກວ່າຈະແກ້ໄຟລ໌.",
+        "defaults": "ຄ່າເລີ່ມຕົ້ນ:",
+        "commands": "ຄຳສັ່ງທີ່ມັນແລ່ນຢູ່ຄອມພິວເຕີນີ້:",
+        "kind": {
+          "after_create": "ຫຼັງຈາກສ້າງ worktree",
+          "before_remove": "ກ່ອນລຶບ worktree",
+          "check": "ການກວດຫຼັງວຽກ"
+        },
+        "untrusted_hint": "ຈົນກວ່າເຈົ້າຈະເຊື່ອຖືເວີຊັນນີ້ແທ້ໆ, ຄຳສັ່ງເຫຼົ່ານີ້ຈະຖືກຂ້າມ ແລະ ບໍ່ນຳໃຊ້ໂໝດການແລ່ນທີ່ຫຼວມກວ່າ. ການປ່ຽນໄຟລ໌ໃດໆຈະຖາມໃໝ່.",
+        "trust": "ເຊື່ອຖືເວີຊັນນີ້",
+        "revoke": "ຍົກເລີກການເຊື່ອຖື",
+        "template": "ແມ່ແບບ prompt",
+        "trusted_toast": "ເຊື່ອຖືຂັ້ນຕອນການເຮັດວຽກແລ້ວ: ຄຳສັ່ງຂອງມັນຈະແລ່ນນັບແຕ່ນີ້",
+        "untrusted_toast": "ບໍ່ເຊື່ອຖືຂັ້ນຕອນການເຮັດວຽກອີກແລ້ວ"
       }
     },
     "loops": {
@@ -3440,13 +3571,56 @@
         "running": "Running",
         "done": "Done",
         "failed": "Failed",
-        "cancelled": "Cancelled"
+        "cancelled": "Cancelled",
+        "paused": "ຢຸດຊົ່ວຄາວ",
+        "blocked": "ຖືກກັ້ນ",
+        "budget_limited": "ຮອດງົບປະມານແລ້ວ"
       },
       "check_passed": "Condition met",
       "summary": "Up to {{rounds}} rounds. Stops earlier when a configured condition or time limit is reached.",
-      "no_check": "No check command: completion will be controlled by the round or time limit.",
+      "no_check": "ບໍ່ມີຄຳສັ່ງກວດ: ຫຼັງແຕ່ລະຮອບ ຜູ້ກວດສອບອິດສະຫຼະ (ໂມເດລນ້ອຍທີ່ສຸດຂອງເອເຈນ) ຈະຕັດສິນວ່າວຽກສຳເລັດແລ້ວບໍ່, ສູງສຸດ 20 ຮອບ.",
       "review": "Review loop",
-      "edit": "Edit configuration"
+      "edit": "Edit configuration",
+      "auto_resume": "ສືບຕໍ່ເອງຫຼັງຈາກເປີດຄືນ",
+      "auto_resume_hint": "ຖ້າແອັບປິດລະຫວ່າງຮອບ, Loop ຈະສືບຕໍ່ເມື່ອເປີດຄືນ, ເວັ້ນເສຍແຕ່ຮອບນັ້ນໄດ້ຂຽນໃສ່ໂຟນເດີຂອງທ່ານແລ້ວ.",
+      "run_mode_hint": "ແຕ່ລະຮອບຂອງ loop ເຮັດວຽກດ້ວຍໂໝດນີ້. ເມື່ອເລືອກ “ຖາມກ່ອນທຸກຢ່າງ”, ແຕ່ລະຮອບຈະຢຸດ ແລະ ລໍຖ້າທ່ານກ່ອນການແກ້ໄຂ ຫຼື ຄຳສັ່ງໃດໆ.",
+      "max_cost": "ງົບປະມານ (US$)",
+      "paused_budget": "ຢຸດຊົ່ວຄາວ: ຮອດງົບປະມານ",
+      "paused_budget_hint": "ບໍ່ມີຮອບໃດເລີ່ມຈົນກວ່າຈະເພີ່ມເພດານ; ການເພີ່ມຈະສືບຕໍ່ລູບ.",
+      "open_incident": "ເປີດເຫດການ",
+      "cost_estimated": "(ຄາດຄະເນ)",
+      "cost_tokens": "{{tokens}} ໂທເຄັນຖ່ວງນ້ຳໜັກ",
+      "cost_unknown": "{{count}} ຮອບທີ່ບໍ່ຮູ້ຄ່າໃຊ້ຈ່າຍ",
+      "stop": {
+        "audit_complete": "ຜູ້ກວດສອບຢືນຢັນແລ້ວ",
+        "audit_blocked": "ຜູ້ກວດສອບເຫັນເອເຈນຖືກກັ້ນ 3 ຮອບຕິດກັນ",
+        "audit_unavailable": "ການກວດສອບໃຊ້ບໍ່ໄດ້ສອງເທື່ອຕິດກັນ",
+        "token_budget": "ຮອດງົບ token ແລ້ວ",
+        "max_rounds": "ຮອດຈຳນວນຮອບສູງສຸດແລ້ວ",
+        "round_failed": "ມີຮອບໜຶ່ງລົ້ມເຫຼວ: {{error}}",
+        "audit_disagrees": "ເອເຈນບອກວ່າແລ້ວ ແລະ ຜູ້ກວດສອບບໍ່ເຫັນດ້ວຍ 3 ເທື່ອຕິດກັນ: ທ່ານເປັນຜູ້ຕັດສິນ"
+      },
+      "token_budget": "ງົບ token",
+      "tokens": "{{used}} / {{budget}} tokens",
+      "guided": "{{count}} ຮອບສົ່ງພຽງຄຳແນະນຳໃຫ້ສືບຕໍ່ (ບໍ່ໄດ້ສົ່ງວຽກຊ້ຳ).",
+      "audits": "ຄຳຕັດສິນຂອງຜູ້ກວດສອບ",
+      "verdict": {
+        "continue": "ສືບຕໍ່",
+        "complete": "ສຳເລັດ",
+        "blocked": "ຖືກກັ້ນ",
+        "none": "ບໍ່ມີຄຳຕັດສິນ"
+      },
+      "claimed_done": "ບອກວ່າແລ້ວ",
+      "claimed_done_hint": "ເອເຈນບອກວ່າແລ້ວ; ມີແຕ່ຄຳຕັດສິນຂອງຜູ້ກວດສອບທີ່ຈົບລູບໄດ້.",
+      "side_reason": {
+        "provider_small": "ໂມເດລນ້ອຍທີ່ສຸດຂອງບັນຊີດຽວກັນ",
+        "session_model": "ບໍ່ຮູ້ຈັກໂມເດລທີ່ນ້ອຍກວ່າ: ໃຊ້ຂອງເອເຈນເອງ",
+        "requested": "ເລືອກສຳລັບລູບນີ້",
+        "setting": "ການຕັ້ງຄ່າໂມເດລເສີມ"
+      },
+      "overhead": "ຜູ້ກວດສອບ {{audit}} ສຳລັບຮອບທີ່ໃຊ້ {{rounds}} ({{percent}}%).",
+      "blocked_hint": "ລູບຢຸດແລ້ວ ແລະ ຕ້ອງການທ່ານ. ສືບຕໍ່ຈະແລ່ນຮອບໃໝ່ ແລະ ກວດສອບອີກຄັ້ງ.",
+      "note": "ຄວາມຄືບໜ້າ"
     },
     "limits": {
       "title": "Limits strip",
@@ -3559,22 +3733,18 @@
       "model": "Connection and model",
       "customize": "Tools and limits",
       "tasks": "Tasks",
-      "routines": "Routines",
       "active": "Running",
       "attention": "Needs attention",
       "done": "Finished",
       "create": "Create a task",
-      "create_routine": "Create a routine",
       "jobs_hint": "Run a task in the background. Open its details to see the result, approve a tool or stop execution.",
       "loops_hint": "Repeat a task until a check passes or its limit is reached. Review the stop conditions before starting.",
       "models_hint": "Connect an API provider, then choose its model for an agent. Chat subscriptions are configured in Connections.",
       "mcp_hint": "Connect a tool, test it, then choose which agents may use it. Adding a connection does not grant permission.",
       "skills_hint": "Skills give agents reusable instructions. Review the source and scan result before installing, then assign the skill to an agent.",
       "observatory_hint": "Inspect measured activity and provider quotas. Missing measurements are unavailable, never zero. Diagnostics run only when you open them.",
-      "local_hint": "Use a local model through a compatible server. Connect the running server and select one of its actual models before creating an agent.",
       "arena_hint": "Model comparison is not available yet. You can choose a model and run a conversation with the current tools.",
       "unavailable_feature": "Not available yet",
-      "local_steps": "Start your local model server|Connect its endpoint in AI settings|Choose the model for an agent",
       "arena_steps": "Select a model|Open a conversation|Review the result",
       "roster_hint": "Start with one agent and give it a clear purpose. Add a team when your task needs it.",
       "suggestion_1": "List my downloads and explain which need attention",
@@ -3587,7 +3757,8 @@
       "search": "Find an agent",
       "no_matches": "No matching agents",
       "templates_impact": "Review the template and its effect on the existing team before applying it.",
-      "mcp_server_hint": "ໃຫ້ແອັບ AI ອື່ນໃຊ້ OmniGet: ເປີດເຊີບເວີ, ສ້າງລູກຂ່າຍທີ່ມີແຕ່ສິດທີ່ຈຳເປັນ, ແລ້ວວາງສ່ວນໂຄດຂອງມັນໃສ່ແອັບນັ້ນ."
+      "mcp_server_hint": "ໃຫ້ແອັບ AI ອື່ນໃຊ້ OmniGet: ເປີດເຊີບເວີ, ສ້າງລູກຂ່າຍທີ່ມີແຕ່ສິດທີ່ຈຳເປັນ, ແລ້ວວາງສ່ວນໂຄດຂອງມັນໃສ່ແອັບນັ້ນ.",
+      "create_loop": "ສ້າງລູບ"
     },
     "prompts": {
       "omni": "You are Omni, the assistant inside OmniGet. Answer briefly and in the language the user writes in. Use a tool only when it is clearly needed.",
@@ -3618,14 +3789,16 @@
       "start": "ເວລາເລີ່ມຕົ້ນສູງສຸດ (ວິນາທີ)",
       "start_desc": "ເອເຈນທີ່ບໍ່ເວົ້າຫຍັງເລີຍໃນເວລານີ້ຫຼັງຈາກເລີ່ມ ແມ່ນບໍ່ເຄີຍໄດ້ຮັບ prompt.",
       "deadline": "ເວລາສູງສຸດຂອງວຽກ (ນາທີ)",
-      "deadline_desc": "ວຽກເບື້ອງຫຼັງທຸກອັນ (ການແລ່ນ, ຮອບຂອງລູບ, ວຽກປະຈຳ) ຈະຢຸດທີ່ນີ້ ເວັ້ນເສຍແຕ່ມັນກຳນົດເອງ.",
+      "deadline_desc": "ທຸກໜ້າວຽກເບື້ອງຫຼັງ (ການແລ່ນ, ຮອບຂອງລູບ, ການແລ່ນຕາມກຳນົດເວລາ) ຢຸດຢູ່ນີ້ ເວັ້ນແຕ່ມັນຕັ້ງຂອງມັນເອງ.",
       "ask_chat": "ເວລາລໍຖ້າຄຳຖາມໃນແຊັດ (ນາທີ)",
       "ask_chat_desc": "ຫຼັງຈາກນັ້ນຄຳຖາມໝົດອາຍຸ: ການກະທຳຈະບໍ່ຖືກດຳເນີນ ແລະ ທ່ານຈະຮູ້ເຫດຜົນ.",
       "ask_job": "ເວລາລໍຖ້າຄຳຖາມໃນວຽກ (ນາທີ)",
       "ask_job_desc": "ປ່ອຍໄວ້ 0 ເພື່ອລໍຖ້າຈົນຮອດເວລາສູງສຸດຂອງວຽກເອງ.",
       "notify_delay": "ແຈ້ງເຕືອນຫຼັງຈາກ (ວິນາທີ)",
       "notify_delay_desc": "ຄຳຖາມທີ່ຍັງເປີດຢູ່ຫຼັງຈາກເວລານີ້ຈະກາຍເປັນການແຈ້ງເຕືອນຂອງລະບົບ. ຖ້າຕອບກ່ອນ ຈະບໍ່ມີການແຈ້ງເຕືອນ.",
-      "offline": "ບັນທຶກບໍ່ໄດ້: backend ບໍ່ຕອບ."
+      "offline": "ບັນທຶກບໍ່ໄດ້: backend ບໍ່ຕອບ.",
+      "auto_resume": "ສືບຕໍ່ເອງຫຼັງຈາກເປີດຄືນ",
+      "auto_resume_desc": "ເມື່ອແອັບປິດ ຫຼື ເອເຈນງຽບໄປ, ວຽກທີ່ແລ່ນໃນ worktree ຂອງມັນເອງ ຫຼື ພຽງແຕ່ອ່ານໄຟລ໌ ຈະເລີ່ມໃໝ່ເອງ: ມັນສືບຕໍ່ເຊສຊັນ ແລະ ຖືກບອກໃຫ້ກວດສິ່ງທີ່ເຮັດແລ້ວກ່ອນຈະເຮັດຫຍັງຊ້ຳ. ວຽກທີ່ຂຽນໃສ່ໂຟນເດີຂອງທ່ານຍັງລໍຖ້າທ່ານ. ວຽກ ຫຼື Loop ສາມາດກຳນົດເປັນຢ່າງອື່ນໄດ້."
     },
     "central": {
       "agentkit": {
@@ -5350,7 +5523,6 @@
         "verify_hint": "Runs in every worktree; the exit code decides pass or fail.",
         "cleanup": "Clean up",
         "cleanup_lede": "Archives the threads (their worktrees go; the work stays in the arena's refs).",
-        "cleanup_losers": "Only the losers",
         "cleanup_all": "Every entry (discard the arena)",
         "delete": "Delete arena",
         "delete_lede": "Removes this arena from the history and its refs. The threads stay.",
@@ -5466,10 +5638,11 @@
           "verify_hint": "Optional; runs in each worktree when its turn ends. Timeout",
           "timeout": "Timeout in minutes",
           "minutes": "min",
-          "start": "Start in {{count}} tools"
+          "start": "Start in {{count}} tools",
+          "min_tools": "ເລືອກຢ່າງໜ້ອຍ {{count}} ເຄື່ອງມືເພື່ອປຽບທຽບ."
         },
         "apply": {
-          "title": "Apply the winner",
+          "title": "ເລືອກອັນນີ້",
           "lede": "{{name}}'s branch goes into the target branch. Nothing else is touched.",
           "target": "Target branch",
           "strategy": "How",
@@ -5480,22 +5653,49 @@
           "conflicts": "{{count}} files conflict; resolve in the thread first.",
           "checked_out": "The branch is checked out at {{path}}.",
           "dirty": "That checkout has uncommitted changes: commit or stash them first.",
-          "touch_checkout": "Update my checkout too (fast-forward only)",
+          "touch_checkout": "ລວມເຂົ້າ checkout ຂອງຂ້ອຍ (git merge ດ້ວຍຕົວຕົນ ແລະ hooks ຂອງຂ້ອຍ; ຍົກເລີກຖ້າມີຂໍ້ຂັດແຍ່ງ)",
           "ref_only": "Only the branch moves; no checkout is touched.",
-          "clean_losers": "Archive the losing threads and remove their worktrees",
+          "clean_losers": "ຈາກນັ້ນລຶບອັນອື່ນ (worktree; ວຽກຂອງມັນຍັງຢູ່ໃນ refs ຂອງອາຣີນາ)",
           "delete_branches": "Also delete their branches (only OmniGet's)",
           "confirm": "I want to change {{branch}}",
           "do": "Apply",
           "ok": "Applied to {{branch}}",
-          "updated_checkout": "your checkout moved forward",
-          "updated_ref": "only the branch ref moved",
-          "cleaned": "{{count}} threads archived"
+          "updated_checkout": "ລວມເຂົ້າ checkout ຂອງທ່ານແລ້ວ",
+          "updated_ref": "only the branch ref moved"
         },
         "plan": {
           "implement_n": "Implement in N tools",
           "hint": "Open the Arena with this plan as the prompt"
         },
-        "apply_winner": "Apply winner"
+        "apply_winner": "Apply winner",
+        "removed": "ລຶບ worktree ແລ້ວ {{count}} ອັນ",
+        "branches_kept": "ເກັບ branch ໄວ້ {{count}} ອັນ",
+        "remove_others": "ລຶບອັນອື່ນ",
+        "choose": "ເລືອກອັນນີ້",
+        "choose_hint": "ລວມວຽກຂອງຖັນນີ້ເຂົ້າ branch ຫຼັກ",
+        "estimate": {
+          "total": "ຄ່າໃຊ້ຈ່າຍໂດຍປະມານກ່ອນເລີ່ມ: {{total}} ສຳລັບ {{count}} ເຄື່ອງມື",
+          "unknown": "{{count}} ບໍ່ມີການປະມານ",
+          "rough": "ໂດຍປະມານ: ລາຄາຕາມລາຍການ × ໜຶ່ງຮອບປົກກະຕິ",
+          "source": {
+            "history": "ຄ່າສະເລ່ຍຈາກ {{runs}} ຄັ້ງທີ່ຜ່ານມາໃນອາຣີນາ",
+            "price": "ລາຄາຕາມລາຍການ × ໜຶ່ງຮອບຂຽນໂຄດປົກກະຕິ (ໂດຍປະມານ)",
+            "unknown": "ບໍ່ຮູ້ລາຄາ (ແບບສະໝັກສະມາຊິກ ຫຼື ໂມເດວບໍ່ຢູ່ໃນຕາຕະລາງລາຄາ)"
+          }
+        },
+        "compare": {
+          "title": "ຈຸດທີ່ແຕກຕ່າງກັນ",
+          "toggle": "ປຽບທຽບ",
+          "divergent": "{{count}} ໄຟລ໌ແຕກຕ່າງກັນ",
+          "agreed": "{{count}} ຄືກັນ",
+          "pending": "{{count}} ຍັງເຮັດວຽກຢູ່",
+          "show_agreed": "ສະແດງໄຟລ໌ທີ່ຄືກັນ",
+          "file": "ໄຟລ໌",
+          "untouched": "ຄືກັບຕົ້ນສະບັບ",
+          "none_divergent": "ທຸກຖັນຈົບດ້ວຍໄຟລ໌ດຽວກັນ.",
+          "column": "{{count}} ແຕກຕ່າງ",
+          "column_hint": "ໄຟລ໌ທີ່ຖັນນີ້ແຕກຕ່າງຈາກອັນອື່ນ"
+        }
       },
       "run": {
         "back": "Back",
@@ -5512,7 +5712,8 @@
           "done": "Done",
           "failed": "Failed",
           "cancelled": "Cancelled",
-          "skipped": "Skipped"
+          "skipped": "Skipped",
+          "review": "ລໍຖ້າການກວດ"
         },
         "runner": {
           "label": "Runs with",
@@ -5662,6 +5863,156 @@
           "review_started": "Review job started",
           "open_jobs": "Open Jobs"
         }
+      }
+    },
+    "run_mode": {
+      "label": "ໂໝດການເຮັດວຽກ",
+      "approval_required": "ຖາມກ່ອນທຸກຢ່າງ",
+      "auto_edits": "ແກ້ໄຂອັດຕະໂນມັດ",
+      "auto": "ອັດຕະໂນມັດ (ຜູ້ກວດຂອງ CLI)",
+      "full_access": "ເຂົ້າເຖິງເຕັມທີ່",
+      "approval_required_hint": "ທຸກການແກ້ໄຂ ແລະ ທຸກຄຳສັ່ງຈະຖາມທ່ານກ່ອນ.",
+      "auto_edits_hint": "ການແກ້ໄຂໄຟລ໌ຜ່ານໄປເລີຍ; ຄຳສັ່ງຈະຖາມກ່ອນ.",
+      "auto_hint": "ຜູ້ກວດຂອງ CLI ເອງເປັນຜູ້ຕັດສິນ; ຖ້າ CLI ບໍ່ມີ, ມັນເຮັດວຽກຄືກັບແກ້ໄຂອັດຕະໂນມັດ.",
+      "full_access_hint": "ບໍ່ມີຫຍັງຖາມ. ບັນຊີ CLI ກໍຕ້ອງອະນຸຍາດການເຂົ້າເຖິງເຕັມທີ່ນຳ.",
+      "full_access_warning": "ການເຂົ້າເຖິງເຕັມທີ່ຈະເຮັດທຸກການແກ້ໄຂ ແລະ ທຸກຄຳສັ່ງໂດຍບໍ່ຖາມ. ໃຊ້ສະເພາະໃນໂຟນເດີທີ່ທ່ານເສຍໄດ້ເທົ່ານັ້ນ.",
+      "full_access_confirm": "ອະນຸຍາດການເຂົ້າເຖິງເຕັມທີ່",
+      "cancel": "ຍົກເລີກ"
+    },
+    "audit": {
+      "title": "ບັນທຶກການກວດສອບ",
+      "lede": "ໃຜເຮັດຫຍັງກັບວຽກ, ຄຳຖາມ, ການອະນຸຍາດ, ໂທເຄັນ ແລະ ເອເຈັນ, ແລະ ຜ່ານຊ່ອງທາງໃດ. ບໍ່ເຄີຍເກັບພຣອມ, ເນື້ອຫາໄຟລ໌ ຫຼື ຄວາມລັບ.",
+      "since": "ໄລຍະເວລາ",
+      "since_1h": "ຊົ່ວໂມງທີ່ຜ່ານມາ",
+      "since_1d": "ມື້ທີ່ຜ່ານມາ",
+      "since_7d": "7 ມື້ທີ່ຜ່ານມາ",
+      "since_30d": "30 ມື້ທີ່ຜ່ານມາ",
+      "since_90d": "90 ມື້ທີ່ຜ່ານມາ",
+      "kind": "ປະເພດ",
+      "kind_all": "ທັງໝົດ",
+      "kind_job": "ວຽກ",
+      "kind_ask": "ຄຳຖາມ",
+      "kind_grant": "ການອະນຸຍາດຖາວອນ",
+      "kind_token": "ໂທເຄັນ",
+      "kind_agent": "ເອເຈັນ",
+      "kind_loop": "ລູບ",
+      "refresh": "ໂຫຼດໃໝ່",
+      "export": "ສົ່ງອອກ CSV",
+      "empty": "ບໍ່ມີຫຍັງໃນໄລຍະນີ້.",
+      "error": "ອ່ານບັນທຶກການກວດສອບບໍ່ໄດ້.",
+      "who": "ໃຜ",
+      "through": "ຜ່ານ",
+      "on": "ກັບ",
+      "retention": "ເກັບແຖວໄວ້ (ມື້)",
+      "retention_days": "ແຖວຖືກເກັບໄວ້ {{days}} ມື້.",
+      "retention_save": "ບັນທຶກ",
+      "retention_saved": "ບັນທຶກແລ້ວ; ແຖວເກົ່າກວ່າຖືກລຶບແລ້ວ.",
+      "cli_hint": "ບັນທຶກດຽວກັນຈາກເທີມິນອນ, ດ້ວຍໂທເຄັນທີ່ມີ audit:read."
+    },
+    "work": {
+      "nav": "ວຽກທັງໝົດ",
+      "lede": "ທຸກຢ່າງທີ່ເອເຈັນເຮັດໃຫ້ທ່ານໃນລາຍການດຽວ: ກ່ອນອື່ນແມ່ນສິ່ງທີ່ຕ້ອງການທ່ານ, ຈາກນັ້ນສິ່ງທີ່ກຳລັງເຮັດ, ລໍຖ້າ, ພ້ອມກວດ ຫຼື ຫາກໍ່ສຳເລັດ.",
+      "badge_needs_you": "ຕ້ອງການທ່ານ ({{count}})",
+      "badge_running": "ກຳລັງເຮັດ {{count}}",
+      "badge_review": "ລໍກວດ {{count}}",
+      "badge_queued": "ຢູ່ໃນຄິວ {{count}}",
+      "section": {
+        "needs_you": "ຕ້ອງການທ່ານ",
+        "running": "ກຳລັງເຮັດ",
+        "queued": "ລໍຖ້າເລີ່ມ",
+        "review": "ພ້ອມກວດ",
+        "done": "ຫາກໍ່ສຳເລັດ"
+      },
+      "pill": {
+        "approval": "ຕ້ອງອະນຸມັດ",
+        "input": "ຕ້ອງຕອບ",
+        "decision": "ຕ້ອງຕັດສິນ",
+        "working": "ກຳລັງເຮັດວຽກ",
+        "failed": "ລົ້ມເຫຼວ",
+        "queued": "ຢູ່ໃນຄິວ",
+        "review": "ກວດ",
+        "ready": "ສຳເລັດ",
+        "stopped": "ຢຸດແລ້ວ"
+      },
+      "source": {
+        "job": "ໜ້າວຽກ",
+        "loop": "ລູບ",
+        "mission": "ພາລະກິດ",
+        "thread": "ກະທູ້",
+        "run": "ແຊັດ",
+        "ask": "ຄຳຖາມ",
+        "budget": "ງົບປະມານ"
+      },
+      "asks_for": "ຂໍໃຊ້ {{tool}}",
+      "nothing_waits": "ບໍ່ມີຫຍັງລໍຖ້າທ່ານ.",
+      "empty": "ຍັງບໍ່ມີວຽກ.",
+      "partial": "ອ່ານວຽກບາງສ່ວນບໍ່ໄດ້: {{error}}",
+      "notify": {
+        "approval": "ຕ້ອງອະນຸມັດ: {{title}}",
+        "input": "ຕ້ອງຕອບ: {{title}}",
+        "decision": "ຕ້ອງຕັດສິນ: {{title}}",
+        "failed": "ລົ້ມເຫຼວ: {{title}}",
+        "ready": "ສຳເລັດ: {{title}}",
+        "review": "ພ້ອມກວດ: {{title}}",
+        "more": "ແລະ ອີກ {{count}} ໃນ ວຽກ"
+      }
+    },
+    "budget": {
+      "title": "ງົບປະມານ",
+      "refresh": "ໂຫຼດໃໝ່",
+      "lede": "ເພດານສຳລັບຕົວແທນຂອງທ່ານ: ສຳລັບທັງໝົດ, ຕົວແທນ, ບັນຊີ, ລູບ, ວຽກ ຫຼື ພາລະກິດ, ເປັນໂດລາ, ໂທເຄັນຖ່ວງນ້ຳໜັກ ຫຼື ສ່ວນຂອງໜ້າຕ່າງ 5 ຊມ / 7 ມື້ ຂອງການສະໝັກ. ເມື່ອເກີນເພດານແບບເຂັ້ມງວດ ຂອບເຂດນັ້ນຈະຢຸດຊົ່ວຄາວ ແລະ ວຽກຈະຢຸດຈົນກວ່າທ່ານຈະເພີ່ມເພດານ. ຖ້າບໍ່ມີເພດານ ກໍບໍ່ມີຫຍັງຖືກຈຳກັດ.",
+      "read_error": "ບໍ່ສາມາດອ່ານງົບປະມານໄດ້.",
+      "empty": "ຍັງບໍ່ມີເພດານ: ບໍ່ມີຫຍັງຖືກຈຳກັດ.",
+      "hard": "ຢຸດຊົ່ວຄາວ",
+      "soft": "ຖາມ",
+      "paused": "ຢຸດຊົ່ວຄາວແລ້ວ",
+      "remove": "ລຶບ",
+      "no_reading": "ຍັງບໍ່ມີຄ່າໂຄຕາ (ມາຈາກສະຕຣີມຂອງ CLI ເອງ)",
+      "warn_at": "ແຈ້ງເຕືອນທີ່ {{pct}}%",
+      "estimate_note": "ໂດລາຂອງການສະໝັກແມ່ນການຄາດຄະເນຈາກຕາຕະລາງລາຄາ",
+      "add": "ເພີ່ມເພດານ",
+      "scope": "ສຳລັບ",
+      "scope_id": "ໄອດີ",
+      "metric_label": "ຫົວໜ່ວຍ",
+      "window_label": "ໄລຍະ",
+      "amount": "ເພດານ",
+      "warn_label": "ແຈ້ງເຕືອນທີ່ (%)",
+      "soft_label": "ຖາມແທນການຢຸດຊົ່ວຄາວ",
+      "save": "ບັນທຶກ",
+      "hard_hint": "ເມື່ອເກີນເພດານ ຂອບເຂດຈະຢຸດຊົ່ວຄາວ: ວຽກທີ່ກຳລັງແລ່ນ ແລະ ລໍຖ້າຈະຖືກຍົກເລີກ ແລະ ມີເຫດການລໍຖ້າທ່ານ (ເພີ່ມແລ້ວສືບຕໍ່ ຫຼື ຢຸດໄວ້).",
+      "soft_hint": "ເມື່ອເກີນເພດານ ຮອບຕໍ່ໄປຈະຖາມ \"ສືບຕໍ່ບໍ?\" ໜຶ່ງຄັ້ງຕໍ່ໄລຍະ ຄືກັບການອະນຸມັດອື່ນ (ຈາກ CLI ແລະ ໂທລະສັບກໍໄດ້). ຕອບບໍ່ ຈະຢຸດຂອບເຂດໄວ້.",
+      "quota_hint": "ເພດານໂຄຕາອ່ານສະເພາະສິ່ງທີ່ CLI ລາຍງານໃນສະຕຣີມຂອງມັນເອງ. ສຳລັບບັນຊີ (ຫຼື ທັງໝົດ) ເພດານແມ່ນເປີເຊັນຂອງໜ້າຕ່າງ; ສຳລັບລູບ, ວຽກ, ຕົວແທນ ຫຼື ພາລະກິດ ແມ່ນຈຸດທີ່ໃຊ້ໄປນັບແຕ່ເລີ່ມ.",
+      "warn_toast": "ງົບປະມານຂອງ {{scope}}: ໃຊ້ໄປ {{used}} ຈາກ {{limit}}",
+      "metric": {
+        "usd": "ໂດລາ",
+        "weighted_tokens": "ໂທເຄັນຖ່ວງນ້ຳໜັກ",
+        "quota_pct": "ສ່ວນຂອງໜ້າຕ່າງໂຄຕາ"
+      },
+      "window": {
+        "turn": "ຕໍ່ຮອບ",
+        "day": "ຕໍ່ມື້",
+        "week": "ຕໍ່ອາທິດ",
+        "5h": "ໜ້າຕ່າງ 5 ຊມ",
+        "7d": "ໜ້າຕ່າງ 7 ມື້",
+        "run": "ທັງການແລ່ນ"
+      },
+      "scope_kind": {
+        "global": "ທັງໝົດ",
+        "agent": "ຕົວແທນ",
+        "account": "ບັນຊີ",
+        "loop": "ລູບ",
+        "job": "ວຽກ",
+        "mission": "ພາລະກິດ"
+      },
+      "incident": {
+        "open": "ຮອດງົບປະມານແລ້ວ",
+        "kept": "ຢຸດໄວ້ຢູ່",
+        "hard_line": "ໃຊ້ໄປ {{used}} ຈາກ {{limit}}. ບໍ່ມີຫຍັງເລີ່ມຢູ່ນີ້ຈົນກວ່າທ່ານຈະເພີ່ມເພດານ.",
+        "checkpoint_line": "ຈຸດກວດ {{limit}} ຖືກຕອບວ່າບໍ່ (ໃຊ້ໄປ {{used}}). ບໍ່ມີຫຍັງເລີ່ມຢູ່ນີ້ຈົນກວ່າທ່ານຈະເພີ່ມມັນ.",
+        "new_limit": "ເພດານໃໝ່",
+        "raise": "ເພີ່ມແລ້ວສືບຕໍ່",
+        "keep": "ຢຸດໄວ້",
+        "too_low": "ເພດານໃໝ່ຕ້ອງສູງກວ່າທີ່ໃຊ້ໄປແລ້ວ."
       }
     }
   },
@@ -6176,9 +6527,6 @@
       "tool_calls": "{{count}} ເຄື່ອງມື",
       "permissions_title": "ລໍຖ້າຄຳຕອບຂອງທ່ານ",
       "permission_label": "ຕ້ອງການໃຊ້ {{action}}",
-      "answer_once": "ອະນຸຍາດຄັ້ງດຽວ",
-      "answer_always": "ອະນຸຍາດສະເໝີ",
-      "answer_deny": "ປະຕິເສດ",
       "expires_in": "ໝົດອາຍຸໃນ {{seconds}} ວິ",
       "request_title": "ສິ່ງທີ່ທ່ານຖາມ",
       "summary_title": "ຄຳຕອບ",
@@ -6212,7 +6560,8 @@
         "approved": "ອະນຸຍາດແລ້ວ",
         "denied": "ປະຕິເສດແລ້ວ",
         "expired": "ໝົດອາຍຸ",
-        "cancelled": "ຍົກເລີກແລ້ວ"
+        "cancelled": "ຍົກເລີກແລ້ວ",
+        "stale": "ຄ້າງຈາກການເລີ່ມໃໝ່"
       },
       "unknown_hint": "OmniGet ປິດໃນຂະນະທີ່ການແລ່ນນີ້ກຳລັງເຮັດວຽກ, ຈຶ່ງບໍ່ຮູ້ຜົນຂອງມັນ. ບໍ່ມີຫຍັງຖືກສົ່ງຄືນເອງ: ກວດເບິ່ງການປ່ຽນແປງດ້ານລຸ່ມ ແລະ ເລືອກວ່າຈະເຮັດແນວໃດ.",
       "interrupted_hint": "OmniGet ປິດກ່ອນທີ່ການແລ່ນນີ້ຈະໄປຮອດໂມເດວ. ບໍ່ມີຫຍັງຖືກເຮັດ.",
@@ -6247,7 +6596,14 @@
       "routine_app_open": "ແລ່ນສະເພາະເມື່ອ OmniGet ເປີດຢູ່",
       "routine_mute": "ປິດສຽງ",
       "routine_unmute": "ເປີດສຽງ",
-      "routine_muted": "ປິດສຽງແລ້ວ"
+      "routine_muted": "ປິດສຽງແລ້ວ",
+      "stale_title": "ຄຳຖາມທີ່ການເລີ່ມໃໝ່ປະໄວ້ໂດຍບໍ່ມີຄຳຕອບ",
+      "stale_hint": "ແອັບປິດລົງໃນຂະນະທີ່ພວກມັນລໍຖ້າ. ບໍ່ມີຫຍັງຖືກແລ່ນ. ເລີ່ມຮອບໃໝ່ເພື່ອຖາມອີກຄັ້ງ.",
+      "dismiss": "ປິດ",
+      "answer_on_card": "ຕອບຢູ່ບັດຂອງມັນ ທາງເທິງຂອງໜ້ານີ້.",
+      "answer_once": "ອະນຸຍາດຄັ້ງດຽວ",
+      "answer_always": "ອະນຸຍາດສະເໝີ",
+      "answer_deny": "ປະຕິເສດ"
     },
     "conversation": {
       "status_working": "ກຳລັງເຮັດວຽກ…",
@@ -6806,7 +7162,10 @@
       "adv_events": "ເຫດການ",
       "blocked_before_call": "ຢຸດກ່ອນການເອີ້ນໃດໆ: ບໍ່ມີຫຍັງເຮັດວຽກໃນຂັ້ນຕອນນີ້.",
       "verify_started": "ກຳລັງກວດສອບຢູ່ເບື້ອງຫຼັງ. ຜົນຈະສະແດງຢູ່ນີ້ເມື່ອສຳເລັດ.",
-      "verify_already_running": "ມີການກວດສອບກຳລັງດຳເນີນຢູ່ສຳລັບພາລະກິດນີ້ແລ້ວ."
+      "verify_already_running": "ມີການກວດສອບກຳລັງດຳເນີນຢູ່ສຳລັບພາລະກິດນີ້ແລ້ວ.",
+      "changes": "ການປ່ຽນແປງ",
+      "changes_no_job": "ໜ້າວຽກນີ້ຍັງບໍ່ທັນໄດ້ແລ່ນວຽກໃດເທື່ອ.",
+      "changes_job": "ວຽກ {{job}}"
     },
     "log": {
       "loading": "ກຳລັງໂຫຼດບັນທຶກ…",
@@ -6925,7 +7284,7 @@
     "auth_origin": {
       "user_ui": "ທ່ານ, ໃນໜ້າພາລະກິດ",
       "chat": "ທ່ານ, ຈາກການສົນທະນາ",
-      "trigger": "ຕົວກະຕຸ້ນທີ່ທ່ານຕັ້ງ",
+      "trigger": "ກຳນົດເວລາທີ່ທ່ານຕັ້ງ",
       "external_mcp": "ລູກຂ່າຍ MCP"
     }
   },
@@ -7015,7 +7374,11 @@
     "native_active": "Native access",
     "native_revoke": "Revoke access",
     "system_read": "ອ່ານສະຖານະ, ຜົນສະແກນ ແລະ ແຜນຂອງຄອມພິວເຕີເຄື່ອງນີ້ (washmybelly)",
-    "system_change": "ກະກຽມແຜນທຳຄວາມສະອາດ, ຄວບຄຸມພະລັງງານ, ໂໝດເກມ ແລະ ການບັນທຶກ FPS (washmybelly)"
+    "system_change": "ກະກຽມແຜນທຳຄວາມສະອາດ, ຄວບຄຸມພະລັງງານ, ໂໝດເກມ ແລະ ການບັນທຶກ FPS (washmybelly)",
+    "approvals_respond": "ຕອບຄຳຖາມຂໍອະນຸຍາດຂອງພາລະກິດຂອງມັນເອງ",
+    "approvals_respond_help": "ດ້ວຍສິ່ງນີ້, ລູກຂ່າຍສາມາດອະນຸຍາດການເອີ້ນເຄື່ອງມືຂອງພາລະກິດຂອງຕົນເອງ ລວມທັງຄຳສັ່ງ shell ຄືກັບວ່າທ່ານກົດ ອະນຸຍາດ ຢູ່ນີ້. ໃຫ້ສະເພາະລູກຂ່າຍທີ່ທ່ານໄວ້ວາງໃຈຄືກັບຕົວທ່ານເອງ. ມັນບໍ່ສາມາດສ້າງກົດ “ອະນຸຍາດສະເໝີ” ໄດ້ ແລະ ຕົວແທນບໍ່ສາມາດຕອບຄຳຖາມຂອງຕົນເອງໄດ້.",
+    "agents_run": "ແລ່ນຕົວແທນຂອງທ່ານເປັນວຽກໃນພື້ນຫຼັງ",
+    "agents_run_help": "ດ້ວຍສິ່ງນີ້, ລູກຂ່າຍສາມາດໃຫ້ຕົວແທນໃດກໍໄດ້ໃນລາຍຊື່ຂອງທ່ານເຮັດວຽກໃນໂຟນເດີທີ່ມັນລະບຸ, ໃນພື້ນຫຼັງ, ຄືກັບ `omniget agent run`. ມັນເຫັນ ແລະ ຢຸດໄດ້ສະເພາະວຽກທີ່ມັນເລີ່ມເອງ. ຄຳຖາມຂໍອະນຸຍາດຂອງຕົວແທນຍັງລໍຖ້າທ່ານຢູ່, ເວັ້ນເສຍແຕ່ທ່ານຈະອະນຸຍາດໃຫ້ລູກຂ່າຍນີ້ຕອບນຳ."
   },
   "mcp_auth": {
     "title": "ລູກຂ່າຍ AI ຂໍໃຫ້ທ່ານເຂົ້າສູ່ລະບົບ",
