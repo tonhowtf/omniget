@@ -111,6 +111,9 @@ export type AppSettings = {
   music?: {
     enabled?: boolean;
   };
+  video?: {
+    enabled?: boolean;
+  };
   washmybelly?: {
     enabled?: boolean;
     quarantine_days?: number;

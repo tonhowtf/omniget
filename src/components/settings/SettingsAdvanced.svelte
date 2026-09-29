@@ -16,7 +16,7 @@
     searchActive?: boolean;
   } = $props();
 
-  type AdvancedDrill = "performance" | "torrent" | "expert" | "league" | "music" | "washmybelly" | "debug";
+  type AdvancedDrill = "performance" | "torrent" | "expert" | "league" | "music" | "video" | "washmybelly" | "debug";
   let subView = $state<AdvancedDrill | null>(null);
 
   let settings = $derived(getSettings());
@@ -27,6 +27,7 @@
     { id: "expert", titleKey: "settings.advanced.section_expert", hintKey: "settings.advanced.section_expert_desc" },
     { id: "league", titleKey: "league.settings_title", hintKey: "league.settings_desc" },
     { id: "music", titleKey: "music.settings_title", hintKey: "music.settings_desc" },
+    { id: "video", titleKey: "video.settings_title", hintKey: "video.settings_desc" },
     { id: "washmybelly", titleKey: "washmybelly.settings_title", hintKey: "washmybelly.settings_desc" },
     { id: "debug", titleKey: "settings.advanced.section_debug", hintKey: "settings.advanced.section_debug_desc" },
   ];
@@ -331,6 +332,16 @@
             <span class="setting-path">{$t('music.settings_enable_desc')}</span>
           </div>
           <button class="toggle" class:on={settings.music?.enabled ?? true} onclick={() => updateSettings({ music: { enabled: !(settings.music?.enabled ?? true) } })} role="switch" aria-checked={settings.music?.enabled ?? true} aria-label={$t('music.settings_enable') as string}><span class="toggle-knob"></span></button>
+        </div>
+      </div>
+    {:else if subView === "video"}
+      <div class="card">
+        <div class="setting-row">
+          <div class="setting-col">
+            <span class="setting-label">{$t('video.settings_enable')}</span>
+            <span class="setting-path">{$t('video.settings_enable_desc')}</span>
+          </div>
+          <button class="toggle" class:on={settings.video?.enabled ?? true} onclick={() => updateSettings({ video: { enabled: !(settings.video?.enabled ?? true) } })} role="switch" aria-checked={settings.video?.enabled ?? true} aria-label={$t('video.settings_enable') as string}><span class="toggle-knob"></span></button>
         </div>
       </div>
     {:else if subView === "washmybelly"}

@@ -148,6 +148,7 @@
     page.url.pathname.startsWith("/superpowers") ||
     page.url.pathname.startsWith("/league") ||
     page.url.pathname.startsWith("/music") ||
+    page.url.pathname.startsWith("/video") ||
     page.url.pathname.startsWith("/washmybelly") ||
     page.url.pathname.startsWith("/about"),
   );
@@ -155,6 +156,7 @@
   let isFlushRoute = $derived(
     page.url.pathname === "/" ||
     page.url.pathname.startsWith("/music") ||
+    page.url.pathname.startsWith("/video") ||
     page.url.pathname.startsWith("/downloads") ||
     page.url.pathname.startsWith("/washmybelly") ||
     page.url.pathname.startsWith("/settings"),
@@ -252,10 +254,21 @@
         .catch(() => {});
     });
 
+    // omniget://watch links from notes exported by /video
+    let unlistenVideoLink: (() => void) | null = null;
+    listen<{ key: string; t: number }>("video-deep-link", (event) => {
+      const q = new URLSearchParams({ key: event.payload.key, t: String(event.payload.t ?? 0) });
+      void goto(`/video?${q.toString()}`);
+    }).then((un) => {
+      if (disposed) un();
+      else unlistenVideoLink = un;
+    });
+
     return () => {
       disposed = true;
       stopDownloads?.();
       if (unlistenExternalUrl) unlistenExternalUrl();
+      unlistenVideoLink?.();
     };
   });
 
@@ -306,6 +319,13 @@
         group: get(t)("command_palette.group_nav"),
         keywords: "music musica player library biblioteca radio lyrics letras playlist",
         action: () => goto("/music"),
+      },
+      {
+        id: "nav-video",
+        label: get(t)("video.title"),
+        group: get(t)("command_palette.group_nav"),
+        keywords: "video watch assistir player filmes movies series séries cursos courses aulas lessons iptv jellyfin anime legendas subtitles",
+        action: () => goto("/video"),
       },
       {
         id: "nav-washmybelly",
