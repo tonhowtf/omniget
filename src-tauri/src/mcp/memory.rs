@@ -42,6 +42,42 @@ pub fn tools() -> Vec<ToolDef> {
     ]
 }
 
+/// `outputSchema` of the memory tools (see `output_schemas`).
+pub fn output_schema(name: &str) -> Option<Value> {
+    let string = json!({"type": "string"});
+    let strings = json!({"type": "array", "items": {"type": "string"}});
+    Some(match name {
+        "memory_recall" => json!({"type": "object", "properties": {
+            "note": string,
+            "results": {"type": "array", "items": {"type": "object", "properties": {
+                "id": string,
+                "kind": {},
+                "content": string,
+                "source": string,
+                "found_by": strings,
+                "happened_ms": {"type": ["integer", "null"]}
+            }, "required": ["id", "content"]}},
+            "about": {"type": "array", "items": {"type": "object", "properties": {
+                "name": string,
+                "note": string
+            }}}
+        }, "required": ["results"]}),
+        "memory_reflect" => json!({"type": "object", "properties": {
+            "answer": string,
+            "used": strings,
+            "confidence": {"type": "number"},
+            "saved_insights": strings
+        }, "required": ["answer", "used"]}),
+        "memory_retain" => json!({"type": "object", "properties": {
+            "saved": {"type": "integer"},
+            "confirmed_again": {"type": "integer"},
+            "skipped": {"type": "integer"},
+            "already_seen": {"type": "boolean"}
+        }, "required": ["saved"]}),
+        _ => return None,
+    })
+}
+
 /// The scopes a connection gets: the person's profile (read; write with
 /// `memory_write`) and its own private notes.
 fn ctx_for(p: &Principal) -> AssistCtx {
