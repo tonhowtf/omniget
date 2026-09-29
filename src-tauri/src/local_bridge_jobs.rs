@@ -64,6 +64,13 @@ struct RunBody {
     /// This job's ceiling in minutes (1–1440); absent = the setting.
     #[serde(default)]
     deadline_min: Option<u32>,
+    /// `shared | worktree | auto` (2.3); absent = `auto`.
+    #[serde(default)]
+    isolation: Option<String>,
+    /// The ref a worktree starts from; absent = the checkout as it is on
+    /// disk, uncommitted work included.
+    #[serde(default)]
+    base: Option<String>,
 }
 
 pub fn router<S>(state: JobsBridgeState) -> Router<S>
@@ -146,16 +153,20 @@ where
             "/v1/agent/run",
             post(
                 move |headers: HeaderMap, Json(b): Json<RunBody>| async move {
-                    guarded!(s2, headers, |j: std::sync::Arc<jobs::Jobs>| ok(j
-                        .submit_with_deadline(
+                    guarded!(s2, headers, |j: std::sync::Arc<jobs::Jobs>| ok(b
+                        .isolation
+                        .as_deref()
+                        .map(jobs::Isolation::parse)
+                        .transpose()
+                        .and_then(|isolation| j.submit_placed(
                             "run",
                             &b.agent_id,
                             &b.prompt,
                             b.workspace.clone(),
-                            None,
-                            None,
                             b.deadline_min,
-                        )))
+                            isolation,
+                            b.base.clone(),
+                        ))))
                 },
             ),
         )

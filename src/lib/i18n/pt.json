@@ -3411,6 +3411,21 @@
         "unavailable_no_snapshot": "Não se sabe o que este job mudou: os turnos dele não tiraram snapshot da pasta.",
         "unavailable_no_workspace": "Este job rodou sem pasta, então não há diff.",
         "unavailable_error": "Não foi possível ler o snapshot da pasta deste job."
+      },
+      "isolation": {
+        "label": "Onde ele escreve",
+        "auto": "Automático: worktree própria só se outro job estiver escrevendo ali",
+        "worktree": "Sempre numa worktree git própria",
+        "shared": "Na própria pasta (espera a vez)"
+      },
+      "worktree": {
+        "title": "Worktree",
+        "chip": "{{branch}} a partir de {{base}}",
+        "gone": "Worktree removida; a branch guarda o trabalho.",
+        "remove": "Remover worktree",
+        "removed": "Worktree removida.",
+        "kept_branch": "Worktree removida. A branch {{branch}} guarda o trabalho do job.",
+        "saved": "{{count}} arquivo(s) não commitado(s) salvo(s) na branch antes."
       }
     },
     "loops": {

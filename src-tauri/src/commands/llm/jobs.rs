@@ -19,14 +19,32 @@ pub async fn llm_job_get(app: AppHandle, id: String) -> Result<Value, String> {
     to(jobs::get(&app)?.job(&id))
 }
 
+/// `isolation`: `shared | worktree | auto` (absent = `auto`); `base`: the
+/// ref a worktree starts from (2.3).
 #[tauri::command]
 pub async fn llm_job_submit(
     app: AppHandle,
     agent_id: String,
     prompt: String,
     workspace: Option<String>,
+    isolation: Option<String>,
+    base: Option<String>,
 ) -> Result<Value, String> {
-    to(jobs::get(&app)?.submit("run", &agent_id, &prompt, workspace, None, None)?)
+    let isolation = isolation
+        .as_deref()
+        .filter(|s| !s.is_empty())
+        .map(jobs::Isolation::parse)
+        .transpose()?;
+    to(jobs::get(&app)?
+        .submit_placed("run", &agent_id, &prompt, workspace, None, isolation, base)?)
+}
+
+/// Removes a finished job's worktree (2.3): its uncommitted work is saved
+/// on the job's branch first, and a branch with work is kept. Returns what
+/// happened (`dirty`, `saved`, `preserved_branch`, `branch_deleted`).
+#[tauri::command]
+pub async fn llm_job_remove_worktree(app: AppHandle, id: String) -> Result<Value, String> {
+    to(jobs::get(&app)?.remove_worktree(&id).await?)
 }
 
 /// What runs, what waits (position and reason) and the limits: the queue

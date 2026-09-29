@@ -3411,6 +3411,21 @@
         "unavailable_no_snapshot": "Неизвестно, что изменила эта задача: её ходы не сделали снимок папки.",
         "unavailable_no_workspace": "Эта задача работала без папки, поэтому diff нет.",
         "unavailable_error": "Не удалось прочитать снимок папки этой задачи."
+      },
+      "isolation": {
+        "label": "Куда пишет",
+        "auto": "Автоматически: свой worktree, только если в папку уже пишет другая задача",
+        "worktree": "Всегда в собственном git worktree",
+        "shared": "В самой папке (ждёт своей очереди)"
+      },
+      "worktree": {
+        "title": "Worktree",
+        "chip": "{{branch}} от {{base}}",
+        "gone": "Worktree удалён; ветка хранит работу.",
+        "remove": "Удалить worktree",
+        "removed": "Worktree удалён.",
+        "kept_branch": "Worktree удалён. Ветка {{branch}} хранит работу задачи.",
+        "saved": "Сначала сохранено в ветку незакоммиченных файлов: {{count}}."
       }
     },
     "loops": {

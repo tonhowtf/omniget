@@ -3411,6 +3411,21 @@
         "unavailable_no_snapshot": "معلوم نیست این کار چه چیزی را تغییر داد: نوبت‌های آن از پوشه عکس فوری نگرفتند.",
         "unavailable_no_workspace": "این کار بدون پوشه اجرا شد، پس diff وجود ندارد.",
         "unavailable_error": "عکس فوری پوشهٔ این کار خوانده نشد."
+      },
+      "isolation": {
+        "label": "کجا می‌نویسد",
+        "auto": "خودکار: worktree جداگانه فقط اگر کار دیگری همان‌جا در حال نوشتن باشد",
+        "worktree": "همیشه در worktree گیتِ مخصوص خودش",
+        "shared": "در خود پوشه (منتظر نوبتش می‌ماند)"
+      },
+      "worktree": {
+        "title": "Worktree",
+        "chip": "{{branch}} از {{base}}",
+        "gone": "worktree حذف شد؛ شاخه کار را نگه می‌دارد.",
+        "remove": "حذف worktree",
+        "removed": "worktree حذف شد.",
+        "kept_branch": "worktree حذف شد. شاخهٔ {{branch}} کار این کار را نگه می‌دارد.",
+        "saved": "{{count}} فایلِ کامیت‌نشده ابتدا روی شاخه ذخیره شد."
       }
     },
     "loops": {

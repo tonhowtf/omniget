@@ -41,6 +41,8 @@ pub const EVENT_TRIGGER: &str = "llm://trigger";
 pub const EVENT_QUEUE: &str = "llm://queue";
 pub const EVENT_PLAYBOOK: &str = "llm://playbook";
 pub const ERR_JOBS: &str = "ERR_LLM_JOBS";
+/// A job's worktree could not be made, found or recreated (2.3).
+pub const ERR_WORKTREE: &str = "ERR_JOB_WORKTREE";
 
 const LOG_MAX: usize = 64 * 1024;
 const RESULT_MAX: usize = 32 * 1024;
@@ -120,6 +122,125 @@ pub struct Job {
     /// The playbook run this job is a step of.
     #[serde(default)]
     pub playbook_id: Option<String>,
+    /// Where the job writes (2.3, D3): the folder itself, a git worktree of
+    /// its own, or `auto` (a worktree only when another job is already
+    /// writing in the same canonical folder of a git repository).
+    #[serde(default)]
+    pub isolation: Isolation,
+    /// The ref a worktree starts from (`--base`); `None` = the user's
+    /// checkout as it is on disk, uncommitted work included.
+    #[serde(default)]
+    pub base_ref: Option<String>,
+    /// The job's worktree (`<app data>/worktrees/<repo>-job-<id>`), set when
+    /// it runs in one; the folder its turns see.
+    #[serde(default)]
+    pub worktree_path: Option<String>,
+    /// `omniget/job-<id>`: holds the job's work once the worktree is gone.
+    #[serde(default)]
+    pub branch: Option<String>,
+    /// The commit the worktree started from.
+    #[serde(default)]
+    pub base_oid: Option<String>,
+}
+
+/// How a job is placed in its folder (2.3). `Auto` is the default of a job
+/// a person starts in the background (`run`, `trigger`); missions, Loop
+/// rounds, chat turns and catalog tool runs stay `Shared` unless asked.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum Isolation {
+    #[default]
+    Shared,
+    Worktree,
+    Auto,
+}
+
+impl Isolation {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Isolation::Shared => "shared",
+            Isolation::Worktree => "worktree",
+            Isolation::Auto => "auto",
+        }
+    }
+
+    /// `shared | worktree | auto`; anything else is an error the caller
+    /// shows (a typo must not silently mean "shared").
+    pub fn parse(s: &str) -> Result<Isolation, String> {
+        match s.trim().to_ascii_lowercase().as_str() {
+            "shared" => Ok(Isolation::Shared),
+            "worktree" | "isolate" => Ok(Isolation::Worktree),
+            "auto" => Ok(Isolation::Auto),
+            other => Err(format!(
+                "{ERR_JOBS}: isolation must be shared, worktree or auto (got `{other}`)"
+            )),
+        }
+    }
+
+    /// The default for a new job of `kind` run by `agent_id`.
+    pub fn default_for(kind: &str, agent_id: &str) -> Isolation {
+        if agent_id.starts_with(TOOL_PREFIX) {
+            return Isolation::Shared;
+        }
+        match kind {
+            "run" | "trigger" => Isolation::Auto,
+            _ => Isolation::Shared,
+        }
+    }
+}
+
+/// Where a job's worktree comes from and why, decided before the gate.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Placement {
+    /// The git repository of the job's folder (with a commit), when there is one.
+    pub repo: Option<std::path::PathBuf>,
+    /// A worktree whatever the gate says (`isolation = worktree`, or a job
+    /// that already has one).
+    pub force: bool,
+    /// Ask the gate for a worktree only if the folder is busy (`auto`).
+    pub if_busy: bool,
+}
+
+/// The placement of `job` given the repository of its folder (`repo`,
+/// `None` = no git repository with a commit). `Err` = the job cannot run as
+/// asked (a worktree without a repository).
+pub fn placement(job: &Job, repo: Option<std::path::PathBuf>) -> Result<Placement, String> {
+    if job.worktree_path.is_some() {
+        return Ok(Placement {
+            repo,
+            force: true,
+            if_busy: false,
+        });
+    }
+    match job.isolation {
+        Isolation::Shared => Ok(Placement {
+            repo,
+            force: false,
+            if_busy: false,
+        }),
+        Isolation::Worktree if repo.is_none() => Err(format!(
+            "{ERR_WORKTREE}: isolation=worktree needs a folder in a git repository with at least one commit"
+        )),
+        Isolation::Worktree => Ok(Placement {
+            repo,
+            force: true,
+            if_busy: false,
+        }),
+        Isolation::Auto => Ok(Placement {
+            if_busy: repo.is_some(),
+            repo,
+            force: false,
+        }),
+    }
+}
+
+/// The folder a job's turns see: its worktree when it has one, else the
+/// folder it was given.
+pub fn effective_workspace(job: &Job) -> Option<String> {
+    job.worktree_path
+        .clone()
+        .or_else(|| job.workspace.clone())
+        .filter(|w| !w.trim().is_empty())
 }
 
 /// How a `tool:<id>` job runs: the agent as the system prompt, model and
@@ -445,6 +566,8 @@ pub struct Jobs {
     pub attention: Arc<crate::llm_attention::Attention>,
     /// Wakes a Loop sleeping until its next scheduled round when it is cancelled.
     loop_waits: Mutex<HashMap<String, CancellationToken>>,
+    /// When the cron ticker last ran the worktree GC (epoch ms).
+    last_worktree_gc: std::sync::atomic::AtomicU64,
 }
 
 /// A question of a job's turn, as the bus forwarder hands it to the runner.
@@ -583,6 +706,12 @@ pub fn ensure_schema(db: &Connection, now_ms: i64) -> Result<(), String> {
         // Catalog runs (0.11): the tool run spec and the playbook of a step.
         "spec TEXT",
         "playbook_id TEXT",
+        // Worktree per job (2.3): older rows are `shared`, no worktree.
+        "isolation TEXT",
+        "base_ref TEXT",
+        "worktree_path TEXT",
+        "branch TEXT",
+        "base_oid TEXT",
     ] {
         let _ = db.execute(&format!("ALTER TABLE jobs ADD COLUMN {column}"), []);
     }
@@ -627,6 +756,8 @@ pub fn get(app: &AppHandle) -> Result<Arc<Jobs>, String> {
         watchers: Mutex::new(HashMap::new()),
         attention: crate::llm_attention::Attention::new(Arc::new(TauriSink { app: app.clone() })),
         loop_waits: Mutex::new(HashMap::new()),
+        // The boot pass counts as a GC run.
+        last_worktree_gc: std::sync::atomic::AtomicU64::new(now_ms()),
     });
     if JOBS.set(jobs.clone()).is_ok() {
         let limits = crate::commands::llm::watchdog::limits(app);
@@ -651,6 +782,7 @@ pub fn get(app: &AppHandle) -> Result<Arc<Jobs>, String> {
         });
         jobs.clone().resume();
         jobs.clone().ensure_cron();
+        tauri::async_runtime::spawn(jobs.clone().gc_worktrees(true));
     }
     Ok(JOBS.get().cloned().unwrap_or(jobs))
 }
@@ -726,10 +858,18 @@ fn row_to_job(r: &rusqlite::Row<'_>) -> rusqlite::Result<Job> {
             .get::<_, Option<String>>(28)?
             .and_then(|s| serde_json::from_str(&s).ok()),
         playbook_id: r.get(29)?,
+        isolation: r
+            .get::<_, Option<String>>(30)?
+            .and_then(|s| Isolation::parse(&s).ok())
+            .unwrap_or_default(),
+        base_ref: r.get(31)?,
+        worktree_path: r.get(32)?,
+        branch: r.get(33)?,
+        base_oid: r.get(34)?,
     })
 }
 
-const JOB_COLS: &str = "id, kind, agent_id, conversation_id, prompt, workspace, state, loop_id, trigger_id, request_id, created_ms, started_ms, finished_ms, result, error, log, usage, state_seq, seen_ms, failure_reason, deadline_min, deadline_ms, wait_reason, diff_files, additions, deletions, diff_clipped, diff_unavailable, spec, playbook_id";
+const JOB_COLS: &str = "id, kind, agent_id, conversation_id, prompt, workspace, state, loop_id, trigger_id, request_id, created_ms, started_ms, finished_ms, result, error, log, usage, state_seq, seen_ms, failure_reason, deadline_min, deadline_ms, wait_reason, diff_files, additions, deletions, diff_clipped, diff_unavailable, spec, playbook_id, isolation, base_ref, worktree_path, branch, base_oid";
 
 impl Jobs {
     fn db(&self) -> std::sync::MutexGuard<'_, Connection> {
@@ -764,19 +904,50 @@ impl Jobs {
                 &job.state,
             );
             let seen = stored.and_then(|(_, _, seen)| seen).or(job.seen_ms);
+            let marks = (1..=JOB_COLS.split(',').count())
+                .map(|i| format!("?{i}"))
+                .collect::<Vec<_>>()
+                .join(",");
             db.execute(
-                &format!("INSERT OR REPLACE INTO jobs ({JOB_COLS}) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20,?21,?22,?23,?24,?25,?26,?27,?28,?29,?30)"),
+                &format!("INSERT OR REPLACE INTO jobs ({JOB_COLS}) VALUES ({marks})"),
                 params![
-                    job.id, job.kind, job.agent_id, job.conversation_id, job.prompt, job.workspace,
-                    job.state, job.loop_id, job.trigger_id, job.request_id, job.created_ms as i64,
-                    job.started_ms.map(|v| v as i64), job.finished_ms.map(|v| v as i64),
-                    job.result, job.error, job.log, job.usage.as_ref().map(|u| u.to_string()),
-                    seq, seen, job.failure_reason, job.deadline_min.map(i64::from),
-                    job.deadline_ms.map(|v| v as i64), job.wait_reason,
-                    job.diff_files.as_ref().and_then(|f| serde_json::to_string(f).ok()),
-                    job.additions.map(|v| v as i64), job.deletions.map(|v| v as i64),
-                    i64::from(job.diff_clipped), job.diff_unavailable,
-                    job.spec.as_ref().map(|u| u.to_string()), job.playbook_id
+                    job.id,
+                    job.kind,
+                    job.agent_id,
+                    job.conversation_id,
+                    job.prompt,
+                    job.workspace,
+                    job.state,
+                    job.loop_id,
+                    job.trigger_id,
+                    job.request_id,
+                    job.created_ms as i64,
+                    job.started_ms.map(|v| v as i64),
+                    job.finished_ms.map(|v| v as i64),
+                    job.result,
+                    job.error,
+                    job.log,
+                    job.usage.as_ref().map(|u| u.to_string()),
+                    seq,
+                    seen,
+                    job.failure_reason,
+                    job.deadline_min.map(i64::from),
+                    job.deadline_ms.map(|v| v as i64),
+                    job.wait_reason,
+                    job.diff_files
+                        .as_ref()
+                        .and_then(|f| serde_json::to_string(f).ok()),
+                    job.additions.map(|v| v as i64),
+                    job.deletions.map(|v| v as i64),
+                    i64::from(job.diff_clipped),
+                    job.diff_unavailable,
+                    job.spec.as_ref().map(|u| u.to_string()),
+                    job.playbook_id,
+                    job.isolation.as_str(),
+                    job.base_ref,
+                    job.worktree_path,
+                    job.branch,
+                    job.base_oid
                 ],
             )
             .map_err(|_| "JOB_STORAGE_UNAVAILABLE".to_owned())?;
@@ -865,6 +1036,7 @@ impl Jobs {
             workspace,
             state: "queued".into(),
             created_ms: now_ms(),
+            isolation: Isolation::default_for(kind, agent_id),
             ..Default::default()
         })
     }
@@ -969,6 +1141,40 @@ impl Jobs {
         Ok(job)
     }
 
+    /// [`Self::submit_with_deadline`] with the job's placement (2.3):
+    /// `isolation` (absent = the default of the kind) and the ref a worktree
+    /// starts from (absent = the user's checkout as it is on disk).
+    #[allow(clippy::too_many_arguments)]
+    pub fn submit_placed(
+        self: &Arc<Self>,
+        kind: &str,
+        agent_id: &str,
+        prompt: &str,
+        workspace: Option<String>,
+        deadline_min: Option<u32>,
+        isolation: Option<Isolation>,
+        base: Option<String>,
+    ) -> Result<Job, String> {
+        let mut job = self.new_job(kind, agent_id, prompt, workspace, None)?;
+        job.deadline_min = deadline_min.map(|m| m.clamp(1, 24 * 60));
+        if let Some(i) = isolation {
+            job.isolation = i;
+        }
+        job.base_ref = base.map(|b| b.trim().to_string()).filter(|b| !b.is_empty());
+        if job.base_ref.is_some() && job.isolation == Isolation::Shared {
+            return Err(format!(
+                "{ERR_JOBS}: a base ref needs a worktree (isolation worktree or auto)"
+            ));
+        }
+        self.save_job(&job);
+        let this = self.clone();
+        let id = job.id.clone();
+        tauri::async_runtime::spawn(async move {
+            this.run_job(&id, None).await;
+        });
+        Ok(job)
+    }
+
     pub fn cancel(&self, id: &str) -> Result<Job, String> {
         let mut job = self
             .job(id)
@@ -998,6 +1204,15 @@ impl Jobs {
 
     pub fn delete(&self, id: &str) -> Result<(), String> {
         let _ = self.cancel(id);
+        // The worktree goes too, its work saved on the branch first (2.3).
+        if let Some(job) = self.job(id).filter(|j| j.worktree_path.is_some()) {
+            tauri::async_runtime::spawn(async move {
+                match remove_job_worktree(&job).await {
+                    Ok(out) => tracing::info!("[jobs] {}: {}", job.id, removal_note(&out).trim()),
+                    Err(e) => tracing::warn!("[jobs] {}: worktree kept: {e}", job.id),
+                }
+            });
+        }
         self.db()
             .execute("DELETE FROM jobs WHERE id=?1", params![id])
             .map_err(|e| e.to_string())?;
@@ -1014,10 +1229,7 @@ impl Jobs {
     /// job's own.
     fn diff_folder(&self, job: &Job) -> Option<std::path::PathBuf> {
         code_tools::workspace_of(&sanitize_id(&job.conversation_id)).or_else(|| {
-            job.workspace
-                .as_deref()
-                .filter(|w| !w.trim().is_empty())
-                .map(|w| std::fs::canonicalize(w).unwrap_or_else(|_| w.into()))
+            effective_workspace(job).map(|w| std::fs::canonicalize(&w).unwrap_or_else(|_| w.into()))
         })
     }
 
@@ -1179,9 +1391,27 @@ impl Jobs {
             .unwrap_or_else(|e| e.into_inner())
             .insert(id.to_string(), cancel.clone());
         let _unregister = Unregister { jobs: self, id };
+        // Where the job writes (2.3): its folder, or a worktree of its own
+        // (asked, or `auto` with the folder busy). Only a folder in a git
+        // repository with a commit can have one.
+        let repo = match queued
+            .workspace
+            .as_deref()
+            .filter(|w| !w.trim().is_empty() && queued.worktree_path.is_none())
+        {
+            Some(ws) if queued.isolation != Isolation::Shared => {
+                omniget_core::core::vcs::job_worktree::repo_root(std::path::Path::new(ws)).await
+            }
+            _ => None,
+        };
+        let place = match placement(&queued, repo) {
+            Ok(p) => p,
+            Err(e) => return self.fail_before_start(id, e),
+        };
         // One gate for a slot, the agent's share and the folder (1.5, 1.6):
         // the same for native, CLI and ACP agents, since it holds the job,
-        // not a tool. Chat turns never come here.
+        // not a tool. Chat turns never come here. A job going to a worktree
+        // takes no folder lock: nobody else writes there.
         let ticket = omniget_core::core::llm::job_gate::Ticket {
             job_id: id.to_string(),
             agent_id: queued.agent_id.clone(),
@@ -1190,12 +1420,16 @@ impl Jobs {
             } else {
                 omniget_core::core::llm::job_gate::Class::Manual
             },
-            folder: self.folder_of(&queued),
+            folder: if place.force {
+                None
+            } else {
+                self.folder_of(&queued)
+            },
         };
-        let lease = tokio::select! {
+        let (lease, isolated) = tokio::select! {
             biased;
             _ = cancel.cancelled() => return self.job(id),
-            lease = self.gate.acquire(ticket) => lease,
+            placed = self.gate.acquire_placed(ticket, place.if_busy) => placed,
         };
         // The slot is this job's; the spawn waits its turn (500 ms apart).
         if !lease.delay.is_zero() {
@@ -1213,8 +1447,15 @@ impl Jobs {
             return Some(job);
         }
         job.wait_reason = None;
+        if let Err(e) = self.enter_worktree(&mut job, &place, isolated).await {
+            job.state = "failed".into();
+            job.error = Some(e);
+            job.finished_ms = Some(now_ms());
+            self.save_job_checked(&job).ok()?;
+            return Some(job);
+        }
         let conv = sanitize_id(&job.conversation_id);
-        if let Some(ws) = job.workspace.clone().filter(|w| !w.is_empty()) {
+        if let Some(ws) = effective_workspace(&job) {
             if let Err(e) = code_tools::set_conversation_workspace(&conv, Some(ws.into())) {
                 job.state = "failed".into();
                 job.error = Some(e);
@@ -1477,6 +1718,20 @@ impl Jobs {
             .chain(std::iter::once(request_id.clone()))
             .collect();
         self.record_diff(&mut job, &requests).await;
+        // A worktree the job did not change has nothing to review: it goes
+        // now, with its branch (2.3).
+        if job.worktree_path.is_some()
+            && job.diff_unavailable.is_none()
+            && job.diff_files.as_ref().is_some_and(|f| f.is_empty())
+        {
+            match remove_job_worktree(&job).await {
+                Ok(out) => {
+                    job.log.push_str(&removal_note(&out));
+                    job.worktree_path = None;
+                }
+                Err(e) => job.log.push_str(&format!("! worktree kept: {e}\n")),
+            }
+        }
         job.failure_reason = (job.state == "failed")
             .then(|| {
                 limit_kind
@@ -1500,6 +1755,145 @@ impl Jobs {
             self.attention.job_ended(&self.target_of(&job), ok, first);
         }
         Some(job)
+    }
+
+    /// Ends a job that cannot start as asked (before the gate).
+    fn fail_before_start(&self, id: &str, error: String) -> Option<Job> {
+        let mut job = self.job(id)?;
+        job.state = "failed".into();
+        job.error = Some(error);
+        job.finished_ms = Some(now_ms());
+        self.save_job_checked(&job).ok()?;
+        Some(job)
+    }
+
+    /// Puts the job in its worktree when it goes to one (2.3): made now
+    /// (with the user's uncommitted work carried in, or from `base_ref`), or
+    /// recreated from the job's branch when a resumed job finds it gone.
+    async fn enter_worktree(
+        &self,
+        job: &mut Job,
+        place: &Placement,
+        isolated: bool,
+    ) -> Result<(), String> {
+        use omniget_core::core::vcs::job_worktree;
+        if let (Some(_), Some(branch)) = (job.worktree_path.clone(), job.branch.clone()) {
+            let (repo, root) = self
+                .worktree_root(job)
+                .await
+                .ok_or_else(|| format!("{ERR_WORKTREE}: the job's repository is gone"))?;
+            let recreated = job_worktree::ensure(&repo, &root, &branch)
+                .await
+                .map_err(|e| format!("{ERR_WORKTREE}: {e}"))?;
+            if recreated {
+                job.log
+                    .push_str(&format!("⎇ worktree recreated from {branch}\n"));
+            }
+            return Ok(());
+        }
+        if !(place.force || isolated) {
+            return Ok(());
+        }
+        let repo = place
+            .repo
+            .clone()
+            .ok_or_else(|| format!("{ERR_WORKTREE}: no git repository for this job"))?;
+        let wt = job_worktree::create(&repo, &job.id, job.base_ref.as_deref())
+            .await
+            .map_err(|e| format!("{ERR_WORKTREE}: {e}"))?;
+        if isolated {
+            job.log
+                .push_str("⎇ another job is writing in this folder: this one runs in a worktree\n");
+        }
+        job.log.push_str(&worktree_note(&wt));
+        // A job given a subfolder of the repository works in the same
+        // subfolder of its worktree.
+        let sub = job
+            .workspace
+            .as_deref()
+            .and_then(|w| std::fs::canonicalize(w).ok())
+            .zip(std::fs::canonicalize(&repo).ok())
+            .and_then(|(w, r)| w.strip_prefix(&r).ok().map(std::path::Path::to_path_buf))
+            .unwrap_or_default();
+        job.worktree_path = Some(wt.path.join(sub).to_string_lossy().into_owned());
+        job.branch = Some(wt.branch);
+        job.base_oid = Some(wt.base_oid);
+        self.save_job_checked(job)
+    }
+
+    /// Removes the job's worktree (2.3), never losing work: what is not
+    /// committed is saved on its branch first, and a branch holding work is
+    /// kept and named in the job's log. Refused while the job runs.
+    pub async fn remove_worktree(
+        &self,
+        id: &str,
+    ) -> Result<omniget_core::core::vcs::job_worktree::RemoveOutcome, String> {
+        let mut job = self
+            .job(id)
+            .ok_or_else(|| format!("{ERR_JOBS}: no job {id}"))?;
+        if is_active(&job.state) {
+            return Err(format!(
+                "{ERR_JOBS}: job {id} is {}; cancel it before removing its worktree",
+                job.state
+            ));
+        }
+        if job.worktree_path.is_none() {
+            return Err(format!("{ERR_WORKTREE}: job {id} has no worktree"));
+        }
+        let out = remove_job_worktree(&job).await?;
+        job.log.push_str(&removal_note(&out));
+        job.log = clip(&job.log, LOG_MAX);
+        job.worktree_path = None;
+        self.save_job_checked(&job)?;
+        Ok(out)
+    }
+
+    /// Removes the worktrees nobody needs any more (2.3): an orphan (its job
+    /// row is gone) and one of a job that ended more than
+    /// [`WORKTREE_TTL_MS`] ago. Work is saved on the branch first, as in
+    /// every removal. On boot the trash left by a crash is emptied too.
+    async fn gc_worktrees(self: Arc<Self>, boot: bool) {
+        use omniget_core::core::vcs::job_worktree;
+        if boot {
+            job_worktree::empty_trash();
+        }
+        let now = now_ms();
+        for (id, path) in job_worktree::list_job_worktrees() {
+            let job = self.job(&id);
+            let Some(why) = worktree_gc_verdict(job.as_ref(), now) else {
+                continue;
+            };
+            let result = match job {
+                Some(j) if j.worktree_path.is_some() => self.remove_worktree(&j.id).await,
+                _ => {
+                    // Only a folder on the job's own branch is taken for it.
+                    let branch = job_worktree::branch_of(&id);
+                    if job_worktree::branch_at(&path).await.as_deref() != Some(branch.as_str()) {
+                        continue;
+                    }
+                    match job_worktree::main_repo_of(&path).await {
+                        Some(repo) => job_worktree::remove(&repo, &path, &branch, None)
+                            .await
+                            .map_err(|e| e.to_string()),
+                        None => continue,
+                    }
+                }
+            };
+            match result {
+                Ok(out) => tracing::info!(
+                    "[jobs] worktree gc ({why}) {}: {}",
+                    path.display(),
+                    removal_note(&out).trim()
+                ),
+                Err(e) => tracing::warn!("[jobs] worktree gc ({why}) {}: {e}", path.display()),
+            }
+        }
+    }
+
+    /// The repository of a job's worktree and the worktree's root folder
+    /// (`worktree_path` may be a subfolder of it).
+    async fn worktree_root(&self, job: &Job) -> Option<(std::path::PathBuf, std::path::PathBuf)> {
+        worktree_root(job).await
     }
 
     /// Marks that the turn of a running job was just heard from.
@@ -1728,9 +2122,7 @@ impl Jobs {
     /// is already bound to. `None` = a personal job (the agent's private
     /// sandbox, no project tools), which takes no folder lock.
     fn folder_of(&self, job: &Job) -> Option<omniget_core::core::llm::folder_key::FolderKey> {
-        job.workspace
-            .as_deref()
-            .filter(|w| !w.trim().is_empty())
+        effective_workspace(job)
             .map(std::path::PathBuf::from)
             .or_else(|| code_tools::workspace_of(&sanitize_id(&job.conversation_id)))
             .map(|p| omniget_core::core::llm::folder_key::FolderKey::of(&p))
@@ -1798,7 +2190,7 @@ impl Jobs {
         let rows: Vec<(String, Option<String>)> = {
             let db = self.db();
             let Ok(mut stmt) = db.prepare(
-                "SELECT conversation_id, workspace FROM jobs WHERE state IN ('running','waiting_approval')",
+                "SELECT conversation_id, COALESCE(worktree_path, workspace) FROM jobs WHERE state IN ('running','waiting_approval')",
             ) else {
                 return Vec::new();
             };
@@ -2670,6 +3062,16 @@ impl Jobs {
         job.error = Some("discarded after an interruption".into());
         job.finished_ms = Some(now_ms());
         self.save_job(&job);
+        if job.worktree_path.is_some() {
+            let jid = job.id.clone();
+            tauri::async_runtime::spawn(async move {
+                if let Some(jobs) = try_get() {
+                    if let Err(e) = jobs.remove_worktree(&jid).await {
+                        tracing::warn!("[jobs] {jid}: worktree kept: {e}");
+                    }
+                }
+            });
+        }
         Ok(job)
     }
 
@@ -2902,6 +3304,16 @@ impl Jobs {
     fn cron_tick(self: &Arc<Self>, grace_ms: i64) {
         let _pass = self.cron_pass.lock().unwrap_or_else(|e| e.into_inner());
         let now = now_ms() as i64;
+        // Worktree GC rides the same ticker, at most once an hour (2.3).
+        let last = self.last_worktree_gc.load(Ordering::SeqCst);
+        if (now as u64).saturating_sub(last) >= WORKTREE_GC_EVERY_MS
+            && self
+                .last_worktree_gc
+                .compare_exchange(last, now as u64, Ordering::SeqCst, Ordering::SeqCst)
+                .is_ok()
+        {
+            tauri::async_runtime::spawn(self.clone().gc_worktrees(false));
+        }
         for t in self
             .triggers()
             .into_iter()
@@ -3658,6 +4070,115 @@ pub fn state_view(view: &GateView, job: &dyn Fn(&str) -> Option<Job>) -> Value {
 // ── job diff: the pure half (1.7) ─────────────────────────────────────
 
 /// `diff_unavailable` code of a job that ran without a folder.
+/// A job still at the gate or running: its folder or worktree is in use.
+pub fn is_active(state: &str) -> bool {
+    matches!(
+        state,
+        "queued" | "waiting_workspace" | "running" | "waiting_approval"
+    )
+}
+
+/// How long a finished job keeps its worktree before the GC removes it
+/// (its work stays on the branch).
+pub const WORKTREE_TTL_MS: u64 = 7 * 24 * 3600 * 1000;
+/// Least time between two GC passes of the cron ticker.
+pub const WORKTREE_GC_EVERY_MS: u64 = 3600 * 1000;
+
+/// Why the GC removes the worktree of a job (`None` = keep it): `orphan`
+/// when the job row is gone, `ttl` when it ended long enough ago. An active
+/// job's worktree is never touched.
+pub fn worktree_gc_verdict(job: Option<&Job>, now: u64) -> Option<&'static str> {
+    match job {
+        None => Some("orphan"),
+        Some(j) if is_active(&j.state) => None,
+        Some(j) => {
+            let ended = j.finished_ms.or(j.started_ms).unwrap_or(j.created_ms);
+            (now.saturating_sub(ended) >= WORKTREE_TTL_MS).then_some("ttl")
+        }
+    }
+}
+
+/// The repository of a job's worktree and the worktree's root folder
+/// (`worktree_path` may be a subfolder of it).
+async fn worktree_root(job: &Job) -> Option<(std::path::PathBuf, std::path::PathBuf)> {
+    use omniget_core::core::vcs::job_worktree;
+    let path = job.worktree_path.as_ref()?;
+    let repo = match job.workspace.as_deref().filter(|w| !w.trim().is_empty()) {
+        Some(ws) => job_worktree::repo_root(std::path::Path::new(ws)).await,
+        None => None,
+    };
+    let repo = match repo {
+        Some(r) => r,
+        None => job_worktree::main_repo_of(std::path::Path::new(path)).await?,
+    };
+    let root = job_worktree::path_of(&repo, &job.id).ok()?;
+    Some((repo, root))
+}
+
+/// [`Jobs::remove_worktree`] without the row: for a job being deleted.
+async fn remove_job_worktree(
+    job: &Job,
+) -> Result<omniget_core::core::vcs::job_worktree::RemoveOutcome, String> {
+    use omniget_core::core::vcs::job_worktree;
+    let (repo, root) = worktree_root(job)
+        .await
+        .ok_or_else(|| format!("{ERR_WORKTREE}: the job's repository is gone"))?;
+    let branch = job
+        .branch
+        .clone()
+        .unwrap_or_else(|| job_worktree::branch_of(&job.id));
+    job_worktree::remove(&repo, &root, &branch, job.base_oid.as_deref())
+        .await
+        .map_err(|e| format!("{ERR_WORKTREE}: {e}"))
+}
+
+/// The job log line of a removal: what was saved, what the branch became.
+pub fn removal_note(out: &omniget_core::core::vcs::job_worktree::RemoveOutcome) -> String {
+    let mut line = String::from("⎇ worktree removed");
+    if let Some(c) = &out.saved {
+        line.push_str(&format!(
+            "; {} uncommitted file(s) saved as {}",
+            out.dirty.len(),
+            c.chars().take(7).collect::<String>()
+        ));
+    }
+    if let Some(b) = &out.preserved_branch {
+        line.push_str(&format!(
+            "; branch {b} kept (it has work not merged anywhere)"
+        ));
+    } else if let Some(b) = &out.branch_deleted {
+        line.push_str(&format!("; branch {b} deleted"));
+    }
+    line.push('\n');
+    line
+}
+
+/// The job log line of a new worktree: where, from what, what came along.
+pub fn worktree_note(wt: &omniget_core::core::vcs::job_worktree::JobWorktree) -> String {
+    let short = |s: &str| s.chars().take(7).collect::<String>();
+    let mut line = format!(
+        "⎇ worktree {} on {} from {} in {} ms",
+        wt.path.display(),
+        wt.branch,
+        short(&wt.base_oid),
+        wt.took_ms
+    );
+    if !wt.carried.is_empty() {
+        line.push_str(&format!(
+            "; {} uncommitted file(s) of yours carried in (your checkout untouched)",
+            wt.carried.len()
+        ));
+    }
+    if !wt.shared.is_empty() {
+        line.push_str(&format!("; linked {}", wt.shared.join(", ")));
+    }
+    if !wt.copied.is_empty() {
+        line.push_str(&format!("; copied {}", wt.copied.join(", ")));
+    }
+    line.push('\n');
+    line
+}
+
 const NO_WORKSPACE: &str = "no_workspace";
 
 /// `<llm dir>/jobs/<id>.patch`.
@@ -4798,5 +5319,147 @@ mod billing_tests {
         assert_eq!(t["cache_read_tokens"].as_u64(), Some(80_000));
         // 2 x (6k fresh + 4k read-weighted + 5k write-weighted + 100 out).
         assert_eq!(billable_of(&t), 30_200);
+    }
+}
+
+#[cfg(test)]
+mod worktree_tests {
+    use super::*;
+
+    fn job(kind: &str, isolation: Isolation) -> Job {
+        Job {
+            id: "j0123456789".into(),
+            kind: kind.into(),
+            agent_id: "a".into(),
+            workspace: Some("/w/repo".into()),
+            isolation,
+            state: "queued".into(),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn background_runs_default_to_auto_and_missions_stay_shared() {
+        assert_eq!(Isolation::default_for("run", "claude"), Isolation::Auto);
+        assert_eq!(Isolation::default_for("trigger", "claude"), Isolation::Auto);
+        for kind in ["mission", "loop", "chat"] {
+            assert_eq!(Isolation::default_for(kind, "claude"), Isolation::Shared);
+        }
+        assert_eq!(
+            Isolation::default_for("run", "tool:codex"),
+            Isolation::Shared
+        );
+        assert_eq!(Isolation::parse(" Worktree "), Ok(Isolation::Worktree));
+        assert_eq!(Isolation::parse("auto"), Ok(Isolation::Auto));
+        assert!(Isolation::parse("sharde").is_err(), "a typo is an error");
+        assert_eq!(
+            serde_json::to_value(Isolation::Auto).unwrap(),
+            json!("auto")
+        );
+    }
+
+    #[test]
+    fn the_placement_follows_the_isolation_and_the_repository() {
+        let repo = Some(std::path::PathBuf::from("/w/repo"));
+        let p = placement(&job("run", Isolation::Auto), repo.clone()).unwrap();
+        assert!(p.if_busy && !p.force, "auto asks the gate");
+        let p = placement(&job("run", Isolation::Auto), None).unwrap();
+        assert!(!p.if_busy && !p.force, "auto without git = shared");
+        let p = placement(&job("run", Isolation::Shared), repo.clone()).unwrap();
+        assert!(!p.if_busy && !p.force);
+        let p = placement(&job("run", Isolation::Worktree), repo).unwrap();
+        assert!(p.force);
+        let e = placement(&job("run", Isolation::Worktree), None).unwrap_err();
+        assert!(e.starts_with(ERR_WORKTREE), "{e}");
+        // A job that already has one (resumed) goes back to it.
+        let mut resumed = job("run", Isolation::Auto);
+        resumed.worktree_path = Some("/wt".into());
+        assert!(placement(&resumed, None).unwrap().force);
+        assert_eq!(effective_workspace(&resumed).as_deref(), Some("/wt"));
+        assert_eq!(
+            effective_workspace(&job("run", Isolation::Auto)).as_deref(),
+            Some("/w/repo")
+        );
+    }
+
+    #[test]
+    fn the_gc_removes_orphans_and_old_ones_never_active_ones() {
+        let now = 10 * WORKTREE_TTL_MS;
+        assert_eq!(worktree_gc_verdict(None, now), Some("orphan"));
+        let mut j = job("run", Isolation::Auto);
+        for st in ["queued", "waiting_workspace", "running", "waiting_approval"] {
+            j.state = st.into();
+            j.finished_ms = Some(0);
+            assert_eq!(worktree_gc_verdict(Some(&j), now), None, "{st}");
+        }
+        j.state = "done".into();
+        j.finished_ms = Some(now - WORKTREE_TTL_MS + 1);
+        assert_eq!(worktree_gc_verdict(Some(&j), now), None, "still fresh");
+        j.finished_ms = Some(now - WORKTREE_TTL_MS);
+        assert_eq!(worktree_gc_verdict(Some(&j), now), Some("ttl"));
+    }
+
+    #[test]
+    fn the_placement_columns_round_trip() {
+        let db = Connection::open_in_memory().unwrap();
+        ensure_schema(&db, 0).unwrap();
+        db.execute(
+            "INSERT INTO jobs (id, kind, agent_id, conversation_id, prompt, state, created_ms, isolation, base_ref, worktree_path, branch, base_oid)
+             VALUES ('j0', 'run', 'a', 'c', 'p', 'done', 1, 'worktree', 'main', '/wt/x', 'omniget/job-j0', 'abc')",
+            [],
+        )
+        .unwrap();
+        db.execute(
+            "INSERT INTO jobs (id, kind, agent_id, conversation_id, prompt, state, created_ms)
+             VALUES ('j1', 'run', 'a', 'c', 'p', 'done', 1)",
+            [],
+        )
+        .unwrap();
+        let read = |id: &str| {
+            db.query_row(
+                &format!("SELECT {JOB_COLS} FROM jobs WHERE id=?1"),
+                [id],
+                row_to_job,
+            )
+            .unwrap()
+        };
+        let j = read("j0");
+        assert_eq!(j.isolation, Isolation::Worktree);
+        assert_eq!(j.base_ref.as_deref(), Some("main"));
+        assert_eq!(j.worktree_path.as_deref(), Some("/wt/x"));
+        assert_eq!(j.branch.as_deref(), Some("omniget/job-j0"));
+        assert_eq!(j.base_oid.as_deref(), Some("abc"));
+        assert_eq!(read("j1").isolation, Isolation::Shared, "older rows");
+    }
+
+    #[test]
+    fn the_notes_say_what_came_along_and_what_was_kept() {
+        use omniget_core::core::vcs::job_worktree::{JobWorktree, RemoveOutcome};
+        let note = worktree_note(&JobWorktree {
+            path: "/wt/r-job-j1".into(),
+            branch: "omniget/job-j1".into(),
+            base_oid: "0123456789abcdef".into(),
+            carried: vec!["a.txt".into()],
+            shared: vec!["node_modules".into()],
+            took_ms: 42,
+            ..Default::default()
+        });
+        assert!(
+            note.contains("omniget/job-j1 from 0123456 in 42 ms"),
+            "{note}"
+        );
+        assert!(note.contains("1 uncommitted file(s) of yours carried in"));
+        assert!(note.contains("linked node_modules"));
+        let kept = removal_note(&RemoveOutcome {
+            dirty: vec!["a".into(), "b".into()],
+            saved: Some("fedcba987".into()),
+            preserved_branch: Some("omniget/job-j1".into()),
+            ..Default::default()
+        });
+        assert!(
+            kept.contains("2 uncommitted file(s) saved as fedcba9"),
+            "{kept}"
+        );
+        assert!(kept.contains("branch omniget/job-j1 kept"));
     }
 }

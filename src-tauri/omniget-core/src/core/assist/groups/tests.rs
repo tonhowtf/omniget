@@ -823,62 +823,6 @@ fn participant_ids_parse_and_stay_short() {
     );
 }
 
-// ── worktrees (B06) ──────────────────────────────────────────────────────
-
-#[test]
-fn b06_worktree_cleanup_refuses_folders_the_app_did_not_create() {
-    let (db, _) = temp_db();
-    let repo = temp_dir("repo");
-    let git = |args: &[&str]| {
-        let ok = std::process::Command::new("git")
-            .arg("-C")
-            .arg(&repo)
-            .args(args)
-            .output()
-            .unwrap();
-        assert!(
-            ok.status.success(),
-            "{}",
-            String::from_utf8_lossy(&ok.stderr)
-        );
-    };
-    git(&["init", "-q"]);
-    std::fs::write(repo.join("a.txt"), "a").unwrap();
-    git(&["add", "."]);
-    git(&[
-        "-c",
-        "user.email=t@t",
-        "-c",
-        "user.name=t",
-        "commit",
-        "-qm",
-        "init",
-    ]);
-
-    let base = temp_dir("wt");
-    let wt = worktree::create(&db, &repo, &base, Some("c1")).unwrap();
-    assert!(wt.path.join("a.txt").exists());
-    assert!(
-        !wt.path.join(worktree::MARKER).exists(),
-        "the marker is not in the working tree"
-    );
-
-    // A folder of the user's, even inside the same base, is refused and kept.
-    let foreign = base.join("mine");
-    std::fs::create_dir_all(&foreign).unwrap();
-    std::fs::write(foreign.join("keep.txt"), "x").unwrap();
-    let err = worktree::remove(&db, &foreign).unwrap_err();
-    assert!(err.starts_with(ERR_GROUP_NOT_OWNED));
-    assert!(foreign.join("keep.txt").exists());
-    // The repository itself is refused too.
-    assert!(worktree::remove(&db, &repo).is_err());
-    assert!(repo.join("a.txt").exists());
-
-    worktree::remove(&db, &wt.path).unwrap();
-    assert!(!wt.path.exists());
-    assert!(worktree::list(&db).unwrap().is_empty());
-}
-
 #[test]
 fn b01_a_mention_by_the_display_name_shown_in_the_room_reaches_that_member() {
     let members = vec![

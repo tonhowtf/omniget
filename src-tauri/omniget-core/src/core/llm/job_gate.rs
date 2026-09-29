@@ -224,9 +224,38 @@ impl Gate {
     /// Waits for a slot, the agent's share and the folder, all at once.
     /// Dropping the future (a cancel while queued) leaves the queue.
     pub async fn acquire(self: &Arc<Self>, ticket: Ticket) -> JobLease {
+        self.acquire_placed(ticket, false).await.0
+    }
+
+    /// [`Self::acquire`] for a job with `isolation = auto` (2.3, D3): when
+    /// `isolate_if_busy` and another job already holds or waits for an
+    /// overlapping folder, the ticket drops its folder (the job will run in
+    /// a worktree of its own instead of waiting) and the second value is
+    /// `true`. Decided under the gate's lock, so two jobs arriving together
+    /// never both take the folder nor both leave it.
+    pub async fn acquire_placed(
+        self: &Arc<Self>,
+        mut ticket: Ticket,
+        isolate_if_busy: bool,
+    ) -> (JobLease, bool) {
         let (tx, rx) = oneshot::channel();
+        let mut isolated = false;
         let (seq, sends) = {
             let mut g = self.lock();
+            if isolate_if_busy {
+                if let Some(folder) = &ticket.folder {
+                    let busy = g
+                        .held
+                        .values()
+                        .filter_map(|h| h.folder.as_ref())
+                        .chain(g.waiters.iter().filter_map(|w| w.ticket.folder.as_ref()))
+                        .any(|f| f.overlaps(folder));
+                    if busy {
+                        ticket.folder = None;
+                        isolated = true;
+                    }
+                }
+            }
             g.seq += 1;
             let seq = g.seq;
             g.waiters.push(Waiter { seq, ticket, tx });
@@ -238,7 +267,7 @@ impl Gate {
         };
         self.deliver(sends);
         match rx.await {
-            Ok(lease) => lease,
+            Ok(lease) => (lease, isolated),
             // Only if the waiter was removed without an answer, which only
             // `Leave` does, i.e. never while this future is alive.
             Err(_) => std::future::pending().await,
@@ -486,6 +515,48 @@ mod tests {
             g.debt(),
             v.limits.max_parallel
         );
+    }
+
+    /// 2.3 (`isolation = auto`): the first job takes the folder; one that
+    /// arrives while it is held (or waited for) is placed elsewhere and
+    /// admitted at once, without the folder; a job with the folder free
+    /// keeps it.
+    #[tokio::test]
+    async fn an_auto_job_leaves_a_busy_folder_instead_of_waiting() {
+        let gate = Gate::new(limits(4));
+        let (a, a_iso) = gate
+            .acquire_placed(ticket("a", "x", Some("/w/repo")), true)
+            .await;
+        assert!(!a_iso, "the folder was free: a keeps it");
+        let (b, b_iso) = tokio::time::timeout(
+            Duration::from_millis(100),
+            gate.acquire_placed(ticket("b", "x", Some("/w/repo/src")), true),
+        )
+        .await
+        .expect("b does not wait for the folder");
+        assert!(b_iso);
+        let held: Vec<Option<FolderKey>> =
+            gate.snapshot().held.into_iter().map(|h| h.folder).collect();
+        assert_eq!(held.iter().filter(|f| f.is_some()).count(), 1);
+        // A `shared` job still waits; an `auto` one behind it is placed too.
+        let c = waiting(&gate, ticket("c", "x", Some("/w/repo")));
+        settle().await;
+        assert!(!c.is_finished());
+        drop(a);
+        let c = tokio::time::timeout(Duration::from_secs(1), c)
+            .await
+            .expect("c admitted")
+            .unwrap();
+        let (_d, d_iso) = gate
+            .acquire_placed(ticket("d", "x", Some("/w/repo")), true)
+            .await;
+        assert!(d_iso, "c holds the folder now");
+        drop((b, c));
+        let (_e, e_iso) = gate
+            .acquire_placed(ticket("e", "x", Some("/w/other")), true)
+            .await;
+        assert!(!e_iso);
+        assert_books(&gate);
     }
 
     #[tokio::test]
@@ -1428,5 +1499,262 @@ mod bn2 {
         bench("c_queued_without_reason", serde_json::json!(unexplained));
         assert_eq!(unexplained, 0);
         let _ = std::fs::remove_dir_all(trace);
+    }
+
+    fn git(dir: &Path, args: &[&str]) -> String {
+        let out = std::process::Command::new("git")
+            .arg("-C")
+            .arg(dir)
+            .args(args)
+            .env("GIT_AUTHOR_NAME", "t")
+            .env("GIT_AUTHOR_EMAIL", "t@t")
+            .env("GIT_COMMITTER_NAME", "t")
+            .env("GIT_COMMITTER_EMAIL", "t@t")
+            .env("GIT_CONFIG_GLOBAL", "/dev/null")
+            .output()
+            .unwrap();
+        assert!(
+            out.status.success(),
+            "git {args:?}: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        String::from_utf8_lossy(&out.stdout).trim().to_string()
+    }
+
+    /// Scenario B (2.3, Foco de revisão 3): 4 `auto` jobs start together in
+    /// one repository whose checkout has uncommitted work of the user (an
+    /// edited tracked file, an untracked file), all editing the same file.
+    /// The first keeps the folder; the others are placed in worktrees by the
+    /// gate, carrying the user's work in through a private index. Goals: 4
+    /// independent results (each folder holds only its own job's edit on top
+    /// of the user's), 0 user edits lost, the user's index and HEAD
+    /// untouched, creation < 1 s with no hook, and after the discard no
+    /// worktree left in `git worktree list` while each job's work survives
+    /// on its branch.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn bn2_b_auto_jobs_in_one_repo_get_worktrees_and_lose_nothing() {
+        use crate::core::vcs::job_worktree;
+        let Some(fake) = fake() else {
+            return eprintln!("python3 missing: skipped");
+        };
+        let data = std::env::temp_dir().join("omniget-vcs-tests-data");
+        std::fs::create_dir_all(&data).unwrap();
+        unsafe { std::env::set_var("OMNIGET_DATA_DIR", &data) };
+        // Long enough that the job keeping the folder has not written yet
+        // when the last worktree is cut (3 staggers + creation): a worktree
+        // carries the folder as it is at that instant, the shared job's
+        // edit included once it lands.
+        let hold: f64 = env_num("BN2_B_HOLD_S", 4.0);
+        let repo = temp("b-repo");
+        git(&repo, &["init", "-q", "-b", "main"]);
+        git(&repo, &["config", "commit.gpgsign", "false"]);
+        std::fs::write(repo.join("notes.txt"), "base\n").unwrap();
+        std::fs::write(repo.join(".gitignore"), "node_modules\n").unwrap();
+        git(&repo, &["add", "-A"]);
+        git(&repo, &["commit", "-qm", "seed"]);
+        std::fs::create_dir_all(repo.join("node_modules/dep")).unwrap();
+        std::fs::write(repo.join("node_modules/dep/index.js"), "1\n").unwrap();
+        // The user's own work in progress, never committed.
+        std::fs::write(repo.join("notes.txt"), "base\nuser-wip\n").unwrap();
+        std::fs::write(repo.join("draft.txt"), "user draft\n").unwrap();
+        let index_before = std::fs::read(repo.join(".git/index")).unwrap();
+        let head_before = git(&repo, &["rev-parse", "HEAD"]);
+
+        let gate = Gate::new(Limits {
+            max_parallel: 4,
+            max_per_agent: None,
+            stagger: STAGGER,
+        });
+        let folder = FolderKey::of(&repo);
+        let t0 = Instant::now();
+        let handles: Vec<_> = (0..4)
+            .map(|i| {
+                let (gate, fake, repo, folder) =
+                    (gate.clone(), fake.clone(), repo.clone(), folder.clone());
+                tokio::spawn(async move {
+                    let id = format!("j{}", &uuid::Uuid::new_v4().simple().to_string()[..10]);
+                    let tag = format!("job{i}");
+                    let ticket = Ticket {
+                        job_id: id.clone(),
+                        agent_id: "a".into(),
+                        class: Class::Manual,
+                        folder: Some(folder),
+                    };
+                    let (lease, isolated) = gate.acquire_placed(ticket, true).await;
+                    tokio::time::sleep(lease.delay).await;
+                    let (cwd, wt, create_ms) = if isolated {
+                        let t = Instant::now();
+                        let wt = job_worktree::create(&repo, &id, None).await.unwrap();
+                        (
+                            wt.path.clone(),
+                            Some(wt),
+                            t.elapsed().as_secs_f64() * 1000.0,
+                        )
+                    } else {
+                        (repo.clone(), None, 0.0)
+                    };
+                    let started = t0.elapsed().as_secs_f64();
+                    let mut stream = spawn_turn_with(
+                        spec(
+                            &fake,
+                            &cwd,
+                            &[
+                                ("FAKE_CLAUDE_MODE", "write".into()),
+                                ("FAKE_CLAUDE_HOLD_S", hold.to_string()),
+                                ("FAKE_CLAUDE_TAG", tag.clone()),
+                                (
+                                    "FAKE_CLAUDE_LEDGER",
+                                    cwd.join("notes.txt").display().to_string(),
+                                ),
+                                (
+                                    "FAKE_CLAUDE_FILE",
+                                    cwd.join(format!("{tag}.txt")).display().to_string(),
+                                ),
+                            ],
+                        ),
+                        Arc::new(ClaudeParser::new(true)),
+                        CancellationToken::new(),
+                        TurnHooks::default(),
+                    )
+                    .unwrap();
+                    while stream.next().await.is_some() {}
+                    let ended = t0.elapsed().as_secs_f64();
+                    drop(lease);
+                    (tag, cwd, wt, create_ms, started, ended)
+                })
+            })
+            .collect();
+        let done: Vec<_> = futures::future::join_all(handles)
+            .await
+            .into_iter()
+            .map(Result::unwrap)
+            .collect();
+
+        let tags: Vec<String> = done.iter().map(|d| d.0.clone()).collect();
+        let isolated = done.iter().filter(|d| d.2.is_some()).count();
+        let overlapping = {
+            let mut n = 0;
+            for a in &done {
+                for b in &done {
+                    if a.0 < b.0 && a.4 < b.5 && b.4 < a.5 {
+                        n += 1;
+                    }
+                }
+            }
+            n
+        };
+        // Independent results: every folder holds the user's work plus only
+        // its own job's line and file.
+        let mut independent = 0;
+        let mut carried = 0;
+        for (tag, cwd, wt, _, _, _) in &done {
+            let notes = std::fs::read_to_string(cwd.join("notes.txt")).unwrap();
+            let others = tags
+                .iter()
+                .filter(|t| *t != tag)
+                .any(|t| notes.lines().any(|l| l == t) || cwd.join(format!("{t}.txt")).exists());
+            if notes == format!("base\nuser-wip\n{tag}\n")
+                && cwd.join(format!("{tag}.txt")).is_file()
+                && !others
+            {
+                independent += 1;
+            }
+            if let Some(wt) = wt {
+                // The job's own diff (against the commit that carried the
+                // user's work) is only the job's two files.
+                let mut dirty = job_worktree::dirty_files(&wt.path).await.unwrap();
+                dirty.sort();
+                let mut own = vec!["notes.txt".to_string(), format!("{tag}.txt")];
+                own.sort();
+                if dirty == own
+                    && wt.carried.contains(&"notes.txt".to_string())
+                    && wt.carried.contains(&"draft.txt".to_string())
+                    && std::fs::read_to_string(wt.path.join("draft.txt")).unwrap() == "user draft\n"
+                {
+                    carried += 1;
+                }
+            }
+        }
+        let create_ms: Vec<f64> = done.iter().filter(|d| d.2.is_some()).map(|d| d.3).collect();
+        let max_create = create_ms.iter().cloned().fold(0.0, f64::max);
+        let linked = done
+            .iter()
+            .filter_map(|d| d.2.as_ref())
+            .filter(|w| w.shared == vec!["node_modules".to_string()])
+            .count();
+
+        // Discard every worktree: the work goes to the branch, nothing of the
+        // user's moves, no worktree is left behind.
+        let mut preserved = 0;
+        let mut saved = 0;
+        for (tag, _, wt, _, _, _) in &done {
+            let Some(wt) = wt else { continue };
+            let out = job_worktree::remove(&repo, &wt.path, &wt.branch, Some(&wt.base_oid))
+                .await
+                .unwrap();
+            if out.preserved_branch.as_deref() == Some(wt.branch.as_str()) {
+                preserved += 1;
+            }
+            if out.saved.is_some()
+                && git(&repo, &["show", &format!("{}:{tag}.txt", wt.branch)])
+                    == format!("written by {tag}")
+            {
+                saved += 1;
+            }
+        }
+        let worktrees_left = git(&repo, &["worktree", "list", "--porcelain"])
+            .lines()
+            .filter(|l| l.starts_with("worktree "))
+            .count()
+            - 1;
+        let folders_left = done
+            .iter()
+            .filter_map(|d| d.2.as_ref())
+            .filter(|w| w.path.exists())
+            .count();
+        let user_notes = std::fs::read_to_string(repo.join("notes.txt")).unwrap();
+        let user_lost = usize::from(!user_notes.lines().any(|l| l == "user-wip"))
+            + usize::from(
+                std::fs::read_to_string(repo.join("draft.txt"))
+                    .ok()
+                    .as_deref()
+                    != Some("user draft\n"),
+            );
+        let index_same = std::fs::read(repo.join(".git/index")).unwrap() == index_before;
+        let head_same = git(&repo, &["rev-parse", "HEAD"]) == head_before;
+
+        bench("b_jobs", serde_json::json!(done.len()));
+        bench("b_isolated", serde_json::json!(isolated));
+        bench("b_overlapping_pairs", serde_json::json!(overlapping));
+        bench("b_independent_results", serde_json::json!(independent));
+        bench("b_user_work_carried", serde_json::json!(carried));
+        bench("b_user_edits_lost", serde_json::json!(user_lost));
+        bench("b_user_index_untouched", serde_json::json!(index_same));
+        bench("b_user_head_untouched", serde_json::json!(head_same));
+        bench("b_create_ms", serde_json::json!(create_ms));
+        bench("b_create_ms_max", serde_json::json!(max_create));
+        bench("b_node_modules_linked", serde_json::json!(linked));
+        bench(
+            "b_worktrees_left_after_discard",
+            serde_json::json!(worktrees_left),
+        );
+        bench(
+            "b_folders_left_after_discard",
+            serde_json::json!(folders_left),
+        );
+        bench("b_branches_preserved", serde_json::json!(preserved));
+        bench("b_work_saved_on_branch", serde_json::json!(saved));
+        assert_eq!(isolated, 3, "one job keeps the folder, three get worktrees");
+        assert!(
+            overlapping >= 3,
+            "the four ran together ({overlapping} pairs)"
+        );
+        assert_eq!(independent, 4);
+        assert_eq!(carried, 3);
+        assert_eq!(user_lost, 0);
+        assert!(index_same && head_same);
+        assert_eq!((worktrees_left, folders_left), (0, 0));
+        assert_eq!((preserved, saved), (3, 3));
+        let _ = std::fs::remove_dir_all(&repo);
     }
 }

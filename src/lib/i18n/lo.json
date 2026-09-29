@@ -3411,6 +3411,21 @@
         "unavailable_no_snapshot": "ບໍ່ຮູ້ວ່າວຽກນີ້ປ່ຽນຫຍັງ: ຮອບຂອງມັນບໍ່ໄດ້ຖ່າຍພາບສະແນັບຊັອດຂອງໂຟນເດີ.",
         "unavailable_no_workspace": "ວຽກນີ້ແລ່ນໂດຍບໍ່ມີໂຟນເດີ, ຈຶ່ງບໍ່ມີ diff.",
         "unavailable_error": "ອ່ານສະແນັບຊັອດຂອງໂຟນເດີວຽກນີ້ບໍ່ໄດ້."
+      },
+      "isolation": {
+        "label": "ບ່ອນທີ່ມັນຂຽນ",
+        "auto": "ອັດຕະໂນມັດ: worktree ຂອງຕົນເອງ ສະເພາະເມື່ອມີວຽກອື່ນກຳລັງຂຽນຢູ່ບ່ອນນັ້ນ",
+        "worktree": "ຢູ່ໃນ git worktree ຂອງຕົນເອງສະເໝີ",
+        "shared": "ໃນໂຟນເດີເອງ (ລໍຖ້າຄິວ)"
+      },
+      "worktree": {
+        "title": "Worktree",
+        "chip": "{{branch}} ຈາກ {{base}}",
+        "gone": "ລຶບ worktree ແລ້ວ; branch ຍັງເກັບວຽກໄວ້.",
+        "remove": "ລຶບ worktree",
+        "removed": "ລຶບ worktree ແລ້ວ.",
+        "kept_branch": "ລຶບ worktree ແລ້ວ. branch {{branch}} ເກັບວຽກຂອງງານນີ້ໄວ້.",
+        "saved": "ບັນທຶກ {{count}} ໄຟລ໌ທີ່ຍັງບໍ່ commit ລົງ branch ກ່ອນ."
       }
     },
     "loops": {

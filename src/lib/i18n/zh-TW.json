@@ -3411,6 +3411,21 @@
         "unavailable_no_snapshot": "無法得知此工作變更了什麼：它的回合沒有為資料夾建立快照。",
         "unavailable_no_workspace": "此工作在沒有資料夾的情況下執行，因此沒有差異。",
         "unavailable_error": "無法讀取此工作資料夾的快照。"
+      },
+      "isolation": {
+        "label": "寫入位置",
+        "auto": "自動：只有在另一個工作正在該資料夾寫入時才使用獨立 worktree",
+        "worktree": "一律使用獨立的 git worktree",
+        "shared": "直接在資料夾中（排隊等候）"
+      },
+      "worktree": {
+        "title": "Worktree",
+        "chip": "{{branch}}，基於 {{base}}",
+        "gone": "worktree 已移除；分支保留了這些工作。",
+        "remove": "移除 worktree",
+        "removed": "worktree 已移除。",
+        "kept_branch": "worktree 已移除。分支 {{branch}} 保留了該工作的成果。",
+        "saved": "已先將 {{count}} 個未提交的檔案儲存到分支。"
       }
     },
     "loops": {

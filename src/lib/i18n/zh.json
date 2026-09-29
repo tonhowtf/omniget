@@ -3411,6 +3411,21 @@
         "unavailable_no_snapshot": "无法得知此作业更改了什么：它的轮次没有为文件夹创建快照。",
         "unavailable_no_workspace": "此作业在没有文件夹的情况下运行，因此没有差异。",
         "unavailable_error": "无法读取此作业文件夹的快照。"
+      },
+      "isolation": {
+        "label": "写入位置",
+        "auto": "自动：仅当另一个任务正在该文件夹写入时才使用独立 worktree",
+        "worktree": "始终使用独立的 git worktree",
+        "shared": "直接在文件夹中（排队等候）"
+      },
+      "worktree": {
+        "title": "Worktree",
+        "chip": "{{branch}}，基于 {{base}}",
+        "gone": "worktree 已移除；分支保留了这些工作。",
+        "remove": "移除 worktree",
+        "removed": "worktree 已移除。",
+        "kept_branch": "worktree 已移除。分支 {{branch}} 保留了该任务的工作。",
+        "saved": "已先将 {{count}} 个未提交的文件保存到分支。"
       }
     },
     "loops": {

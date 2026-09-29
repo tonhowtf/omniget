@@ -17,12 +17,13 @@
 //! the resolver maps a room (or a member session in it) to
 //! `Scope::Room{room}` only; private bot memory and the user profile reach a
 //! room only through a share the user created ([`store::add_share`]).
-//! Parallel code work: serialised writes by default (`code_tools`), a
-//! worktree only on request ([`worktree`]).
+//! Parallel code work: serialised writes by default (`code_tools`); a
+//! worktree per job or thread lives in `core::vcs` (`job_worktree`,
+//! `worktree`). The `groups_worktrees` table of the first migration is no
+//! longer written.
 
 pub mod store;
 pub mod tasks;
-pub mod worktree;
 
 #[cfg(test)]
 mod tests;
@@ -50,7 +51,6 @@ pub const ERR_GROUP_NOT_FOUND: &str = "ERR_GROUP_NOT_FOUND";
 pub const ERR_GROUP_LIMIT: &str = "ERR_GROUP_LIMIT";
 pub const ERR_GROUP_BUSY: &str = "ERR_GROUP_BUSY";
 pub const ERR_GROUP_CLAIMED: &str = "ERR_GROUP_CLAIMED";
-pub const ERR_GROUP_NOT_OWNED: &str = "ERR_GROUP_NOT_OWNED";
 
 /// Room ids are `grp-` + 12 hex digits: short enough that
 /// `"<room>~<bot>"` stays inside the 64-char conversation-id limit.

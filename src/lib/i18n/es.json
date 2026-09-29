@@ -3411,6 +3411,21 @@
         "unavailable_no_snapshot": "No se sabe qué cambió este trabajo: sus turnos no tomaron una instantánea de la carpeta.",
         "unavailable_no_workspace": "Este trabajo se ejecutó sin carpeta, así que no hay diff.",
         "unavailable_error": "No se pudo leer la instantánea de la carpeta de este trabajo."
+      },
+      "isolation": {
+        "label": "Dónde escribe",
+        "auto": "Automático: su propio worktree solo si otro trabajo está escribiendo ahí",
+        "worktree": "Siempre en un worktree de git propio",
+        "shared": "En la propia carpeta (espera su turno)"
+      },
+      "worktree": {
+        "title": "Worktree",
+        "chip": "{{branch}} desde {{base}}",
+        "gone": "Worktree eliminado; la rama guarda el trabajo.",
+        "remove": "Eliminar worktree",
+        "removed": "Worktree eliminado.",
+        "kept_branch": "Worktree eliminado. La rama {{branch}} guarda el trabajo.",
+        "saved": "{{count}} archivo(s) sin commit guardado(s) antes en la rama."
       }
     },
     "loops": {

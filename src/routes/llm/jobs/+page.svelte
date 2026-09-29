@@ -41,6 +41,7 @@
     markJobSeen,
     pickState,
     queuedEntry,
+    removeJobWorktree,
     queueLines,
     reasonLine,
     setJobLimits,
@@ -49,6 +50,7 @@
     submitJob,
     triggerInput,
     type CatchUp,
+    type Isolation,
     type Job,
     type JobDiffView,
     type Trigger,
@@ -97,6 +99,8 @@
   let agentId = $state("");
   let prompt = $state("");
   let workspace = $state<string | null>(null);
+  let isolation = $state<Isolation>("auto");
+  const isolations: Isolation[] = ["auto", "worktree", "shared"];
   let submitting = $state(false);
 
   let openId = $state<string | null>(null);
@@ -208,9 +212,23 @@
   async function run() {
     if (!agentId || !prompt.trim()) return;
     submitting = true;
-    const job = await submitJob(agentId, prompt.trim(), workspace);
+    const job = await submitJob(agentId, prompt.trim(), workspace, workspace ? isolation : null);
     submitting = false;
     if (job) prompt = "";
+  }
+
+  async function removeWorktree(id: string) {
+    const out = await removeJobWorktree(id);
+    if (!out) return;
+    const saved = out.saved ? $t("llm.jobs.worktree.saved", { count: out.dirty.length }) + " " : "";
+    showToast(
+      "success",
+      saved +
+        (out.preserved_branch
+          ? $t("llm.jobs.worktree.kept_branch", { branch: out.preserved_branch })
+          : $t("llm.jobs.worktree.removed")),
+    );
+    if (openId === id) detail = await fetchJob(id);
   }
 
   async function createTrigger() {
@@ -301,6 +319,16 @@
           {/if}
         </div>
       </div>
+      {#if workspace}
+        <label class="field">
+          <span class="field-label">{$t("llm.jobs.isolation.label")}</span>
+          <select class="input" bind:value={isolation}>
+            {#each isolations as i (i)}
+              <option value={i}>{$t(`llm.jobs.isolation.${i}`)}</option>
+            {/each}
+          </select>
+        </label>
+      {/if}
     </div>
     <label class="field">
       <span class="field-label">{$t("llm.jobs.prompt")}</span>
@@ -401,6 +429,19 @@
                   <div class="field-label">{$t("llm.jobs.workspace")}</div>
                   <code class="path">{full.workspace}</code>
                 {/if}
+                {#if full.branch}
+                  <div class="field-label">{$t("llm.jobs.worktree.title")}</div>
+                  <div class="worktree">
+                    <span class="chip" title={full.base_oid ?? ""}>
+                      {$t("llm.jobs.worktree.chip", { branch: full.branch, base: (full.base_oid ?? "").slice(0, 7) })}
+                    </span>
+                    {#if full.worktree_path}
+                      <code class="path" title={full.worktree_path}>{full.worktree_path}</code>
+                    {:else}
+                      <span class="hint">{$t("llm.jobs.worktree.gone")}</span>
+                    {/if}
+                  </div>
+                {/if}
                 {#if full.result}
                   <div class="field-label">{$t("llm.jobs.result")}</div>
                   <div class="text">{full.result}</div>
@@ -469,6 +510,11 @@
                       {$t("llm.jobs.cancel")}
                     </button>
                   {:else}
+                    {#if full.worktree_path}
+                      <button type="button" class="button" onclick={() => void removeWorktree(job.id)}>
+                        {$t("llm.jobs.worktree.remove")}
+                      </button>
+                    {/if}
                     <button type="button" class="button" onclick={() => void deleteJob(job.id)}>
                       {$t("llm.jobs.delete")}
                     </button>
@@ -743,6 +789,24 @@
 
   .mono {
     font-family: var(--font-mono);
+  }
+
+  .worktree {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 0;
+  }
+
+  .chip {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    padding: 2px var(--space-2);
+    border-radius: var(--radius-sm);
+    border: var(--hairline) solid var(--separator);
+    color: var(--text-muted);
+    white-space: nowrap;
   }
 
   .rows {

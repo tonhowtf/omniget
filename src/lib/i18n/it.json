@@ -3411,6 +3411,21 @@
         "unavailable_no_snapshot": "Non si sa cosa abbia modificato questo job: i suoi turni non hanno fatto uno snapshot della cartella.",
         "unavailable_no_workspace": "Questo job è stato eseguito senza cartella, quindi non c'è diff.",
         "unavailable_error": "Impossibile leggere lo snapshot della cartella di questo job."
+      },
+      "isolation": {
+        "label": "Dove scrive",
+        "auto": "Automatico: un proprio worktree solo se un altro job sta già scrivendo lì",
+        "worktree": "Sempre in un proprio worktree git",
+        "shared": "Nella cartella stessa (aspetta il suo turno)"
+      },
+      "worktree": {
+        "title": "Worktree",
+        "chip": "{{branch}} da {{base}}",
+        "gone": "Worktree rimosso; il branch conserva il lavoro.",
+        "remove": "Rimuovi worktree",
+        "removed": "Worktree rimosso.",
+        "kept_branch": "Worktree rimosso. Il branch {{branch}} conserva il lavoro del job.",
+        "saved": "{{count}} file non committati salvati prima sul branch."
       }
     },
     "loops": {

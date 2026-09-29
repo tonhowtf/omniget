@@ -3411,6 +3411,21 @@
         "unavailable_no_snapshot": "On ne sait pas ce que cette tâche a modifié : ses tours n’ont pris aucun instantané du dossier.",
         "unavailable_no_workspace": "Cette tâche a tourné sans dossier, il n’y a donc pas de diff.",
         "unavailable_error": "L’instantané du dossier de cette tâche n’a pas pu être lu."
+      },
+      "isolation": {
+        "label": "Où il écrit",
+        "auto": "Automatique : son propre worktree seulement si une autre tâche écrit déjà là",
+        "worktree": "Toujours dans son propre worktree git",
+        "shared": "Dans le dossier lui-même (attend son tour)"
+      },
+      "worktree": {
+        "title": "Worktree",
+        "chip": "{{branch}} depuis {{base}}",
+        "gone": "Worktree supprimé ; la branche garde le travail.",
+        "remove": "Supprimer le worktree",
+        "removed": "Worktree supprimé.",
+        "kept_branch": "Worktree supprimé. La branche {{branch}} garde le travail de la tâche.",
+        "saved": "{{count}} fichier(s) non commité(s) enregistré(s) d'abord sur la branche."
       }
     },
     "loops": {

@@ -3411,6 +3411,21 @@
         "unavailable_no_snapshot": "What this job changed is unknown: its turns took no snapshot of the folder.",
         "unavailable_no_workspace": "This job ran without a folder, so there is no diff.",
         "unavailable_error": "The snapshot of this job's folder could not be read."
+      },
+      "isolation": {
+        "label": "Where it writes",
+        "auto": "Automatic: its own worktree only if another job is writing there",
+        "worktree": "Always in a git worktree of its own",
+        "shared": "In the folder itself (waits its turn)"
+      },
+      "worktree": {
+        "title": "Worktree",
+        "chip": "{{branch}} from {{base}}",
+        "gone": "Worktree removed; the branch keeps the work.",
+        "remove": "Remove worktree",
+        "removed": "Worktree removed.",
+        "kept_branch": "Worktree removed. The branch {{branch}} keeps the job's work.",
+        "saved": "{{count}} uncommitted file(s) saved on the branch first."
       }
     },
     "loops": {
