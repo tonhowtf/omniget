@@ -50,6 +50,8 @@
   let maxRounds = $state<number | null>(10);
   let maxMinutes = $state<number | null>(null);
   let checkCommand = $state("");
+  /** Resume by itself after a restart (3.1); unchecked = the setting. */
+  let autoResume = $state(false);
   let creating = $state(false);
   let openId = $state<string | null>(null);
   /** Re-read on each store change, enough for a quiet elapsed column. */
@@ -90,6 +92,7 @@
       max_rounds: positive(maxRounds) ?? 10,
       max_minutes: positive(maxMinutes),
       check_command: checkCommand.trim() || null,
+      auto_resume: autoResume ? true : null,
     });
     creating = false;
     if (loop) {
@@ -158,6 +161,13 @@
         <input class="input mono" type="text" bind:value={checkCommand} placeholder="npm test" />
       </label>
     </div>
+    <label class="auto-resume">
+      <input type="checkbox" bind:checked={autoResume} />
+      <span>
+        <span class="field-label">{$t("llm.loops.auto_resume")}</span>
+        <span class="hint">{$t("llm.loops.auto_resume_hint")}</span>
+      </span>
+    </label>
     <p class="hint">{$t("llm.loops.summary", { rounds: positive(maxRounds) ?? 10 })}</p>
     {#if !checkCommand.trim()}<p class="hint">{$t("llm.loops.no_check")}</p>{/if}
     {#if reviewing}
@@ -285,6 +295,9 @@
   .creation-panel[open] summary { margin-bottom:12px; }
   .creation-panel summary:focus-visible { outline:var(--focus-ring); }
   .loop-review { border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface-mut); padding: var(--space-4); overflow-wrap: anywhere; }
+  .auto-resume { display: flex; align-items: flex-start; gap: var(--space-2); cursor: pointer; }
+  .auto-resume > span { display: flex; flex-direction: column; gap: 2px; }
+  .auto-resume input { margin-top: 3px; }
   .loops-page {
     flex: 1;
     min-height: 0;

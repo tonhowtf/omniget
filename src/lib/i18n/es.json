@@ -3398,7 +3398,8 @@
         "no_start": "Detenido: el agente nunca arrancó",
         "deadline": "Detenido: se alcanzó el límite de tiempo",
         "limit": "Detenido: se alcanzó el límite de presupuesto",
-        "ask_expired": "Una pregunta quedó sin respuesta"
+        "ask_expired": "Una pregunta quedó sin respuesta",
+        "app_restart": "La app se cerró durante este trabajo"
       },
       "queue": {
         "title": "Cola",
@@ -3509,7 +3510,8 @@
         "discard_work": "Descartar trabajo",
         "discard_confirm": "¿Descartar el trabajo de este job? Se borran su worktree y la rama {{branch}}.",
         "discarded": "Trabajo descartado. La rama {{branch}} estaba en {{tip}}."
-      }
+      },
+      "resumed_by_itself": "Reanudado solo ({{count}}×)"
     },
     "loops": {
       "lede": "Run the same prompt round after round until the work checks out.",
@@ -3544,7 +3546,9 @@
       "summary": "Up to {{rounds}} rounds. Stops earlier when a configured condition or time limit is reached.",
       "no_check": "No check command: completion will be controlled by the round or time limit.",
       "review": "Review loop",
-      "edit": "Edit configuration"
+      "edit": "Edit configuration",
+      "auto_resume": "Reanudar solo tras un reinicio",
+      "auto_resume_hint": "Si la app se cierra durante una ronda, el Loop continúa cuando vuelve a abrirse, salvo que esa ronda ya hubiera escrito en tu carpeta."
     },
     "limits": {
       "title": "Limits strip",
@@ -3723,7 +3727,9 @@
       "ask_job_desc": "Deja 0 para esperar hasta el límite de tiempo del propio trabajo.",
       "notify_delay": "Avisar tras (segundos)",
       "notify_delay_desc": "Una pregunta aún abierta tras este tiempo se vuelve una notificación del sistema. Una que respondas antes, nunca.",
-      "offline": "No se pudo guardar: el backend no respondió."
+      "offline": "No se pudo guardar: el backend no respondió.",
+      "auto_resume": "Reanudar solo tras un reinicio",
+      "auto_resume_desc": "Cuando la app se cierra o un agente deja de responder, un trabajo que se ejecutó en su propio worktree o solo leyó archivos vuelve a empezar solo: continúa su sesión y se le pide comprobar lo que ya está hecho antes de repetir nada. Un trabajo que escribió en tu carpeta sigue esperándote. Un trabajo o un Loop puede indicar lo contrario."
     },
     "central": {
       "agentkit": {

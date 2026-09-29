@@ -196,6 +196,15 @@ fn workspace(arg: Option<String>, no_workspace: bool) -> Option<String> {
     })
 }
 
+/// `--auto-resume` / `--no-auto-resume`; neither = the app's setting (3.1).
+fn auto_resume_flag(on: bool, off: bool) -> Option<bool> {
+    match (on, off) {
+        (true, _) => Some(true),
+        (_, true) => Some(false),
+        _ => None,
+    }
+}
+
 /// The body of `POST /v1/agent/run`. `--isolate` asks for a worktree,
 /// `--shared` for the folder itself; neither leaves the app's `auto`.
 fn run_body(
@@ -368,6 +377,12 @@ fn explain_text(v: &Value) -> String {
     ));
     if let Some(reason) = v["failure_reason"].as_str() {
         out.push_str(&format!("  failure_reason: {reason}\n"));
+    }
+    if let Some(session) = v["session_id"].as_str() {
+        out.push_str(&format!("  session: {session}\n"));
+    }
+    if let Some(n) = v["attempt"].as_u64().filter(|n| *n > 0) {
+        out.push_str(&format!("  resumed by itself: {n} time(s)\n"));
     }
     if let Some(age) = secs("last_event_age_s") {
         out.push_str(&format!("  last_event_age: {age}\n"));
@@ -691,6 +706,14 @@ pub enum AgentCommand {
             help = "Start the worktree from this branch or commit (default: your checkout as it is, uncommitted work included)"
         )]
         base: Option<String>,
+        #[arg(
+            long,
+            conflicts_with = "no_auto_resume",
+            help = "Start again by itself (--resume, check before repeating) if the app closes or the agent goes silent; only when it ran in its own worktree or wrote nothing"
+        )]
+        auto_resume: bool,
+        #[arg(long, help = "Never start again by itself, whatever the app's setting")]
+        no_auto_resume: bool,
     },
     /// Keep an agent working until a check passes or the budget runs out;
     /// `--catalog <loop id>` runs a loop of the catalog instead of a prompt
@@ -731,6 +754,14 @@ pub enum AgentCommand {
             help = "Shell command; the loop ends when it exits 0 (e.g. \"npm test\")"
         )]
         check: Option<String>,
+        #[arg(
+            long,
+            conflicts_with = "no_auto_resume",
+            help = "Start again by itself (--resume, check before repeating) if the app closes or the agent goes silent; only when it ran in its own worktree or wrote nothing"
+        )]
+        auto_resume: bool,
+        #[arg(long, help = "Never start again by itself, whatever the app's setting")]
+        no_auto_resume: bool,
     },
     /// List recent jobs, show one, or cancel one
     Jobs {
@@ -899,6 +930,8 @@ pub async fn execute(cmd: AgentCommand, json_out: bool) -> anyhow::Result<()> {
             base,
             command_id,
             title,
+            auto_resume,
+            no_auto_resume,
             ..
         } => {
             let prompt = match args.as_slice() {
@@ -921,6 +954,9 @@ pub async fn execute(cmd: AgentCommand, json_out: bool) -> anyhow::Result<()> {
             body["channel"] = json!("cli");
             if let Some(t) = title {
                 body["title"] = json!(t);
+            }
+            if let Some(on) = auto_resume_flag(auto_resume, no_auto_resume) {
+                body["auto_resume"] = json!(on);
             }
             let receipt = bridge.post("/v1/commands", body).await?;
             let id = receipt["job_id"].as_str().unwrap_or("").to_string();
@@ -982,12 +1018,15 @@ pub async fn execute(cmd: AgentCommand, json_out: bool) -> anyhow::Result<()> {
             rounds,
             minutes,
             check,
+            schedule,
+            auto_resume,
+            no_auto_resume,
             ..
         } => {
             let l = bridge
                 .post(
                     "/v1/agent/loop",
-                    json!({ "agent_id": agent, "prompt": prompt, "workspace": workspace(ws, false), "max_rounds": rounds, "max_minutes": minutes, "check_command": check }),
+                    json!({ "agent_id": agent, "prompt": prompt, "workspace": workspace(ws, false), "max_rounds": rounds, "max_minutes": minutes, "check_command": check, "schedule": schedule, "auto_resume": auto_resume_flag(auto_resume, no_auto_resume) }),
                 )
                 .await?;
             if json_out {

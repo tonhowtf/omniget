@@ -5741,6 +5741,10 @@
             "minLength": 1,
             "type": "string"
           },
+          "autoResume": {
+            "description": "Start again by itself (with --resume and a check-before-repeating note) if the app closes or the agent goes silent, when it ran in its own worktree or wrote nothing. Omitted = the person's setting.",
+            "type": "boolean"
+          },
           "base": {
             "maxLength": 256,
             "type": "string"

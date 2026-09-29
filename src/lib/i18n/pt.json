@@ -3398,7 +3398,8 @@
         "no_start": "Parado: o agente nunca começou",
         "deadline": "Parado: limite de tempo atingido",
         "limit": "Parado: limite de orçamento atingido",
-        "ask_expired": "Uma pergunta ficou sem resposta"
+        "ask_expired": "Uma pergunta ficou sem resposta",
+        "app_restart": "O app fechou durante este job"
       },
       "queue": {
         "title": "Fila",
@@ -3509,7 +3510,8 @@
         "discard_work": "Descartar trabalho",
         "discard_confirm": "Descartar o trabalho deste job? O worktree e a branch {{branch}} são apagados.",
         "discarded": "Trabalho descartado. A branch {{branch}} estava em {{tip}}."
-      }
+      },
+      "resumed_by_itself": "Retomado sozinho ({{count}}×)"
     },
     "loops": {
       "lede": "Roda o mesmo prompt rodada após rodada até o trabalho passar na verificação.",
@@ -3544,7 +3546,9 @@
       "summary": "Até {{rounds}} rodadas. Para antes se atingir o critério configurado ou o limite de tempo.",
       "no_check": "Sem comando de verificação: o encerramento será controlado pelo limite de rodadas ou tempo.",
       "review": "Revisar loop",
-      "edit": "Editar configuração"
+      "edit": "Editar configuração",
+      "auto_resume": "Retomar sozinho depois de reiniciar",
+      "auto_resume_hint": "Se o app fechar no meio de uma rodada, o Loop continua quando ele abrir de novo, a menos que a rodada já tenha escrito na sua pasta."
     },
     "limits": {
       "title": "Barra de limites",
@@ -3723,7 +3727,9 @@
       "ask_job_desc": "Deixe 0 para esperar até o limite de tempo do próprio job.",
       "notify_delay": "Avisar depois de (segundos)",
       "notify_delay_desc": "Uma pergunta ainda aberta depois desse tempo vira notificação do sistema. Uma respondida antes nunca vira.",
-      "offline": "Não foi possível salvar: o backend não respondeu."
+      "offline": "Não foi possível salvar: o backend não respondeu.",
+      "auto_resume": "Retomar sozinho depois de reiniciar",
+      "auto_resume_desc": "Quando o app fecha ou um agente fica em silêncio, um job que rodou no próprio worktree ou só leu arquivos começa de novo sozinho: continua a sessão e é avisado para conferir o que já foi feito antes de repetir algo. Um job que escreveu na sua pasta continua esperando por você. Um job ou um Loop pode dizer o contrário."
     },
     "central": {
       "agentkit": {

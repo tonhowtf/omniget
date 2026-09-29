@@ -3398,7 +3398,8 @@
         "no_start": "停止: エージェントが起動しませんでした",
         "deadline": "停止: 制限時間に達しました",
         "limit": "停止: 予算の上限に達しました",
-        "ask_expired": "質問に回答がありませんでした"
+        "ask_expired": "質問に回答がありませんでした",
+        "app_restart": "このジョブの実行中にアプリが終了しました"
       },
       "queue": {
         "title": "キュー",
@@ -3509,7 +3510,8 @@
         "discard_work": "作業を破棄",
         "discard_confirm": "このジョブの作業を破棄しますか? worktree とブランチ {{branch}} が削除されます。",
         "discarded": "作業を破棄しました。ブランチ {{branch}} は {{tip}} でした。"
-      }
+      },
+      "resumed_by_itself": "自動で再開（{{count}} 回）"
     },
     "loops": {
       "lede": "Run the same prompt round after round until the work checks out.",
@@ -3544,7 +3546,9 @@
       "summary": "Up to {{rounds}} rounds. Stops earlier when a configured condition or time limit is reached.",
       "no_check": "No check command: completion will be controlled by the round or time limit.",
       "review": "Review loop",
-      "edit": "Edit configuration"
+      "edit": "Edit configuration",
+      "auto_resume": "再起動後に自動で再開",
+      "auto_resume_hint": "ラウンドの途中でアプリが終了した場合、そのラウンドがまだフォルダーに書き込んでいなければ、次に開いたときに Loop が続行します。"
     },
     "limits": {
       "title": "Limits strip",
@@ -3723,7 +3727,9 @@
       "ask_job_desc": "0 にするとジョブ自体の制限時間まで待ちます。",
       "notify_delay": "通知までの時間 (秒)",
       "notify_delay_desc": "この時間を過ぎても未回答の質問はシステム通知になります。それより早く回答すれば通知されません。",
-      "offline": "保存できませんでした: バックエンドが応答しません。"
+      "offline": "保存できませんでした: バックエンドが応答しません。",
+      "auto_resume": "再起動後に自動で再開",
+      "auto_resume_desc": "アプリが終了したりエージェントが応答しなくなったりしたとき、専用の worktree で動いていたジョブや読み取りだけのジョブは自動で再開します。セッションを引き継ぎ、何かを繰り返す前に完了済みの内容を確認するよう指示されます。フォルダーに書き込んだジョブは引き続きあなたを待ちます。ジョブや Loop ごとに変更できます。"
     },
     "central": {
       "agentkit": {

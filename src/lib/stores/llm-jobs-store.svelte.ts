@@ -72,8 +72,17 @@ export type Job = {
   state_seq?: number;
   /** When the user last opened the job (epoch ms). */
   seen_ms?: number | null;
-  /** Why a failed job failed: `stalled`, `no_start`, `deadline`, `limit`, `ask_expired`. */
+  /**
+   * Why a failed job failed: `stalled`, `no_start`, `deadline`, `limit`,
+   * `ask_expired`; an interrupted one: `app_restart`.
+   */
   failure_reason?: string | null;
+  /** The CLI session `--resume` continues (3.1). */
+  session_id?: string | null;
+  /** How many times the host started it again by itself (3.1). */
+  attempt?: number;
+  /** This job's own "resume by itself after a restart"; null = the setting. */
+  auto_resume?: boolean | null;
   /** This job's own time limit in minutes; null = the setting. */
   deadline_min?: number | null;
   /** The deadline applied when it started (epoch ms). */
@@ -160,6 +169,8 @@ export type LoopDef = {
   finished_ms: number | null;
   last_check: string | null;
   stop_reason: string | null;
+  /** Resume by itself after a restart (3.1); null = the setting. */
+  auto_resume?: boolean | null;
 };
 
 export type Trigger = {
@@ -309,6 +320,8 @@ export type LoopInput = {
   max_rounds?: number | null;
   max_minutes?: number | null;
   check_command?: string | null;
+  /** Resume by itself after a restart (3.1); omitted = the setting. */
+  auto_resume?: boolean | null;
 };
 
 export type TriggerInput = {

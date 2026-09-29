@@ -251,6 +251,10 @@ pub struct StartSpec {
     pub deadline_min: Option<u32>,
     #[serde(default)]
     pub resume_of: Option<String>,
+    /// Resume by itself after a restart or a stall (3.1); `None` = the
+    /// person's setting.
+    #[serde(default)]
+    pub auto_resume: Option<bool>,
 }
 
 fn short(v: &Option<String>, max: usize, what: &str) -> Result<(), CmdError> {
@@ -830,6 +834,8 @@ struct AgentRunArgs {
     deadline_min: Option<u32>,
     #[serde(default)]
     resume_of: Option<String>,
+    #[serde(default)]
+    auto_resume: Option<bool>,
 }
 
 #[derive(Deserialize)]
@@ -949,6 +955,7 @@ pub async fn mcp_call(
                 "title": a.title, "purpose": a.purpose, "model": a.model, "effort": a.effort,
                 "run_mode": a.run_mode, "isolation": a.isolation, "base": a.base,
                 "budget_usd": a.budget_usd, "deadline_min": a.deadline_min, "resume_of": a.resume_of,
+                "auto_resume": a.auto_resume,
             });
             let (r, replayed) = cmds.execute(&c, &body).map_err(mcp_err)?;
             Ok(json!({

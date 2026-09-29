@@ -3398,7 +3398,8 @@
         "no_start": "已停止：智能体从未启动",
         "deadline": "已停止：达到时间上限",
         "limit": "已停止：达到预算上限",
-        "ask_expired": "有一个问题无人回答"
+        "ask_expired": "有一个问题无人回答",
+        "app_restart": "此任务运行期间应用已关闭"
       },
       "queue": {
         "title": "队列",
@@ -3509,7 +3510,8 @@
         "discard_work": "丢弃工作",
         "discard_confirm": "丢弃此任务的工作？其 worktree 和分支 {{branch}} 将被删除。",
         "discarded": "工作已丢弃。分支 {{branch}} 原指向 {{tip}}。"
-      }
+      },
+      "resumed_by_itself": "已自动继续（{{count}} 次）"
     },
     "loops": {
       "lede": "Run the same prompt round after round until the work checks out.",
@@ -3544,7 +3546,9 @@
       "summary": "Up to {{rounds}} rounds. Stops earlier when a configured condition or time limit is reached.",
       "no_check": "No check command: completion will be controlled by the round or time limit.",
       "review": "Review loop",
-      "edit": "Edit configuration"
+      "edit": "Edit configuration",
+      "auto_resume": "重启后自动继续",
+      "auto_resume_hint": "如果应用在某一轮中途关闭，Loop 会在重新打开后继续，除非那一轮已经写入了你的文件夹。"
     },
     "limits": {
       "title": "Limits strip",
@@ -3723,7 +3727,9 @@
       "ask_job_desc": "填 0 表示一直等到任务自身的时间上限。",
       "notify_delay": "多久后通知（秒）",
       "notify_delay_desc": "超过这个时间仍未回答的问题会变成系统通知。更早回答的不会通知。",
-      "offline": "无法保存：后端没有响应。"
+      "offline": "无法保存：后端没有响应。",
+      "auto_resume": "重启后自动继续",
+      "auto_resume_desc": "当应用关闭或智能体没有响应时，在自己的 worktree 中运行或只读取文件的任务会自动重新开始：它会继续原来的会话，并被要求在重复任何操作前先检查已完成的内容。写入过你的文件夹的任务仍会等你处理。单个任务或 Loop 可以另行设置。"
     },
     "central": {
       "agentkit": {

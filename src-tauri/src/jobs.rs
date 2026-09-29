@@ -173,6 +173,33 @@ pub struct Job {
     /// `model`, `effort`, `budget_usd`, `resume_of`.
     #[serde(default)]
     pub origin: Option<Value>,
+    /// The CLI's own session id, copied onto the row at the first event of
+    /// the turn that names it (3.1, S16), not at the end: a job the app
+    /// loses mid-turn still knows which session `--resume` continues.
+    #[serde(default)]
+    pub session_id: Option<String>,
+    /// The agent process of the turn running now, with the start token the
+    /// OS gives it ([`omniget_core::core::process::start_token`]): on boot a
+    /// process that is still alive is stopped before anything runs again,
+    /// and a pid the OS reused (another start token) is never touched.
+    /// Cleared when the turn ends.
+    #[serde(default)]
+    pub pid: Option<u32>,
+    #[serde(default)]
+    pub pid_start: Option<u64>,
+    /// How many times the host started this job again by itself after an
+    /// infrastructure failure (3.1); at most [`AUTO_RESUME_MAX`].
+    #[serde(default)]
+    pub attempt: u32,
+    /// This job's own answer to "resume by itself after a restart";
+    /// `None` = the setting `llm.auto_resume` (a Loop round takes its Loop's).
+    #[serde(default)]
+    pub auto_resume: Option<bool>,
+    /// A tool that can change something (anything but reading and
+    /// searching) started in one of the job's turns: a job that ran in the
+    /// shared folder is then never re-run by itself.
+    #[serde(default)]
+    pub side_effects: bool,
 }
 
 /// How a job is placed in its folder (2.3). `Auto` is the default of a job
@@ -420,6 +447,18 @@ pub struct LoopDef {
     /// Time spent inside rounds (the minute budget of a scheduled loop).
     #[serde(default)]
     pub active_ms: u64,
+    /// "Resume by itself after a restart" for this Loop (3.1); `None` = the
+    /// setting `llm.auto_resume`.
+    #[serde(default)]
+    pub auto_resume: Option<bool>,
+    /// The host restarted this Loop by itself: the next round starts with
+    /// the "check before repeating" note. Cleared once that round starts.
+    #[serde(default)]
+    pub restarted: bool,
+    /// Restarts by the host since the last round that finished; at most
+    /// [`AUTO_RESUME_MAX`] in a row.
+    #[serde(default)]
+    pub auto_restarts: u32,
 }
 
 /// One step of a running playbook.
@@ -756,6 +795,14 @@ pub fn ensure_schema(db: &Connection, now_ms: i64) -> Result<(), String> {
         "run_mode TEXT",
         "outcome TEXT",
         "origin TEXT",
+        // Resume after a restart (3.1): the CLI session, the process of the
+        // turn in flight, attempts, the per-job switch, whether it wrote.
+        "session_id TEXT",
+        "pid INTEGER",
+        "pid_start INTEGER",
+        "attempt INTEGER NOT NULL DEFAULT 0",
+        "auto_resume INTEGER",
+        "side_effects INTEGER NOT NULL DEFAULT 0",
     ] {
         let _ = db.execute(&format!("ALTER TABLE jobs ADD COLUMN {column}"), []);
     }
@@ -942,10 +989,18 @@ fn row_to_job(r: &rusqlite::Row<'_>) -> rusqlite::Result<Job> {
         origin: r
             .get::<_, Option<String>>(41)?
             .and_then(|s| serde_json::from_str(&s).ok()),
+        session_id: r.get(42)?,
+        pid: r
+            .get::<_, Option<i64>>(43)?
+            .and_then(|v| u32::try_from(v).ok()),
+        pid_start: r.get::<_, Option<i64>>(44)?.map(|v| v as u64),
+        attempt: r.get::<_, Option<i64>>(45)?.unwrap_or(0).max(0) as u32,
+        auto_resume: r.get::<_, Option<i64>>(46)?.map(|v| v != 0),
+        side_effects: r.get::<_, Option<i64>>(47)?.unwrap_or(0) != 0,
     })
 }
 
-const JOB_COLS: &str = "id, kind, agent_id, conversation_id, prompt, workspace, state, loop_id, trigger_id, request_id, created_ms, started_ms, finished_ms, result, error, log, usage, state_seq, seen_ms, failure_reason, deadline_min, deadline_ms, wait_reason, diff_files, additions, deletions, diff_clipped, diff_unavailable, spec, playbook_id, isolation, base_ref, worktree_path, branch, base_oid, head_oid, proof, title, owner, run_mode, outcome, origin";
+const JOB_COLS: &str = "id, kind, agent_id, conversation_id, prompt, workspace, state, loop_id, trigger_id, request_id, created_ms, started_ms, finished_ms, result, error, log, usage, state_seq, seen_ms, failure_reason, deadline_min, deadline_ms, wait_reason, diff_files, additions, deletions, diff_clipped, diff_unavailable, spec, playbook_id, isolation, base_ref, worktree_path, branch, base_oid, head_oid, proof, title, owner, run_mode, outcome, origin, session_id, pid, pid_start, attempt, auto_resume, side_effects";
 
 impl Jobs {
     pub(crate) fn db(&self) -> std::sync::MutexGuard<'_, Connection> {
@@ -1101,7 +1156,13 @@ impl Jobs {
                     job.owner,
                     job.run_mode,
                     job.outcome.as_ref().map(|o| o.to_string()),
-                    job.origin.as_ref().map(|o| o.to_string())
+                    job.origin.as_ref().map(|o| o.to_string()),
+                    job.session_id,
+                    job.pid.map(i64::from),
+                    job.pid_start.map(|v| v as i64),
+                    i64::from(job.attempt),
+                    job.auto_resume.map(i64::from),
+                    i64::from(job.side_effects)
                 ],
             )
             .map_err(|_| "JOB_STORAGE_UNAVAILABLE".to_owned())?;
@@ -1382,6 +1443,7 @@ impl Jobs {
         job.title = s.title.clone();
         job.owner = Some(owner.to_string());
         job.run_mode = s.run_mode.clone();
+        job.auto_resume = s.auto_resume;
         job.origin = Some(json!({
             "command_id": s.command_id,
             "purpose": s.purpose,
@@ -1763,6 +1825,9 @@ impl Jobs {
         }
         job.state = "running".into();
         job.started_ms = Some(now_ms());
+        // The process of an earlier attempt is not this one (3.1).
+        job.pid = None;
+        job.pid_start = None;
         // A mission brings its own guard; every other background job gets the
         // default deadline (D4: a stuck run, Loop round or trigger can no
         // longer hold a slot until the app closes).
@@ -1887,16 +1952,29 @@ impl Jobs {
                 )
             };
         let mut tick = tokio::time::interval(std::time::Duration::from_secs(1));
+        let mut first_event = true;
         loop {
             tokio::select! {
                 event = stream.next() => {
                     let Some(event) = event else { break };
                     self.touch(&job.id);
+                    // The session and the process go on the row at the
+                    // first event, not at the end (3.1).
+                    if first_event {
+                        first_event = false;
+                        if self.capture_process(&mut job, &request_id, &conv) && self.save_job_checked(&job).is_err() {
+                            storage_failed = true;
+                            cancel.cancel();
+                        }
+                    }
                     self.llm.note_event(&job.agent_id, &event);
                     match event {
                         TurnEvent::Finished { .. } => saw_finished = true,
                         TurnEvent::TextDelta { text: t } => text.push_str(&t),
                         TurnEvent::ToolCallStart { name, .. } => {
+                            if tool_may_write(&name) {
+                                job.side_effects = true;
+                            }
                             job.log.push_str(&format!("→ {name}\n"));
                             job.log = clip(&job.log, LOG_MAX);
                             if self.save_job_checked(&job).is_err() { storage_failed = true; cancel.cancel(); }
@@ -1958,6 +2036,12 @@ impl Jobs {
                     if self.save_job_checked(&job).is_err() { storage_failed = true; cancel.cancel(); }
                 }
                 _ = tick.tick() => {
+                    // A session named after the first event (the CLI's init
+                    // line comes a moment after the spawn) still lands.
+                    if self.capture_process(&mut job, &request_id, &conv) && self.save_job_checked(&job).is_err() {
+                        storage_failed = true;
+                        cancel.cancel();
+                    }
                     if let (Some(deadline), None) = (guard.as_ref().and_then(|g| g.deadline_ms), &limit_hit) {
                         if now_ms() > deadline {
                             let why = guard.as_ref().map(|g| g.deadline_reason.clone()).filter(|r| !r.is_empty()).unwrap_or_else(|| "the time limit was reached".into());
@@ -1997,6 +2081,9 @@ impl Jobs {
             cancel.cancel();
             return None;
         }
+        // The turn's process is over (3.1).
+        job.pid = None;
+        job.pid_start = None;
         job.state = if limit_hit.is_some() {
             "failed"
         } else if cancel.is_cancelled() {
@@ -2056,6 +2143,18 @@ impl Jobs {
             }
         }
         self.save_job_checked(&job).ok()?;
+        // Stopped by the watchdog: the host's problem, not the agent's. When
+        // asked, and when it is safe (3.1), the job goes again by itself.
+        if let Some(reason) = job
+            .failure_reason
+            .as_deref()
+            .and_then(FailureReason::parse)
+            .filter(|r| r.is_infrastructure())
+        {
+            if job.loop_id.is_none() && self.auto_resume(&mut job, reason, None) {
+                return Some(job);
+            }
+        }
         if let Some(tid) = job.trigger_id.clone() {
             // Routines keep their own rule (only a changed result, muted).
             self.notify_routine(&tid, &job);
@@ -2706,6 +2805,8 @@ impl Jobs {
         }
         def.rounds_done = 0;
         def.spent_usd = 0.0;
+        def.restarted = false;
+        def.auto_restarts = 0;
         def.active_ms = 0;
         def.next_round_ms = None;
         def.created_ms = now_ms();
@@ -2867,7 +2968,7 @@ impl Jobs {
                 }
             }
             let round = l.rounds_done + 1;
-            let prompt = if round == 1 {
+            let task = if round == 1 {
                 match &l.check_command {
                     Some(c) if !c.trim().is_empty() => format!("{}\n\nYou are done when this command exits 0: `{c}`. Run it yourself before you stop.", l.prompt),
                     _ => l.prompt.clone(),
@@ -2877,6 +2978,13 @@ impl Jobs {
                     Some(out) => format!("Round {round}. The check still fails:\n```\n{out}\n```\nKeep working on the task: {}", l.prompt),
                     None => format!("Round {round}. Continue the task; say DONE on a line of its own when nothing is left. Task: {}", l.prompt),
                 }
+            };
+            // Restarted by the host (3.1): the round in flight was stopped
+            // and its result is unknown.
+            let prompt = if l.restarted {
+                format!("This Loop was interrupted (the app restarted or the agent went silent) and the round in flight was stopped. Check what is already done before changing anything, and do not repeat an action that already happened.\n\n{task}")
+            } else {
+                task
             };
             let mut job = match self.new_job(
                 "loop",
@@ -2896,6 +3004,10 @@ impl Jobs {
             job.deadline_min = l.deadline_min;
             job.spec = l.spec.clone();
             self.save_job(&job);
+            if l.restarted {
+                l.restarted = false;
+                self.save_loop(&l);
+            }
             let round_started = now_ms();
             let done = self.run_job(&job.id, None).await;
             l.rounds_done = round;
@@ -2915,12 +3027,38 @@ impl Jobs {
                     break;
                 }
                 "failed" => {
+                    // A round the watchdog stopped is the host's problem:
+                    // when the Loop asked for it and nothing was written in
+                    // the shared folder, the round goes again (3.1).
+                    if let Some(reason) = done
+                        .failure_reason
+                        .as_deref()
+                        .and_then(FailureReason::parse)
+                    {
+                        let wanted = l.auto_resume.unwrap_or_else(|| {
+                            crate::storage::config::load_settings(&self.app)
+                                .llm
+                                .auto_resume
+                        });
+                        let v = auto_resume_verdict(&done, wanted, reason, None, l.auto_restarts);
+                        if v == ResumeVerdict::Resume {
+                            let mut row = done.clone();
+                            row.log
+                                .push_str("↻ the Loop runs this round again by itself\n");
+                            self.save_job(&row);
+                            l.auto_restarts += 1;
+                            l.rounds_done = round - 1;
+                            l.restarted = true;
+                            self.save_loop(&l);
+                            continue;
+                        }
+                    }
                     // Budget cut, no provider, no candidate: another round would fail the same way.
                     l.state = "failed".into();
                     l.stop_reason = done.error.clone();
                     break;
                 }
-                _ => {}
+                _ => l.auto_restarts = 0,
             }
             let check = self.run_check(&l).await;
             if let (Some((ok, out)), Some(cmd)) = (&check, l.check_command.as_deref()) {
@@ -3334,6 +3472,9 @@ impl Jobs {
                 )
             })
             .collect();
+        // Rounds of a Loop that were in flight: decided with their Loop.
+        let mut rounds: HashMap<String, (Job, Option<omniget_core::core::process::StaleProcess>)> =
+            HashMap::new();
         for stale in open {
             let Some(mut job) = self.job(&stale.id) else {
                 continue;
@@ -3357,18 +3498,79 @@ impl Jobs {
                 });
                 continue;
             }
-            // Dispatched (or part of a Loop): the result is unknown. Never
-            // re-sent by itself; a person resumes, marks done or discards.
+            // Dispatched (or part of a Loop): the result is unknown. Its old
+            // process, if it outlived the app, is stopped first (3.1).
+            let process = self.reap(&mut job);
             job.state = "interrupted".into();
             job.error =
                 Some("interrupted: the app closed during this task; its result is unknown".into());
+            job.failure_reason = Some(FailureReason::AppRestart.as_str().into());
             job.finished_ms = Some(now_ms());
-            self.save_job(&job);
+            if let Some(lid) = job.loop_id.clone() {
+                self.save_job(&job);
+                rounds.insert(lid, (job, process));
+                continue;
+            }
+            // Never re-sent by itself unless it asked to be and it is safe
+            // (3.1); otherwise a person resumes, marks done or discards.
+            if !self.auto_resume(&mut job, FailureReason::AppRestart, process) {
+                self.save_job(&job);
+            }
         }
+        let setting = crate::storage::config::load_settings(&self.app)
+            .llm
+            .auto_resume;
         for mut l in self.loops().into_iter().filter(|l| l.state == "running") {
             l.state = "interrupted".into();
             l.stop_reason = Some("app_closed".into());
-            self.save_loop(&l);
+            let wanted = l.auto_resume.unwrap_or(setting);
+            // Between two rounds nothing was in flight; a round that was
+            // follows the rule of a job (worktree or no write, process gone).
+            let verdict = match rounds.remove(&l.id) {
+                Some((mut round, process)) => {
+                    let v = auto_resume_verdict(
+                        &round,
+                        wanted,
+                        FailureReason::AppRestart,
+                        process,
+                        l.auto_restarts,
+                    );
+                    if v == ResumeVerdict::Resume {
+                        // The Loop runs this round again; this row is done.
+                        round.state = "failed".into();
+                        round.error = Some(
+                            "the app closed during this round; the Loop ran it again by itself"
+                                .into(),
+                        );
+                        round
+                            .log
+                            .push_str("↻ the Loop ran this round again by itself\n");
+                        self.save_job(&round);
+                    } else if wanted {
+                        round.log.push_str(&format!(
+                            "· the Loop did not resume by itself: {}\n",
+                            v.as_str()
+                        ));
+                        self.save_job(&round);
+                    }
+                    v
+                }
+                None if !wanted => ResumeVerdict::Off,
+                None if l.auto_restarts >= AUTO_RESUME_MAX => ResumeVerdict::Attempts,
+                None => ResumeVerdict::Resume,
+            };
+            if verdict == ResumeVerdict::Resume {
+                l.state = "running".into();
+                l.stop_reason = None;
+                l.restarted = true;
+                l.auto_restarts += 1;
+                self.save_loop(&l);
+                let this = self.clone();
+                let lid = l.id.clone();
+                tauri::async_runtime::spawn(async move { this.run_loop(lid).await });
+            } else {
+                self.save_loop(&l);
+            }
         }
         // A playbook resumes at the step that was running (it starts again).
         for mut p in self
@@ -3384,6 +3586,132 @@ impl Jobs {
             let this = self.clone();
             tauri::async_runtime::spawn(async move { this.run_playbook(p.id).await });
         }
+    }
+
+    // ── resume after a restart (3.1) ─────────────────────────────────
+
+    /// Copies what the run registry knows about the turn in flight onto the
+    /// job: the CLI's session id and the pid of its process, with the OS
+    /// start token that tells it from a later process with the same pid.
+    /// `true` when something changed.
+    fn capture_process(&self, job: &mut Job, request_id: &str, conversation: &str) -> bool {
+        let Some(reg) = omniget_core::core::assist::runs::active() else {
+            return false;
+        };
+        let mut changed = false;
+        if job.pid.is_none() {
+            if let Some(pid) = reg
+                .run(request_id)
+                .and_then(|r| r.pid)
+                .and_then(|p| u32::try_from(p).ok())
+            {
+                job.pid = Some(pid);
+                job.pid_start = omniget_core::core::process::start_token(pid);
+                changed = true;
+            }
+        }
+        let handle = reg
+            .session(conversation, &job.agent_id)
+            .and_then(|s| s.provider_handle);
+        if handle.is_some() && handle != job.session_id {
+            job.session_id = handle;
+            changed = true;
+        }
+        changed
+    }
+
+    /// The process a job's turn had when the app died: stopped (with its
+    /// tree) if it still runs, so a new run never runs beside it. Written to
+    /// the job's log; `None` when nothing was recorded.
+    fn reap(&self, job: &mut Job) -> Option<omniget_core::core::process::StaleProcess> {
+        use omniget_core::core::process::{stop_stale, StaleProcess};
+        let (pid, start) = (job.pid?, job.pid_start?);
+        let out = stop_stale(pid, start);
+        match out {
+            StaleProcess::Killed => job.log.push_str(&format!(
+                "↻ the agent process of the last session (pid {pid}) was still running: stopped, so a new run never runs beside it\n"
+            )),
+            StaleProcess::Survived => job.log.push_str(&format!(
+                "! the agent process of the last session (pid {pid}) is still running and could not be stopped\n"
+            )),
+            StaleProcess::Gone | StaleProcess::NotOurs => {}
+        }
+        if out != StaleProcess::Survived {
+            job.pid = None;
+            job.pid_start = None;
+        }
+        Some(out)
+    }
+
+    /// Whether this job wants to come back by itself: its own switch, else
+    /// the setting.
+    fn wants_auto_resume(&self, job: &Job) -> bool {
+        job.auto_resume.unwrap_or_else(|| {
+            crate::storage::config::load_settings(&self.app)
+                .llm
+                .auto_resume
+        })
+    }
+
+    /// Starts a lost job again by itself when [`auto_resume_verdict`] says
+    /// so, with the note and `--resume` of its conversation; otherwise
+    /// leaves it as it is. The verdict goes to the log either way. `true`
+    /// when it was started again.
+    fn auto_resume(
+        self: &Arc<Self>,
+        job: &mut Job,
+        reason: FailureReason,
+        process: Option<omniget_core::core::process::StaleProcess>,
+    ) -> bool {
+        let wanted = self.wants_auto_resume(job);
+        let verdict = auto_resume_verdict(job, wanted, reason, process, job.attempt);
+        if verdict != ResumeVerdict::Resume {
+            if wanted && verdict != ResumeVerdict::NotThisKind {
+                job.log.push_str(&format!(
+                    "· not resumed by itself ({}): {}\n",
+                    reason.as_str(),
+                    verdict.as_str()
+                ));
+                self.save_job(job);
+            }
+            return false;
+        }
+        job.attempt += 1;
+        job.log.push_str(&format!(
+            "↻ resumed by itself after {} (attempt {} of {AUTO_RESUME_MAX}){}\n",
+            reason.as_str(),
+            job.attempt,
+            job.session_id
+                .as_deref()
+                .map(|s| format!(", session {s}"))
+                .unwrap_or_default()
+        ));
+        job.state = "queued".into();
+        job.error = None;
+        job.finished_ms = None;
+        job.failure_reason = Some(reason.as_str().into());
+        self.save_job(job);
+        let note = resume_note(reason, &job.prompt);
+        let this = self.clone();
+        let jid = job.id.clone();
+        tauri::async_runtime::spawn(async move {
+            // After a stall the run that failed is still unwinding (its
+            // cancel token and gate slot go when it returns): start once it
+            // is gone, so its cleanup never takes the new run's token.
+            for _ in 0..200 {
+                let busy = this
+                    .cancels
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .contains_key(&jid);
+                if !busy {
+                    break;
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            }
+            this.run_job(&jid, Some(note)).await;
+        });
+        true
     }
 
     // ── explicit recovery ────────────────────────────────────────────
@@ -3404,10 +3732,7 @@ impl Jobs {
         job.error = None;
         job.finished_ms = None;
         self.save_job(&job);
-        let note = format!(
-            "The app closed in the middle of this task and its result is unknown. Check what is already done before changing anything, and do not repeat an action that already happened. Task: {}",
-            job.prompt
-        );
+        let note = resume_note(FailureReason::AppRestart, &job.prompt);
         let this = self.clone();
         let jid = job.id.clone();
         tauri::async_runtime::spawn(async move {
@@ -4267,6 +4592,172 @@ pub fn failure_reason_of(error: &str) -> Option<&'static str> {
     }
 }
 
+/// Why a job stopped, typed (3.1, S16). The row keeps the word
+/// ([`FailureReason::as_str`]) so older rows and the UI's labels stay as
+/// they are; what matters here is which of them are the host's fault.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FailureReason {
+    /// The app closed (or was killed) while the job ran.
+    AppRestart,
+    /// The watchdog heard nothing for too long.
+    Stalled,
+    /// The CLI never started talking.
+    NoStart,
+    Deadline,
+    Limit,
+    AskExpired,
+}
+
+impl FailureReason {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            FailureReason::AppRestart => "app_restart",
+            FailureReason::Stalled => "stalled",
+            FailureReason::NoStart => "no_start",
+            FailureReason::Deadline => "deadline",
+            FailureReason::Limit => "limit",
+            FailureReason::AskExpired => "ask_expired",
+        }
+    }
+
+    pub fn parse(s: &str) -> Option<Self> {
+        Some(match s {
+            "app_restart" => FailureReason::AppRestart,
+            "stalled" => FailureReason::Stalled,
+            "no_start" => FailureReason::NoStart,
+            "deadline" => FailureReason::Deadline,
+            "limit" => FailureReason::Limit,
+            "ask_expired" => FailureReason::AskExpired,
+            _ => return None,
+        })
+    }
+
+    /// The run died around the agent, not because of what it did: the app
+    /// went away, or the process went silent. A deadline, a budget or an
+    /// unanswered question are verdicts on the job; running it again would
+    /// meet them again.
+    pub fn is_infrastructure(self) -> bool {
+        matches!(
+            self,
+            FailureReason::AppRestart | FailureReason::Stalled | FailureReason::NoStart
+        )
+    }
+}
+
+/// Runs the host starts by itself for one job (or one Loop between two
+/// finished rounds) before it leaves the rest to a person: a crash that
+/// repeats is not retried forever.
+pub const AUTO_RESUME_MAX: u32 = 2;
+
+/// Whether a tool call can change something. Only reading and searching is
+/// known to be harmless; anything else, an unknown MCP tool included, counts
+/// as a write, so a doubt never re-runs a job in the shared folder.
+pub fn tool_may_write(name: &str) -> bool {
+    const READS: &[&str] = &[
+        // Claude Code / Codex
+        "read",
+        "glob",
+        "grep",
+        "ls",
+        "webfetch",
+        "websearch",
+        "todowrite",
+        "todoread",
+        "notebookread",
+        "bashoutput",
+        "exitplanmode",
+        // OmniGet's own tools
+        "kb_search",
+        "web_search",
+        "web_fetch",
+    ];
+    let n = name.trim().to_ascii_lowercase();
+    !(READS.contains(&n.as_str()) || code_tools::READ_TOOLS.contains(&n.as_str()))
+}
+
+/// Why the host does or does not start a lost job again by itself (3.1).
+/// Written to the job's log either way, so "why did it (not) come back" has
+/// an answer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ResumeVerdict {
+    Resume,
+    /// Neither the job, its Loop nor the setting asked for it.
+    Off,
+    /// A deadline, a budget, an unanswered question: not the host's fault.
+    NotInfrastructure,
+    /// Chat turns, missions, playbook steps and catalog tool runs have their
+    /// own owners.
+    NotThisKind,
+    Attempts,
+    /// It started a tool that writes, in the folder the person works in.
+    WroteInSharedFolder,
+    /// Its old process could not be stopped: never two at once.
+    ProcessAlive,
+}
+
+impl ResumeVerdict {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            ResumeVerdict::Resume => "resume",
+            ResumeVerdict::Off => "off",
+            ResumeVerdict::NotInfrastructure => "not_infrastructure",
+            ResumeVerdict::NotThisKind => "not_this_kind",
+            ResumeVerdict::Attempts => "attempts",
+            ResumeVerdict::WroteInSharedFolder => "wrote_in_shared_folder",
+            ResumeVerdict::ProcessAlive => "process_alive",
+        }
+    }
+}
+
+/// The rule of 3.1: again with `--resume` only after an infrastructure
+/// failure, only when asked (`wanted`: the job's own switch, else its
+/// Loop's, else the setting), only for a job that ran in its own worktree
+/// or never started a tool that writes, never while its old process lives,
+/// and at most [`AUTO_RESUME_MAX`] times.
+pub fn auto_resume_verdict(
+    job: &Job,
+    wanted: bool,
+    reason: FailureReason,
+    process: Option<omniget_core::core::process::StaleProcess>,
+    attempts: u32,
+) -> ResumeVerdict {
+    use omniget_core::core::process::StaleProcess;
+    if !wanted {
+        return ResumeVerdict::Off;
+    }
+    if !reason.is_infrastructure() {
+        return ResumeVerdict::NotInfrastructure;
+    }
+    if !matches!(job.kind.as_str(), "run" | "trigger" | "loop")
+        || job.agent_id.starts_with(TOOL_PREFIX)
+        || job.playbook_id.is_some()
+        || (job.kind != "loop" && job.loop_id.is_some())
+    {
+        return ResumeVerdict::NotThisKind;
+    }
+    if process == Some(StaleProcess::Survived) {
+        return ResumeVerdict::ProcessAlive;
+    }
+    if attempts >= AUTO_RESUME_MAX {
+        return ResumeVerdict::Attempts;
+    }
+    if job.side_effects && job.worktree_path.is_none() {
+        return ResumeVerdict::WroteInSharedFolder;
+    }
+    ResumeVerdict::Resume
+}
+
+/// What a job run again by the host is told before its task.
+pub fn resume_note(reason: FailureReason, prompt: &str) -> String {
+    let why = match reason {
+        FailureReason::AppRestart => "The app closed in the middle of this task",
+        _ => "This task stopped because the agent went silent",
+    };
+    format!(
+        "{why} and its result is unknown. Check what is already done before changing anything, and do not repeat an action that already happened. Task: {prompt}"
+    )
+}
+
 /// D4: the deadline of a background job that has no guard of its own. A chat
 /// turn has a person in front of it; a mission brings its own guard.
 pub fn default_deadline_ms(kind: &str, started_ms: u64, deadline_min: u32) -> Option<u64> {
@@ -4331,6 +4822,12 @@ pub fn explain_view(
         "deadline_left_s": deadline.filter(|_| running).map(|d| secs(now_ms, d)),
         // Holds one of the parallel job slots right now.
         "slot": running,
+        // Resume after a restart (3.1): the session `--resume` continues,
+        // the host's own attempts, this job's switch, whether it wrote.
+        "session_id": job.session_id,
+        "attempt": job.attempt,
+        "auto_resume": job.auto_resume,
+        "side_effects": job.side_effects,
     });
     if let Some(pid) = pid.filter(|_| running) {
         v["pid"] = json!(pid);
@@ -6200,5 +6697,204 @@ mod proof_tests {
             other => panic!("{other:?}"),
         };
         assert_eq!(v["head_oid"], "abc");
+    }
+}
+
+#[cfg(test)]
+mod auto_resume_tests {
+    use super::*;
+    use omniget_core::core::process::StaleProcess;
+
+    fn job(kind: &str) -> Job {
+        Job {
+            id: "j1".into(),
+            kind: kind.into(),
+            agent_id: "coder".into(),
+            conversation_id: "c".into(),
+            prompt: "fix it".into(),
+            state: "interrupted".into(),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn only_the_hosts_failures_are_infrastructure() {
+        for r in [
+            FailureReason::AppRestart,
+            FailureReason::Stalled,
+            FailureReason::NoStart,
+        ] {
+            assert!(r.is_infrastructure(), "{r:?}");
+            assert_eq!(FailureReason::parse(r.as_str()), Some(r));
+        }
+        for r in [
+            FailureReason::Deadline,
+            FailureReason::Limit,
+            FailureReason::AskExpired,
+        ] {
+            assert!(!r.is_infrastructure(), "{r:?}");
+            assert_eq!(FailureReason::parse(r.as_str()), Some(r));
+        }
+        assert_eq!(FailureReason::parse("nope"), None);
+    }
+
+    #[test]
+    fn reading_and_searching_are_the_only_harmless_tools() {
+        for t in [
+            "Read",
+            "Glob",
+            "Grep",
+            "WebSearch",
+            "fs_read",
+            "fs_grep",
+            "TodoWrite",
+        ] {
+            assert!(!tool_may_write(t), "{t}");
+        }
+        for t in [
+            "Edit",
+            "Write",
+            "Bash",
+            "fs_edit",
+            "shell_exec",
+            "mcp__x__y",
+            "Task",
+        ] {
+            assert!(tool_may_write(t), "{t}");
+        }
+    }
+
+    /// The rule of 3.1, one condition at a time.
+    #[test]
+    fn a_lost_job_comes_back_only_when_asked_safe_and_not_too_often() {
+        let r = FailureReason::AppRestart;
+        let clean = job("run");
+        assert_eq!(
+            auto_resume_verdict(&clean, false, r, None, 0),
+            ResumeVerdict::Off
+        );
+        assert_eq!(
+            auto_resume_verdict(&clean, true, r, None, 0),
+            ResumeVerdict::Resume
+        );
+        assert_eq!(
+            auto_resume_verdict(&clean, true, FailureReason::Deadline, None, 0),
+            ResumeVerdict::NotInfrastructure
+        );
+        assert_eq!(
+            auto_resume_verdict(&clean, true, FailureReason::Stalled, None, 0),
+            ResumeVerdict::Resume
+        );
+        // Wrote in the shared folder: never again by itself…
+        let mut wrote = job("run");
+        wrote.side_effects = true;
+        assert_eq!(
+            auto_resume_verdict(&wrote, true, r, None, 0),
+            ResumeVerdict::WroteInSharedFolder
+        );
+        // …but in its own worktree it may.
+        wrote.worktree_path = Some("/wt/j1".into());
+        assert_eq!(
+            auto_resume_verdict(&wrote, true, r, None, 0),
+            ResumeVerdict::Resume
+        );
+        // Never beside its old process.
+        assert_eq!(
+            auto_resume_verdict(&clean, true, r, Some(StaleProcess::Survived), 0),
+            ResumeVerdict::ProcessAlive
+        );
+        assert_eq!(
+            auto_resume_verdict(&clean, true, r, Some(StaleProcess::Killed), 0),
+            ResumeVerdict::Resume
+        );
+        assert_eq!(
+            auto_resume_verdict(&clean, true, r, None, AUTO_RESUME_MAX),
+            ResumeVerdict::Attempts
+        );
+        for kind in ["chat", "mission", "playbook"] {
+            assert_eq!(
+                auto_resume_verdict(&job(kind), true, r, None, 0),
+                ResumeVerdict::NotThisKind,
+                "{kind}"
+            );
+        }
+        let mut tool = job("run");
+        tool.agent_id = "tool:codex".into();
+        assert_eq!(
+            auto_resume_verdict(&tool, true, r, None, 0),
+            ResumeVerdict::NotThisKind
+        );
+        let mut round = job("loop");
+        round.loop_id = Some("l1".into());
+        assert_eq!(
+            auto_resume_verdict(&round, true, r, None, 0),
+            ResumeVerdict::Resume
+        );
+    }
+
+    #[test]
+    fn the_note_says_to_check_before_repeating() {
+        let n = resume_note(FailureReason::AppRestart, "fix it");
+        assert!(n.starts_with("The app closed in the middle of this task"));
+        assert!(n.contains("do not repeat an action that already happened"));
+        assert!(n.ends_with("Task: fix it"));
+        assert!(resume_note(FailureReason::Stalled, "x").contains("went silent"));
+    }
+
+    #[test]
+    fn the_resume_columns_round_trip_and_older_rows_read_as_before() {
+        let db = Connection::open_in_memory().unwrap();
+        ensure_schema(&db, 0).unwrap();
+        db.execute(
+            "INSERT INTO jobs (id, kind, agent_id, conversation_id, prompt, state, created_ms)
+             VALUES ('old', 'run', 'a', 'c', 'p', 'done', 1)",
+            [],
+        )
+        .unwrap();
+        db.execute(
+            "INSERT INTO jobs (id, kind, agent_id, conversation_id, prompt, state, created_ms, session_id, pid, pid_start, attempt, auto_resume, side_effects)
+             VALUES ('new', 'run', 'a', 'c', 'p', 'running', 1, 'sess-9', 4242, 1700000000123456, 1, 1, 1)",
+            [],
+        )
+        .unwrap();
+        let read = |id: &str| {
+            db.query_row(
+                &format!("SELECT {JOB_COLS} FROM jobs WHERE id=?1"),
+                [id],
+                row_to_job,
+            )
+            .unwrap()
+        };
+        let old = read("old");
+        assert_eq!(
+            (
+                old.session_id,
+                old.pid,
+                old.pid_start,
+                old.attempt,
+                old.auto_resume,
+                old.side_effects
+            ),
+            (None, None, None, 0, None, false)
+        );
+        let new = read("new");
+        assert_eq!(new.session_id.as_deref(), Some("sess-9"));
+        assert_eq!(new.pid, Some(4242));
+        assert_eq!(new.pid_start, Some(1_700_000_000_123_456));
+        assert_eq!(new.attempt, 1);
+        assert_eq!(new.auto_resume, Some(true));
+        assert!(new.side_effects);
+    }
+
+    #[test]
+    fn the_setting_is_off_by_default_and_a_loop_keeps_its_own_switch() {
+        assert!(!omniget_core::models::settings::LlmSettings::default().auto_resume);
+        let l: LoopDef =
+            serde_json::from_value(json!({"agent_id": "a", "prompt": "p", "auto_resume": true}))
+                .unwrap();
+        assert_eq!(l.auto_resume, Some(true));
+        assert!(!l.restarted);
+        let old: LoopDef = serde_json::from_value(json!({"agent_id": "a", "prompt": "p"})).unwrap();
+        assert_eq!(old.auto_resume, None);
     }
 }

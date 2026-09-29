@@ -3398,7 +3398,8 @@
         "no_start": "已停止：代理從未啟動",
         "deadline": "已停止：達到時間上限",
         "limit": "已停止：達到預算上限",
-        "ask_expired": "有一個問題無人回答"
+        "ask_expired": "有一個問題無人回答",
+        "app_restart": "此工作執行期間應用程式已關閉"
       },
       "queue": {
         "title": "佇列",
@@ -3509,7 +3510,8 @@
         "discard_work": "捨棄工作",
         "discard_confirm": "捨棄此工作的成果？其 worktree 和分支 {{branch}} 將被刪除。",
         "discarded": "工作已捨棄。分支 {{branch}} 原指向 {{tip}}。"
-      }
+      },
+      "resumed_by_itself": "已自動繼續（{{count}} 次）"
     },
     "loops": {
       "lede": "Run the same prompt round after round until the work checks out.",
@@ -3544,7 +3546,9 @@
       "summary": "Up to {{rounds}} rounds. Stops earlier when a configured condition or time limit is reached.",
       "no_check": "No check command: completion will be controlled by the round or time limit.",
       "review": "Review loop",
-      "edit": "Edit configuration"
+      "edit": "Edit configuration",
+      "auto_resume": "重新啟動後自動繼續",
+      "auto_resume_hint": "如果應用程式在某一輪中途關閉，Loop 會在重新開啟後繼續，除非那一輪已經寫入了你的資料夾。"
     },
     "limits": {
       "title": "Limits strip",
@@ -3723,7 +3727,9 @@
       "ask_job_desc": "填 0 表示一直等到工作本身的時間上限。",
       "notify_delay": "多久後通知（秒）",
       "notify_delay_desc": "超過這個時間仍未回答的問題會變成系統通知。較早回答的不會通知。",
-      "offline": "無法儲存：後端沒有回應。"
+      "offline": "無法儲存：後端沒有回應。",
+      "auto_resume": "重新啟動後自動繼續",
+      "auto_resume_desc": "當應用程式關閉或代理沒有回應時，在自己的 worktree 中執行或只讀取檔案的工作會自動重新開始：它會延續原本的工作階段，並被要求在重複任何動作前先檢查已完成的部分。寫入過你的資料夾的工作仍會等你處理。個別工作或 Loop 可以另行設定。"
     },
     "central": {
       "agentkit": {

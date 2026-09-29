@@ -3398,7 +3398,8 @@
         "no_start": "Σταμάτησε: ο πράκτορας δεν ξεκίνησε ποτέ",
         "deadline": "Σταμάτησε: έφτασε το χρονικό όριο",
         "limit": "Σταμάτησε: έφτασε το όριο προϋπολογισμού",
-        "ask_expired": "Μια ερώτηση έμεινε αναπάντητη"
+        "ask_expired": "Μια ερώτηση έμεινε αναπάντητη",
+        "app_restart": "Η εφαρμογή έκλεισε κατά τη διάρκεια αυτής της εργασίας"
       },
       "queue": {
         "title": "Ουρά",
@@ -3509,7 +3510,8 @@
         "discard_work": "Απόρριψη δουλειάς",
         "discard_confirm": "Απόρριψη της δουλειάς αυτής της εργασίας; Διαγράφονται το worktree και το branch {{branch}}.",
         "discarded": "Η δουλειά απορρίφθηκε. Το branch {{branch}} ήταν στο {{tip}}."
-      }
+      },
+      "resumed_by_itself": "Συνεχίστηκε αυτόματα ({{count}}×)"
     },
     "loops": {
       "lede": "Run the same prompt round after round until the work checks out.",
@@ -3544,7 +3546,9 @@
       "summary": "Up to {{rounds}} rounds. Stops earlier when a configured condition or time limit is reached.",
       "no_check": "No check command: completion will be controlled by the round or time limit.",
       "review": "Review loop",
-      "edit": "Edit configuration"
+      "edit": "Edit configuration",
+      "auto_resume": "Αυτόματη συνέχιση μετά από επανεκκίνηση",
+      "auto_resume_hint": "Αν η εφαρμογή κλείσει κατά τη διάρκεια ενός γύρου, το Loop συνεχίζει όταν ανοίξει ξανά, εκτός αν ο γύρος είχε ήδη γράψει στον φάκελό σας."
     },
     "limits": {
       "title": "Limits strip",
@@ -3723,7 +3727,9 @@
       "ask_job_desc": "Άφησε 0 για αναμονή μέχρι το χρονικό όριο της ίδιας της εργασίας.",
       "notify_delay": "Ειδοποίηση μετά από (δευτερόλεπτα)",
       "notify_delay_desc": "Μια ερώτηση που είναι ακόμη ανοιχτή μετά από αυτό γίνεται ειδοποίηση συστήματος. Αν απαντήσεις νωρίτερα, ποτέ.",
-      "offline": "Η αποθήκευση απέτυχε: το backend δεν απάντησε."
+      "offline": "Η αποθήκευση απέτυχε: το backend δεν απάντησε.",
+      "auto_resume": "Αυτόματη συνέχιση μετά από επανεκκίνηση",
+      "auto_resume_desc": "Όταν η εφαρμογή κλείνει ή ένας πράκτορας σωπαίνει, μια εργασία που έτρεχε στο δικό της worktree ή μόνο διάβαζε αρχεία ξεκινά ξανά μόνη της: συνεχίζει τη συνεδρία της και της ζητείται να ελέγξει τι έχει γίνει πριν επαναλάβει οτιδήποτε. Μια εργασία που έγραψε στον φάκελό σας σας περιμένει ακόμη. Μια εργασία ή ένα Loop μπορεί να ορίσει διαφορετικά."
     },
     "central": {
       "agentkit": {

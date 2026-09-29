@@ -698,8 +698,11 @@ impl AgentRuntime for CliRuntime {
                 };
                 match reg.open_session(&turn.conversation, &agent.id, &pins) {
                     Ok((sess, repinned)) => {
-                        if kind == CliKind::Claude && caps.native_resume && !repinned && has_history
-                        {
+                        // A named session resumes even with no reply in our
+                        // history: the app died mid-turn (3.1), and the CLI's
+                        // own transcript holds what the agent already did.
+                        let resumable = has_history || sess.provider_handle.is_some();
+                        if kind == CliKind::Claude && caps.native_resume && !repinned && resumable {
                             if let Some(handle) = sess.provider_handle.clone() {
                                 plan.resume = Some(handle);
                                 plan.resume_kind = crate::core::assist::runs::ResumeKind::Native;

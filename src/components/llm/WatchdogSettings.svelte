@@ -22,6 +22,8 @@
     /** null = until the job's own time limit. */
     ask_timeout_job_s: number | null;
     approval_notify_delay_s: number;
+    /** Resume by itself after a restart (3.1); off by default. */
+    auto_resume: boolean;
   };
 
   /**
@@ -29,7 +31,13 @@
    * backend stores seconds but the person types minutes (the label says the
    * unit; the deadline is already stored in minutes).
    */
-  type Field = { key: keyof Config; stem: string; minutes: boolean; min: number; allowZero?: boolean };
+  type Field = {
+    key: Exclude<keyof Config, "auto_resume">;
+    stem: string;
+    minutes: boolean;
+    min: number;
+    allowZero?: boolean;
+  };
 
   const FIELDS: Field[] = [
     { key: "turn_idle_timeout_s", stem: "idle", minutes: true, min: 1 },
@@ -62,6 +70,19 @@
   }
 
   onMount(refresh);
+
+  async function saveAutoResume(on: boolean) {
+    if (busy) return;
+    busy = true;
+    try {
+      config = await invoke<Config>("llm_watchdog_set", { config: { auto_resume: on } });
+      offline = false;
+    } catch {
+      offline = true;
+    } finally {
+      busy = false;
+    }
+  }
 
   async function save(field: Field, value: number) {
     if (busy || !Number.isFinite(value)) return;
@@ -103,6 +124,24 @@
           />
         </div>
       {/each}
+      <div class="group-row">
+        <div class="group-row-content">
+          <div class="group-row-title">{$t("llm.watchdog.auto_resume")}</div>
+          <div class="group-row-sub">{$t("llm.watchdog.auto_resume_desc")}</div>
+        </div>
+        <button
+          type="button"
+          class="toggle"
+          class:on={config.auto_resume}
+          role="switch"
+          aria-checked={config.auto_resume}
+          aria-label={$t("llm.watchdog.auto_resume")}
+          disabled={busy}
+          onclick={() => config && void saveAutoResume(!config.auto_resume)}
+        >
+          <span class="toggle-knob"></span>
+        </button>
+      </div>
     {/if}
     {#if offline}
       <p class="hint danger">{$t("llm.watchdog.offline")}</p>

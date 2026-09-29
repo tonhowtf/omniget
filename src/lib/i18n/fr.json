@@ -3398,7 +3398,8 @@
         "no_start": "Arrêté : l'agent n'a jamais démarré",
         "deadline": "Arrêté : durée maximale atteinte",
         "limit": "Arrêté : limite de budget atteinte",
-        "ask_expired": "Une question est restée sans réponse"
+        "ask_expired": "Une question est restée sans réponse",
+        "app_restart": "L’application s’est fermée pendant cette tâche"
       },
       "queue": {
         "title": "File d'attente",
@@ -3509,7 +3510,8 @@
         "discard_work": "Abandonner le travail",
         "discard_confirm": "Abandonner le travail de ce job ? Son worktree et la branche {{branch}} seront supprimés.",
         "discarded": "Travail abandonné. La branche {{branch}} était à {{tip}}."
-      }
+      },
+      "resumed_by_itself": "Repris tout seul ({{count}}×)"
     },
     "loops": {
       "lede": "Run the same prompt round after round until the work checks out.",
@@ -3544,7 +3546,9 @@
       "summary": "Up to {{rounds}} rounds. Stops earlier when a configured condition or time limit is reached.",
       "no_check": "No check command: completion will be controlled by the round or time limit.",
       "review": "Review loop",
-      "edit": "Edit configuration"
+      "edit": "Edit configuration",
+      "auto_resume": "Reprendre tout seul après un redémarrage",
+      "auto_resume_hint": "Si l’application se ferme pendant un tour, le Loop continue à sa réouverture, sauf si ce tour avait déjà écrit dans votre dossier."
     },
     "limits": {
       "title": "Limits strip",
@@ -3723,7 +3727,9 @@
       "ask_job_desc": "Laissez 0 pour attendre jusqu'à la durée maximale de la tâche.",
       "notify_delay": "Prévenir après (secondes)",
       "notify_delay_desc": "Une question encore ouverte après ce délai devient une notification système. Si vous répondez avant, jamais.",
-      "offline": "Impossible d'enregistrer : le backend n'a pas répondu."
+      "offline": "Impossible d'enregistrer : le backend n'a pas répondu.",
+      "auto_resume": "Reprendre tout seul après un redémarrage",
+      "auto_resume_desc": "Quand l’application se ferme ou qu’un agent devient muet, une tâche qui tournait dans son propre worktree ou qui n’a fait que lire des fichiers repart d’elle-même : elle poursuit sa session et doit vérifier ce qui est déjà fait avant de répéter quoi que ce soit. Une tâche qui a écrit dans votre dossier vous attend toujours. Une tâche ou un Loop peut en décider autrement."
     },
     "central": {
       "agentkit": {

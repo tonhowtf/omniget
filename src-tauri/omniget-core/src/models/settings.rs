@@ -103,6 +103,14 @@ pub struct LlmSettings {
     /// Jobs of one agent at the same time; `None` = only the global cap.
     #[serde(default)]
     pub jobs_max_per_agent: Option<u32>,
+    /// Resume by itself after a restart (3.1, S16): a job the app lost while
+    /// it ran starts again with `--resume` and a "check before repeating"
+    /// note, but only after an infrastructure failure (the app closed, the
+    /// watchdog stopped it) and only when it ran in its own worktree or had
+    /// not started a tool that writes. Off by default: every such run is an
+    /// action a person did not click; a job or Loop can say otherwise.
+    #[serde(default)]
+    pub auto_resume: bool,
 }
 
 fn default_prune_min_tokens() -> u32 {
@@ -156,6 +164,7 @@ impl Default for LlmSettings {
             approval_notify_delay_s: default_approval_notify_delay_s(),
             jobs_max_parallel: default_jobs_max_parallel(),
             jobs_max_per_agent: None,
+            auto_resume: false,
         }
     }
 }

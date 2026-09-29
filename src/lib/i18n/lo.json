@@ -3398,7 +3398,8 @@
         "no_start": "ຢຸດແລ້ວ: ເອເຈນບໍ່ເຄີຍເລີ່ມ",
         "deadline": "ຢຸດແລ້ວ: ຮອດເວລາສູງສຸດ",
         "limit": "ຢຸດແລ້ວ: ຮອດງົບປະມານສູງສຸດ",
-        "ask_expired": "ມີຄຳຖາມທີ່ບໍ່ມີຄົນຕອບ"
+        "ask_expired": "ມີຄຳຖາມທີ່ບໍ່ມີຄົນຕອບ",
+        "app_restart": "ແອັບປິດລະຫວ່າງວຽກນີ້"
       },
       "queue": {
         "title": "ຄິວ",
@@ -3509,7 +3510,8 @@
         "discard_work": "ຍົກເລີກວຽກ",
         "discard_confirm": "ຍົກເລີກວຽກຂອງວຽກນີ້ບໍ? worktree ແລະ branch {{branch}} ຈະຖືກລຶບ.",
         "discarded": "ຍົກເລີກວຽກແລ້ວ. branch {{branch}} ເຄີຍຢູ່ທີ່ {{tip}}."
-      }
+      },
+      "resumed_by_itself": "ສືບຕໍ່ເອງ ({{count}}×)"
     },
     "loops": {
       "lede": "Run the same prompt round after round until the work checks out.",
@@ -3544,7 +3546,9 @@
       "summary": "Up to {{rounds}} rounds. Stops earlier when a configured condition or time limit is reached.",
       "no_check": "No check command: completion will be controlled by the round or time limit.",
       "review": "Review loop",
-      "edit": "Edit configuration"
+      "edit": "Edit configuration",
+      "auto_resume": "ສືບຕໍ່ເອງຫຼັງຈາກເປີດຄືນ",
+      "auto_resume_hint": "ຖ້າແອັບປິດລະຫວ່າງຮອບ, Loop ຈະສືບຕໍ່ເມື່ອເປີດຄືນ, ເວັ້ນເສຍແຕ່ຮອບນັ້ນໄດ້ຂຽນໃສ່ໂຟນເດີຂອງທ່ານແລ້ວ."
     },
     "limits": {
       "title": "Limits strip",
@@ -3723,7 +3727,9 @@
       "ask_job_desc": "ປ່ອຍໄວ້ 0 ເພື່ອລໍຖ້າຈົນຮອດເວລາສູງສຸດຂອງວຽກເອງ.",
       "notify_delay": "ແຈ້ງເຕືອນຫຼັງຈາກ (ວິນາທີ)",
       "notify_delay_desc": "ຄຳຖາມທີ່ຍັງເປີດຢູ່ຫຼັງຈາກເວລານີ້ຈະກາຍເປັນການແຈ້ງເຕືອນຂອງລະບົບ. ຖ້າຕອບກ່ອນ ຈະບໍ່ມີການແຈ້ງເຕືອນ.",
-      "offline": "ບັນທຶກບໍ່ໄດ້: backend ບໍ່ຕອບ."
+      "offline": "ບັນທຶກບໍ່ໄດ້: backend ບໍ່ຕອບ.",
+      "auto_resume": "ສືບຕໍ່ເອງຫຼັງຈາກເປີດຄືນ",
+      "auto_resume_desc": "ເມື່ອແອັບປິດ ຫຼື ເອເຈນງຽບໄປ, ວຽກທີ່ແລ່ນໃນ worktree ຂອງມັນເອງ ຫຼື ພຽງແຕ່ອ່ານໄຟລ໌ ຈະເລີ່ມໃໝ່ເອງ: ມັນສືບຕໍ່ເຊສຊັນ ແລະ ຖືກບອກໃຫ້ກວດສິ່ງທີ່ເຮັດແລ້ວກ່ອນຈະເຮັດຫຍັງຊ້ຳ. ວຽກທີ່ຂຽນໃສ່ໂຟນເດີຂອງທ່ານຍັງລໍຖ້າທ່ານ. ວຽກ ຫຼື Loop ສາມາດກຳນົດເປັນຢ່າງອື່ນໄດ້."
     },
     "central": {
       "agentkit": {

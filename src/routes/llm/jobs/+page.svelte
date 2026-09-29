@@ -402,8 +402,11 @@
             <button type="button" class="row-head" aria-expanded={openId === job.id} onclick={() => toggle(job)}>
               <span class="pill {pickState(job.state)}">{job.state === "interrupted" ? $t("assist.runs.job_interrupted") : $t(`llm.jobs.state.${job.state}`)}</span>
               <span class="kind">{kindLabel(job.kind)}</span>
-              {#if job.state === "failed" && job.failure_reason}
+              {#if (job.state === "failed" || job.state === "interrupted") && job.failure_reason}
                 <span class="reason">{$t(`llm.jobs.failure.${job.failure_reason}`)}</span>
+              {/if}
+              {#if (job.attempt ?? 0) > 0}
+                <span class="reason">{$t("llm.jobs.resumed_by_itself", { count: job.attempt ?? 0 })}</span>
               {/if}
               {#if isWaiting(job)}
                 <span class="wait">{waitText(job)}</span>
