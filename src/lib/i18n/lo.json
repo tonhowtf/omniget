@@ -3332,7 +3332,8 @@
         "done": "Done",
         "failed": "Failed",
         "cancelled": "Cancelled",
-        "waiting_workspace": "ລໍຖ້າໂຟນເດີ"
+        "waiting_workspace": "ລໍຖ້າໂຟນເດີ",
+        "review": "ລໍຖ້າການກວດ"
       },
       "kind": {
         "run": "Run",
@@ -3426,6 +3427,15 @@
         "removed": "ລຶບ worktree ແລ້ວ.",
         "kept_branch": "ລຶບ worktree ແລ້ວ. branch {{branch}} ເກັບວຽກຂອງງານນີ້ໄວ້.",
         "saved": "ບັນທຶກ {{count}} ໄຟລ໌ທີ່ຍັງບໍ່ commit ລົງ branch ກ່ອນ."
+      },
+      "proof": {
+        "title": "ຫຼັກຖານ",
+        "summary": "ປ່ຽນ {{files}} ໄຟລ໌ · {{tokens}} tokens · {{time}}",
+        "check": "{{command}} → ລະຫັດອອກ {{code}}",
+        "by_host": "OmniGet ໃນຄອມພິວເຕີນີ້ເປັນຜູ້ປະທັບຕາຈາກສິ່ງທີ່ມັນບັນທຶກ, ບໍ່ແມ່ນຕົວແທນຂຽນ."
+      },
+      "review": {
+        "mark": "ໝາຍວ່າກວດແລ້ວ"
       }
     },
     "loops": {
@@ -5527,7 +5537,8 @@
           "done": "Done",
           "failed": "Failed",
           "cancelled": "Cancelled",
-          "skipped": "Skipped"
+          "skipped": "Skipped",
+          "review": "ລໍຖ້າການກວດ"
         },
         "runner": {
           "label": "Runs with",
@@ -6821,7 +6832,10 @@
       "adv_events": "ເຫດການ",
       "blocked_before_call": "ຢຸດກ່ອນການເອີ້ນໃດໆ: ບໍ່ມີຫຍັງເຮັດວຽກໃນຂັ້ນຕອນນີ້.",
       "verify_started": "ກຳລັງກວດສອບຢູ່ເບື້ອງຫຼັງ. ຜົນຈະສະແດງຢູ່ນີ້ເມື່ອສຳເລັດ.",
-      "verify_already_running": "ມີການກວດສອບກຳລັງດຳເນີນຢູ່ສຳລັບພາລະກິດນີ້ແລ້ວ."
+      "verify_already_running": "ມີການກວດສອບກຳລັງດຳເນີນຢູ່ສຳລັບພາລະກິດນີ້ແລ້ວ.",
+      "changes": "ການປ່ຽນແປງ",
+      "changes_no_job": "ໜ້າວຽກນີ້ຍັງບໍ່ທັນໄດ້ແລ່ນວຽກໃດເທື່ອ.",
+      "changes_job": "ວຽກ {{job}}"
     },
     "log": {
       "loading": "ກຳລັງໂຫຼດບັນທຶກ…",

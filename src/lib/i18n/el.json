@@ -3332,7 +3332,8 @@
         "done": "Done",
         "failed": "Failed",
         "cancelled": "Cancelled",
-        "waiting_workspace": "Αναμονή για τον φάκελο"
+        "waiting_workspace": "Αναμονή για τον φάκελο",
+        "review": "Χρειάζεται έλεγχο"
       },
       "kind": {
         "run": "Run",
@@ -3426,6 +3427,15 @@
         "removed": "Το worktree αφαιρέθηκε.",
         "kept_branch": "Το worktree αφαιρέθηκε. Ο κλάδος {{branch}} κρατά τη δουλειά της εργασίας.",
         "saved": "{{count}} αρχεία χωρίς commit αποθηκεύτηκαν πρώτα στον κλάδο."
+      },
+      "proof": {
+        "title": "Αποδεικτικό",
+        "summary": "{{files}} αρχεία άλλαξαν · {{tokens}} tokens · {{time}}",
+        "check": "{{command}} → κωδικός εξόδου {{code}}",
+        "by_host": "Σφραγίστηκε από το OmniGet σε αυτόν τον υπολογιστή με βάση όσα κατέγραψε, όχι από τον πράκτορα."
+      },
+      "review": {
+        "mark": "Σήμανση ως ελεγμένο"
       }
     },
     "loops": {
@@ -5527,7 +5537,8 @@
           "done": "Done",
           "failed": "Failed",
           "cancelled": "Cancelled",
-          "skipped": "Skipped"
+          "skipped": "Skipped",
+          "review": "Χρειάζεται έλεγχο"
         },
         "runner": {
           "label": "Runs with",
@@ -6821,7 +6832,10 @@
       "adv_events": "Συμβάντα",
       "blocked_before_call": "Σταμάτησε πριν από οποιαδήποτε κλήση: τίποτα δεν εκτελέστηκε σε αυτό το βήμα.",
       "verify_started": "Έλεγχος στο παρασκήνιο. Το αποτέλεσμα εμφανίζεται εδώ όταν τελειώσει.",
-      "verify_already_running": "Ένας έλεγχος τρέχει ήδη για αυτή την αποστολή."
+      "verify_already_running": "Ένας έλεγχος τρέχει ήδη για αυτή την αποστολή.",
+      "changes": "Αλλαγές",
+      "changes_no_job": "Αυτή η εργασία δεν έχει εκτελέσει ακόμη κάποιο job.",
+      "changes_job": "Job {{job}}"
     },
     "log": {
       "loading": "Φόρτωση αρχείου καταγραφής…",

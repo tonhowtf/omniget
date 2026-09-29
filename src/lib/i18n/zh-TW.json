@@ -3332,7 +3332,8 @@
         "done": "Done",
         "failed": "Failed",
         "cancelled": "Cancelled",
-        "waiting_workspace": "等待資料夾"
+        "waiting_workspace": "等待資料夾",
+        "review": "待審閱"
       },
       "kind": {
         "run": "Run",
@@ -3426,6 +3427,15 @@
         "removed": "worktree 已移除。",
         "kept_branch": "worktree 已移除。分支 {{branch}} 保留了該工作的成果。",
         "saved": "已先將 {{count}} 個未提交的檔案儲存到分支。"
+      },
+      "proof": {
+        "title": "憑證",
+        "summary": "修改了 {{files}} 個檔案 · {{tokens}} 個 token · {{time}}",
+        "check": "{{command}} → 結束碼 {{code}}",
+        "by_host": "由本機上的 OmniGet 依其紀錄蓋章，而非代理程式所寫。"
+      },
+      "review": {
+        "mark": "標記為已審閱"
       }
     },
     "loops": {
@@ -5527,7 +5537,8 @@
           "done": "Done",
           "failed": "Failed",
           "cancelled": "Cancelled",
-          "skipped": "Skipped"
+          "skipped": "Skipped",
+          "review": "待審閱"
         },
         "runner": {
           "label": "Runs with",
@@ -6821,7 +6832,10 @@
       "adv_events": "事件",
       "blocked_before_call": "在任何呼叫之前停止：此步驟沒有執行任何內容。",
       "verify_started": "正在背景檢查。結束後結果會顯示在這裡。",
-      "verify_already_running": "此任務已有檢查正在進行。"
+      "verify_already_running": "此任務已有檢查正在進行。",
+      "changes": "變更",
+      "changes_no_job": "此任務尚未執行任何工作。",
+      "changes_job": "工作 {{job}}"
     },
     "log": {
       "loading": "正在載入記錄檔…",

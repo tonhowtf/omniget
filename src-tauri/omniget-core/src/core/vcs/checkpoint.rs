@@ -130,6 +130,12 @@ async fn has_head(ctx: &GitCtx) -> VcsResult<bool> {
 /// untracked, minus ignored). The real index is only read, never written.
 async fn stage_worktree(ctx: &GitCtx) -> VcsResult<TempIndex> {
     let git_dir = ctx.git_dir().await?;
+    stage_worktree_at(ctx, &git_dir).await
+}
+
+/// [`stage_worktree`] when the caller already knows the git dir (one git
+/// spawn less: the job diff and the job worktree run on every job end).
+async fn stage_worktree_at(ctx: &GitCtx, git_dir: &Path) -> VcsResult<TempIndex> {
     let tmp = TempIndex {
         path: git_dir.join(format!(
             "omniget-checkpoint-index-{}",
@@ -202,6 +208,12 @@ async fn write_tree(ctx: &GitCtx, idx: &TempIndex) -> VcsResult<String> {
 /// Tree id of the work tree as it is now, without writing any ref.
 pub async fn live_tree(ctx: &GitCtx) -> VcsResult<String> {
     let idx = stage_worktree(ctx).await?;
+    write_tree(ctx, &idx).await
+}
+
+/// [`live_tree`] with the (absolute, per-worktree) git dir already known.
+pub async fn live_tree_at(ctx: &GitCtx, git_dir: &Path) -> VcsResult<String> {
+    let idx = stage_worktree_at(ctx, git_dir).await?;
     write_tree(ctx, &idx).await
 }
 

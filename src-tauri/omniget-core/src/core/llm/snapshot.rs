@@ -85,8 +85,16 @@ pub struct JobDiff {
     /// The patch was cut at [`DIFF_MAX_BYTES`] or the list at
     /// [`DIFF_MAX_FILES`].
     pub clipped: bool,
-    /// Commit of the job's tip; worktree mode only (2.4), `None` here.
+    /// Commit of the job's tip; worktree mode only (2.4): the worktree's
+    /// `HEAD` when the diff was taken.
     pub head_oid: Option<String>,
+    /// The two ends compared: tree ids of the shadow snapshots (shared
+    /// mode), or the merge base and the tree of the worktree as it is
+    /// (worktree mode). What the host's proof stamps as `base→head`.
+    #[serde(default)]
+    pub base: Option<String>,
+    #[serde(default)]
+    pub tip: Option<String>,
     /// False when the last turn never recorded its end: the diff is against
     /// the folder as it is now.
     pub complete: bool,
@@ -603,9 +611,73 @@ async fn diff_trees(dir: &Path, workspace: &Path, from: &str, to: &str) -> Resul
         patch_path: None,
         clipped,
         head_oid: None,
+        base: Some(from.to_string()),
+        tip: Some(to.to_string()),
         complete: true,
         patch,
     })
+}
+
+/// What a job did in its worktree (2.4, worktree mode): from
+/// `merge-base(base_oid, HEAD)` (the job's branch may have been rebased or
+/// have merged its base since) to the worktree as it is now, uncommitted
+/// files included through a private index (`GIT_INDEX_FILE`, never the
+/// worktree's own). `head_oid` is the worktree's `HEAD`. Same files, totals,
+/// patch and limits as [`job_diff`]; nothing of the user's checkout is read.
+pub async fn worktree_diff(worktree: &Path, base_oid: &str) -> Result<JobDiff, String> {
+    use crate::core::vcs::checkpoint;
+    use crate::core::vcs::repo::GitCtx;
+    let unavailable = |why: String| format!("{ERR_DIFF_UNAVAILABLE}: {why}");
+    if !worktree.join(".git").exists() {
+        return Err(unavailable(format!(
+            "the worktree {} is gone",
+            worktree.display()
+        )));
+    }
+    if base_oid.is_empty() || base_oid.starts_with('-') {
+        return Err(unavailable("the job has no base commit".into()));
+    }
+    let ctx = GitCtx::Repo {
+        work_tree: worktree.to_path_buf(),
+    };
+    // One spawn for the git dir and HEAD; then the merge base and the
+    // staging of the worktree side by side (each spawn is tens of ms, and
+    // this runs at the end of every worktree job).
+    let both = ctx
+        .git()
+        .args(["rev-parse", "--absolute-git-dir", "HEAD^{commit}"])
+        .run()
+        .await
+        .map_err(|e| unavailable(e.to_string()))?
+        .text();
+    let mut lines = both.lines();
+    let (Some(dir), Some(head)) = (lines.next(), lines.next()) else {
+        return Err(unavailable("git did not name the worktree's HEAD".into()));
+    };
+    let (dir, head) = (
+        std::path::PathBuf::from(dir.trim()),
+        head.trim().to_string(),
+    );
+    let merge_base = async {
+        ctx.git()
+            .args(["merge-base", base_oid, &head])
+            .run()
+            .await
+            .map(|o| o.trimmed())
+            .map_err(|e| unavailable(format!("no common history with the base: {e}")))
+    };
+    let staged = async {
+        checkpoint::live_tree_at(&ctx, &dir)
+            .await
+            .map_err(|e| unavailable(e.to_string()))
+    };
+    let (base, tree) = tokio::join!(merge_base, staged);
+    let (base, tree) = (base?, tree?);
+    let mut diff = diff_trees(&dir, worktree, &base, &tree).await?;
+    diff.head_oid = Some(head);
+    diff.base = Some(base);
+    diff.tip = Some(tree);
+    Ok(diff)
 }
 
 pub fn depth(workspace: &Path, conversation: &str) -> usize {
@@ -1427,5 +1499,176 @@ mod bn4 {
             .unwrap_err();
         bench("control_nosnap", err.split(':').next().unwrap_or("").into());
         assert!(err.starts_with(ERR_DIFF_UNAVAILABLE));
+    }
+
+    /// BN4 in worktree mode (2.4): each fixture's seed becomes a git
+    /// repository, the job runs in a worktree of it (`vcs::job_worktree`),
+    /// and [`worktree_diff`] is taken twice: with the work uncommitted
+    /// (private index) and after it is committed on the job's branch, as
+    /// `run_job` does. Leaves `work-wt/`, `job-wt.patch` and `job-wt.json`
+    /// next to the fixture for `diff_eval.py` to compare with `diff -ruN`.
+    #[tokio::test]
+    async fn bn4_worktree_diff_matches_the_folder() {
+        use crate::core::vcs::job_worktree;
+        let Some(fake) = fake() else {
+            return eprintln!("python3 or fake_claude.py missing: skipped");
+        };
+        if !git_available() {
+            return eprintln!("git missing: skipped");
+        }
+        let data = std::env::temp_dir().join("omniget-vcs-tests-data");
+        std::fs::create_dir_all(&data).unwrap();
+        unsafe { std::env::set_var("OMNIGET_DATA_DIR", &data) };
+        let reps: usize = std::env::var("BN4_TIMING_REPS")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(5);
+        let root = match std::env::var("BN4_FIXTURES") {
+            Ok(dir) => PathBuf::from(dir),
+            Err(_) => {
+                let dir =
+                    std::env::temp_dir().join(format!("omniget-bn4wt-{}", uuid::Uuid::new_v4()));
+                builtin(&dir);
+                dir
+            }
+        };
+        let mut names: Vec<String> = std::fs::read_dir(&root)
+            .unwrap()
+            .flatten()
+            .filter(|e| e.path().join("seed").is_dir() && e.path().join("changes.json").is_file())
+            .map(|e| e.file_name().to_string_lossy().to_string())
+            .collect();
+        names.sort();
+        assert!(!names.is_empty(), "no fixtures in {}", root.display());
+        let git = |dir: &Path, args: &[&str]| {
+            let out = std::process::Command::new("git")
+                .arg("-C")
+                .arg(dir)
+                .args(args)
+                .env("GIT_AUTHOR_NAME", "t")
+                .env("GIT_AUTHOR_EMAIL", "t@t")
+                .env("GIT_COMMITTER_NAME", "t")
+                .env("GIT_COMMITTER_EMAIL", "t@t")
+                .env("GIT_CONFIG_GLOBAL", "/dev/null")
+                .output()
+                .unwrap();
+            assert!(
+                out.status.success(),
+                "git {args:?}: {}",
+                String::from_utf8_lossy(&out.stderr)
+            );
+            String::from_utf8_lossy(&out.stdout).trim().to_string()
+        };
+        let (mut writing, mut with_files, mut with_head) = (0, 0, 0);
+        for name in &names {
+            let dir = root.join(name);
+            let repo = dir.join("repo-wt");
+            let _ = std::fs::remove_dir_all(&repo);
+            copy_dir(&dir.join("seed"), &repo);
+            git(&repo, &["init", "-q", "-b", "main"]);
+            git(&repo, &["add", "-A"]);
+            git(&repo, &["commit", "-qm", "seed"]);
+            let id = format!("j{}", &uuid::Uuid::new_v4().simple().to_string()[..10]);
+            let wt = job_worktree::create(&repo, &id, None).await.unwrap();
+            let spec = SpawnSpec {
+                program: PathBuf::from("python3"),
+                args: vec![
+                    fake.display().to_string(),
+                    "-p".into(),
+                    "--output-format".into(),
+                    "stream-json".into(),
+                ],
+                env: [
+                    ("FAKE_CLAUDE_MODE".to_string(), "apply".to_string()),
+                    (
+                        "FAKE_CLAUDE_CHANGES".to_string(),
+                        dir.join("changes.json").display().to_string(),
+                    ),
+                ]
+                .into_iter()
+                .collect(),
+                cwd: Some(wt.path.clone()),
+                stdin: Some("User: do the task".into()),
+                ..SpawnSpec::default()
+            };
+            let mut stream = spawn_turn_with(
+                spec,
+                Arc::new(ClaudeParser::new(true)),
+                CancellationToken::new(),
+                TurnHooks::default(),
+            )
+            .unwrap();
+            let mut ok = false;
+            while let Some(ev) = stream.next().await {
+                ok |= matches!(
+                    ev,
+                    TurnEvent::Finished {
+                        reason: FinishReason::Stop
+                    }
+                );
+            }
+            let live = worktree_diff(&wt.path, &wt.base_oid).await.unwrap();
+            let commit = job_worktree::save_work(&wt.path, "bn4 job").await.unwrap();
+            let mut times = Vec::new();
+            let mut diff = None;
+            for _ in 0..reps.max(1) {
+                let t = Instant::now();
+                diff = Some(worktree_diff(&wt.path, &wt.base_oid).await.unwrap());
+                times.push(t.elapsed().as_secs_f64() * 1000.0);
+            }
+            let d = diff.unwrap();
+            times.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            let (p50, max) = (times[times.len() / 2], times[times.len() - 1]);
+            let same = live.files == d.files && live.patch == d.patch;
+            let head_ok = commit.is_some() && d.head_oid == commit;
+            let work = dir.join("work-wt");
+            let _ = std::fs::remove_dir_all(&work);
+            std::fs::create_dir_all(&work).unwrap();
+            for e in std::fs::read_dir(&wt.path).unwrap().flatten() {
+                if e.file_name() == ".git" {
+                    continue;
+                }
+                let (src, dst) = (e.path(), work.join(e.file_name()));
+                if src.is_dir() {
+                    copy_dir(&src, &dst);
+                } else {
+                    std::fs::copy(&src, &dst).unwrap();
+                }
+            }
+            std::fs::write(dir.join("job-wt.patch"), &d.patch).unwrap();
+            std::fs::write(
+                dir.join("job-wt.json"),
+                serde_json::json!({
+                    "turn_ok": ok, "files": d.files, "additions": d.additions, "deletions": d.deletions,
+                    "clipped": d.clipped, "complete": d.complete, "job_diff_ms_p50": p50, "job_diff_ms_max": max,
+                    "head_oid": d.head_oid, "merge_base": d.base, "base_oid": wt.base_oid,
+                    "same_uncommitted_and_committed": same,
+                })
+                .to_string(),
+            )
+            .unwrap();
+            writing += 1;
+            with_files += usize::from(!d.files.is_empty());
+            with_head += usize::from(head_ok);
+            bench(&format!("wt_{name}_turn_ok"), ok.into());
+            bench(&format!("wt_{name}_files"), d.files.len().into());
+            bench(&format!("wt_{name}_job_diff_ms_p50"), p50.into());
+            bench(&format!("wt_{name}_job_diff_ms_max"), max.into());
+            bench(
+                &format!("wt_{name}_same_uncommitted_and_committed"),
+                same.into(),
+            );
+            job_worktree::remove(&repo, &wt.path, &wt.branch, Some(&wt.base_oid))
+                .await
+                .unwrap();
+            let _ = std::fs::remove_dir_all(&repo);
+            assert!(ok, "{name}: the fake turn did not finish");
+            assert!(!d.files.is_empty(), "{name}: a writing job has files");
+            assert!(same, "{name}: the diff moved when the work was committed");
+            assert!(head_ok, "{name}: head_oid is the commit on the branch");
+        }
+        bench("wt_writing_jobs", writing.into());
+        bench("wt_writing_jobs_with_files", with_files.into());
+        bench("wt_jobs_with_head_oid", with_head.into());
     }
 }

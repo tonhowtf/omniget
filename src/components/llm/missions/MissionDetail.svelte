@@ -24,6 +24,7 @@
   } from "$lib/stores/assist-missions-store.svelte";
   import CriteriaEditor from "./CriteriaEditor.svelte";
   import TaskLog from "./TaskLog.svelte";
+  import TaskChanges from "./TaskChanges.svelte";
 
   // Receipt statuses that have a translated label (mission.status.*); anything else is shown as sent.
   const RECEIPT_STATUSES = ["pass", "fail", "unknown", "missing", "stale", "awaiting_human"];
@@ -41,6 +42,14 @@
   let draftCriteria = $state<Criterion[]>([]);
   let reviseReason = $state("");
   let openLog = $state<string | null>(null);
+  let openChanges = $state<string | null>(null);
+  /** The jobs a task ran (its `task:<id>:job:<job>` effects), oldest first. */
+  function taskJobs(taskId: string, effects: { key: string; task_id: string | null; kind: string }[]): string[] {
+    return effects
+      .filter((e) => e.task_id === taskId && e.kind === "agent_turn")
+      .map((e) => e.key.split(":job:").pop() ?? "")
+      .filter((id) => id !== "");
+  }
   let confirming = $state<{ label: string; run: () => Promise<unknown>; yes: string; no: string } | null>(null);
   let exportPath = $state("");
   let answering = $state<string | null>(null);
@@ -467,6 +476,7 @@
                 {#if task.bot_id}<span class="tag">{agentName(task.bot_id)}</span>{/if}
                 {#if task.attempts > 0}<span class="dim">{$t("mission.detail.attempts", { count: task.attempts, max: task.max_attempts })}</span>{/if}
                 <button type="button" class="button small" aria-expanded={openLog === task.id} onclick={() => (openLog = openLog === task.id ? null : task.id)}>{$t("mission.detail.log")}</button>
+                <button type="button" class="button small" aria-expanded={openChanges === task.id} onclick={() => (openChanges = openChanges === task.id ? null : task.id)}>{$t("mission.detail.changes")}</button>
               </div>
               {#if task.error}<p class="text err">{task.error}</p>{/if}
               {#if task.result && task.state === "done"}<p class="hint clamp">{task.result}</p>{/if}
@@ -483,6 +493,7 @@
                 </div>
               {/if}
               {#if openLog === task.id}<TaskLog missionId={m.id} taskId={task.id} />{/if}
+              {#if openChanges === task.id}<TaskChanges jobIds={taskJobs(task.id, detail.effects)} />{/if}
             </li>
           {/each}
         </ol>

@@ -174,7 +174,7 @@ async fn follow(bridge: &Bridge, id: &str, json_out: bool) -> anyhow::Result<()>
                 last_state = state.clone();
             }
         }
-        if matches!(state.as_str(), "done" | "failed" | "cancelled") {
+        if matches!(state.as_str(), "done" | "review" | "failed" | "cancelled") {
             if json_out {
                 println!("{}", serde_json::to_string_pretty(&job)?);
             } else {
@@ -198,7 +198,14 @@ async fn follow(bridge: &Bridge, id: &str, json_out: bool) -> anyhow::Result<()>
                     );
                 }
             }
-            if state != "done" {
+            // `review`: it ended well and changed files a person should look at.
+            if state == "review" && !json_out {
+                if let Some(stamp) = job["proof"]["stamp"].as_str() {
+                    eprintln!("proof: {stamp}");
+                }
+                eprintln!("  it changed files: `omniget agent diff {id}` shows them");
+            }
+            if !matches!(state.as_str(), "done" | "review") {
                 std::process::exit(1);
             }
             return Ok(());

@@ -3332,7 +3332,8 @@
         "done": "Done",
         "failed": "Failed",
         "cancelled": "Cancelled",
-        "waiting_workspace": "Esperando la carpeta"
+        "waiting_workspace": "Esperando la carpeta",
+        "review": "Pendiente de revisión"
       },
       "kind": {
         "run": "Run",
@@ -3426,6 +3427,15 @@
         "removed": "Worktree eliminado.",
         "kept_branch": "Worktree eliminado. La rama {{branch}} guarda el trabajo.",
         "saved": "{{count}} archivo(s) sin commit guardado(s) antes en la rama."
+      },
+      "proof": {
+        "title": "Comprobante",
+        "summary": "{{files}} archivo(s) cambiado(s) · {{tokens}} tokens · {{time}}",
+        "check": "{{command}} → salida {{code}}",
+        "by_host": "Sellado por OmniGet en este equipo a partir de lo que registró, no escrito por el agente."
+      },
+      "review": {
+        "mark": "Marcar como revisado"
       }
     },
     "loops": {
@@ -5527,7 +5537,8 @@
           "done": "Done",
           "failed": "Failed",
           "cancelled": "Cancelled",
-          "skipped": "Skipped"
+          "skipped": "Skipped",
+          "review": "Pendiente de revisión"
         },
         "runner": {
           "label": "Runs with",
@@ -6821,7 +6832,10 @@
       "adv_events": "Eventos",
       "blocked_before_call": "Se detuvo antes de cualquier llamada: no se ejecutó nada en este paso.",
       "verify_started": "Comprobando en segundo plano. El resultado aparece aquí cuando termine.",
-      "verify_already_running": "Ya hay una comprobación en curso para esta misión."
+      "verify_already_running": "Ya hay una comprobación en curso para esta misión.",
+      "changes": "Cambios",
+      "changes_no_job": "Esta tarea todavía no ejecutó ningún trabajo.",
+      "changes_job": "Trabajo {{job}}"
     },
     "log": {
       "loading": "Cargando el registro…",

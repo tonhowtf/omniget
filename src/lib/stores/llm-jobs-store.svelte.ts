@@ -13,6 +13,8 @@ export type JobState =
   | "running"
   | "waiting_approval"
   | "done"
+  /** It ended well and changed files: a person looks at them before it counts as done. */
+  | "review"
   | "failed"
   | "cancelled"
   /** The app closed while it ran: its result is unknown, a person decides. */
@@ -27,6 +29,24 @@ export type WorktreeRemoval = {
   preserved_branch: string | null;
   branch_deleted: string | null;
   trashed: boolean;
+};
+
+/** What the host recorded about a finished job (never the agent's words). */
+export type JobProof = {
+  generated_by: "host";
+  /** `host:workspace@base→head` */
+  stamp: string;
+  mode: "worktree" | "shared";
+  branch: string | null;
+  base: string | null;
+  head: string | null;
+  file_count: number;
+  additions: number | null;
+  deletions: number | null;
+  checks: { command: string; exit_code: number | null; ok: boolean; at_ms: number }[];
+  tokens: { input: number | null; output: number | null; cache_read: number | null; billable: number | null };
+  cost_usd: number | null;
+  duration_ms: number | null;
 };
 
 export type Job = {
@@ -78,6 +98,10 @@ export type Job = {
   branch?: string | null;
   /** The commit the worktree started from. */
   base_oid?: string | null;
+  /** The commit holding the job's work on its branch (worktree mode). */
+  head_oid?: string | null;
+  /** Stamped by the host when the job ended; list rows and events leave it out. */
+  proof?: JobProof | null;
   /** Summed over the model calls of the job; `cost_usd` is null for local models and CLI accounts. */
   usage?: {
     model: string;
@@ -895,6 +919,7 @@ export function pickState(state: string): string {
     case "preparing":
       return "blue";
     case "waiting_approval":
+    case "review":
     case "waiting_user":
     case "interrupted":
     case "unknown":

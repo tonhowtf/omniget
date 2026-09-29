@@ -3332,7 +3332,8 @@
         "done": "Done",
         "failed": "Failed",
         "cancelled": "Cancelled",
-        "waiting_workspace": "フォルダーの空き待ち"
+        "waiting_workspace": "フォルダーの空き待ち",
+        "review": "レビュー待ち"
       },
       "kind": {
         "run": "Run",
@@ -3426,6 +3427,15 @@
         "removed": "ワークツリーを削除しました。",
         "kept_branch": "ワークツリーを削除しました。ジョブの作業はブランチ {{branch}} に残っています。",
         "saved": "未コミットの {{count}} 個のファイルを先にブランチへ保存しました。"
+      },
+      "proof": {
+        "title": "証跡",
+        "summary": "{{files}} 個のファイルを変更 · {{tokens}} トークン · {{time}}",
+        "check": "{{command}} → 終了コード {{code}}",
+        "by_host": "エージェントではなく、このコンピューター上の OmniGet が記録内容から押印しました。"
+      },
+      "review": {
+        "mark": "レビュー済みにする"
       }
     },
     "loops": {
@@ -5527,7 +5537,8 @@
           "done": "Done",
           "failed": "Failed",
           "cancelled": "Cancelled",
-          "skipped": "Skipped"
+          "skipped": "Skipped",
+          "review": "レビュー待ち"
         },
         "runner": {
           "label": "Runs with",
@@ -6821,7 +6832,10 @@
       "adv_events": "イベント",
       "blocked_before_call": "呼び出し前に止まりました。このステップでは何も実行されていません。",
       "verify_started": "バックグラウンドで確認中です。終わると結果がここに表示されます。",
-      "verify_already_running": "このミッションはすでに確認中です。"
+      "verify_already_running": "このミッションはすでに確認中です。",
+      "changes": "変更",
+      "changes_no_job": "このタスクはまだジョブを実行していません。",
+      "changes_job": "ジョブ {{job}}"
     },
     "log": {
       "loading": "ログを読み込み中…",

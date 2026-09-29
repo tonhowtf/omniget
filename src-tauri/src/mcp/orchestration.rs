@@ -240,7 +240,7 @@ fn job_diff_reply(
         "jobId": job.id, "state": job.state, "available": reason.is_none(), "reason": reason, "detail": detail,
         "files": listed, "fileCount": files.len(), "filesTruncated": files.len() > JOB_DIFF_FILES,
         "additions": job.additions.unwrap_or(0), "deletions": job.deletions.unwrap_or(0),
-        "clipped": job.diff_clipped, "complete": complete, "headOid": Value::Null,
+        "clipped": job.diff_clipped, "complete": complete, "headOid": job.head_oid,
     });
     if with_patch && reason.is_none() {
         let full = patch.unwrap_or("");

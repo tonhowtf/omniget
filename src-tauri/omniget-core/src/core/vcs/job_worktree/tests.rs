@@ -273,3 +273,55 @@ async fn a_vanished_worktree_is_recreated_from_its_branch() {
         .unwrap();
     assert!(ensure(&r, &wt.path, "omniget/job-gone").await.is_err());
 }
+
+/// 2.4: the job's diff is `merge-base(base, HEAD)..worktree`: the user's
+/// carried work is not in it, uncommitted files are (private index), and
+/// once the work is committed on the branch the diff is the same with
+/// `head_oid` naming that commit.
+#[tokio::test]
+async fn the_worktree_diff_is_the_jobs_own_work_committed_or_not() {
+    use crate::core::llm::snapshot::worktree_diff;
+    data_dir();
+    let r = repo("wtdiff", "");
+    write(&r.join("b.txt"), b"user wip\n");
+    let wt = create(&r, &job_id(), None).await.unwrap();
+    write(&wt.path.join("a.txt"), b"one\njob\n");
+    write(&wt.path.join("new.txt"), b"added by the job\n");
+    let index = PathBuf::from(git(&wt.path, &["rev-parse", "--absolute-git-dir"])).join("index");
+    let index_before = std::fs::read(&index).unwrap();
+
+    let live = worktree_diff(&wt.path, &wt.base_oid).await.unwrap();
+    let paths: Vec<(&str, &str)> = live
+        .files
+        .iter()
+        .map(|f| (f.path.as_str(), f.status.as_str()))
+        .collect();
+    assert_eq!(paths, vec![("a.txt", "M"), ("new.txt", "A")]);
+    assert_eq!((live.additions, live.deletions), (2, 0));
+    assert_eq!(live.base.as_deref(), Some(wt.base_oid.as_str()));
+    assert_eq!(live.head_oid.as_deref(), Some(wt.base_oid.as_str()));
+    assert!(live.patch.contains("+job"));
+    // The worktree's own index was not used (nothing staged there).
+    assert_eq!(std::fs::read(&index).unwrap(), index_before);
+    assert!(git(&wt.path, &["diff", "--cached", "--name-only"]).is_empty());
+
+    let commit = save_work(&wt.path, "job work").await.unwrap().unwrap();
+    let done = worktree_diff(&wt.path, &wt.base_oid).await.unwrap();
+    assert_eq!(done.head_oid.as_deref(), Some(commit.as_str()));
+    assert_eq!(done.files, live.files);
+    assert_eq!(done.patch, live.patch);
+    assert_eq!(done.tip, live.tip, "same tree, committed or not");
+
+    // No worktree or no base: unavailable, never an empty diff.
+    assert!(worktree_diff(&r.join("nope"), &wt.base_oid)
+        .await
+        .unwrap_err()
+        .starts_with("ERR_DIFF_UNAVAILABLE"));
+    assert!(worktree_diff(&wt.path, "")
+        .await
+        .unwrap_err()
+        .starts_with("ERR_DIFF_UNAVAILABLE"));
+    remove(&r, &wt.path, &wt.branch, Some(&wt.base_oid))
+        .await
+        .unwrap();
+}

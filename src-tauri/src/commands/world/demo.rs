@@ -400,10 +400,9 @@ pub async fn world_demo(
                         let _ = llm.answer_tool(request, &call, true, false);
                     }
                 }
-                let running = ids
-                    .iter()
-                    .filter_map(|id| jobs.job(id))
-                    .any(|j| !matches!(j.state.as_str(), "done" | "failed" | "cancelled"));
+                let running = ids.iter().filter_map(|id| jobs.job(id)).any(|j| {
+                    !matches!(j.state.as_str(), "done" | "review" | "failed" | "cancelled")
+                });
                 let over = started.elapsed() >= DEMO_BUDGET;
                 if over {
                     for id in &ids {

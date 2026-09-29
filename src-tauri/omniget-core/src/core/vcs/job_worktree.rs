@@ -156,13 +156,26 @@ async fn names_between(ctx: &GitCtx, from: &str, to: &str) -> VcsResult<Vec<Stri
 /// The user's checkout as a commit on top of `HEAD`: `(base, head, files)`.
 /// Nothing uncommitted → `base == head`, no commit made. Only a private
 /// index is written; the user's index, branch, stash and files never move.
+/// `git_dir` is the checkout's absolute git dir (saves a spawn).
 pub async fn carry_uncommitted(
     ctx: &GitCtx,
+    git_dir: &Path,
     job_id: &str,
 ) -> VcsResult<(String, String, Vec<String>)> {
-    let head = rev(ctx, "HEAD^{commit}").await?;
-    let head_tree = rev(ctx, "HEAD^{tree}").await?;
-    let tree = checkpoint::live_tree(ctx).await?;
+    let both = ctx
+        .git()
+        .args(["rev-parse", "HEAD^{commit}", "HEAD^{tree}"])
+        .run()
+        .await?
+        .text();
+    let mut lines = both.lines().map(str::trim);
+    let (Some(head), Some(head_tree)) = (lines.next(), lines.next()) else {
+        return Err(VcsError::Invalid(
+            "the repository has no HEAD commit".into(),
+        ));
+    };
+    let head = head.to_string();
+    let tree = checkpoint::live_tree_at(ctx, git_dir).await?;
     if tree == head_tree {
         return Ok((head.clone(), head, Vec::new()));
     }
@@ -214,7 +227,7 @@ pub async fn create(repo: &Path, job_id: &str, base: Option<&str>) -> VcsResult<
                 .map_err(|_| VcsError::NotFound(format!("base {b} is not a commit")))?;
             (oid.clone(), oid, Vec::new())
         }
-        None => carry_uncommitted(&ctx, job_id).await?,
+        None => carry_uncommitted(&ctx, &paths.git_dir, job_id).await?,
     };
     let req = worktree::WorktreeRequest {
         repo: paths.root.clone(),
@@ -477,20 +490,29 @@ pub async fn save_work(wt: &Path, message: &str) -> VcsResult<Option<String>> {
     let branch = worktree::current_branch(&ctx)
         .await?
         .ok_or_else(|| VcsError::Invalid("the worktree is on a detached HEAD".into()))?;
-    let head = rev(&ctx, "HEAD^{commit}").await?;
-    let head_tree = rev(&ctx, "HEAD^{tree}").await?;
-    let tree = checkpoint::live_tree(&ctx).await?;
+    let all = ctx
+        .git()
+        .args([
+            "rev-parse",
+            "--absolute-git-dir",
+            "HEAD^{commit}",
+            "HEAD^{tree}",
+        ])
+        .run()
+        .await?
+        .text();
+    let mut lines = all.lines().map(str::trim);
+    let (Some(dir), Some(head), Some(head_tree)) = (lines.next(), lines.next(), lines.next())
+    else {
+        return Err(VcsError::Invalid("the worktree has no HEAD commit".into()));
+    };
+    let tree = checkpoint::live_tree_at(&ctx, Path::new(dir)).await?;
     if tree == head_tree {
         return Ok(None);
     }
-    let commit = commit_on(&ctx, &tree, &head, message).await?;
+    let commit = commit_on(&ctx, &tree, head, message).await?;
     ctx.git()
-        .args([
-            "update-ref",
-            &format!("refs/heads/{branch}"),
-            &commit,
-            &head,
-        ])
+        .args(["update-ref", &format!("refs/heads/{branch}"), &commit, head])
         .run()
         .await?;
     // The files are the commit already; only the index is behind.
@@ -651,6 +673,14 @@ pub async fn main_repo_of(wt: &Path) -> Option<PathBuf> {
         GitCtx::Repo { work_tree } => Some(work_tree),
         GitCtx::Shadow { .. } => None,
     }
+}
+
+/// The machine's name, for the host's stamp on a job's proof (2.4).
+pub fn host_label() -> String {
+    sysinfo::System::host_name()
+        .map(|h| h.trim().to_string())
+        .filter(|h| !h.is_empty())
+        .unwrap_or_else(|| "localhost".into())
 }
 
 /// Deletes what a crash left in the trash folder.

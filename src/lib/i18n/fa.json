@@ -3332,7 +3332,8 @@
         "done": "Done",
         "failed": "Failed",
         "cancelled": "Cancelled",
-        "waiting_workspace": "در انتظار پوشه"
+        "waiting_workspace": "در انتظار پوشه",
+        "review": "نیازمند بازبینی"
       },
       "kind": {
         "run": "Run",
@@ -3426,6 +3427,15 @@
         "removed": "worktree حذف شد.",
         "kept_branch": "worktree حذف شد. شاخهٔ {{branch}} کار این کار را نگه می‌دارد.",
         "saved": "{{count}} فایلِ کامیت‌نشده ابتدا روی شاخه ذخیره شد."
+      },
+      "proof": {
+        "title": "رسید",
+        "summary": "{{files}} فایل تغییر کرد · {{tokens}} توکن · {{time}}",
+        "check": "{{command}} ← کد خروج {{code}}",
+        "by_host": "مهر شده توسط OmniGet روی همین رایانه بر اساس آنچه ثبت کرده، نه نوشتهٔ عامل."
+      },
+      "review": {
+        "mark": "علامت‌گذاری به‌عنوان بازبینی‌شده"
       }
     },
     "loops": {
@@ -5527,7 +5537,8 @@
           "done": "Done",
           "failed": "Failed",
           "cancelled": "Cancelled",
-          "skipped": "Skipped"
+          "skipped": "Skipped",
+          "review": "نیازمند بازبینی"
         },
         "runner": {
           "label": "Runs with",
@@ -6821,7 +6832,10 @@
       "adv_events": "رویدادها",
       "blocked_before_call": "پیش از هر فراخوانی متوقف شد: در این مرحله چیزی اجرا نشد.",
       "verify_started": "بررسی در پس‌زمینه. نتیجه پس از پایان اینجا نمایش داده می‌شود.",
-      "verify_already_running": "یک بررسی برای این مأموریت در حال اجراست."
+      "verify_already_running": "یک بررسی برای این مأموریت در حال اجراست.",
+      "changes": "تغییرات",
+      "changes_no_job": "این وظیفه هنوز هیچ کاری اجرا نکرده است.",
+      "changes_job": "کار {{job}}"
     },
     "log": {
       "loading": "در حال بارگذاری گزارش…",

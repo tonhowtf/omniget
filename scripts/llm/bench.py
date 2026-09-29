@@ -63,7 +63,8 @@ BENCHES = {
     "bn4": (
         "diff_eval.py",
         [CORE_LLM + "snapshot.rs", "src-tauri/src/jobs.rs", "src-tauri/src/local_bridge_jobs.rs",
-         "src-tauri/src/mcp/orchestration.rs", "scripts/llm/fake_claude.py", "scripts/llm/diff_eval.py"],
+         "src-tauri/src/mcp/orchestration.rs", "scripts/llm/fake_claude.py", "scripts/llm/diff_eval.py",
+         "src-tauri/omniget-core/src/core/vcs/job_worktree", "src-tauri/omniget-core/src/core/vcs/checkpoint.rs"],
         ["--reps", "5"],
         ["omniget-core", "omniget"],
     ),

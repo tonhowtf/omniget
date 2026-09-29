@@ -3332,7 +3332,8 @@
         "done": "Готово",
         "failed": "Сбой",
         "cancelled": "Отменено",
-        "waiting_workspace": "Ждёт папку"
+        "waiting_workspace": "Ждёт папку",
+        "review": "Ждёт проверки"
       },
       "kind": {
         "run": "Запуск",
@@ -3426,6 +3427,15 @@
         "removed": "Worktree удалён.",
         "kept_branch": "Worktree удалён. Ветка {{branch}} хранит работу задачи.",
         "saved": "Сначала сохранено в ветку незакоммиченных файлов: {{count}}."
+      },
+      "proof": {
+        "title": "Подтверждение",
+        "summary": "Изменено файлов: {{files}} · токенов: {{tokens}} · {{time}}",
+        "check": "{{command}} → код выхода {{code}}",
+        "by_host": "Заверено OmniGet на этом компьютере по его записям, а не написано агентом."
+      },
+      "review": {
+        "mark": "Отметить как проверенное"
       }
     },
     "loops": {
@@ -5527,7 +5537,8 @@
           "done": "Done",
           "failed": "Failed",
           "cancelled": "Cancelled",
-          "skipped": "Skipped"
+          "skipped": "Skipped",
+          "review": "Ждёт проверки"
         },
         "runner": {
           "label": "Runs with",
@@ -6821,7 +6832,10 @@
       "adv_events": "События",
       "blocked_before_call": "Остановлено до любого вызова: на этом шаге ничего не выполнялось.",
       "verify_started": "Проверка идёт в фоне. Результат появится здесь, когда закончится.",
-      "verify_already_running": "Для этой миссии уже идёт проверка."
+      "verify_already_running": "Для этой миссии уже идёт проверка.",
+      "changes": "Изменения",
+      "changes_no_job": "Эта задача ещё не запускала ни одного задания.",
+      "changes_job": "Задание {{job}}"
     },
     "log": {
       "loading": "Загружаем журнал…",

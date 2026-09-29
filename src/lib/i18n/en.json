@@ -3332,7 +3332,8 @@
         "done": "Done",
         "failed": "Failed",
         "cancelled": "Cancelled",
-        "waiting_workspace": "Waiting for folder"
+        "waiting_workspace": "Waiting for folder",
+        "review": "Needs review"
       },
       "kind": {
         "run": "Run",
@@ -3426,6 +3427,15 @@
         "removed": "Worktree removed.",
         "kept_branch": "Worktree removed. The branch {{branch}} keeps the job's work.",
         "saved": "{{count}} uncommitted file(s) saved on the branch first."
+      },
+      "proof": {
+        "title": "Proof",
+        "summary": "{{files}} file(s) changed · {{tokens}} tokens · {{time}}",
+        "check": "{{command}} → exit {{code}}",
+        "by_host": "Stamped by OmniGet on this computer from what it recorded, not written by the agent."
+      },
+      "review": {
+        "mark": "Mark reviewed"
       }
     },
     "loops": {
@@ -5527,7 +5537,8 @@
           "done": "Done",
           "failed": "Failed",
           "cancelled": "Cancelled",
-          "skipped": "Skipped"
+          "skipped": "Skipped",
+          "review": "Needs review"
         },
         "runner": {
           "label": "Runs with",
@@ -6821,7 +6832,10 @@
       "adv_events": "Events",
       "blocked_before_call": "Stopped before any call: nothing ran for this step.",
       "verify_started": "Checking in the background. The result shows up here when it ends.",
-      "verify_already_running": "A check is already running for this mission."
+      "verify_already_running": "A check is already running for this mission.",
+      "changes": "Changes",
+      "changes_no_job": "This task has not run a job yet.",
+      "changes_job": "Job {{job}}"
     },
     "log": {
       "loading": "Loading the log…",

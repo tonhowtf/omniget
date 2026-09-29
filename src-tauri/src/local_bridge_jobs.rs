@@ -1,6 +1,7 @@
 //! Bridge routes of the job system, same bearer as the rest of the bridge:
 //! `POST /v1/hooks/<id>` (webhook trigger; the body becomes `{{body}}`), and
-//! the small API `omniget-cli agent run|loop|jobs|explain|status|diff` talks to.
+//! the small API `omniget-cli agent run|loop|jobs|explain|status|diff` talks to,
+//! and `GET /v1/jobs/{id}/proof` (the host's proof of a finished job, 2.4).
 //! `POST /v1/agent/run-tool` runs an agent of the catalog (or an `.md` file
 //! the CLI read) as the system prompt of a coding CLI (`omniget agent run
 //! <agent> --tool <x>`); `POST /v1/agent/loop-catalog` starts a catalog loop
@@ -91,6 +92,7 @@ where
         }};
     }
     let (c1, c2, c3) = (state.clone(), state.clone(), state.clone());
+    let s13 = state.clone();
     let (s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11, s12) = (
         state.clone(),
         state.clone(),
@@ -317,6 +319,29 @@ where
                             e,
                         ),
                     }
+                },
+            ),
+        )
+        // The host's proof of what the job did (2.4, 83#P4): stamp, files,
+        // checks with exit codes, tokens, cost and time. 409 while it runs.
+        .route(
+            "/v1/jobs/{id}/proof",
+            get(
+                move |Path(id): Path<String>, headers: HeaderMap| async move {
+                    guarded!(
+                        s13,
+                        headers,
+                        |j: std::sync::Arc<jobs::Jobs>| match j.job(&id) {
+                            None => fail(StatusCode::NOT_FOUND, format!("no job {id}")),
+                            Some(job) => match jobs::proof_view(&job) {
+                                Ok(v) => Json(v).into_response(),
+                                Err((code, e)) => fail(
+                                    StatusCode::from_u16(code).unwrap_or(StatusCode::BAD_REQUEST),
+                                    e,
+                                ),
+                            },
+                        }
+                    )
                 },
             ),
         )

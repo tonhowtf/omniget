@@ -3332,7 +3332,8 @@
         "done": "Done",
         "failed": "Failed",
         "cancelled": "Cancelled",
-        "waiting_workspace": "En attente du dossier"
+        "waiting_workspace": "En attente du dossier",
+        "review": "À relire"
       },
       "kind": {
         "run": "Run",
@@ -3426,6 +3427,15 @@
         "removed": "Worktree supprimé.",
         "kept_branch": "Worktree supprimé. La branche {{branch}} garde le travail de la tâche.",
         "saved": "{{count}} fichier(s) non commité(s) enregistré(s) d'abord sur la branche."
+      },
+      "proof": {
+        "title": "Preuve",
+        "summary": "{{files}} fichier(s) modifié(s) · {{tokens}} jetons · {{time}}",
+        "check": "{{command}} → code de sortie {{code}}",
+        "by_host": "Tamponné par OmniGet sur cet ordinateur à partir de ce qu'il a enregistré, pas écrit par l'agent."
+      },
+      "review": {
+        "mark": "Marquer comme relu"
       }
     },
     "loops": {
@@ -5527,7 +5537,8 @@
           "done": "Done",
           "failed": "Failed",
           "cancelled": "Cancelled",
-          "skipped": "Skipped"
+          "skipped": "Skipped",
+          "review": "À relire"
         },
         "runner": {
           "label": "Runs with",
@@ -6821,7 +6832,10 @@
       "adv_events": "Événements",
       "blocked_before_call": "Arrêté avant tout appel : rien n'a été exécuté pour cette étape.",
       "verify_started": "Vérification en arrière-plan. Le résultat s'affiche ici à la fin.",
-      "verify_already_running": "Une vérification est déjà en cours pour cette mission."
+      "verify_already_running": "Une vérification est déjà en cours pour cette mission.",
+      "changes": "Modifications",
+      "changes_no_job": "Cette tâche n'a encore lancé aucune tâche de fond.",
+      "changes_job": "Tâche {{job}}"
     },
     "log": {
       "loading": "Chargement du journal…",
