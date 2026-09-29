@@ -3402,7 +3402,8 @@
         "deadline": "停止: 制限時間に達しました",
         "limit": "停止: 予算の上限に達しました",
         "ask_expired": "質問に回答がありませんでした",
-        "app_restart": "このジョブの実行中にアプリが終了しました"
+        "app_restart": "このジョブの実行中にアプリが終了しました",
+        "budget": "停止: 予算の上限でこの範囲が止まっています"
       },
       "queue": {
         "title": "キュー",
@@ -3451,7 +3452,9 @@
         "legacy_hint": "古いスクリプトが動き続けるよう 1 バージョンだけ残します。次のバージョンでは拒否されます。",
         "legacy_seen": "ブラウザー拡張機能のキーが {{when}} に {{route}} で使われました。そのスクリプトをスコープ付きトークンに切り替えてください。",
         "curl_hint": "OMNIGET_TOKEN に jobs:operate スコープのトークンを設定してください (下のアクセストークン)。",
-        "scope_audit_read": "監査ログを読む（audit:read）"
+        "scope_audit_read": "監査ログを読む（audit:read）",
+        "scope_budget_write": "予算の設定と引き上げ (budget:write)",
+        "scope_workflow_trust": "リポジトリのワークフローを承認 (workflow:trust)"
       },
       "isolation": {
         "label": "書き込み先",
@@ -3515,7 +3518,31 @@
         "discard_confirm": "このジョブの作業を破棄しますか? worktree とブランチ {{branch}} が削除されます。",
         "discarded": "作業を破棄しました。ブランチ {{branch}} は {{tip}} でした。"
       },
-      "resumed_by_itself": "自動で再開（{{count}} 回）"
+      "resumed_by_itself": "自動で再開（{{count}} 回）",
+      "workflow": {
+        "title": "リポジトリのワークフロー",
+        "state": {
+          "trusted": "有効",
+          "untrusted": "未承認",
+          "invalid": "無効",
+          "none": "なし"
+        },
+        "last_good": "ファイルが修正されるまで、最後の有効なバージョンが使われます。",
+        "no_last_good": "以前の有効なバージョンがありません。ファイルが修正されるまで、このフォルダーのジョブは拒否されます。",
+        "defaults": "既定値:",
+        "commands": "このコンピューターで実行するコマンド:",
+        "kind": {
+          "after_create": "worktree 作成後",
+          "before_remove": "worktree 削除前",
+          "check": "ジョブ後のチェック"
+        },
+        "untrusted_hint": "このバージョンそのものを承認するまで、これらのコマンドはスキップされ、より緩い実行モードも適用されません。ファイルを変更するたびに再承認が必要です。",
+        "trust": "このバージョンを承認",
+        "revoke": "承認を取り消す",
+        "template": "プロンプトのテンプレート",
+        "trusted_toast": "ワークフローを承認しました。今後そのコマンドが実行されます",
+        "untrusted_toast": "ワークフローの承認を取り消しました"
+      }
     },
     "loops": {
       "lede": "Run the same prompt round after round until the work checks out.",
@@ -3544,7 +3571,8 @@
         "running": "Running",
         "done": "Done",
         "failed": "Failed",
-        "cancelled": "Cancelled"
+        "cancelled": "Cancelled",
+        "paused": "一時停止中"
       },
       "check_passed": "Condition met",
       "summary": "Up to {{rounds}} rounds. Stops earlier when a configured condition or time limit is reached.",
@@ -3553,7 +3581,14 @@
       "edit": "Edit configuration",
       "auto_resume": "再起動後に自動で再開",
       "auto_resume_hint": "ラウンドの途中でアプリが終了した場合、そのラウンドがまだフォルダーに書き込んでいなければ、次に開いたときに Loop が続行します。",
-      "run_mode_hint": "ループの各ラウンドはこのモードで実行されます。「すべて事前に確認」では、各ラウンドが編集やコマンドの前に止まり、あなたを待ちます。"
+      "run_mode_hint": "ループの各ラウンドはこのモードで実行されます。「すべて事前に確認」では、各ラウンドが編集やコマンドの前に止まり、あなたを待ちます。",
+      "max_cost": "予算 (US$)",
+      "paused_budget": "一時停止: 予算に到達",
+      "paused_budget_hint": "上限を上げるまでラウンドは始まりません。上げるとループが再開します。",
+      "open_incident": "インシデントを開く",
+      "cost_estimated": "(推定)",
+      "cost_tokens": "重み付きトークン {{tokens}}",
+      "cost_unknown": "コスト不明のラウンド {{count}}"
     },
     "limits": {
       "title": "Limits strip",
@@ -5873,7 +5908,8 @@
         "mission": "ミッション",
         "thread": "スレッド",
         "run": "チャット",
-        "ask": "質問"
+        "ask": "質問",
+        "budget": "予算"
       },
       "asks_for": "{{tool}} の使用を求めています",
       "nothing_waits": "対応待ちはありません。",
@@ -5887,6 +5923,64 @@
         "ready": "完了: {{title}}",
         "review": "レビュー待ち: {{title}}",
         "more": "ほか {{count}} 件は「作業」に"
+      }
+    },
+    "budget": {
+      "title": "予算",
+      "refresh": "更新",
+      "lede": "エージェントの上限: 全体、エージェント、アカウント、ループ、ジョブ、ミッションごとに、ドル、重み付きトークン、またはサブスクリプションの 5 時間 / 7 日枠の割合で設定します。厳格な上限を超えるとその範囲は一時停止し、上限を上げるまで作業が止まります。上限がなければ何も制限されません。",
+      "read_error": "予算を読み込めませんでした。",
+      "empty": "上限はまだありません。何も制限されていません。",
+      "hard": "一時停止",
+      "soft": "確認する",
+      "paused": "一時停止中",
+      "remove": "削除",
+      "no_reading": "クォータの値はまだありません (CLI 自身のストリームから届きます)",
+      "warn_at": "{{pct}}% で通知",
+      "estimate_note": "サブスクリプションのドルは価格表による推定です",
+      "add": "上限を追加",
+      "scope": "対象",
+      "scope_id": "ID",
+      "metric_label": "単位",
+      "window_label": "期間",
+      "amount": "上限",
+      "warn_label": "通知する割合 (%)",
+      "soft_label": "一時停止せずに確認する",
+      "save": "保存",
+      "hard_hint": "上限を超えるとその範囲は一時停止し、実行中と待機中の作業は取り消され、インシデントが対応を待ちます (上げて再開、または一時停止のまま)。",
+      "soft_hint": "上限を超えると、次のターンで期間ごとに一度「続行しますか？」と確認します (他の承認と同じく CLI やスマホからも)。いいえで範囲は一時停止します。",
+      "quota_hint": "クォータの上限は CLI 自身のストリームが報告した値だけを読みます。アカウント (または全体) では枠そのものの割合、ループ・ジョブ・エージェント・ミッションでは開始から使ったポイントです。",
+      "warn_toast": "{{scope}} の予算: {{limit}} 中 {{used}} を使用",
+      "metric": {
+        "usd": "ドル",
+        "weighted_tokens": "重み付きトークン",
+        "quota_pct": "クォータ枠の割合"
+      },
+      "window": {
+        "turn": "ターンごと",
+        "day": "1 日あたり",
+        "week": "1 週間あたり",
+        "5h": "5 時間枠",
+        "7d": "7 日枠",
+        "run": "実行全体"
+      },
+      "scope_kind": {
+        "global": "全体",
+        "agent": "エージェント",
+        "account": "アカウント",
+        "loop": "ループ",
+        "job": "ジョブ",
+        "mission": "ミッション"
+      },
+      "incident": {
+        "open": "予算に到達",
+        "kept": "一時停止のまま",
+        "hard_line": "{{limit}} 中 {{used}} を使用しました。上限を上げるまでここでは何も始まりません。",
+        "checkpoint_line": "{{limit}} のチェックポイントで「いいえ」と回答されました ({{used}} 使用)。上げるまでここでは何も始まりません。",
+        "new_limit": "新しい上限",
+        "raise": "上げて再開",
+        "keep": "一時停止のままにする",
+        "too_low": "新しい上限は使用済みの量より大きくする必要があります。"
       }
     }
   },

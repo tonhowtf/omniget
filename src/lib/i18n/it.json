@@ -3402,7 +3402,8 @@
         "deadline": "Fermato: limite di tempo raggiunto",
         "limit": "Fermato: limite di budget raggiunto",
         "ask_expired": "Una domanda è rimasta senza risposta",
-        "app_restart": "L’app si è chiusa durante questo job"
+        "app_restart": "L’app si è chiusa durante questo job",
+        "budget": "Fermato: un tetto di budget blocca questo ambito"
       },
       "queue": {
         "title": "Coda",
@@ -3451,7 +3452,9 @@
         "legacy_hint": "Mantenuto per una versione perché i vecchi script continuino a funzionare. La prossima versione la rifiuta.",
         "legacy_seen": "La chiave dell'estensione del browser è stata usata su {{route}} alle {{when}}. Passa quello script a un token con ambito.",
         "curl_hint": "Imposta OMNIGET_TOKEN con un token con ambito jobs:operate (Token di accesso, qui sotto).",
-        "scope_audit_read": "Leggere il registro di audit (audit:read)"
+        "scope_audit_read": "Leggere il registro di audit (audit:read)",
+        "scope_budget_write": "Impostare e alzare i budget (budget:write)",
+        "scope_workflow_trust": "Considerare attendibili i workflow dei repository (workflow:trust)"
       },
       "isolation": {
         "label": "Dove scrive",
@@ -3515,7 +3518,31 @@
         "discard_confirm": "Scartare il lavoro di questo job? Il worktree e il branch {{branch}} vengono eliminati.",
         "discarded": "Lavoro scartato. Il branch {{branch}} era a {{tip}}."
       },
-      "resumed_by_itself": "Ripreso da solo ({{count}}×)"
+      "resumed_by_itself": "Ripreso da solo ({{count}}×)",
+      "workflow": {
+        "title": "Workflow del repository",
+        "state": {
+          "trusted": "In vigore",
+          "untrusted": "Non attendibile",
+          "invalid": "Non valido",
+          "none": "Nessuno"
+        },
+        "last_good": "L'ultima versione valida resta in vigore finché il file non viene corretto.",
+        "no_last_good": "Nessuna versione valida precedente: i job in questa cartella vengono rifiutati finché il file non viene corretto.",
+        "defaults": "Valori predefiniti:",
+        "commands": "Comandi che esegue su questo computer:",
+        "kind": {
+          "after_create": "dopo la creazione del worktree",
+          "before_remove": "prima della rimozione del worktree",
+          "check": "verifica dopo il job"
+        },
+        "untrusted_hint": "Finché non consideri attendibile questa versione esatta, questi comandi vengono saltati e non si applica una modalità di esecuzione più permissiva. Ogni modifica al file lo richiede di nuovo.",
+        "trust": "Considera attendibile questa versione",
+        "revoke": "Revoca l'attendibilità",
+        "template": "Modello del prompt",
+        "trusted_toast": "Workflow attendibile: i suoi comandi vengono eseguiti da ora",
+        "untrusted_toast": "Workflow non più attendibile"
+      }
     },
     "loops": {
       "lede": "Run the same prompt round after round until the work checks out.",
@@ -3544,7 +3571,8 @@
         "running": "Running",
         "done": "Done",
         "failed": "Failed",
-        "cancelled": "Cancelled"
+        "cancelled": "Cancelled",
+        "paused": "In pausa"
       },
       "check_passed": "Condition met",
       "summary": "Up to {{rounds}} rounds. Stops earlier when a configured condition or time limit is reached.",
@@ -3553,7 +3581,14 @@
       "edit": "Edit configuration",
       "auto_resume": "Riprendi da solo dopo un riavvio",
       "auto_resume_hint": "Se l’app si chiude durante un giro, il Loop continua alla riapertura, a meno che quel giro non avesse già scritto nella tua cartella.",
-      "run_mode_hint": "Ogni giro del loop usa questa modalità. Con «Chiedi prima di tutto», ogni giro si ferma e ti aspetta prima di qualsiasi modifica o comando."
+      "run_mode_hint": "Ogni giro del loop usa questa modalità. Con «Chiedi prima di tutto», ogni giro si ferma e ti aspetta prima di qualsiasi modifica o comando.",
+      "max_cost": "Budget (US$)",
+      "paused_budget": "In pausa: budget raggiunto",
+      "paused_budget_hint": "Nessun giro parte finché il tetto non viene alzato; alzarlo riprende il loop.",
+      "open_incident": "Apri l'incidente",
+      "cost_estimated": "(stimato)",
+      "cost_tokens": "{{tokens}} token ponderati",
+      "cost_unknown": "{{count}} giro/i dal costo sconosciuto"
     },
     "limits": {
       "title": "Limits strip",
@@ -5873,7 +5908,8 @@
         "mission": "Missione",
         "thread": "Thread",
         "run": "Chat",
-        "ask": "Domanda"
+        "ask": "Domanda",
+        "budget": "Budget"
       },
       "asks_for": "chiede di usare {{tool}}",
       "nothing_waits": "Niente ti aspetta.",
@@ -5887,6 +5923,64 @@
         "ready": "Fatto: {{title}}",
         "review": "Pronto da rivedere: {{title}}",
         "more": "E altri {{count}} in Lavoro"
+      }
+    },
+    "budget": {
+      "title": "Budget",
+      "refresh": "Aggiorna",
+      "lede": "Tetti per i tuoi agenti: per tutto, un agente, un account, un loop, un'attività o una missione, in dollari, token ponderati o quota della finestra di 5 h / 7 g di un abbonamento. Superato un tetto rigido l'ambito va in pausa e il suo lavoro si ferma finché non lo alzi. Senza tetto nulla è limitato.",
+      "read_error": "Impossibile leggere i budget.",
+      "empty": "Nessun tetto per ora: nulla è limitato.",
+      "hard": "mette in pausa",
+      "soft": "chiede",
+      "paused": "In pausa",
+      "remove": "Rimuovi",
+      "no_reading": "Ancora nessuna lettura della quota (arriva dal flusso della CLI)",
+      "warn_at": "avvisa al {{pct}}%",
+      "estimate_note": "i dollari di un abbonamento sono la stima della tabella prezzi",
+      "add": "Aggiungi un tetto",
+      "scope": "Per",
+      "scope_id": "Id",
+      "metric_label": "Misurato in",
+      "window_label": "Finestra",
+      "amount": "Tetto",
+      "warn_label": "Avvisa al (%)",
+      "soft_label": "Chiedi invece di mettere in pausa",
+      "save": "Salva",
+      "hard_hint": "Superato il tetto l'ambito va in pausa: il lavoro in corso e in coda viene annullato e un incidente ti aspetta (alza e riprendi, oppure lascia in pausa).",
+      "soft_hint": "Superato il tetto il turno successivo chiede \"continuare?\" una volta per finestra, come ogni approvazione (anche dalla CLI e dal telefono). Un no mette in pausa l'ambito.",
+      "quota_hint": "I tetti di quota leggono solo ciò che la CLI ha riportato nel proprio flusso. Per un account (o tutto) il tetto è la percentuale della finestra; per un loop, un'attività, un agente o una missione sono i punti consumati da quando è iniziato.",
+      "warn_toast": "Budget di {{scope}}: {{used}} di {{limit}} usati",
+      "metric": {
+        "usd": "Dollari",
+        "weighted_tokens": "Token ponderati",
+        "quota_pct": "Quota della finestra"
+      },
+      "window": {
+        "turn": "per turno",
+        "day": "al giorno",
+        "week": "a settimana",
+        "5h": "finestra di 5 h",
+        "7d": "finestra di 7 g",
+        "run": "intera esecuzione"
+      },
+      "scope_kind": {
+        "global": "Tutto",
+        "agent": "Agente",
+        "account": "Account",
+        "loop": "Loop",
+        "job": "Attività",
+        "mission": "Missione"
+      },
+      "incident": {
+        "open": "Budget raggiunto",
+        "kept": "Lasciato in pausa",
+        "hard_line": "Usati {{used}} di {{limit}}. Qui non parte nulla finché non alzi il tetto.",
+        "checkpoint_line": "Al checkpoint di {{limit}} è stato risposto no ({{used}} usati). Qui non parte nulla finché non lo alzi.",
+        "new_limit": "Nuovo tetto",
+        "raise": "Alza e riprendi",
+        "keep": "Lascia in pausa",
+        "too_low": "Il nuovo tetto deve superare quanto già usato."
       }
     }
   },

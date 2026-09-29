@@ -427,7 +427,6 @@ pub async fn share_ignored(main_root: &Path, wt: &Path) -> (Vec<String>, Vec<Str
         }
         linked.push(d.to_string());
     }
-    let mut copied = Vec::new();
     let include = main_root.join(INCLUDE_FILE);
     let text = match std::fs::symlink_metadata(&include) {
         Ok(m) if m.is_file() && m.len() <= INCLUDE_MAX_BYTES => {
@@ -435,19 +434,32 @@ pub async fn share_ignored(main_root: &Path, wt: &Path) -> (Vec<String>, Vec<Str
         }
         _ => String::new(),
     };
-    for rel in parse_worktree_include(&text) {
-        let (src, dst) = (main_root.join(&rel), wt.join(&rel));
+    let copied = copy_included(main_root, wt, &parse_worktree_include(&text)).await;
+    (linked, copied)
+}
+
+/// Copies each repo-relative path of `paths` from the main checkout into
+/// the worktree when it exists there, git ignores it and the worktree does
+/// not have it yet (the rule of `.worktreeinclude`; also the `include:` of
+/// `.omniget/workflow.md`, 3.10). Returns what was copied.
+pub async fn copy_included(main_root: &Path, wt: &Path, paths: &[String]) -> Vec<String> {
+    let main = GitCtx::Repo {
+        work_tree: main_root.to_path_buf(),
+    };
+    let mut copied = Vec::new();
+    for rel in paths {
+        let (src, dst) = (main_root.join(rel), wt.join(rel));
         if src.symlink_metadata().is_err()
             || dst.symlink_metadata().is_ok()
-            || !is_ignored(&main, &rel).await
+            || !is_ignored(&main, rel).await
         {
             continue;
         }
         if copy_tree(&src, &dst).is_ok() {
-            copied.push(rel);
+            copied.push(rel.clone());
         }
     }
-    (linked, copied)
+    copied
 }
 
 // ---- saving and removing ----
@@ -532,6 +544,10 @@ pub struct RemoveOutcome {
     pub branch_deleted: Option<String>,
     /// Moved to the trash folder (deleted in the background).
     pub trashed: bool,
+    /// What the repository's `before_remove` hook did (or why it was
+    /// skipped), set by the job side (3.10); a log line.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hook_note: Option<String>,
 }
 
 fn trash_root() -> VcsResult<PathBuf> {

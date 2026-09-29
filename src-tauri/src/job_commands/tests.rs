@@ -96,6 +96,7 @@ impl Fake {
         Commands {
             engine: Arc::new(self.clone()),
             approvals: Some(self.0.door.clone()),
+            workflows: None,
         }
     }
 
@@ -214,6 +215,20 @@ impl Engine for Fake {
                 .transpose()?
                 .unwrap_or(crate::jobs::RunMode::ApprovalRequired),
             created_ms: crate::llm_manager::now_ms(),
+            // What `Jobs::submit_command` keeps of the spec (3.10 reads it).
+            workspace: spec.workspace.clone(),
+            isolation: spec
+                .isolation
+                .as_deref()
+                .map(crate::jobs::Isolation::parse)
+                .transpose()?
+                .unwrap_or(crate::jobs::Isolation::Auto),
+            base_ref: spec.base.clone(),
+            deadline_min: spec.deadline_min,
+            origin: Some(json!({
+                "command_id": spec.command_id, "budget_usd": spec.budget_usd,
+                "model": spec.model, "effort": spec.effort, "workflow": spec.applied_workflow,
+            })),
             ..Default::default()
         };
         self.save(job);
@@ -999,4 +1014,225 @@ async fn run_mode_is_one_of_the_four_and_the_caller_is_the_actor() {
     }
     let a = operator().actor();
     assert_eq!((a.id.as_str(), a.channel.as_str()), ("token:t1", "http"));
+}
+
+// ── 3.10: `.omniget/workflow.md` ───────────────────────────────────────
+
+/// BN5 `workflow`: "delegue a correção X" from inside a repository with a
+/// workflow, with no flag at all, over MCP `agent_run`, `/v1/commands` and
+/// the CLI's body: 5/5 get the workflow's agent, run mode, isolation,
+/// deadline and rendered prompt. An invalid reload keeps the previous
+/// version (and says so); no previous version refuses the start; a flag the
+/// caller gives wins; an untrusted file never loosens the run mode.
+/// `job_report` answers the delegating agent in one call, deny-by-default.
+#[tokio::test]
+async fn bn5_workflow_delegation_without_flags() {
+    use omniget_core::core::llm::workflow::{self, Store};
+    let repo = std::env::temp_dir().join(format!("omniget-wf-{}", uuid::Uuid::new_v4().simple()));
+    std::fs::create_dir_all(repo.join(".git")).unwrap();
+    std::fs::write(repo.join(".git/HEAD"), "ref: refs/heads/main\n").unwrap();
+    std::fs::create_dir_all(repo.join(".omniget")).unwrap();
+    std::fs::create_dir_all(repo.join("src")).unwrap();
+    let repo = std::fs::canonicalize(repo).unwrap();
+    let v1 = "---\nagent: claude-code\nrun_mode: auto_edits\nisolation: worktree\ndeadline_min: 30\nbudget_usd: 0.5\nchecks: cargo test\ninclude: [.env.local]\nhooks:\n  after_create: pnpm install\n---\nYou are working in {{repo}} on {{branch}} ({{isolation}}, {{run_mode}}).\nFiles you may need:\n{{files}}\n\nTask: {{task}}\n";
+    std::fs::write(repo.join(workflow::FILE), v1).unwrap();
+    let store = Arc::new(Store::memory());
+    let sha = store.status(&repo).active.unwrap().sha256;
+    store.trust(&repo, &sha, "test").unwrap();
+
+    let (f, _) = Fake::new(false);
+    let mut cmds = f.commands();
+    cmds.workflows = Some(store.clone());
+    let p = client(&["agents_run"]);
+    let ws = repo.to_string_lossy().into_owned();
+    let sub = repo.join("src").to_string_lossy().into_owned();
+    let expected = |task: &str| {
+        format!(
+            "You are working in {} on main (worktree, auto_edits).\nFiles you may need:\n.env.local\n\nTask: {task}",
+            repo.display()
+        )
+    };
+
+    // ── 5/5 without flags, through every door ──
+    let mut ok = 0;
+    let mut ids = Vec::new();
+    for i in 0..5 {
+        let task = format!("delegue a correção X{i}");
+        let id = match i % 3 {
+            // MCP, as a Claude Code with the grant would call it.
+            0 => mcp_call(&cmds, &p, "agent_run", json!({"commandId": format!("wf-{i}"), "task": task, "workspace": ws}))
+                .await
+                .unwrap()["jobId"]
+                .as_str()
+                .unwrap()
+                .to_string(),
+            // `/v1/commands` as a script sends it.
+            1 => cmds
+                .execute(&operator(), &json!({"command_id": format!("wf-{i}"), "type": "job.start", "prompt": task, "workspace": ws}))
+                .unwrap()
+                .0["job_id"]
+                .as_str()
+                .unwrap()
+                .to_string(),
+            // `omniget agent run "<task>"` from a subfolder of the repository
+            // (the skill's delegation): the CLI's body, no `--agent`.
+            _ => cmds
+                .execute(&operator(), &json!({"command_id": format!("wf-{i}"), "type": "job.start", "prompt": task, "workspace": sub, "deadline_min": null}))
+                .unwrap()
+                .0["job_id"]
+                .as_str()
+                .unwrap()
+                .to_string(),
+        };
+        let j = f.job(&id).unwrap();
+        let wf = &j.origin.as_ref().unwrap()["workflow"];
+        let good = j.agent_id == "claude-code"
+            && j.run_mode == crate::jobs::RunMode::AutoEdits
+            && j.isolation == crate::jobs::Isolation::Worktree
+            && j.deadline_min == Some(30)
+            && j.prompt == expected(&task)
+            && wf["sha256"] == json!(sha)
+            && wf["trusted"] == json!(true)
+            && wf["task"] == json!(task);
+        assert!(good, "{i}: {j:?}");
+        ok += good as u32;
+        ids.push(id);
+    }
+
+    // ── a flag the caller gives wins ──
+    let flagged = cmds
+        .execute(&operator(), &json!({"command_id": "wf-flag", "type": "job.start", "prompt": "p", "workspace": ws, "agent_id": "codex", "isolation": "shared", "run_mode": "approval_required"}))
+        .unwrap()
+        .0;
+    let fj = f.job(flagged["job_id"].as_str().unwrap()).unwrap();
+    let flags_win = fj.agent_id == "codex"
+        && fj.isolation == crate::jobs::Isolation::Shared
+        && fj.run_mode == crate::jobs::RunMode::ApprovalRequired;
+    assert!(flags_win, "{fj:?}");
+    // `workflow: false` = as if there were no file.
+    let off = cmds
+        .execute(&operator(), &json!({"command_id": "wf-off", "type": "job.start", "prompt": "raw", "workspace": ws, "workflow": false}))
+        .unwrap()
+        .0;
+    let oj = f.job(off["job_id"].as_str().unwrap()).unwrap();
+    assert_eq!((oj.agent_id.as_str(), oj.prompt.as_str()), ("omni", "raw"));
+
+    // ── an invalid reload keeps v1 in effect, and says so ──
+    std::fs::write(
+        repo.join(workflow::FILE),
+        v1.replace("Task: {{task}}", "Task: {{task}} {{ticket}}"),
+    )
+    .unwrap();
+    let st = store.status(&repo);
+    assert_eq!(st.state, "invalid");
+    assert!(st.error.as_deref().unwrap().contains("ticket"));
+    let kept = cmds
+        .execute(&operator(), &json!({"command_id": "wf-bad", "type": "job.start", "prompt": "delegue a correção Y", "workspace": ws}))
+        .unwrap()
+        .0;
+    let kj = f.job(kept["job_id"].as_str().unwrap()).unwrap();
+    let kwf = &kj.origin.as_ref().unwrap()["workflow"];
+    let invalid_keeps_previous = kj.agent_id == "claude-code"
+        && kj.prompt == expected("delegue a correção Y")
+        && kwf["from_last_good"] == json!(true)
+        && kwf["sha256"] == json!(sha)
+        && kwf["error"].as_str().is_some_and(|e| e.contains("ticket"));
+    assert!(invalid_keeps_previous, "{kj:?}");
+
+    // ── an untrusted (changed) file never loosens the run mode ──
+    let v2 = v1.replace("deadline_min: 30", "deadline_min: 20");
+    std::fs::write(repo.join(workflow::FILE), &v2).unwrap();
+    let held = cmds
+        .execute(
+            &operator(),
+            &json!({"command_id": "wf-held", "type": "job.start", "prompt": "t", "workspace": ws}),
+        )
+        .unwrap()
+        .0;
+    let hj = f.job(held["job_id"].as_str().unwrap()).unwrap();
+    let hwf = &hj.origin.as_ref().unwrap()["workflow"];
+    let untrusted_held = hj.run_mode == crate::jobs::RunMode::ApprovalRequired
+        && hj.deadline_min == Some(20)
+        && hwf["held"] == json!(["run_mode"])
+        && hwf["skipped_reason"]
+            .as_str()
+            .is_some_and(|r| r.contains("changed since it was trusted"));
+    assert!(untrusted_held, "{hj:?}");
+
+    // ── no earlier valid version: the start is refused with the error ──
+    let fresh = std::env::temp_dir().join(format!("omniget-wf-{}", uuid::Uuid::new_v4().simple()));
+    std::fs::create_dir_all(fresh.join(".git")).unwrap();
+    std::fs::create_dir_all(fresh.join(".omniget")).unwrap();
+    std::fs::write(fresh.join(workflow::FILE), "---\nagent: a\n---\n{{tsak}}\n").unwrap();
+    let refused = cmds
+        .execute(&operator(), &json!({"command_id": "wf-none", "type": "job.start", "prompt": "t", "workspace": fresh.to_string_lossy()}))
+        .unwrap_err();
+    assert_eq!((refused.status, refused.code), (400, workflow::ERR_INVALID));
+    assert!(refused.message.contains("tsak"), "{}", refused.message);
+
+    // ── job_report: one call, no host paths, deny-by-default ──
+    f.set(&ids[0], |j| {
+        j.state = "review".into();
+        j.outcome = jobs::parse_outcome("OUTCOME: succeeded — fixed X0.");
+        j.diff_files = Some(vec![FileChange {
+            path: "src/x.rs".into(),
+            status: "M".into(),
+            additions: Some(3),
+            deletions: Some(1),
+            binary: false,
+        }]);
+        j.additions = Some(3);
+        j.deletions = Some(1);
+        j.proof = Some(jobs::build_proof(j, None, "host"));
+    });
+    let r = mcp_call(&cmds, &p, "job_report", json!({"jobId": ids[0]}))
+        .await
+        .unwrap();
+    let report_ok = r["verdict"] == "needs_review"
+        && r["outcome"]["status"] == "succeeded"
+        && r["diff"]["files"][0]["path"] == "src/x.rs"
+        && r["workflow"]["sha256"] == json!(sha)
+        && r["workflow"].get("root").is_none()
+        && r.get("workspace").is_none()
+        && r["proof"]["generatedBy"] == "host";
+    assert!(report_ok, "{r}");
+    let other = Principal {
+        id: "client-b".into(),
+        ..client(&["agents_run"])
+    };
+    assert_eq!(
+        mcp_call(&cmds, &other, "job_report", json!({"jobId": ids[0]}))
+            .await
+            .unwrap_err(),
+        "JOB_NOT_AUTHORIZED"
+    );
+    let report_denied_by_default =
+        !crate::mcp::policy::allowed(
+            &client(&["orchestration_read", "orchestration_control"]),
+            "job_report",
+        ) && crate::mcp::policy::allowed(&client(&["agents_run"]), "job_report");
+    assert!(report_denied_by_default);
+
+    for (metric, value) in [
+        ("workflow_delegations_ok", json!(ok)),
+        ("flags_win", json!(flags_win)),
+        (
+            "invalid_reload_keeps_previous",
+            json!(invalid_keeps_previous),
+        ),
+        (
+            "invalid_without_last_good_refused",
+            json!(refused.code == workflow::ERR_INVALID),
+        ),
+        ("untrusted_run_mode_held", json!(untrusted_held)),
+        ("job_report_one_call", json!(report_ok)),
+        (
+            "job_report_denied_by_default",
+            json!(report_denied_by_default),
+        ),
+    ] {
+        bt::bn5::emit(json!({"scenario": "workflow", "metric": metric, "value": value}));
+    }
+    let _ = std::fs::remove_dir_all(&repo);
+    let _ = std::fs::remove_dir_all(&fresh);
 }

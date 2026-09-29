@@ -37,3 +37,4 @@ pub mod sse;
 pub mod tool_table;
 pub mod types;
 pub mod wire_probe;
+pub mod workflow;

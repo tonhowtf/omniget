@@ -3402,7 +3402,8 @@
         "deadline": "Arrêté : durée maximale atteinte",
         "limit": "Arrêté : limite de budget atteinte",
         "ask_expired": "Une question est restée sans réponse",
-        "app_restart": "L’application s’est fermée pendant cette tâche"
+        "app_restart": "L’application s’est fermée pendant cette tâche",
+        "budget": "Arrêté : un plafond de budget bloque cette portée"
       },
       "queue": {
         "title": "File d'attente",
@@ -3451,7 +3452,9 @@
         "legacy_hint": "Conservé pendant une version pour que les anciens scripts continuent de fonctionner. La prochaine version la refuse.",
         "legacy_seen": "La clé de l'extension du navigateur a été utilisée sur {{route}} à {{when}}. Passez ce script à un jeton à portée limitée.",
         "curl_hint": "Définissez OMNIGET_TOKEN avec un jeton ayant la portée jobs:operate (Jetons d'accès, ci-dessous).",
-        "scope_audit_read": "Lire le journal d'audit (audit:read)"
+        "scope_audit_read": "Lire le journal d'audit (audit:read)",
+        "scope_budget_write": "Définir et relever les budgets (budget:write)",
+        "scope_workflow_trust": "Approuver les workflows de dépôt (workflow:trust)"
       },
       "isolation": {
         "label": "Où il écrit",
@@ -3515,7 +3518,31 @@
         "discard_confirm": "Abandonner le travail de ce job ? Son worktree et la branche {{branch}} seront supprimés.",
         "discarded": "Travail abandonné. La branche {{branch}} était à {{tip}}."
       },
-      "resumed_by_itself": "Repris tout seul ({{count}}×)"
+      "resumed_by_itself": "Repris tout seul ({{count}}×)",
+      "workflow": {
+        "title": "Workflow du dépôt",
+        "state": {
+          "trusted": "En vigueur",
+          "untrusted": "Non approuvé",
+          "invalid": "Invalide",
+          "none": "Aucun"
+        },
+        "last_good": "La dernière version valide reste en vigueur jusqu'à ce que le fichier soit corrigé.",
+        "no_last_good": "Aucune version valide antérieure : les tâches dans ce dossier sont refusées jusqu'à la correction du fichier.",
+        "defaults": "Valeurs par défaut :",
+        "commands": "Commandes qu'il exécute sur cet ordinateur :",
+        "kind": {
+          "after_create": "après la création du worktree",
+          "before_remove": "avant la suppression du worktree",
+          "check": "vérification après la tâche"
+        },
+        "untrusted_hint": "Tant que vous n'approuvez pas cette version exacte, ces commandes sont ignorées et un mode d'exécution plus permissif n'est pas appliqué. Toute modification du fichier redemande.",
+        "trust": "Approuver cette version",
+        "revoke": "Retirer l'approbation",
+        "template": "Modèle de prompt",
+        "trusted_toast": "Workflow approuvé : ses commandes s'exécutent désormais",
+        "untrusted_toast": "Workflow plus approuvé"
+      }
     },
     "loops": {
       "lede": "Run the same prompt round after round until the work checks out.",
@@ -3544,7 +3571,8 @@
         "running": "Running",
         "done": "Done",
         "failed": "Failed",
-        "cancelled": "Cancelled"
+        "cancelled": "Cancelled",
+        "paused": "En pause"
       },
       "check_passed": "Condition met",
       "summary": "Up to {{rounds}} rounds. Stops earlier when a configured condition or time limit is reached.",
@@ -3553,7 +3581,14 @@
       "edit": "Edit configuration",
       "auto_resume": "Reprendre tout seul après un redémarrage",
       "auto_resume_hint": "Si l’application se ferme pendant un tour, le Loop continue à sa réouverture, sauf si ce tour avait déjà écrit dans votre dossier.",
-      "run_mode_hint": "Chaque tour de la boucle s’exécute avec ce mode. Avec « Demander avant tout », chaque tour s’arrête et vous attend avant toute modification ou commande."
+      "run_mode_hint": "Chaque tour de la boucle s’exécute avec ce mode. Avec « Demander avant tout », chaque tour s’arrête et vous attend avant toute modification ou commande.",
+      "max_cost": "Budget (US$)",
+      "paused_budget": "En pause : budget atteint",
+      "paused_budget_hint": "Aucun tour ne démarre tant que le plafond n'est pas relevé ; le relever reprend la boucle.",
+      "open_incident": "Ouvrir l'incident",
+      "cost_estimated": "(estimé)",
+      "cost_tokens": "{{tokens}} tokens pondérés",
+      "cost_unknown": "{{count}} tour(s) au coût inconnu"
     },
     "limits": {
       "title": "Limits strip",
@@ -5873,7 +5908,8 @@
         "mission": "Mission",
         "thread": "Fil",
         "run": "Discussion",
-        "ask": "Question"
+        "ask": "Question",
+        "budget": "Budget"
       },
       "asks_for": "demande à utiliser {{tool}}",
       "nothing_waits": "Rien ne vous attend.",
@@ -5887,6 +5923,64 @@
         "ready": "Terminé : {{title}}",
         "review": "Prêt à relire : {{title}}",
         "more": "Et {{count}} de plus dans Travail"
+      }
+    },
+    "budget": {
+      "title": "Budgets",
+      "refresh": "Actualiser",
+      "lede": "Plafonds pour vos agents : pour tout, un agent, un compte, une boucle, une tâche ou une mission, en dollars, en tokens pondérés ou en part de la fenêtre 5 h / 7 j d'un abonnement. Au-delà d'un plafond strict, la portée se met en pause et son travail s'arrête jusqu'à ce que vous le releviez. Sans plafond, rien n'est limité.",
+      "read_error": "Impossible de lire les budgets.",
+      "empty": "Aucun plafond pour l'instant : rien n'est limité.",
+      "hard": "met en pause",
+      "soft": "demande",
+      "paused": "En pause",
+      "remove": "Supprimer",
+      "no_reading": "Pas encore de lecture de quota (elle vient du flux de la CLI)",
+      "warn_at": "avertit à {{pct}} %",
+      "estimate_note": "les dollars d'un abonnement sont l'estimation de la table de prix",
+      "add": "Ajouter un plafond",
+      "scope": "Pour",
+      "scope_id": "Id",
+      "metric_label": "Mesuré en",
+      "window_label": "Fenêtre",
+      "amount": "Plafond",
+      "warn_label": "Avertir à (%)",
+      "soft_label": "Demander au lieu de mettre en pause",
+      "save": "Enregistrer",
+      "hard_hint": "Au-delà du plafond la portée se met en pause : son travail en cours et en file est annulé et un incident vous attend (relever et reprendre, ou garder en pause).",
+      "soft_hint": "Au-delà du plafond le tour suivant demande « continuer ? » une fois par fenêtre, comme toute approbation (aussi depuis la CLI et le téléphone). Un non met la portée en pause.",
+      "quota_hint": "Les plafonds de quota ne lisent que ce que la CLI a signalé dans son propre flux. Pour un compte (ou tout) le plafond est le pourcentage de la fenêtre ; pour une boucle, une tâche, un agent ou une mission ce sont les points consommés depuis son début.",
+      "warn_toast": "Budget de {{scope}} : {{used}} sur {{limit}} utilisés",
+      "metric": {
+        "usd": "Dollars",
+        "weighted_tokens": "Tokens pondérés",
+        "quota_pct": "Part de la fenêtre de quota"
+      },
+      "window": {
+        "turn": "par tour",
+        "day": "par jour",
+        "week": "par semaine",
+        "5h": "fenêtre de 5 h",
+        "7d": "fenêtre de 7 j",
+        "run": "toute l'exécution"
+      },
+      "scope_kind": {
+        "global": "Tout",
+        "agent": "Agent",
+        "account": "Compte",
+        "loop": "Boucle",
+        "job": "Tâche",
+        "mission": "Mission"
+      },
+      "incident": {
+        "open": "Budget atteint",
+        "kept": "Gardé en pause",
+        "hard_line": "{{used}} utilisés sur {{limit}}. Rien ne démarre ici tant que vous ne relevez pas le plafond.",
+        "checkpoint_line": "Le point de contrôle à {{limit}} a reçu un non ({{used}} utilisés). Rien ne démarre ici tant que vous ne le relevez pas.",
+        "new_limit": "Nouveau plafond",
+        "raise": "Relever et reprendre",
+        "keep": "Garder en pause",
+        "too_low": "Le nouveau plafond doit dépasser ce qui est déjà utilisé."
       }
     }
   },

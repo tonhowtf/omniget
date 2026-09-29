@@ -24,10 +24,12 @@ pub mod external_url;
 pub mod hotkey;
 pub mod ipc_guard;
 pub mod job_commands;
+pub mod job_workflow;
 pub mod jobs;
 pub mod limits_strip;
 pub mod llm_attention;
 pub mod llm_audit;
+pub mod llm_budget;
 pub mod llm_manager;
 pub mod local_bridge;
 pub mod local_bridge_agentkit;
@@ -376,6 +378,10 @@ pub fn run() {
             omniget_core::core::secrets::install(std::sync::Arc::new(secrets::AppSecretStore));
             // The /llm audit log (2.8) is open before any job or question.
             crate::llm_audit::boot(app.handle());
+            // The budget policies (3.3) too: a paused scope starts nothing.
+            crate::llm_budget::boot(app.handle());
+            // `.omniget/workflow.md` (3.10): last good versions and trust.
+            crate::job_workflow::boot();
 
             // A janela principal e criada aqui, e nao pelo `tauri.conf.json`
             // (`"create": false`), porque so daqui da para passar
@@ -1436,6 +1442,10 @@ pub fn run() {
             commands::llm::chat::llm_conversation_run_mode_set,
             llm_audit::llm_audit_list,
             llm_audit::llm_audit_retention_set,
+            llm_budget::llm_budget_state,
+            llm_budget::llm_budget_policy_save,
+            llm_budget::llm_budget_policy_delete,
+            llm_budget::llm_budget_incident_resolve,
             commands::llm::chat::llm_switch_model,
             commands::llm::models::llm_models_list,
             commands::llm::observatory::llm_telemetry_snapshot,
@@ -1580,6 +1590,8 @@ pub fn run() {
             commands::llm::jobs::llm_trigger_mute,
             commands::llm::jobs::llm_job_seen,
             commands::llm::jobs::llm_jobs_state,
+            commands::llm::jobs::llm_workflow_status,
+            commands::llm::jobs::llm_workflow_trust,
             commands::llm::jobs::llm_jobs_limits_set,
             commands::llm::jobs::llm_job_explain,
             commands::llm::jobs::llm_job_diff,

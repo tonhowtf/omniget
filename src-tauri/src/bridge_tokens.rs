@@ -55,11 +55,20 @@ pub const SCOPE_APPROVALS_RESPOND: &str = "approvals:respond";
 /// Reading the audit log (2.8): who did what with every token, so neither a
 /// job's token nor the extension key ever has it.
 pub const SCOPE_AUDIT_READ: &str = "audit:read";
+/// Setting and raising budget ceilings (3.3): raising one lets agents spend
+/// more, so neither a job's token nor the extension key ever has it.
+pub const SCOPE_BUDGET_WRITE: &str = "budget:write";
+/// Trusting a repository's `.omniget/workflow.md` (3.10): its hooks and
+/// checks then run on this machine, so neither a job's token (an agent
+/// trusting its own repository's commands) nor the extension key ever has it.
+pub const SCOPE_WORKFLOW_TRUST: &str = "workflow:trust";
 pub const SCOPES: &[&str] = &[
     SCOPE_JOBS_READ,
     SCOPE_JOBS_OPERATE,
     SCOPE_APPROVALS_RESPOND,
     SCOPE_AUDIT_READ,
+    SCOPE_BUDGET_WRITE,
+    SCOPE_WORKFLOW_TRUST,
 ];
 
 /// What the child of a job finds its token in.
@@ -450,7 +459,9 @@ pub fn route_need(method: &Method, path: &str) -> Option<Need> {
             need(SCOPE_JOBS_READ, None)
         }
         ["v1", "jobs", id] if get => need(SCOPE_JOBS_READ, Some(id)),
-        ["v1", "jobs", id, "explain" | "diff" | "proof"] if get => need(SCOPE_JOBS_READ, Some(id)),
+        ["v1", "jobs", id, "explain" | "diff" | "proof" | "report"] if get => {
+            need(SCOPE_JOBS_READ, Some(id))
+        }
         // The review of a job (3.5): reading it is a read of that job; any
         // change (a hunk put back, notes, integrate, discard, walkthrough,
         // which spends a model turn) is operating it.
@@ -500,6 +511,22 @@ pub fn route_need(method: &Method, path: &str) -> Option<Need> {
         // The audit log (2.8): its own scope, never the extension's.
         ["v1", "audit"] if get => Some(Need {
             scope: SCOPE_AUDIT_READ,
+            job: None,
+            legacy_ok: false,
+        }),
+        // Budgets (3.3): reading them is a read of the jobs; setting or
+        // raising one has its own scope, never the extension's.
+        ["v1", "budget"] if get => need(SCOPE_JOBS_READ, None),
+        ["v1", "budget", "policies"] | ["v1", "budget", "incidents", _] if post => Some(Need {
+            scope: SCOPE_BUDGET_WRITE,
+            job: None,
+            legacy_ok: false,
+        }),
+        // A repository's workflow (3.10): reading it is a read; trusting it
+        // lets its commands run, so it has its own scope.
+        ["v1", "workflow"] if get => need(SCOPE_JOBS_READ, None),
+        ["v1", "workflow", "trust"] if post => Some(Need {
+            scope: SCOPE_WORKFLOW_TRUST,
             job: None,
             legacy_ok: false,
         }),
@@ -889,6 +916,51 @@ mod tests {
         assert!(list(&db, 200).is_empty());
     }
 
+    /// 3.3: reading the budgets is a read of the jobs; setting or raising one
+    /// needs `budget:write`, which neither a job's token nor the extension
+    /// key ever has.
+    #[test]
+    fn budgets_are_written_only_with_their_own_scope() {
+        let read = route_need(&Method::GET, "/v1/budget").unwrap();
+        assert_eq!(read.scope, SCOPE_JOBS_READ);
+        for path in ["/v1/budget/policies", "/v1/budget/incidents/bi_1"] {
+            let need = route_need(&Method::POST, path).unwrap();
+            assert_eq!(need.scope, SCOPE_BUDGET_WRITE, "{path}");
+            assert!(!need.legacy_ok, "{path}: never the extension key");
+        }
+        assert!(!job_scopes().contains(&SCOPE_BUDGET_WRITE.to_string()));
+        assert!(!LEGACY_SCOPES.contains(&SCOPE_BUDGET_WRITE));
+        assert!(
+            SCOPES.contains(&SCOPE_BUDGET_WRITE),
+            "the CLI token gets it"
+        );
+    }
+
+    /// 3.10: reading a workflow and a job's report are reads; trusting a
+    /// workflow needs `workflow:trust`, which neither a job's token nor the
+    /// extension key ever has.
+    #[test]
+    fn a_workflow_is_trusted_only_with_its_own_scope() {
+        assert_eq!(
+            route_need(&Method::GET, "/v1/workflow").unwrap().scope,
+            SCOPE_JOBS_READ
+        );
+        let report = route_need(&Method::GET, "/v1/jobs/j1/report").unwrap();
+        assert_eq!(
+            (report.scope, report.job.as_deref()),
+            (SCOPE_JOBS_READ, Some("j1"))
+        );
+        let trust = route_need(&Method::POST, "/v1/workflow/trust").unwrap();
+        assert_eq!(trust.scope, SCOPE_WORKFLOW_TRUST);
+        assert!(!trust.legacy_ok);
+        assert!(!job_scopes().contains(&SCOPE_WORKFLOW_TRUST.to_string()));
+        assert!(!LEGACY_SCOPES.contains(&SCOPE_WORKFLOW_TRUST));
+        assert!(
+            SCOPES.contains(&SCOPE_WORKFLOW_TRUST),
+            "the CLI token gets it"
+        );
+    }
+
     #[test]
     fn every_agent_route_has_a_scope() {
         let src = include_str!("local_bridge_jobs.rs");
@@ -902,7 +974,7 @@ mod tests {
             let end = rest[q + 1..].find('"').unwrap();
             paths.push(rest[q + 1..q + 1 + end].to_string());
         }
-        assert_eq!(paths.len(), 29, "{paths:?}");
+        assert_eq!(paths.len(), 35, "{paths:?}");
         for p in &paths {
             let concrete = p.replace("{id}", "j1").replace("{note}", "n1");
             let ok = route_need(&Method::GET, &concrete).is_some()

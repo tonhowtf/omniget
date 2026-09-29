@@ -468,6 +468,17 @@ pub struct LoopDef {
     /// `approval_required` when the caller sends none.
     #[serde(default)]
     pub run_mode: Option<RunMode>,
+    /// Weighted tokens of all rounds (3.3, PROB C5): what the loop cost when
+    /// its dollars are unknown.
+    #[serde(default)]
+    pub spent_tokens: u64,
+    /// The part of `spent_usd` that is the price table's estimate (a CLI
+    /// that reported no price), not what the provider billed.
+    #[serde(default)]
+    pub spent_usd_estimated: f64,
+    /// Rounds whose cost nobody knows (no report, no price).
+    #[serde(default)]
+    pub unpriced_rounds: u32,
 }
 
 /// One step of a running playbook.
@@ -1393,69 +1404,6 @@ impl Jobs {
         Ok(job)
     }
 
-    /// [`Self::submit_with_deadline`] with the job's placement (2.3):
-    /// `isolation` (absent = the default of the kind) and the ref a worktree
-    /// starts from (absent = the user's checkout as it is on disk).
-    #[allow(clippy::too_many_arguments)]
-    pub fn submit_placed(
-        self: &Arc<Self>,
-        kind: &str,
-        agent_id: &str,
-        prompt: &str,
-        workspace: Option<String>,
-        deadline_min: Option<u32>,
-        isolation: Option<Isolation>,
-        base: Option<String>,
-    ) -> Result<Job, String> {
-        self.submit_as(
-            kind,
-            agent_id,
-            prompt,
-            workspace,
-            deadline_min,
-            isolation,
-            base,
-            None,
-        )
-    }
-
-    /// [`Self::submit_placed`] with the job's run mode (2.7); `None` = the
-    /// default of the kind ([`RunMode::default_for`]: a `run` asks first).
-    #[allow(clippy::too_many_arguments)]
-    pub fn submit_as(
-        self: &Arc<Self>,
-        kind: &str,
-        agent_id: &str,
-        prompt: &str,
-        workspace: Option<String>,
-        deadline_min: Option<u32>,
-        isolation: Option<Isolation>,
-        base: Option<String>,
-        run_mode: Option<RunMode>,
-    ) -> Result<Job, String> {
-        let mut job = self.new_job(kind, agent_id, prompt, workspace, None)?;
-        if let Some(mode) = run_mode {
-            job.run_mode = mode;
-        }
-        job.deadline_min = deadline_min.map(|m| m.clamp(1, 24 * 60));
-        if let Some(i) = isolation {
-            job.isolation = i;
-        }
-        job.base_ref = base.map(|b| b.trim().to_string()).filter(|b| !b.is_empty());
-        if job.base_ref.is_some() && job.isolation == Isolation::Shared {
-            return Err(format!(
-                "{ERR_JOBS}: a base ref needs a worktree (isolation worktree or auto)"
-            ));
-        }
-        self.save_job(&job);
-        let this = self.clone();
-        let id = job.id.clone();
-        tauri::async_runtime::spawn(async move {
-            this.run_job(&id, None).await;
-        });
-        Ok(job)
-    }
-
     /// Starts the job of a `job.start` command (2.5), owned by `owner`. The
     /// command's fields land on the row; `resume_of` continues that job's
     /// conversation (and folder, unless another is named); `model` becomes
@@ -1465,6 +1413,25 @@ impl Jobs {
         self: &Arc<Self>,
         s: &crate::job_commands::StartSpec,
         owner: &str,
+    ) -> Result<Job, String> {
+        self.start_spec(s, Some(owner), RunMode::ApprovalRequired)
+    }
+
+    /// The job of a start spec from the window (3.10: the same path as a
+    /// command, so the folder's workflow applies), with no owner and the
+    /// window's default mode when none was chosen.
+    pub fn submit_window(
+        self: &Arc<Self>,
+        s: &crate::job_commands::StartSpec,
+    ) -> Result<Job, String> {
+        self.start_spec(s, None, RunMode::AutoEdits)
+    }
+
+    fn start_spec(
+        self: &Arc<Self>,
+        s: &crate::job_commands::StartSpec,
+        owner: Option<&str>,
+        default_mode: RunMode,
     ) -> Result<Job, String> {
         let earlier = match &s.resume_of {
             Some(id) => {
@@ -1504,15 +1471,12 @@ impl Jobs {
             ));
         }
         job.title = s.title.clone();
-        job.owner = Some(owner.to_string());
+        job.owner = owner.map(str::to_string);
         // The mode asked for (2.7); none = the resumed job's, else a job from
         // outside asks first (D2).
         job.run_mode = match s.run_mode.as_deref() {
             Some(m) => RunMode::parse(m)?,
-            None => earlier
-                .as_ref()
-                .map(|e| e.run_mode)
-                .unwrap_or(RunMode::ApprovalRequired),
+            None => earlier.as_ref().map(|e| e.run_mode).unwrap_or(default_mode),
         };
         job.auto_resume = s.auto_resume;
         job.origin = Some(json!({
@@ -1522,6 +1486,9 @@ impl Jobs {
             "effort": s.effort,
             "budget_usd": s.budget_usd,
             "resume_of": s.resume_of,
+            // What `.omniget/workflow.md` filled in and held back (3.10);
+            // its hooks and checks append their runs here.
+            "workflow": s.applied_workflow,
         }));
         if let Some(model) = s.model.as_deref() {
             let agent = self
@@ -1926,6 +1893,16 @@ impl Jobs {
                 .remove(&job.id);
             return self.job(id);
         }
+        // A scope paused by a budget incident starts nothing (3.3): the job
+        // fails before its turn, and says which incident holds it.
+        if let Some(block) = self.budget_block(&job) {
+            job.state = "failed".into();
+            job.failure_reason = Some("budget".into());
+            job.error = Some(format!("{}: {}", block.error().code, block.message));
+            job.finished_ms = Some(now_ms());
+            self.save_job_checked(&job).ok()?;
+            return Some(job);
+        }
         job.state = "running".into();
         job.started_ms = Some(now_ms());
         // The process of an earlier attempt is not this one (3.1).
@@ -1983,6 +1960,9 @@ impl Jobs {
         // The turns of this job run in its run mode (2.7), whatever the
         // conversation had chosen; the binding goes with the job.
         let _run_mode = omniget_core::core::llm::run_mode::Binding::new(&conv, job.run_mode);
+        // Its turns count against `job:<id>` (and its Loop's) budgets (3.3).
+        let _budget_scope =
+            omniget_core::core::llm::budget::policy::Binding::new(&conv, work_scopes(&job));
         let (request_id, cancel, mut stream) = match self
             .llm
             .turn_stream_with_cancel(&conv, &job.agent_id, &input, cancel.clone())
@@ -2234,6 +2214,9 @@ impl Jobs {
             ends.as_ref(),
             &omniget_core::core::vcs::job_worktree::host_label(),
         ));
+        // The repository's checks from its workflow (3.10), when trusted:
+        // each exit code lands in the proof.
+        crate::job_workflow::run_checks(crate::job_workflow::store().as_deref(), &mut job).await;
         // A worktree the job did not change has nothing to review: it goes
         // now, with its branch (2.3).
         if job.worktree_path.is_some()
@@ -2300,8 +2283,14 @@ impl Jobs {
         let Some((_, root)) = worktree_root(job).await else {
             return;
         };
-        let first: String = job
-            .prompt
+        // The task as asked, not the workflow's template around it (3.10).
+        let task = job
+            .origin
+            .as_ref()
+            .and_then(|o| o["workflow"]["task"].as_str())
+            .unwrap_or(&job.prompt)
+            .to_string();
+        let first: String = task
             .lines()
             .find(|l| !l.trim().is_empty())
             .unwrap_or("")
@@ -2363,6 +2352,14 @@ impl Jobs {
             if recreated {
                 job.log
                     .push_str(&format!("⎇ worktree recreated from {branch}\n"));
+                // A fresh checkout again: the workflow's hook runs again (3.10).
+                crate::job_workflow::after_create(
+                    crate::job_workflow::store().as_deref(),
+                    job,
+                    &repo,
+                    &root,
+                )
+                .await?;
             }
             return Ok(());
         }
@@ -2393,7 +2390,19 @@ impl Jobs {
         job.worktree_path = Some(wt.path.join(sub).to_string_lossy().into_owned());
         job.branch = Some(wt.branch);
         job.base_oid = Some(wt.base_oid);
-        self.save_job_checked(job)
+        self.save_job_checked(job)?;
+        // The repository's `after_create` hook, only when its workflow is
+        // trusted (3.10; the hooks 2.3 deferred). A failure fails the job;
+        // the worktree stays until it is removed like any other.
+        let hooked = crate::job_workflow::after_create(
+            crate::job_workflow::store().as_deref(),
+            job,
+            &repo,
+            &wt.path,
+        )
+        .await;
+        self.save_job_checked(job)?;
+        hooked
     }
 
     /// Removes the job's worktree (2.3), never losing work: what is not
@@ -2553,6 +2562,19 @@ impl Jobs {
     /// its row), or the row of a chat turn directly.
     fn handle_bus(&self, event: &omniget_core::core::omni::bus::BusEvent) {
         use omniget_core::core::omni::bus::BusEvent;
+        if let BusEvent::BudgetCrossed {
+            scope,
+            kind,
+            incident,
+            request,
+            ..
+        } = event
+        {
+            if kind == "hard" {
+                self.cancel_scope(scope, incident.as_deref(), request);
+            }
+            return;
+        }
         let (request_id, signal) = match event {
             BusEvent::ToolAsk {
                 request_id,
@@ -2937,7 +2959,36 @@ impl Jobs {
         def.next_round_ms = None;
         def.created_ms = now_ms();
         def.finished_ms = None;
+        def.spent_tokens = 0;
+        def.spent_usd_estimated = 0.0;
+        def.unpriced_rounds = 0;
         self.save_loop(&def);
+        // A cost ceiling is a hard budget policy on the loop (3.3): crossing
+        // it pauses the loop with an incident ("raise and resume").
+        if let (Some(max), Some(engine)) = (
+            def.max_cost_usd.filter(|m| *m > 0.0),
+            omniget_core::core::llm::budget::policy::active(),
+        ) {
+            use omniget_core::core::llm::budget::policy::{BudgetPolicy, Metric, Scope, Window};
+            let saved = engine.upsert(
+                BudgetPolicy {
+                    id: String::new(),
+                    scope: Scope::Loop(def.id.clone()),
+                    metric: Metric::Usd,
+                    window: Window::Run,
+                    amount: max,
+                    warn_pct: Some(80.0),
+                    hard_stop: true,
+                    enabled: true,
+                    created_ms: 0,
+                    updated_ms: 0,
+                },
+                omniget_core::core::llm::audit::Actor::window(),
+            );
+            if let Err(e) = saved {
+                tracing::warn!("[jobs] loop {} budget: {e}", def.id);
+            }
+        }
         let this = self.clone();
         let id = def.id.clone();
         tauri::async_runtime::spawn(async move { this.run_loop(id).await });
@@ -2948,7 +2999,7 @@ impl Jobs {
         let mut l = self
             .loop_get(id)
             .ok_or_else(|| format!("{ERR_JOBS}: no loop {id}"))?;
-        if l.state == "running" {
+        if l.state == "running" || l.state == "paused" {
             l.state = "cancelled".into();
             l.stop_reason = Some("cancelled".into());
             l.finished_ms = Some(now_ms());
@@ -2982,6 +3033,13 @@ impl Jobs {
 
     pub fn loop_delete(&self, id: &str) -> Result<(), String> {
         let _ = self.loop_cancel(id);
+        // Its budget policies go with it (3.3): nothing else can cross them.
+        if let Some(engine) = omniget_core::core::llm::budget::policy::active() {
+            let scope = omniget_core::core::llm::budget::policy::Scope::Loop(id.to_string());
+            for p in engine.policies().into_iter().filter(|p| p.scope == scope) {
+                let _ = engine.delete(&p.id, omniget_core::core::llm::audit::Actor::window());
+            }
+        }
         self.db()
             .execute("DELETE FROM loops WHERE id=?1", params![id])
             .map_err(|e| e.to_string())?;
@@ -3072,6 +3130,17 @@ impl Jobs {
                 l.stop_reason = Some("max_minutes".into());
                 break;
             }
+            // A budget incident on any scope of the loop pauses it (3.3):
+            // no round starts until someone raises the ceiling.
+            if let Some(block) = self.loop_budget_block(&l) {
+                l.state = "paused".into();
+                l.stop_reason = Some(format!(
+                    "budget:{}",
+                    block.incident.clone().unwrap_or_default()
+                ));
+                self.save_loop(&l);
+                return;
+            }
             if l.max_cost_usd.map(|m| l.spent_usd >= m).unwrap_or(false) {
                 l.stop_reason = Some("max_cost".into());
                 break;
@@ -3144,8 +3213,14 @@ impl Jobs {
                 .as_deref()
                 .and_then(|s| next_round_at(s, now_ms()));
             let Some(done) = done else { break };
-            if let Some(c) = done.usage.as_ref().and_then(|u| u["cost_usd"].as_f64()) {
-                l.spent_usd += c;
+            self.note_loop_cost(&mut l, &done);
+            // The round was stopped by a budget (refused, or cancelled when
+            // a scope of it crossed): pause at the top of the next pass.
+            if matches!(done.state.as_str(), "cancelled" | "failed")
+                && self.loop_budget_block(&l).is_some()
+            {
+                self.save_loop(&l);
+                continue;
             }
             match done.state.as_str() {
                 "cancelled" => {
@@ -3225,7 +3300,7 @@ impl Jobs {
         l.next_round_ms = None;
         // A cancel may have landed while the last round ran.
         if let Some(cur) = self.loop_get(&id) {
-            if cur.state == "cancelled" {
+            if cur.state == "cancelled" || cur.state == "paused" {
                 l.state = "cancelled".into();
                 l.stop_reason = Some("cancelled".into());
             }
@@ -3248,6 +3323,121 @@ impl Jobs {
             self.attention
                 .job_ended(&target, l.state == "done", &detail);
         }
+    }
+
+    // ── budgets (3.3) ────────────────────────────────────────────────
+
+    /// The account a roster agent's turns are charged to.
+    fn account_of(&self, agent_id: &str) -> Option<String> {
+        match self.llm.agent(agent_id)?.runtime {
+            omniget_core::core::llm::agent::RuntimeKind::Cli { account, .. } => Some(account),
+            _ => None,
+        }
+    }
+
+    /// The budget incident that holds a job back, if one of its scopes
+    /// (global, agent, account, job, loop) is paused.
+    fn budget_block(&self, job: &Job) -> Option<omniget_core::core::llm::budget::policy::Block> {
+        use omniget_core::core::llm::budget::policy::{self, Scope};
+        let engine = policy::active()?;
+        if !engine.has_policies() || job.agent_id.starts_with(TOOL_PREFIX) {
+            return None;
+        }
+        let account = self.account_of(&job.agent_id);
+        let mut scopes = vec![Scope::Global, Scope::Agent(job.agent_id.clone())];
+        if let Some(a) = &account {
+            scopes.push(Scope::Account(a.clone()));
+        }
+        scopes.extend(work_scopes(job));
+        scopes.extend(policy::bound_scopes(&sanitize_id(&job.conversation_id)));
+        engine.blocked(&scopes, account.as_deref())
+    }
+
+    /// The same for a Loop's next round.
+    fn loop_budget_block(
+        &self,
+        l: &LoopDef,
+    ) -> Option<omniget_core::core::llm::budget::policy::Block> {
+        let probe = Job {
+            id: String::new(),
+            agent_id: l.agent_id.clone(),
+            conversation_id: l.conversation_id.clone(),
+            loop_id: Some(l.id.clone()),
+            ..Default::default()
+        };
+        self.budget_block(&probe)
+    }
+
+    /// What a round cost, added to its Loop: dollars (reported, or the
+    /// price table's estimate when a dollar ceiling applies), weighted
+    /// tokens, and the rounds nobody could price (PROB C5; `jobs.rs:63-65`
+    /// no longer reads a missing price as "no cost").
+    fn note_loop_cost(&self, l: &mut LoopDef, done: &Job) {
+        use omniget_core::core::llm::budget::policy::{self, Scope};
+        if let Some(engine) = policy::active() {
+            let spend = engine.spent(&Scope::Loop(l.id.clone()));
+            if spend.turns > 0 {
+                l.spent_usd = spend.usd;
+                l.spent_usd_estimated = spend.usd_estimated;
+                l.unpriced_rounds = spend.unpriced_turns;
+                l.spent_tokens = spend.tokens;
+                return;
+            }
+        }
+        let u = done.usage.clone().unwrap_or_default();
+        match u["cost_usd"].as_f64() {
+            Some(c) => l.spent_usd += c,
+            None if done.usage.is_some() => l.unpriced_rounds += 1,
+            None => {}
+        }
+        l.spent_tokens += billable_of(&u);
+    }
+
+    /// A hard budget crossing (`BudgetCrossed`): the scope's other running
+    /// and queued jobs are cancelled (a Loop's runner pauses the Loop itself, on
+    /// its next pass). Jobs of other scopes are left alone.
+    fn cancel_scope(&self, scope: &str, incident: Option<&str>, crossing_turn: &str) {
+        use omniget_core::core::llm::budget::policy::{self, Scope};
+        let Ok(scope) = Scope::parse(scope) else {
+            return;
+        };
+        let bound: Vec<String> = policy::conversations_in(&scope);
+        let victims: Vec<Job> = self
+            .list(500)
+            .into_iter()
+            .filter(|j| is_active(&j.state))
+            // The turn that crossed is ending by itself: its work stands.
+            .filter(|j| j.request_id.as_deref() != Some(crossing_turn))
+            .filter(|j| in_budget_scope(j, &scope, self.account_of(&j.agent_id).as_deref(), &bound))
+            .collect();
+        for j in victims {
+            tracing::info!(
+                "[jobs] {}: cancelled by the budget of {} ({})",
+                j.id,
+                scope.key(),
+                incident.unwrap_or("-")
+            );
+            let _ = self.cancel_by(
+                &j.id,
+                omniget_core::core::llm::audit::Actor::system("budget"),
+            );
+        }
+    }
+
+    /// After "raise and resume": every Loop paused by that incident runs
+    /// again, unless another incident still holds it.
+    pub fn budget_resumed(self: &Arc<Self>, incident: &str) -> Vec<String> {
+        let tag = format!("budget:{incident}");
+        let mut resumed = Vec::new();
+        for l in self.loops() {
+            if l.state == "paused" && l.stop_reason.as_deref() == Some(tag.as_str()) {
+                match self.loop_resume(&l.id) {
+                    Ok(_) => resumed.push(l.id),
+                    Err(e) => tracing::info!("[jobs] loop {} stays paused: {e}", l.id),
+                }
+            }
+        }
+        resumed
     }
 
     /// Sleeps until `at_ms`; `false` when the loop was cancelled meanwhile.
@@ -3939,11 +4129,16 @@ impl Jobs {
         let mut l = self
             .loop_get(id)
             .ok_or_else(|| format!("{ERR_JOBS}: no loop {id}"))?;
-        if l.state != "interrupted" {
+        if l.state != "interrupted" && l.state != "paused" {
             return Err(format!(
-                "{ERR_JOBS}: loop {id} is {}, not interrupted",
+                "{ERR_JOBS}: loop {id} is {}, not interrupted or paused",
                 l.state
             ));
+        }
+        if l.state == "paused" {
+            if let Some(block) = self.loop_budget_block(&l) {
+                return Err(format!("{}: {}", block.error().code, block.message));
+            }
         }
         l.state = "running".into();
         l.stop_reason = None;
@@ -4733,6 +4928,8 @@ pub fn failure_reason_of(error: &str) -> Option<&'static str> {
         Some("no_start")
     } else if error.starts_with(ERR_TOOL_TIMEOUT) {
         Some("ask_expired")
+    } else if error.starts_with(omniget_core::core::llm::error::ERR_LLM_BUDGET) {
+        Some("budget")
     } else {
         None
     }
@@ -5175,6 +5372,39 @@ pub fn settle_outcome<'a>(kind: &str, state: &'a str, reported: bool) -> &'a str
     }
 }
 
+/// The budget scopes a job's turns count against besides global, agent and
+/// account (3.3): the job itself and its Loop.
+pub fn work_scopes(job: &Job) -> Vec<omniget_core::core::llm::budget::policy::Scope> {
+    use omniget_core::core::llm::budget::policy::Scope;
+    let mut out = Vec::new();
+    if !job.id.is_empty() {
+        out.push(Scope::Job(job.id.clone()));
+    }
+    if let Some(l) = &job.loop_id {
+        out.push(Scope::Loop(l.clone()));
+    }
+    out
+}
+
+/// Whether a job's work is inside a budget scope (what a hard crossing of
+/// that scope cancels). `bound` = the conversations a mission bound.
+pub fn in_budget_scope(
+    job: &Job,
+    scope: &omniget_core::core::llm::budget::policy::Scope,
+    account: Option<&str>,
+    bound: &[String],
+) -> bool {
+    use omniget_core::core::llm::budget::policy::Scope;
+    match scope {
+        Scope::Global => true,
+        Scope::Agent(a) => &job.agent_id == a,
+        Scope::Account(a) => account == Some(a.as_str()),
+        Scope::Job(id) => &job.id == id,
+        Scope::Loop(id) => job.loop_id.as_deref() == Some(id.as_str()),
+        Scope::Mission(_) => bound.contains(&sanitize_id(&job.conversation_id)),
+    }
+}
+
 /// Adds a `job.start` budget (US$) to the job's guard: the job stops
 /// `failed` (reason `limit`) once its known cost passes it. A provider with
 /// no price never trips it (the cost stays unknown).
@@ -5361,6 +5591,14 @@ async fn worktree_root(job: &Job) -> Option<(std::path::PathBuf, std::path::Path
 async fn remove_job_worktree(
     job: &Job,
 ) -> Result<omniget_core::core::vcs::job_worktree::RemoveOutcome, String> {
+    remove_job_worktree_with(crate::job_workflow::store().as_deref(), job).await
+}
+
+/// [`remove_job_worktree`] with the workflow store given (tests bring their own).
+pub(crate) async fn remove_job_worktree_with(
+    store: Option<&omniget_core::core::llm::workflow::Store>,
+    job: &Job,
+) -> Result<omniget_core::core::vcs::job_worktree::RemoveOutcome, String> {
     use omniget_core::core::vcs::job_worktree;
     let (repo, root) = worktree_root(job)
         .await
@@ -5369,14 +5607,20 @@ async fn remove_job_worktree(
         .branch
         .clone()
         .unwrap_or_else(|| job_worktree::branch_of(&job.id));
-    job_worktree::remove(&repo, &root, &branch, job.base_oid.as_deref())
+    // The workflow's `before_remove` hook (3.10), when trusted: a failure
+    // blocks the removal.
+    let hook = crate::job_workflow::before_remove(store, job, &repo, &root).await?;
+    let mut out = job_worktree::remove(&repo, &root, &branch, job.base_oid.as_deref())
         .await
-        .map_err(|e| format!("{ERR_WORKTREE}: {e}"))
+        .map_err(|e| format!("{ERR_WORKTREE}: {e}"))?;
+    out.hook_note = (!hook.is_empty()).then_some(hook);
+    Ok(out)
 }
 
 /// The job log line of a removal: what was saved, what the branch became.
 pub fn removal_note(out: &omniget_core::core::vcs::job_worktree::RemoveOutcome) -> String {
-    let mut line = String::from("⎇ worktree removed");
+    let mut line = out.hook_note.clone().unwrap_or_default();
+    line.push_str("⎇ worktree removed");
     if let Some(c) = &out.saved {
         line.push_str(&format!(
             "; {} uncommitted file(s) saved as {}",
@@ -5987,6 +6231,41 @@ mod watchdog_tests {
         assert_eq!(next_state_seq(Some(("waiting_approval", 3)), "running"), 4);
         // A row from before the column (seq 0) still moves forward.
         assert_eq!(next_state_seq(Some(("running", 0)), "done"), 1);
+    }
+
+    #[test]
+    fn a_budget_scope_reaches_the_jobs_inside_it() {
+        use omniget_core::core::llm::budget::policy::Scope;
+        let job = Job {
+            id: "j1".into(),
+            agent_id: "worker".into(),
+            conversation_id: "loop-l1".into(),
+            loop_id: Some("l1".into()),
+            ..Default::default()
+        };
+        assert_eq!(
+            work_scopes(&job),
+            vec![Scope::Job("j1".into()), Scope::Loop("l1".into())]
+        );
+        let inside =
+            |s: Scope, acct: Option<&str>, bound: &[String]| in_budget_scope(&job, &s, acct, bound);
+        assert!(inside(Scope::Global, None, &[]));
+        assert!(inside(Scope::Agent("worker".into()), None, &[]));
+        assert!(!inside(Scope::Agent("other".into()), None, &[]));
+        assert!(inside(Scope::Account("max-1".into()), Some("max-1"), &[]));
+        assert!(!inside(Scope::Account("max-1".into()), Some("max-2"), &[]));
+        assert!(inside(Scope::Loop("l1".into()), None, &[]));
+        assert!(!inside(Scope::Job("j2".into()), None, &[]));
+        assert!(inside(
+            Scope::Mission("m".into()),
+            None,
+            &["loop-l1".to_string()]
+        ));
+        assert!(!inside(Scope::Mission("m".into()), None, &[]));
+        assert_eq!(
+            failure_reason_of("ERR_LLM_BUDGET: budget paused: loop:l1 0.06 of 0.05 USD (run)"),
+            Some("budget")
+        );
     }
 
     #[test]

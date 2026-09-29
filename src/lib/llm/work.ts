@@ -19,8 +19,9 @@
 import type { Job, LoopDef, PendingAsk, PermissionRequest, RunView } from "$lib/stores/llm-jobs-store.svelte";
 import type { MissionRow } from "$lib/stores/assist-missions-store.svelte";
 import type { ApprovalRow, ThreadRow, UserInputRow } from "$lib/central/threads/types";
+import type { BudgetIncident } from "$lib/llm/budget";
 
-export type WorkSource = "job" | "loop" | "mission" | "thread" | "run" | "ask";
+export type WorkSource = "job" | "loop" | "mission" | "thread" | "run" | "ask" | "budget";
 export type WorkPill = "approval" | "input" | "decision" | "working" | "failed" | "queued" | "review" | "ready" | "stopped";
 export type WorkSection = "needs_you" | "running" | "queued" | "review" | "done";
 
@@ -69,6 +70,11 @@ export type WorkInput = {
   threads: ThreadRow[];
   threadApprovals: ApprovalRow[];
   threadInputs: UserInputRow[];
+  /**
+   * Budget incidents (3.3): an `open` one pauses a scope until someone
+   * raises the ceiling or keeps it paused, so it is "needs you".
+   */
+  incidents?: Pick<BudgetIncident, "id" | "scope" | "state" | "metric" | "opened_ms">[];
   now: number;
   /** How long a finished item stays under "done recently". */
   doneWindowMs?: number;
@@ -248,6 +254,10 @@ export function deriveWork(input: WorkInput): WorkItem[] {
       case "interrupted":
         pill = "decision";
         break;
+      // Held by a budget incident: the incident is the "needs you" item.
+      case "paused":
+        pill = "queued";
+        break;
       case "failed":
         pill = "failed";
         break;
@@ -360,6 +370,16 @@ export function deriveWork(input: WorkInput): WorkItem[] {
     if (claimedAsks.has(a.tool_call_id) || threadRequests.has(a.tool_call_id)) continue;
     claimedAsks.add(a.tool_call_id);
     items.set(`ask:${a.tool_call_id}`, make("ask", a.tool_call_id, a.preview ? titleOf(a.preview) : a.tool, "approval", "/llm", input.now, a.tool_call_id, a.tool));
+  }
+
+  // A budget ceiling crossed: the scope starts nothing until someone
+  // raises it or keeps it paused (kept-paused ones no longer ask).
+  for (const inc of input.incidents ?? []) {
+    if (inc.state !== "open") continue;
+    items.set(
+      `budget:${inc.id}`,
+      make("budget", inc.id, inc.scope, "decision", `/llm/usage?incident=${encodeURIComponent(inc.id)}#budgets`, inc.opened_ms, inc.id, inc.metric),
+    );
   }
 
   const all = [...items.values()];

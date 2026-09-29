@@ -1072,6 +1072,13 @@ impl Driver {
                 }
             })
         };
+        // Its turns also count against the mission's budget policies (3.3).
+        let _budget_scope = omniget_core::core::llm::budget::policy::Binding::new(
+            &crate::llm_manager::sanitize_id(&job.conversation_id),
+            vec![omniget_core::core::llm::budget::policy::Scope::Mission(
+                m.id.clone(),
+            )],
+        );
         let done: Option<Job> = jobs.run_prepared_guarded(&job.id, self.job_guard(m)).await;
         hb.abort();
         // F9: the round's calls are read before the conversation is detached.
@@ -1487,6 +1494,12 @@ impl Driver {
                         jobs: j.clone(),
                         id: Some(job.id.clone()),
                     };
+                    let _budget_scope = omniget_core::core::llm::budget::policy::Binding::new(
+                        &crate::llm_manager::sanitize_id(&job.conversation_id),
+                        vec![omniget_core::core::llm::budget::policy::Scope::Mission(
+                            m.id.clone(),
+                        )],
+                    );
                     let out = j.run_prepared_guarded(&job.id, self.job_guard(m)).await;
                     stop.id = None;
                     out

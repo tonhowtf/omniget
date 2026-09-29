@@ -102,12 +102,20 @@ impl Entity {
     pub fn loop_(id: &str) -> Self {
         Self::of("loop", id)
     }
+    /// A budget policy or incident (3.3).
+    pub fn budget(id: &str) -> Self {
+        Self::of("budget", id)
+    }
     pub fn setting(id: &str) -> Self {
         Self::of("setting", id)
     }
     /// The app process itself (3.2), by pid.
     pub fn app(pid: &str) -> Self {
         Self::of("app", pid)
+    }
+    /// A repository's `.omniget/workflow.md` (3.10), by its root.
+    pub fn workflow(root: &str) -> Self {
+        Self::of("workflow", root)
     }
 }
 

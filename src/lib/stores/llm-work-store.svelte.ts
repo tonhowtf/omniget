@@ -31,6 +31,7 @@ import {
 } from "$lib/stores/llm-jobs-store.svelte";
 import type { MissionRow } from "$lib/stores/assist-missions-store.svelte";
 import { threadsStore } from "$lib/central/threads/threads-store.svelte";
+import { getBudgetIncidents, getBudgetReadError, initBudgetStore, reloadBudget } from "$lib/stores/llm-budget-store.svelte";
 import {
   deriveWork,
   permissionsOfAsks,
@@ -76,6 +77,7 @@ export function initWorkStore(): void {
   if (started) return;
   started = true;
   initJobsStore();
+  initBudgetStore();
   void threadsStore.init();
   void reloadMissions();
   void listen("assist://mission", () => scheduleMissionReload()).catch((e) => {
@@ -100,6 +102,7 @@ export function getWorkItems(): WorkItem[] {
     threads: threadsStore.threads ?? [],
     threadApprovals: threadsStore.pendingApprovals ?? [],
     threadInputs: threadsStore.pendingUserInputs ?? [],
+    incidents: getBudgetIncidents() ?? [],
     now,
   });
 }
@@ -115,6 +118,8 @@ export function getWorkErrors(): string[] {
   if (jobsError) out.push(jobsError);
   if (missionsError) out.push(missionsError);
   if (threadsStore.error) out.push(threadsStore.error);
+  const budgetError = getBudgetReadError();
+  if (budgetError) out.push(budgetError);
   return out;
 }
 
@@ -122,6 +127,7 @@ export function retryWork(): void {
   void reloadMissions();
   if (getJobsReadError()) void pollAsks();
   if (threadsStore.error) void threadsStore.init();
+  if (getBudgetReadError()) void reloadBudget();
 }
 
 function readSeen(): string[] {

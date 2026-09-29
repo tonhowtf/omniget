@@ -64,6 +64,7 @@
   import SandboxReview from "$components/central/run/SandboxReview.svelte";
   import RunNow from "$components/central/run/RunNow.svelte";
   import BridgeTokens from "$components/llm/BridgeTokens.svelte";
+  import WorkflowStatus from "$components/llm/WorkflowStatus.svelte";
   import { agentLabel } from "$components/central/run/run-api";
 
   let agents = $derived(getAgents());
@@ -114,6 +115,17 @@
   // Jobs from the CLI, the bridge or MCP ask for everything unless told (D2).
   let runMode = $state<RunMode>("auto_edits");
   const isolations: Isolation[] = ["auto", "worktree", "shared"];
+
+  /** The folder's `.omniget/workflow.md` (3.10) sets where the form starts;
+   * a looser run mode only once the person trusts the file. */
+  function applyWorkflowDefaults(
+    config: { agent?: string; isolation?: string; run_mode?: string },
+    trusted: boolean,
+  ) {
+    if (config.agent && agents.some(a => a.id === config.agent)) agentId = config.agent;
+    if (config.isolation && (isolations as string[]).includes(config.isolation)) isolation = config.isolation as Isolation;
+    if (config.run_mode && (trusted || config.run_mode === "approval_required")) runMode = config.run_mode as RunMode;
+  }
   let submitting = $state(false);
 
   let openId = $state<string | null>(null);
@@ -369,6 +381,9 @@
         </label>
       {/if}
     </div>
+    {#if workspace}
+      <WorkflowStatus folder={workspace} ondefaults={applyWorkflowDefaults} />
+    {/if}
     <RunModeSelect bind:value={runMode} />
     <label class="field">
       <span class="field-label">{$t("llm.jobs.prompt")}</span>

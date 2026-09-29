@@ -29,11 +29,9 @@
   import { agentLabel } from "$components/central/run/run-api";
   import { itemHref } from "$lib/central/catalog";
 
-  /** Fields the catalog runs add to a Loop (schedule, cost budget, source). */
+  /** Fields the catalog runs add to a Loop (schedule, source). */
   type LoopExtra = LoopDef & {
     schedule?: string | null;
-    max_cost_usd?: number | null;
-    spent_usd?: number;
     source?: string | null;
     next_round_ms?: number | null;
   };
@@ -52,6 +50,8 @@
   let reviewing = $state(false);
   let maxRounds = $state<number | null>(10);
   let maxMinutes = $state<number | null>(null);
+  /** A cost ceiling (US$) pauses the loop with a budget incident (3.3). */
+  let maxCost = $state<number | null>(null);
   let checkCommand = $state("");
   /** Resume by itself after a restart (3.1); unchecked = the setting. */
   let autoResume = $state(false);
@@ -92,7 +92,26 @@
   }
 
   function reason(loop: LoopDef): string {
+    if (budgetIncident(loop)) return $t("llm.loops.paused_budget") as string;
     return loop.stop_reason === "check_passed" ? $t("llm.loops.check_passed") : loop.stop_reason ?? "";
+  }
+
+  /** The budget incident that paused the loop, if one did. */
+  function budgetIncident(loop: LoopDef): string | null {
+    return loop.state === "paused" && loop.stop_reason?.startsWith("budget:") ? loop.stop_reason.slice(7) : null;
+  }
+
+  /** What the rounds cost: dollars (marked when estimated), else weighted tokens (C5). */
+  function cost(loop: LoopDef): string {
+    const usd = loop.spent_usd ?? 0;
+    const tokens = loop.spent_tokens ?? 0;
+    const parts: string[] = [];
+    if (usd > 0) {
+      parts.push(`US$ ${usd.toFixed(4)}${(loop.spent_usd_estimated ?? 0) > 0 ? ` ${$t("llm.loops.cost_estimated")}` : ""}`);
+    }
+    if (tokens > 0) parts.push($t("llm.loops.cost_tokens", { tokens: tokens.toLocaleString() }) as string);
+    if ((loop.unpriced_rounds ?? 0) > 0) parts.push($t("llm.loops.cost_unknown", { count: loop.unpriced_rounds ?? 0 }) as string);
+    return parts.join(" · ");
   }
 
   async function create() {
@@ -108,6 +127,7 @@
       check_command: checkCommand.trim() || null,
       auto_resume: autoResume ? true : null,
       run_mode: runMode,
+      max_cost_usd: typeof maxCost === "number" && maxCost > 0 ? maxCost : null,
     });
     creating = false;
     if (loop) {
@@ -171,6 +191,10 @@
         <span class="field-label">{$t("llm.loops.max_minutes")}</span>
         <input class="input" type="number" min="1" bind:value={maxMinutes} />
       </label>
+      <label class="field small">
+        <span class="field-label">{$t("llm.loops.max_cost")}</span>
+        <input class="input" type="number" min="0" step="any" placeholder="0.50" bind:value={maxCost} />
+      </label>
       <label class="field grow">
         <span class="field-label">{$t("llm.loops.check_command")}</span>
         <input class="input mono" type="text" bind:value={checkCommand} placeholder="npm test" />
@@ -196,6 +220,7 @@
         {#if workspace}<p><code>{workspace}</code></p>{/if}
         {#if checkCommand.trim()}<p><code>{checkCommand}</code></p>{/if}
         {#if positive(maxMinutes)}<p>{$t("llm.loops.max_minutes")}: {positive(maxMinutes)}</p>{/if}
+        {#if typeof maxCost === "number" && maxCost > 0}<p>{$t("llm.loops.max_cost")}: US$ {maxCost}</p>{/if}
         <p>{$t("llm.run_mode.label")}: {$t(`llm.run_mode.${runMode}`)}</p>
         <button type="button" class="button active" disabled={creating || !agentId || !prompt.trim()} onclick={create}>{$t("llm.loops.start")}</button>
         <button type="button" class="button" disabled={creating} onclick={() => reviewing = false}>{$t("llm.loops.edit")}</button>
@@ -225,7 +250,8 @@
               <span class="name">{loop.name || loop.id}</span>
               <span class="dim">{agentName(loop.agent_id)}</span>
               <span class="dim">{$t("llm.loops.rounds", { done: loop.rounds_done, max: loop.max_rounds ?? "∞" })}</span>
-              {#if loop.finished_ms && reason(loop)}
+              {#if cost(loop)}<span class="dim">{cost(loop)}</span>{/if}
+              {#if (loop.finished_ms || loop.state === "paused") && reason(loop)}
                 <span class="line dim">{reason(loop)}</span>
               {:else}
                 <span class="line"></span>
@@ -253,9 +279,9 @@
                   <div class="field-label">{$t("llm.central.run.loop.schedule")}</div>
                   <code class="path">{extra(loop).schedule}{extra(loop).next_round_ms ? ` · ${$t("llm.central.run.loop.next_round")} ${shortTime(extra(loop).next_round_ms ?? null)}` : ""}</code>
                 {/if}
-                {#if extra(loop).max_cost_usd || extra(loop).spent_usd}
+                {#if loop.max_cost_usd || cost(loop)}
                   <div class="field-label">{$t("llm.central.run.loop.cost")}</div>
-                  <span class="text">US$ {(extra(loop).spent_usd ?? 0).toFixed(4)}{extra(loop).max_cost_usd ? ` / ${extra(loop).max_cost_usd}` : ""}</span>
+                  <span class="text">{cost(loop) || "US$ 0.0000"}{loop.max_cost_usd ? ` / US$ ${loop.max_cost_usd}` : ""}</span>
                 {/if}
                 {#if extra(loop).source}
                   <div class="field-label">{$t("llm.central.run.loop.source")}</div>
@@ -281,6 +307,12 @@
                 {#if loop.state === "interrupted"}
                   <p class="hint">{$t("assist.runs.loop_interrupted_hint")}</p>
                 {/if}
+                {#if budgetIncident(loop)}
+                  <p class="hint">
+                    {$t("llm.loops.paused_budget_hint")}
+                    <a href={`/llm/usage?incident=${encodeURIComponent(budgetIncident(loop) ?? "")}#budgets`}>{$t("llm.loops.open_incident")}</a>
+                  </p>
+                {/if}
                 <div class="actions">
                   {#if loop.state === "interrupted"}
                     <button type="button" class="button active" onclick={() => void resumeLoop(loop.id)}>
@@ -292,7 +324,7 @@
                     <button type="button" class="button" onclick={() => void settleLoop(loop.id, false)}>
                       {$t("assist.runs.action_discard")}
                     </button>
-                  {:else if loop.state === "running"}
+                  {:else if loop.state === "running" || loop.state === "paused"}
                     <button type="button" class="button" onclick={() => void cancelLoop(loop.id)}>
                       {$t("llm.loops.cancel")}
                     </button>

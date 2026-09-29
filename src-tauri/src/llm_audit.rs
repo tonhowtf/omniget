@@ -157,6 +157,8 @@ fn self_audited(method: &Method, path: &str) -> bool {
             | ["v1", "jobs", _, "hunks", "discard"]
             | ["v1", "approvals", _]
             | ["v1", "agents", "cli"]
+            | ["v1", "budget", "policies"]
+            | ["v1", "budget", "incidents", _]
     )
 }
 

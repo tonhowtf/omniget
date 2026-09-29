@@ -165,7 +165,8 @@ export type LoopDef = {
   max_rounds: number | null;
   max_minutes: number | null;
   check_command: string | null;
-  state: "running" | "done" | "failed" | "cancelled" | "interrupted";
+  /** `paused`: a budget incident holds it (`stop_reason` = `budget:<incident>`, 3.3). */
+  state: "running" | "done" | "failed" | "cancelled" | "interrupted" | "paused";
   rounds_done: number;
   conversation_id: string;
   created_ms: number;
@@ -176,6 +177,16 @@ export type LoopDef = {
   auto_resume?: boolean | null;
   /** The run mode of its rounds (2.7); older loops have none (`auto_edits`). */
   run_mode?: import("./llm-run-mode.svelte").RunMode | null;
+  /** Cost ceiling in US$ (a hard budget policy on the loop, 3.3). */
+  max_cost_usd?: number | null;
+  /** What the rounds cost: reported dollars plus the price table's estimate. */
+  spent_usd?: number;
+  /** The part of `spent_usd` that is an estimate (a CLI that reports no price). */
+  spent_usd_estimated?: number;
+  /** Weighted tokens of all rounds (input by price weight + output). */
+  spent_tokens?: number;
+  /** Rounds whose cost nobody knows. */
+  unpriced_rounds?: number;
 };
 
 export type Trigger = {
@@ -329,6 +340,8 @@ export type LoopInput = {
   auto_resume?: boolean | null;
   /** How much each round may do without asking (2.7); none = `auto_edits`. */
   run_mode?: import("./llm-run-mode.svelte").RunMode | null;
+  /** Pause the loop with a budget incident when the rounds cost this (US$). */
+  max_cost_usd?: number | null;
 };
 
 export type TriggerInput = {

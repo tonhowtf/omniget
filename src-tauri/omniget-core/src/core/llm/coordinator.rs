@@ -207,6 +207,18 @@ fn clip_cli_result(content: &str) -> String {
     )
 }
 
+/// The account a turn is charged to (3.3): a CLI agent's account, or
+/// `provider:<id>` for a native model; an ACP agent has none.
+fn account_of(agent: &AgentDef, model: Option<&ModelRef>) -> Option<String> {
+    match &agent.runtime {
+        super::agent::RuntimeKind::Cli { account, .. } => Some(account.clone()),
+        super::agent::RuntimeKind::Native => {
+            model.map(|m| format!("provider:{}", m.provider.as_str()))
+        }
+        super::agent::RuntimeKind::Acp { .. } => None,
+    }
+}
+
 pub fn estimate_tokens(messages: &[Message]) -> u32 {
     let chars: usize = messages
         .iter()
@@ -268,6 +280,10 @@ pub struct Coordinator {
     /// Durable run record. `None` falls back to `assist::runs::active()`
     /// (the app's, once enabled at boot).
     runs: std::sync::RwLock<Option<crate::core::assist::runs::Registry>>,
+    /// Budget policies (3.3). `None` falls back to the app's engine
+    /// (`budget::policy::active()`); without either, or without a policy,
+    /// nothing below changes.
+    policies: std::sync::RwLock<Option<Arc<super::budget::policy::Engine>>>,
 }
 
 impl std::fmt::Debug for Coordinator {
@@ -296,7 +312,23 @@ impl Coordinator {
             params: GenParams::default(),
             pruner: std::sync::RwLock::new(Arc::new(ContextPruner::disabled())),
             runs: std::sync::RwLock::new(None),
+            policies: std::sync::RwLock::new(None),
         }
+    }
+
+    /// Checks and charges turns against this policy engine (tests; the app
+    /// uses the global one).
+    pub fn with_policies(self, engine: Arc<super::budget::policy::Engine>) -> Self {
+        *self.policies.write().unwrap_or_else(|e| e.into_inner()) = Some(engine);
+        self
+    }
+
+    fn policies(&self) -> Option<Arc<super::budget::policy::Engine>> {
+        self.policies
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
+            .or_else(super::budget::policy::active)
     }
 
     /// Records runs in this registry (tests; the app uses the global one).
@@ -311,6 +343,45 @@ impl Coordinator {
             .unwrap_or_else(|e| e.into_inner())
             .clone()
             .or_else(crate::core::assist::runs::active)
+    }
+
+    /// The policy gate of one turn (3.3): refuses a paused scope or a
+    /// reached ceiling, and asks the questions it needs through the durable
+    /// approvals (2.2) — a checkpoint "continue?", a model with no price
+    /// under a dollar ceiling — each once, remembered.
+    async fn policy_gate(
+        &self,
+        engine: &super::budget::policy::Engine,
+        ctx: &super::budget::policy::TurnCtx,
+    ) -> Result<(), LlmError> {
+        use super::budget::policy::Verdict;
+        match engine.gate(ctx).await {
+            Verdict::Allow => Ok(()),
+            Verdict::Deny(block) => Err(block.error()),
+            Verdict::Ask(needs) => {
+                for need in needs {
+                    let call = format!(
+                        "budget-{}",
+                        &uuid::Uuid::new_v4().simple().to_string()[..12]
+                    );
+                    let end = self
+                        .broker
+                        .ask_user_ended(
+                            &ctx.agent_id,
+                            &ctx.request_id,
+                            &call,
+                            need.action(),
+                            &need.message,
+                        )
+                        .await;
+                    let allow = !matches!(end.answer(), super::broker::Answer::Deny);
+                    if let Some(block) = engine.answer(&need, allow, Some(&ctx.agent_id)) {
+                        return Err(block.error());
+                    }
+                }
+                Ok(())
+            }
+        }
     }
 
     pub fn budget(&self) -> &Arc<BudgetStore> {
@@ -609,6 +680,36 @@ impl Coordinator {
                     },
                 )
             });
+        // Budget policies (3.3): a paused scope, a hard ceiling already
+        // reached, or a question someone must answer first. Skipped whole
+        // when no policy exists.
+        let policy_turn = self.policies().map(|engine| {
+            let model = self.resolve(&agent, &[]).map(|(m, _)| m).ok();
+            let ctx = super::budget::policy::TurnCtx {
+                request_id: request_id.clone(),
+                agent_id: agent.id.clone(),
+                account: account_of(&agent, model.as_ref()),
+                model: model.map(|m| m.model).unwrap_or_default(),
+                conversation_id: conversation_id.clone(),
+                estimate_tokens: estimate as u64,
+            };
+            (engine, ctx)
+        });
+        let reservation = match reservation {
+            Ok(id) => match &policy_turn {
+                Some((engine, ctx)) if engine.has_policies() => {
+                    match self.policy_gate(engine, ctx).await {
+                        Ok(()) => Ok(id),
+                        Err(err) => {
+                            self.budget.release(&id);
+                            Err(err)
+                        }
+                    }
+                }
+                _ => Ok(id),
+            },
+            Err(err) => Err(err),
+        };
         let reservation = match reservation {
             Ok(id) => id,
             Err(err) => {
@@ -749,12 +850,16 @@ impl Coordinator {
         let mut tool_calls_used = 0u8;
         let mut total = Usage::default();
         let mut requests = 0u32;
+        let mut last_model: Option<ModelRef> = None;
         let finish: FinishReason = 'turn: loop {
             if cancel.is_cancelled() {
                 break 'turn FinishReason::Cancelled;
             }
             let (model, key) = match self.resolve(&agent, &tried) {
-                Ok(v) => v,
+                Ok(v) => {
+                    last_model = Some(v.0.clone());
+                    v
+                }
                 Err(err) => {
                     turn_error = Some(format!("{}: {}", err.code, err.message));
                     let _ = tx.send(TurnEvent::Error { error: err }).await;
@@ -1238,6 +1343,39 @@ impl Coordinator {
                 total.billable_input_tokens().min(u32::MAX as u64) as u32,
                 total.output_tokens,
             );
+            if let Some((engine, mut ctx)) = policy_turn {
+                if let Some(m) = &last_model {
+                    ctx.account = account_of(&agent, Some(m)).or(ctx.account);
+                    ctx.model = m.model.clone();
+                }
+                let crossings = engine
+                    .charge(
+                        &ctx,
+                        super::budget::policy::TurnUse {
+                            usd: total.cost_usd,
+                            input_tokens: total.billable_input_tokens(),
+                            output_tokens: total.output_tokens as u64,
+                        },
+                    )
+                    .await;
+                for c in crossings {
+                    if c.kind == "hard" {
+                        self.bus.emit(BusEvent::BudgetHit {
+                            agent: agent.id.clone(),
+                        });
+                    }
+                    self.bus.emit(BusEvent::BudgetCrossed {
+                        agent: agent.id.clone(),
+                        request: request_id.clone(),
+                        scope: c.policy.scope.key(),
+                        kind: c.kind.to_string(),
+                        incident: c.incident.map(|i| i.id),
+                        observed: c.observed,
+                        limit: c.policy.amount,
+                        metric: c.policy.metric.as_str().to_string(),
+                    });
+                }
+            }
         }
         if let Some(p) = &projection {
             if let Some(reg) = &runs {
