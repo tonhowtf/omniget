@@ -3444,7 +3444,8 @@
         "legacy_toggle": "Still accept the browser extension's key on agent routes (deprecated)",
         "legacy_hint": "Kept for one version so old scripts keep working. The next version refuses it.",
         "legacy_seen": "The browser extension's key was used on {{route}} at {{when}}. Switch that script to a scoped token.",
-        "curl_hint": "Set OMNIGET_TOKEN to a token with the jobs:operate scope (Access tokens, below)."
+        "curl_hint": "Set OMNIGET_TOKEN to a token with the jobs:operate scope (Access tokens, below).",
+        "scope_audit_read": "Read the audit log (audit:read)"
       },
       "isolation": {
         "label": "Where it writes",
@@ -5736,6 +5737,36 @@
       "full_access_warning": "Full access runs every edit and command without asking. Use it only in a folder you can afford to lose.",
       "full_access_confirm": "Allow full access",
       "cancel": "Cancel"
+    },
+    "audit": {
+      "title": "Audit log",
+      "lede": "Who did what to jobs, questions, grants, tokens and agents, and through what. Prompts, file content and secrets are never stored.",
+      "since": "Period",
+      "since_1h": "Last hour",
+      "since_1d": "Last day",
+      "since_7d": "Last 7 days",
+      "since_30d": "Last 30 days",
+      "since_90d": "Last 90 days",
+      "kind": "Kind",
+      "kind_all": "Everything",
+      "kind_job": "Jobs",
+      "kind_ask": "Questions",
+      "kind_grant": "Always grants",
+      "kind_token": "Tokens",
+      "kind_agent": "Agents",
+      "kind_loop": "Loops",
+      "refresh": "Refresh",
+      "export": "Export CSV",
+      "empty": "Nothing in this period.",
+      "error": "The audit log could not be read.",
+      "who": "Who",
+      "through": "Through",
+      "on": "On",
+      "retention": "Keep lines for (days)",
+      "retention_days": "Lines are kept {{days}} days.",
+      "retention_save": "Save",
+      "retention_saved": "Saved; older lines were removed.",
+      "cli_hint": "the same log from a terminal, with a token that has audit:read."
     }
   },
   "omni": {

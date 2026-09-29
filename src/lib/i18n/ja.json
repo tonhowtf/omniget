@@ -3444,7 +3444,8 @@
         "legacy_toggle": "エージェント用ルートでブラウザー拡張機能のキーを引き続き受け付ける (非推奨)",
         "legacy_hint": "古いスクリプトが動き続けるよう 1 バージョンだけ残します。次のバージョンでは拒否されます。",
         "legacy_seen": "ブラウザー拡張機能のキーが {{when}} に {{route}} で使われました。そのスクリプトをスコープ付きトークンに切り替えてください。",
-        "curl_hint": "OMNIGET_TOKEN に jobs:operate スコープのトークンを設定してください (下のアクセストークン)。"
+        "curl_hint": "OMNIGET_TOKEN に jobs:operate スコープのトークンを設定してください (下のアクセストークン)。",
+        "scope_audit_read": "監査ログを読む（audit:read）"
       },
       "isolation": {
         "label": "書き込み先",
@@ -5736,6 +5737,36 @@
       "full_access_warning": "フルアクセスでは、すべての編集とコマンドが確認なしで実行されます。失っても構わないフォルダーでのみ使ってください。",
       "full_access_confirm": "フルアクセスを許可",
       "cancel": "キャンセル"
+    },
+    "audit": {
+      "title": "監査ログ",
+      "lede": "ジョブ、質問、許可、トークン、エージェントに対して誰が何をしたか、どの経路からかを記録します。プロンプト、ファイルの内容、秘密情報は保存しません。",
+      "since": "期間",
+      "since_1h": "直近 1 時間",
+      "since_1d": "直近 1 日",
+      "since_7d": "直近 7 日",
+      "since_30d": "直近 30 日",
+      "since_90d": "直近 90 日",
+      "kind": "種類",
+      "kind_all": "すべて",
+      "kind_job": "ジョブ",
+      "kind_ask": "質問",
+      "kind_grant": "常時許可",
+      "kind_token": "トークン",
+      "kind_agent": "エージェント",
+      "kind_loop": "ループ",
+      "refresh": "更新",
+      "export": "CSV を書き出す",
+      "empty": "この期間には何もありません。",
+      "error": "監査ログを読み込めませんでした。",
+      "who": "誰が",
+      "through": "経路",
+      "on": "対象",
+      "retention": "行の保存期間（日）",
+      "retention_days": "行は {{days}} 日間保存されます。",
+      "retention_save": "保存",
+      "retention_saved": "保存しました。古い行は削除されました。",
+      "cli_hint": "ターミナルから同じログを読めます（audit:read を持つトークンが必要）。"
     }
   },
   "omni": {

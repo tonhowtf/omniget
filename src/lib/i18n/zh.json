@@ -3444,7 +3444,8 @@
         "legacy_toggle": "仍在智能体路由上接受浏览器扩展的密钥（已弃用）",
         "legacy_hint": "保留一个版本，让旧脚本继续可用。下一个版本将拒绝它。",
         "legacy_seen": "浏览器扩展的密钥于 {{when}} 在 {{route}} 上被使用。请把该脚本换成带权限范围的令牌。",
-        "curl_hint": "将 OMNIGET_TOKEN 设为具有 jobs:operate 权限范围的令牌（见下方访问令牌）。"
+        "curl_hint": "将 OMNIGET_TOKEN 设为具有 jobs:operate 权限范围的令牌（见下方访问令牌）。",
+        "scope_audit_read": "读取审计日志（audit:read）"
       },
       "isolation": {
         "label": "写入位置",
@@ -5736,6 +5737,36 @@
       "full_access_warning": "完全访问会不经询问执行每次编辑和每条命令。只在你可以承受丢失的文件夹里使用。",
       "full_access_confirm": "允许完全访问",
       "cancel": "取消"
+    },
+    "audit": {
+      "title": "审计日志",
+      "lede": "谁对任务、询问、授权、令牌和代理做了什么，经由哪个渠道。从不保存提示词、文件内容或密钥。",
+      "since": "时间段",
+      "since_1h": "最近 1 小时",
+      "since_1d": "最近 1 天",
+      "since_7d": "最近 7 天",
+      "since_30d": "最近 30 天",
+      "since_90d": "最近 90 天",
+      "kind": "类型",
+      "kind_all": "全部",
+      "kind_job": "任务",
+      "kind_ask": "询问",
+      "kind_grant": "永久授权",
+      "kind_token": "令牌",
+      "kind_agent": "代理",
+      "kind_loop": "循环",
+      "refresh": "刷新",
+      "export": "导出 CSV",
+      "empty": "这个时间段内没有记录。",
+      "error": "无法读取审计日志。",
+      "who": "谁",
+      "through": "经由",
+      "on": "对象",
+      "retention": "记录保留（天）",
+      "retention_days": "记录保留 {{days}} 天。",
+      "retention_save": "保存",
+      "retention_saved": "已保存；更早的记录已删除。",
+      "cli_hint": "在终端里读取同一份日志，需要带 audit:read 的令牌。"
     }
   },
   "omni": {

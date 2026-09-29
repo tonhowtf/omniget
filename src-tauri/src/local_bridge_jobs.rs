@@ -23,6 +23,14 @@ use tauri::AppHandle;
 
 use crate::jobs::{self, LoopDef};
 
+/// Who called (the guard put it there), for the audit line of a route that
+/// writes its own (2.8).
+type Caller = Option<axum::Extension<crate::mcp::policy::Principal>>;
+
+fn caller(p: &Caller) -> omniget_core::core::llm::audit::Actor {
+    crate::llm_audit::actor_of(p.as_ref().map(|e| &e.0), "http")
+}
+
 #[derive(Clone)]
 pub struct JobsBridgeState {
     pub token: std::sync::Arc<String>,
@@ -169,7 +177,7 @@ where
         .route(
             "/v1/agent/run",
             post(
-                move |headers: HeaderMap, Json(b): Json<RunBody>| async move {
+                move |headers: HeaderMap, who: Caller, Json(b): Json<RunBody>| async move {
                     guarded!(s2, headers, |j: std::sync::Arc<jobs::Jobs>| ok(b
                         .isolation
                         .as_deref()
@@ -191,19 +199,25 @@ where
                             isolation,
                             b.base.clone(),
                             run_mode,
-                        ))))
+                        ))
+                        .inspect(|job| crate::llm_audit::job_created(caller(&who), job))))
                 },
             ),
         )
         .route(
             "/v1/agent/loop",
             post(
-                move |headers: HeaderMap, Json(mut def): Json<LoopDef>| async move {
+                move |headers: HeaderMap, who: Caller, Json(mut def): Json<LoopDef>| async move {
                     // A Loop started from outside asks first unless told (D2).
                     def.run_mode.get_or_insert(jobs::RunMode::ApprovalRequired);
-                    guarded!(s3, headers, |j: std::sync::Arc<jobs::Jobs>| ok(
-                        j.loop_create(def)
-                    ))
+                    guarded!(s3, headers, |j: std::sync::Arc<jobs::Jobs>| ok(j
+                        .loop_create(def)
+                        .inspect(|l| omniget_core::core::llm::audit::log(
+                            caller(&who),
+                            "loop.created",
+                            omniget_core::core::llm::audit::Entity::loop_(&l.id),
+                            json!({ "agent_id": l.agent_id, "run_mode": l.run_mode, "max_rounds": l.max_rounds }),
+                        ))))
                 },
             ),
         )
@@ -223,7 +237,7 @@ where
         )
         .route(
             "/v1/agents/cli",
-            post(move |headers: HeaderMap, Json(b): Json<Value>| async move {
+            post(move |headers: HeaderMap, who: Caller, Json(b): Json<Value>| async move {
                 guarded!(s9, headers, |_j: std::sync::Arc<jobs::Jobs>| {
                     use omniget_core::core::llm::agent::{
                         AgentDef, AgentRole, ModelPolicy, RuntimeKind,
@@ -251,11 +265,18 @@ where
                         },
                         skin: None,
                     };
+                    let (id, cli, account) = (text("id", "claude-code"), text("cli", "claude"), text("account", ""));
                     ok(s9
                         .app
                         .state::<crate::AppState>()
                         .llm
                         .roster_create(agent)
+                        .inspect(|_| omniget_core::core::llm::audit::log(
+                            caller(&who),
+                            "agent.created",
+                            omniget_core::core::llm::audit::Entity::agent(&id),
+                            json!({ "cli": cli, "account": account }),
+                        ))
                         .map(|r| r.len()))
                 })
             }),
@@ -375,9 +396,9 @@ where
         .route(
             "/v1/jobs/{id}/cancel",
             post(
-                move |Path(id): Path<String>, headers: HeaderMap| async move {
+                move |Path(id): Path<String>, headers: HeaderMap, who: Caller| async move {
                     guarded!(s7, headers, |j: std::sync::Arc<jobs::Jobs>| ok(
-                        j.cancel(&id)
+                        j.cancel_by(&id, caller(&who))
                     ))
                 },
             ),
@@ -411,6 +432,13 @@ where
                     }
                 },
             ),
+        )
+        // The audit log (2.8): `omniget audit --since 1d`. Scope `audit:read`.
+        .route(
+            "/v1/audit",
+            get(move |RawQuery(query): RawQuery| async move {
+                crate::llm_audit::http_list(query.as_deref())
+            }),
         )
         .route(
             "/v1/loops",

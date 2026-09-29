@@ -3444,7 +3444,8 @@
         "legacy_toggle": "Ainda aceitar a chave da extensão do navegador nas rotas de agente (obsoleto)",
         "legacy_hint": "Mantido por uma versão para scripts antigos continuarem funcionando. A próxima versão recusa.",
         "legacy_seen": "A chave da extensão do navegador foi usada em {{route}} às {{when}}. Troque esse script por um token com escopo.",
-        "curl_hint": "Defina OMNIGET_TOKEN com um token de escopo jobs:operate (Tokens de acesso, abaixo)."
+        "curl_hint": "Defina OMNIGET_TOKEN com um token de escopo jobs:operate (Tokens de acesso, abaixo).",
+        "scope_audit_read": "Ler o registro de auditoria (audit:read)"
       },
       "isolation": {
         "label": "Onde ele escreve",
@@ -5736,6 +5737,36 @@
       "full_access_warning": "Acesso total roda toda edição e todo comando sem perguntar. Use só numa pasta que você pode perder.",
       "full_access_confirm": "Permitir acesso total",
       "cancel": "Cancelar"
+    },
+    "audit": {
+      "title": "Registro de auditoria",
+      "lede": "Quem fez o quê em jobs, perguntas, permissões, tokens e agentes, e por qual canal. Prompts, conteúdo de arquivos e segredos nunca são gravados.",
+      "since": "Período",
+      "since_1h": "Última hora",
+      "since_1d": "Último dia",
+      "since_7d": "Últimos 7 dias",
+      "since_30d": "Últimos 30 dias",
+      "since_90d": "Últimos 90 dias",
+      "kind": "Tipo",
+      "kind_all": "Tudo",
+      "kind_job": "Jobs",
+      "kind_ask": "Perguntas",
+      "kind_grant": "Permissões permanentes",
+      "kind_token": "Tokens",
+      "kind_agent": "Agentes",
+      "kind_loop": "Loops",
+      "refresh": "Atualizar",
+      "export": "Exportar CSV",
+      "empty": "Nada neste período.",
+      "error": "Não foi possível ler o registro de auditoria.",
+      "who": "Quem",
+      "through": "Por onde",
+      "on": "Em",
+      "retention": "Guardar linhas por (dias)",
+      "retention_days": "As linhas ficam guardadas {{days}} dias.",
+      "retention_save": "Salvar",
+      "retention_saved": "Salvo; as linhas mais antigas foram apagadas.",
+      "cli_hint": "o mesmo registro pelo terminal, com um token que tenha audit:read."
     }
   },
   "omni": {

@@ -1190,6 +1190,15 @@ impl Registry {
                 params![&*self.instance, now, STALE_NOTE],
             )
         })?;
+        if out.permissions_stale > 0 {
+            // The audit log says how many questions a restart left (2.8).
+            crate::core::llm::audit::log(
+                crate::core::llm::audit::Actor::system("boot"),
+                "ask.stale",
+                crate::core::llm::audit::Entity::ask("boot"),
+                serde_json::json!({ "count": out.permissions_stale }),
+            );
+        }
         Ok(out)
     }
 

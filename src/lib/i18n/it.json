@@ -3444,7 +3444,8 @@
         "legacy_toggle": "Accetta ancora la chiave dell'estensione del browser sulle rotte degli agenti (deprecato)",
         "legacy_hint": "Mantenuto per una versione perché i vecchi script continuino a funzionare. La prossima versione la rifiuta.",
         "legacy_seen": "La chiave dell'estensione del browser è stata usata su {{route}} alle {{when}}. Passa quello script a un token con ambito.",
-        "curl_hint": "Imposta OMNIGET_TOKEN con un token con ambito jobs:operate (Token di accesso, qui sotto)."
+        "curl_hint": "Imposta OMNIGET_TOKEN con un token con ambito jobs:operate (Token di accesso, qui sotto).",
+        "scope_audit_read": "Leggere il registro di audit (audit:read)"
       },
       "isolation": {
         "label": "Dove scrive",
@@ -5736,6 +5737,36 @@
       "full_access_warning": "L'accesso completo esegue ogni modifica e ogni comando senza chiedere. Usalo solo in una cartella che puoi permetterti di perdere.",
       "full_access_confirm": "Consenti accesso completo",
       "cancel": "Annulla"
+    },
+    "audit": {
+      "title": "Registro di audit",
+      "lede": "Chi ha fatto cosa su job, domande, permessi, token e agenti, e tramite quale canale. Prompt, contenuto dei file e segreti non vengono mai salvati.",
+      "since": "Periodo",
+      "since_1h": "Ultima ora",
+      "since_1d": "Ultimo giorno",
+      "since_7d": "Ultimi 7 giorni",
+      "since_30d": "Ultimi 30 giorni",
+      "since_90d": "Ultimi 90 giorni",
+      "kind": "Tipo",
+      "kind_all": "Tutto",
+      "kind_job": "Job",
+      "kind_ask": "Domande",
+      "kind_grant": "Permessi permanenti",
+      "kind_token": "Token",
+      "kind_agent": "Agenti",
+      "kind_loop": "Loop",
+      "refresh": "Aggiorna",
+      "export": "Esporta CSV",
+      "empty": "Niente in questo periodo.",
+      "error": "Impossibile leggere il registro di audit.",
+      "who": "Chi",
+      "through": "Tramite",
+      "on": "Su",
+      "retention": "Conserva le righe per (giorni)",
+      "retention_days": "Le righe vengono conservate {{days}} giorni.",
+      "retention_save": "Salva",
+      "retention_saved": "Salvato; le righe più vecchie sono state rimosse.",
+      "cli_hint": "lo stesso registro da un terminale, con un token che ha audit:read."
     }
   },
   "omni": {

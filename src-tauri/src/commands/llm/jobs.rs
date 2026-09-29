@@ -42,9 +42,11 @@ pub async fn llm_job_submit(
         .filter(|s| !s.is_empty())
         .map(jobs::RunMode::parse)
         .transpose()?;
-    to(jobs::get(&app)?.submit_as(
+    let job = jobs::get(&app)?.submit_as(
         "run", &agent_id, &prompt, workspace, None, isolation, base, run_mode,
-    )?)
+    )?;
+    crate::llm_audit::job_created(omniget_core::core::llm::audit::Actor::window(), &job);
+    to(job)
 }
 
 /// Removes a finished job's worktree (2.3): its uncommitted work is saved
@@ -78,7 +80,7 @@ pub async fn llm_jobs_limits_set(
 
 #[tauri::command]
 pub async fn llm_job_cancel(app: AppHandle, id: String) -> Result<Value, String> {
-    to(jobs::get(&app)?.cancel(&id)?)
+    to(jobs::get(&app)?.cancel_by(&id, omniget_core::core::llm::audit::Actor::window())?)
 }
 
 #[tauri::command]
@@ -255,12 +257,28 @@ pub async fn llm_bridge_token_mint(
         .filter(|d| *d > 0)
         .map(|d| crate::llm_manager::now_ms() + u64::from(d.min(3650)) * 86_400_000);
     let minted = jobs::get(&app)?.token_mint(&name, &scopes, expires_ms)?;
+    // The line names the token by id and scopes, never its secret (2.8).
+    omniget_core::core::llm::audit::log(
+        omniget_core::core::llm::audit::Actor::window(),
+        "token.minted",
+        omniget_core::core::llm::audit::Entity::token(&minted.view.id),
+        json!({ "name": minted.view.name, "scopes": minted.view.scopes, "expires_ms": minted.view.expires_ms }),
+    );
     Ok(json!({ "token": minted.token, "view": minted.view }))
 }
 
 #[tauri::command]
 pub async fn llm_bridge_token_revoke(app: AppHandle, id: String) -> Result<Value, String> {
-    Ok(json!({ "revoked": jobs::get(&app)?.token_revoke(&id)? }))
+    let revoked = jobs::get(&app)?.token_revoke(&id)?;
+    if revoked {
+        omniget_core::core::llm::audit::log(
+            omniget_core::core::llm::audit::Actor::window(),
+            "token.revoked",
+            omniget_core::core::llm::audit::Entity::token(&id),
+            json!({}),
+        );
+    }
+    Ok(json!({ "revoked": revoked }))
 }
 
 /// Turns the extension key's grace period on the agent routes on or off.

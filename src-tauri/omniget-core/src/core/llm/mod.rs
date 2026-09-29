@@ -6,6 +6,7 @@
 
 pub mod acp;
 pub mod agent;
+pub mod audit;
 pub mod brain;
 pub mod broker;
 pub mod budget;

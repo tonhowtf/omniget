@@ -23,6 +23,7 @@
   import CostByDay from "$components/llm/observatory/CostByDay.svelte";
   import DiagnosticsPanel from "$components/llm/observatory/DiagnosticsPanel.svelte";
   import WireProbePanel from "$components/llm/observatory/WireProbePanel.svelte";
+  import AuditPanel from "$components/llm/observatory/AuditPanel.svelte";
   import {
     getTelemetry,
     getTelemetryError,
@@ -42,6 +43,7 @@
   let windowKey = $state<WindowKey>("24h");
   let busy = $state(false);
   let diagnosticsOpen = $state(false);
+  let auditOpen = $state(false);
 
   let snapshot = $derived(getTelemetry());
   let dataState = $derived(getTelemetryState());
@@ -172,6 +174,11 @@
         <div class="card"><div class="setting-row">{$t("llm.observatory.no_agents")}</div></div>
       {/if}
     </section>
+
+    <details class="diagnostic-disclosure" ontoggle={(event) => auditOpen = event.currentTarget.open}>
+      <summary>{$t("llm.audit.title")}</summary>
+      {#if auditOpen}<AuditPanel />{/if}
+    </details>
 
     <details class="diagnostic-disclosure" ontoggle={(event) => diagnosticsOpen = event.currentTarget.open}>
       <summary>{$t("llm.surface.advanced")}</summary>

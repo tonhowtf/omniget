@@ -1333,9 +1333,25 @@ impl Jobs {
     }
 
     pub fn cancel(&self, id: &str) -> Result<Job, String> {
+        self.cancel_by(id, omniget_core::core::llm::audit::Actor::system("system"))
+    }
+
+    /// [`Self::cancel`] on someone's behalf: the audit line (2.8) says who
+    /// asked and through what, when the job was still alive.
+    pub fn cancel_by(
+        &self,
+        id: &str,
+        actor: omniget_core::core::llm::audit::Actor,
+    ) -> Result<Job, String> {
         let mut job = self
             .job(id)
             .ok_or_else(|| format!("{ERR_JOBS}: no job {id}"))?;
+        if matches!(
+            job.state.as_str(),
+            "queued" | "waiting_workspace" | "running" | "waiting_approval"
+        ) {
+            crate::llm_audit::job_cancelled(actor, &job);
+        }
         // Persist before consulting the token. The runner either sees this
         // cancelled row on its re-read or has already registered its token
         // (a job waiting at the gate has one: the cancel wakes the wait).
@@ -1933,6 +1949,10 @@ impl Jobs {
             }
         }
         self.save_job_checked(&job).ok()?;
+        // How it ended (2.8); a cancel already has its line, with who asked.
+        if job.state != "cancelled" {
+            crate::llm_audit::job_ended(&job);
+        }
         if let Some(tid) = job.trigger_id.clone() {
             // Routines keep their own rule (only a changed result, muted).
             self.notify_routine(&tid, &job);
@@ -1999,6 +2019,7 @@ impl Jobs {
         job.error = Some(error);
         job.finished_ms = Some(now_ms());
         self.save_job_checked(&job).ok()?;
+        crate::llm_audit::job_ended(&job);
         Some(job)
     }
 
@@ -3521,6 +3542,10 @@ impl Jobs {
             Some(t.id.clone()),
             t.deadline_min,
         )?;
+        crate::llm_audit::job_created(
+            omniget_core::core::llm::audit::Actor::via("trigger", &format!("trigger:{}", t.id)),
+            &job,
+        );
         self.note_fired(&t.id, &job.id);
         Ok(job)
     }

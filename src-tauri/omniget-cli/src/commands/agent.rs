@@ -60,7 +60,7 @@ impl Bridge {
         Ok(body)
     }
 
-    async fn get(&self, path: &str) -> anyhow::Result<Value> {
+    pub(crate) async fn get(&self, path: &str) -> anyhow::Result<Value> {
         self.send(self.http.get(format!("{}{path}", self.base)))
             .await
     }

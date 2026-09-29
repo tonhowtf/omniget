@@ -3444,7 +3444,8 @@
         "legacy_toggle": "Accepter encore la clé de l'extension du navigateur sur les routes d'agent (obsolète)",
         "legacy_hint": "Conservé pendant une version pour que les anciens scripts continuent de fonctionner. La prochaine version la refuse.",
         "legacy_seen": "La clé de l'extension du navigateur a été utilisée sur {{route}} à {{when}}. Passez ce script à un jeton à portée limitée.",
-        "curl_hint": "Définissez OMNIGET_TOKEN avec un jeton ayant la portée jobs:operate (Jetons d'accès, ci-dessous)."
+        "curl_hint": "Définissez OMNIGET_TOKEN avec un jeton ayant la portée jobs:operate (Jetons d'accès, ci-dessous).",
+        "scope_audit_read": "Lire le journal d'audit (audit:read)"
       },
       "isolation": {
         "label": "Où il écrit",
@@ -5736,6 +5737,36 @@
       "full_access_warning": "L'accès complet exécute chaque modification et chaque commande sans demander. Utilisez-le seulement dans un dossier que vous pouvez perdre.",
       "full_access_confirm": "Autoriser l'accès complet",
       "cancel": "Annuler"
+    },
+    "audit": {
+      "title": "Journal d'audit",
+      "lede": "Qui a fait quoi sur les tâches, questions, autorisations, jetons et agents, et par quel canal. Les prompts, le contenu des fichiers et les secrets ne sont jamais enregistrés.",
+      "since": "Période",
+      "since_1h": "Dernière heure",
+      "since_1d": "Dernier jour",
+      "since_7d": "7 derniers jours",
+      "since_30d": "30 derniers jours",
+      "since_90d": "90 derniers jours",
+      "kind": "Type",
+      "kind_all": "Tout",
+      "kind_job": "Tâches",
+      "kind_ask": "Questions",
+      "kind_grant": "Autorisations permanentes",
+      "kind_token": "Jetons",
+      "kind_agent": "Agents",
+      "kind_loop": "Boucles",
+      "refresh": "Actualiser",
+      "export": "Exporter en CSV",
+      "empty": "Rien sur cette période.",
+      "error": "Impossible de lire le journal d'audit.",
+      "who": "Qui",
+      "through": "Par",
+      "on": "Sur",
+      "retention": "Conserver les lignes pendant (jours)",
+      "retention_days": "Les lignes sont conservées {{days}} jours.",
+      "retention_save": "Enregistrer",
+      "retention_saved": "Enregistré ; les lignes plus anciennes ont été supprimées.",
+      "cli_hint": "le même journal depuis un terminal, avec un jeton qui a audit:read."
     }
   },
   "omni": {
