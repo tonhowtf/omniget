@@ -1268,7 +1268,8 @@
       "failed": "{{count}} 个失败",
       "dismiss": "关闭通知",
       "transferred": "已下载 {{size}}"
-    }
+    },
+    "stats_line_one": "{{count}} download · {{size}} saved"
   },
   "toast": {
     "download_complete": "完成！{{name}} 已保存到你的文件夹",

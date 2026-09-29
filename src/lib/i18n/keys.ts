@@ -913,6 +913,7 @@ export type TranslationKeys =
   | 'downloads.show_more'
   | 'downloads.speed_unlimited'
   | 'downloads.stats_line'
+  | 'downloads.stats_line_one'
   | 'downloads.status.complete'
   | 'downloads.status.downloading'
   | 'downloads.status.error'

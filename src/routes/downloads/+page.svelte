@@ -527,7 +527,7 @@
     {#if viewMode === "active"}
     <div class="downloads-header">
       {#if dlStats.totalDownloads > 0}
-        <span class="downloads-stats">{$t('downloads.stats_line', { count: String(dlStats.totalDownloads), size: formatBytes(dlStats.totalBytes) })}</span>
+        <span class="downloads-stats">{$t(dlStats.totalDownloads === 1 ? 'downloads.stats_line_one' : 'downloads.stats_line', { count: String(dlStats.totalDownloads), size: formatBytes(dlStats.totalBytes) })}</span>
       {/if}
       <div class="bulk-actions">
         <label class="speed-limit-field">
@@ -667,7 +667,7 @@
                 <div class="history-item-actions">
                   {#if entry.success && entry.file_path}
                     <button
-                      class="action-icon-btn"
+                      class="action-icon-btn reveal-action"
                       onclick={() => revealFile(entry.file_path!)}
                       aria-label={$t('downloads.open_folder')}
                       title={$t('downloads.open_folder')}
@@ -675,7 +675,8 @@
                       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" />
                       </svg>
-                    </button>
+                    <span>{$t('downloads.open_folder')}</span>
+</button>
                   {/if}
                   {#if entry.success && entry.file_path && entry.kind === "video"}
                     <button
@@ -720,7 +721,7 @@
     </div>
     <a href="/" class="btn btn-primary btn-lg">{$t('downloads.empty_cta')}</a>
     {#if dlStats.totalDownloads > 0}
-      <p class="empty-value">{$t('downloads.stats_line', { count: String(dlStats.totalDownloads), size: formatBytes(dlStats.totalBytes) })}</p>
+      <p class="empty-value">{$t(dlStats.totalDownloads === 1 ? 'downloads.stats_line_one' : 'downloads.stats_line', { count: String(dlStats.totalDownloads), size: formatBytes(dlStats.totalBytes) })}</p>
     {/if}
     <div class="empty-links">
       <button class="history-link" onclick={toggleHistoryView}>
@@ -848,7 +849,7 @@
               </button>
             {:else if item.status === "complete" && item.filePath}
               <button
-                class="action-icon-btn"
+                class="action-icon-btn reveal-action"
                 onclick={() => revealFile(item.filePath!)}
                 aria-label={$t('downloads.open_folder')}
                 title={$t('downloads.open_folder')}
@@ -856,7 +857,8 @@
                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" />
                 </svg>
-              </button>
+              <span>{$t('downloads.open_folder')}</span>
+</button>
               {#if item.queueKind === "video"}
                 <button
                   class="action-icon-btn"
@@ -1385,6 +1387,8 @@
     outline: var(--focus-ring);
     outline-offset: 1px;
   }
+
+  .action-icon-btn.reveal-action { width: auto; padding: 0 8px; gap: 6px; color: var(--text); font: inherit; font-size: var(--text-sm); }
 
   .action-icon-btn svg {
     pointer-events: none;

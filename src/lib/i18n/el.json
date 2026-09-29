@@ -1268,7 +1268,8 @@
       "failed": "{{count}} απέτυχαν",
       "dismiss": "Απόκρυψη ειδοποίησης",
       "transferred": "Έγινε λήψη {{size}}"
-    }
+    },
+    "stats_line_one": "{{count}} download · {{size}} saved"
   },
   "toast": {
     "download_complete": "Ετοιμο! Το {{name}} ειναι στον φακελο σας",

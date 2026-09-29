@@ -1268,7 +1268,8 @@
       "failed": "{{count}} falharam",
       "dismiss": "Dispensar aviso",
       "transferred": "{{size}} baixados"
-    }
+    },
+    "stats_line_one": "{{count}} download · {{size}} salvos"
   },
   "toast": {
     "download_complete": "Pronto! {{name}} está na sua pasta",

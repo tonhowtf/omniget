@@ -1268,7 +1268,8 @@
       "failed": "{{count}} 件失敗",
       "dismiss": "通知を閉じる",
       "transferred": "{{size}} ダウンロード済み"
-    }
+    },
+    "stats_line_one": "{{count}} download · {{size}} saved"
   },
   "toast": {
     "download_complete": "完了！{{name}} はフォルダに保存されました",

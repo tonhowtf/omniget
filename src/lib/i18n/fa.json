@@ -1268,7 +1268,8 @@
       "failed": "{{count}} ناموفق",
       "dismiss": "بستن اعلان",
       "transferred": "{{size}} دانلود شده"
-    }
+    },
+    "stats_line_one": "{{count}} download · {{size}} saved"
   },
   "toast": {
     "download_complete": "تمام شد! {{name}} در پوشه شماست",

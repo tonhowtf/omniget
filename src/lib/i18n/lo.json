@@ -1268,7 +1268,8 @@
       "failed": "ລົ້ມເຫຼວ {{count}} ລາຍການ",
       "dismiss": "ປິດການແຈ້ງເຕືອນ",
       "transferred": "ດາວໂຫຼດແລ້ວ {{size}}"
-    }
+    },
+    "stats_line_one": "{{count}} download · {{size}} saved"
   },
   "toast": {
     "download_complete": "ສຳເລັດ! {{name}} ຢູ່ໃນໂຟລເດີຂອງທ່ານແລ້ວ",
