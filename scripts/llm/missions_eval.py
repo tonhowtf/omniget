@@ -617,6 +617,25 @@ def claude_argv(args, model=None, effort=None, settings=None):
     return out
 
 
+# Espelha claude::SIDE_TOOLS / SIDE_EFFORT e o ramo `side` de plan_with (item 3.7): uma
+# chamada lateral (conversa `side-*`, o auditor do Loop) sai com o system prompt SUBSTITUÍDO
+# (--system-prompt), sem tools, sem MCP do usuário, sem sessão persistida e esforço baixo.
+# O teste cli_runtime::tests::a_side_call_is_launched_lean_and_tool_less fixa o lado Rust.
+SIDE_TOOLS = ''
+SIDE_EFFORT = 'low'
+# Espelha claude::SIDE_ENV: sem thinking (o Haiku pensava 823 de 862 tokens de saída num veredito).
+SIDE_ENV = {'MAX_THINKING_TOKENS': '0'}
+
+
+def side_argv(system, model='haiku', run_mode='auto_edits'):
+    """argv de uma chamada lateral na ordem de claude::argv; o texto vai no stdin como
+    `User: <input>` (render_prompt só das mensagens que não são de sistema)."""
+    return (['-p', '--output-format', 'stream-json', '--verbose'] + permission_flags(run_mode)
+            + ['--include-partial-messages', '--model', model, '--effort', SIDE_EFFORT,
+               '--system-prompt', system, '--no-session-persistence',
+               '--tools', SIDE_TOOLS, '--strict-mcp-config'])
+
+
 # ── Codex (item 3.6) ───────────────────────────────────────────────────
 # Espelha cli_runtime/codex_app_server.rs (app-server, padrão com Codex >= 0.156) e
 # cli_runtime/codex.rs::argv + run_mode::codex_flags (fallback `exec --json`).

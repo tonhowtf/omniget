@@ -165,8 +165,9 @@ export type LoopDef = {
   max_rounds: number | null;
   max_minutes: number | null;
   check_command: string | null;
-  /** `paused`: a budget incident holds it (`stop_reason` = `budget:<incident>`, 3.3). */
-  state: "running" | "done" | "failed" | "cancelled" | "interrupted" | "paused";
+  /** `paused`: a budget incident holds it (`stop_reason` = `budget:<incident>`, 3.3);
+   * `blocked` and `budget_limited` come from the auditor's rules (3.7). */
+  state: "running" | "done" | "failed" | "cancelled" | "interrupted" | "paused" | "blocked" | "budget_limited";
   rounds_done: number;
   conversation_id: string;
   created_ms: number;
@@ -187,6 +188,36 @@ export type LoopDef = {
   spent_tokens?: number;
   /** Rounds whose cost nobody knows. */
   unpriced_rounds?: number;
+  /** Billable-token ceiling of rounds + audits (3.7); none = no ceiling. */
+  token_budget?: number | null;
+  tokens_used?: number;
+  /** The auditor's last note: the Loop's progress line. */
+  note?: string | null;
+  /** One entry per audited round (a Loop without a check command), newest last. */
+  audits?: LoopAudit[];
+  audit_usd?: number;
+  /** Rounds sent as the short continuation guide (the task was not resent). */
+  rounds_guided?: number;
+};
+
+/** The auditor's verdict on one round of a Loop (3.7). */
+export type LoopAudit = {
+  round: number;
+  /** `null` = the audit gave no verdict (see `error`). */
+  verdict: "continue" | "complete" | "blocked" | null;
+  note: string;
+  /** The agent itself said it was done. */
+  claimed_done: boolean;
+  model: string;
+  /** `provider_small` | `session_model` | `requested` | `setting`, `+fallback`. */
+  reason: string;
+  error: string | null;
+  cost_usd: number | null;
+  tokens: number;
+  ms: number;
+  round_cost_usd: number | null;
+  round_tokens: number;
+  guided: boolean;
 };
 
 export type Trigger = {
@@ -342,6 +373,9 @@ export type LoopInput = {
   run_mode?: import("./llm-run-mode.svelte").RunMode | null;
   /** Pause the loop with a budget incident when the rounds cost this (US$). */
   max_cost_usd?: number | null;
+  /** Billable tokens the rounds and their audits may spend (3.7): a hard
+   * `weighted_tokens` budget policy on the loop, like `max_cost_usd`. */
+  token_budget?: number | null;
 };
 
 export type TriggerInput = {
@@ -1020,6 +1054,8 @@ export function pickState(state: string): string {
     case "waiting_user":
     case "interrupted":
     case "unknown":
+    case "blocked":
+    case "budget_limited":
       return "orange";
     case "done":
     case "done_unreported":
@@ -1030,6 +1066,17 @@ export function pickState(state: string): string {
     default:
       return "grey";
   }
+}
+
+/** What the auditor cost next to the rounds it judged, as a share (0..1). */
+export function auditOverhead(audits: LoopAudit[] | undefined): { audit: number; rounds: number; share: number | null } {
+  let audit = 0;
+  let rounds = 0;
+  for (const a of audits ?? []) {
+    audit += a.cost_usd ?? 0;
+    rounds += a.round_cost_usd ?? 0;
+  }
+  return { audit, rounds, share: rounds > 0 ? audit / rounds : null };
 }
 
 export function shortTime(ms: number | null): string {

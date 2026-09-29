@@ -73,7 +73,23 @@ pub struct ClaudeArgs {
     pub exclude_dynamic: bool,
     /// `--effort` (`low`..`max`), already normalised by [`effort_level`].
     pub effort: Option<String>,
+    /// `--system-prompt` instead of `--append-system-prompt`: the whole
+    /// system prompt is ours (a side call, 3.7), without Claude Code's own.
+    pub replace_system_prompt: bool,
+    /// `--no-session-persistence`: nothing to resume later (a side call).
+    pub no_session_persistence: bool,
 }
+
+/// Built-in tools of a side call (the Loop auditor, 3.7): none.
+pub const SIDE_TOOLS: &str = "";
+
+/// `--effort` of a side call: a verdict in one JSON line needs no thinking.
+pub const SIDE_EFFORT: &str = "low";
+
+/// Environment of a side call: no extended thinking at all. Measured on
+/// 2.1.284 with Haiku: an audit at `--effort low` spent 823 thinking tokens
+/// of 862 (US$ 0.0050); with this, 32 output tokens (US$ 0.0008).
+pub const SIDE_ENV: &[(&str, &str)] = &[("MAX_THINKING_TOKENS", "0")];
 
 /// Built-in tools an external (MCP-controlled) mission never gets: every
 /// file, shell, web and agent tool. It acts only through OmniGet's projection,
@@ -186,9 +202,16 @@ pub fn argv(args: &ClaudeArgs) -> Vec<String> {
     }
     if let Some(system) = &args.system_prompt {
         if !system.trim().is_empty() {
-            out.push("--append-system-prompt".into());
+            out.push(if args.replace_system_prompt {
+                "--system-prompt".into()
+            } else {
+                "--append-system-prompt".into()
+            });
             out.push(system.clone());
         }
+    }
+    if args.no_session_persistence {
+        out.push("--no-session-persistence".into());
     }
     if let Some(budget) = args.max_budget_usd {
         out.push("--max-budget-usd".into());
@@ -1280,5 +1303,37 @@ mod tests {
             Some(1_760_000_000)
         );
         assert_eq!(epoch_seconds(&Value::Null), None);
+    }
+
+    /// A side call (3.7): our system prompt replaces Claude Code's, no tools,
+    /// no user MCPs, nothing persisted. `scripts/llm/missions_eval.py`
+    /// (`side_argv`) mirrors this argv.
+    #[test]
+    fn a_side_call_replaces_the_system_prompt_and_persists_nothing() {
+        let a = argv(&ClaudeArgs {
+            model: Some("haiku".into()),
+            system_prompt: Some("You audit.".into()),
+            replace_system_prompt: true,
+            no_session_persistence: true,
+            tools: Some(SIDE_TOOLS.into()),
+            strict_mcp: true,
+            effort: Some(SIDE_EFFORT.into()),
+            permission_mode: Some("plan"),
+            ..ClaudeArgs::default()
+        });
+        let at = |f: &str| a.iter().position(|x| x == f);
+        assert_eq!(a[at("--system-prompt").unwrap() + 1], "You audit.");
+        assert!(at("--append-system-prompt").is_none());
+        assert!(at("--no-session-persistence").is_some());
+        assert_eq!(a[at("--tools").unwrap() + 1], "");
+        assert_eq!(a[at("--model").unwrap() + 1], "haiku");
+        assert!(at("--strict-mcp-config").is_some());
+        // A normal turn is unchanged: append, persisted.
+        let b = argv(&ClaudeArgs {
+            system_prompt: Some("x".into()),
+            ..ClaudeArgs::default()
+        });
+        assert!(b.contains(&"--append-system-prompt".to_string()));
+        assert!(!b.contains(&"--no-session-persistence".to_string()));
     }
 }

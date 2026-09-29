@@ -265,6 +265,23 @@ pub struct LaunchPlan {
     /// Codex over its app-server (3.6): who asks on behalf of the turn.
     /// `None` = the one-shot `exec --json` (older Codex, or forced).
     pub app_server: Option<AppServerTurn>,
+    /// A side call (3.7, [`crate::core::llm::router::TaskKind::Side`]): the
+    /// conversation id starts with `side-`. `None` = an ordinary turn.
+    pub side: Option<SideLaunch>,
+}
+
+/// How lean a side call can be launched, from the CLI's help: each flag only
+/// when the installed version lists it.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct SideLaunch {
+    /// `--system-prompt` (ours replaces Claude Code's own).
+    pub replace_system: bool,
+    /// `--no-session-persistence`.
+    pub no_persist: bool,
+    /// `--tools` (an empty list: no built-in tools).
+    pub no_tools: bool,
+    /// `--strict-mcp-config` (none of the user's MCP servers).
+    pub strict_mcp: bool,
 }
 
 /// The turn a Codex app-server conversation runs for: its approvals become
@@ -487,10 +504,26 @@ impl CliRuntime {
         let scrub: Vec<String> = SCRUB_ENV.iter().map(|s| s.to_string()).collect();
         match account.cli {
             CliKind::Claude => {
-                let resume = launch.and_then(|l| l.resume.clone());
+                let side = launch.and_then(|l| l.side);
+                let resume = launch
+                    .filter(|_| side.is_none())
+                    .and_then(|l| l.resume.clone());
                 // Resumed: the provider holds the history; only this turn's
                 // instructions/context and the new message travel.
                 let (system_prompt, stdin) = match &resume {
+                    // A side call: the system prompt is the caller's (it
+                    // replaces Claude Code's when the CLI allows), and only
+                    // the conversation itself goes on stdin, no injected
+                    // context (memory, KB) the auditor must not see.
+                    None if side.is_some() => {
+                        let talk: Vec<super::types::Message> = req
+                            .messages
+                            .iter()
+                            .filter(|m| m.role != super::types::Role::System)
+                            .cloned()
+                            .collect();
+                        (system_prompt, claude::render_prompt(&talk))
+                    }
                     Some(_) => {
                         let sys = claude::system_text(&req.messages);
                         (
@@ -511,6 +544,7 @@ impl CliRuntime {
                 // the fixed context (user MCPs, agent tools) and cross-job
                 // cache reuse; the batching line cuts turns.
                 let lean = !external
+                    && side.is_none()
                     && !restrict
                     && account.sandbox.writes()
                     && launch
@@ -563,7 +597,7 @@ impl CliRuntime {
                         Vec::new()
                     },
                     mcp_config: mcp,
-                    tools: if external {
+                    tools: if external || side.is_some_and(|s| s.no_tools) {
                         Some(String::new())
                     } else if lean {
                         Some(claude::PROJECT_TOOLS.to_string())
@@ -572,6 +606,8 @@ impl CliRuntime {
                     },
                     disallowed_tools: if external {
                         vec![claude::EXTERNAL_DENIED.to_string()]
+                    } else if side.is_some() {
+                        Vec::new()
                     } else if restrict {
                         vec![claude::PROJECTLESS_DENIED.to_string()]
                     } else {
@@ -581,7 +617,7 @@ impl CliRuntime {
                     restricted: external,
                     // The app's projection (if any) stays; the user's own
                     // MCP servers do not ride along on a project job.
-                    strict_mcp: external || lean,
+                    strict_mcp: external || lean || side.is_some_and(|s| s.strict_mcp),
                     exclude_dynamic: lean,
                     effort: launch
                         .filter(|l| l.effort_flag)
@@ -591,9 +627,20 @@ impl CliRuntime {
                                 .as_deref()
                                 .and_then(claude::effort_level)
                                 .or(lean.then_some(claude::PROJECT_EFFORT))
+                                .or(side.map(|_| claude::SIDE_EFFORT))
                         })
                         .map(String::from),
+                    replace_system_prompt: side.is_some_and(|s| s.replace_system),
+                    no_session_persistence: side.is_some_and(|s| s.no_persist),
                 };
+                let mut env = env;
+                if side.is_some() {
+                    // Haiku thinks even at `--effort low` (823 of 862 output
+                    // tokens on a verdict, 2.1.284): off, the audit costs ~6x less.
+                    for (k, v) in claude::SIDE_ENV {
+                        env.insert(k.to_string(), v.to_string());
+                    }
+                }
                 let spec = SpawnSpec {
                     program: binary,
                     args: claude::argv(&args),
@@ -649,7 +696,8 @@ impl CliRuntime {
                         .params
                         .reasoning_effort
                         .as_deref()
-                        .and_then(codex_app_server::effort_of),
+                        .and_then(codex_app_server::effort_of)
+                        .or(l.side.map(|_| claude::SIDE_EFFORT.to_string())),
                     instructions: (!instructions.trim().is_empty()).then_some(instructions),
                     resume: resumed,
                     resume_text: last.clone(),
@@ -658,7 +706,12 @@ impl CliRuntime {
                     } else {
                         last
                     },
-                    effective: Some(l.run_mode.unwrap_or_default().under(account.sandbox)),
+                    // A side call only answers: read-only, whatever the account allows.
+                    effective: Some(l.run_mode.unwrap_or_default().under(if l.side.is_some() {
+                        accounts::SandboxMode::ReadOnly
+                    } else {
+                        account.sandbox
+                    })),
                 };
                 let spec = SpawnSpec {
                     program: binary,
@@ -832,6 +885,14 @@ impl AgentRuntime for CliRuntime {
                         request_id: turn.request.clone(),
                         conversation: turn.conversation.clone(),
                     }),
+                side: crate::core::llm::router::is_side_conversation(&turn.conversation).then(
+                    || SideLaunch {
+                        replace_system: caps.has_flag("--system-prompt"),
+                        no_persist: caps.has_flag("--no-session-persistence"),
+                        no_tools: caps.has_flag("--tools"),
+                        strict_mcp: caps.has_flag("--strict-mcp-config"),
+                    },
+                ),
             };
             // Codex resumes its thread only over the app-server; `exec`
             // keeps replaying the transcript.
@@ -888,7 +949,7 @@ impl AgentRuntime for CliRuntime {
             }
             // The coordinator issued a projection for this turn: hand it to
             // Claude Code through a private config file.
-            if kind == CliKind::Claude && caps.has_flag("--mcp-config") {
+            if kind == CliKind::Claude && caps.has_flag("--mcp-config") && plan.side.is_none() {
                 if let Some(p) = crate::core::assist::projection::current_turn() {
                     let dir = std::env::temp_dir().join("omniget-mcp");
                     match crate::core::assist::projection::write_mcp_config(&dir, &p.url, &p.token)
@@ -908,8 +969,13 @@ impl AgentRuntime for CliRuntime {
                 }
             }
             // OmniGet's rules also judge the CLI's own tools (3.4): a
-            // `PreToolUse` hook per call, from a private per-turn folder.
-            if kind == CliKind::Claude && !external && caps.has_flag("--settings") {
+            // `PreToolUse` hook per call, from a private per-turn folder. A
+            // side call (3.7) has no tools to judge: its argv stays lean.
+            if kind == CliKind::Claude
+                && !external
+                && plan.side.is_none()
+                && caps.has_flag("--settings")
+            {
                 match super::claude_hooks::resolve_shim() {
                     Some(shim) => {
                         let policy = super::claude_hooks::Policy {
@@ -1162,6 +1228,7 @@ mod tests {
             hook_settings: None,
             baseline_request: None,
             app_server: None,
+            side: None,
         };
         let (spec, _) = runtime.plan_with(
             &account,
@@ -1214,6 +1281,105 @@ mod tests {
         let _ = std::fs::remove_dir_all(&root);
     }
 
+    /// A side call (3.7): the auditor's system prompt replaces Claude Code's,
+    /// no built-in tools, no user MCPs, nothing persisted, low effort, and
+    /// only the conversation (no injected system context) on stdin.
+    #[test]
+    fn a_side_call_is_launched_lean_and_tool_less() {
+        let root = tmp("plan-side");
+        let accounts = store_with(&root, CliKind::Claude);
+        accounts.set_sandbox("max-1", SandboxMode::Write).unwrap();
+        let runtime = CliRuntime::new(accounts.clone(), Arc::new(CliCapacity::new()));
+        let account = accounts.get("max-1").unwrap();
+        let plan = LaunchPlan {
+            cwd: Some(root.clone()),
+            projectless: true,
+            resume: Some("sess-should-not-be-used".into()),
+            resume_kind: crate::core::assist::runs::ResumeKind::New,
+            mcp_config: None,
+            permission_prompt_tool: None,
+            restrict_tools: true,
+            external: false,
+            lean_project: true,
+            effort_flag: true,
+            run_mode: None,
+            hook_settings: None,
+            baseline_request: None,
+            auto_mode: false,
+            approve_for_me: false,
+            app_server: None,
+            side: Some(SideLaunch {
+                replace_system: true,
+                no_persist: true,
+                no_tools: true,
+                strict_mcp: true,
+            }),
+        };
+        let mut req = request("haiku");
+        req.messages.insert(
+            0,
+            Message::text(Role::System, "memory: the user likes cats"),
+        );
+        let (spec, _) = runtime.plan_with(
+            &account,
+            PathBuf::from("/usr/bin/claude"),
+            &req,
+            Some("You audit.".into()),
+            Some(&plan),
+        );
+        let a = &spec.args;
+        let after = |f: &str| {
+            a.iter()
+                .position(|x| x == f)
+                .map(|i| a[i + 1].clone())
+                .unwrap_or_else(|| panic!("{f} missing: {a:?}"))
+        };
+        assert_eq!(after("--system-prompt"), "You audit.");
+        assert_eq!(after("--tools"), "");
+        assert_eq!(after("--model"), "haiku");
+        assert_eq!(after("--effort"), claude::SIDE_EFFORT);
+        let joined = a.join(" ");
+        assert!(!joined.contains("--append-system-prompt"), "{joined}");
+        assert!(!joined.contains("--resume"), "{joined}");
+        assert!(!joined.contains("--disallowedTools"), "{joined}");
+        assert!(!joined.contains(claude::PROJECT_BATCHING));
+        assert!(joined.contains("--no-session-persistence"));
+        assert!(joined.contains("--strict-mcp-config"));
+        assert_eq!(spec.stdin.as_deref(), Some("User: responda ok"));
+        assert_eq!(
+            spec.env.get("MAX_THINKING_TOKENS").map(String::as_str),
+            Some("0")
+        );
+        // Byte for byte what `scripts/llm/missions_eval.py::side_argv("You audit.")`
+        // sends (BN9 measures this argv).
+        let mirror: Vec<String> = [
+            "-p",
+            "--output-format",
+            "stream-json",
+            "--verbose",
+            "--permission-prompts",
+            "none",
+            "--permission-mode",
+            "acceptEdits",
+            "--include-partial-messages",
+            "--model",
+            "haiku",
+            "--effort",
+            "low",
+            "--system-prompt",
+            "You audit.",
+            "--no-session-persistence",
+            "--tools",
+            "",
+            "--strict-mcp-config",
+        ]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+        assert_eq!(spec.args, mirror);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
     /// Missions on 2.1.283 (3 reps, sonnet): `--effort low` on a lean project
     /// job cut the median time of the 11 missions from 152.8 s to 125.6 s at
     /// the same cost and 33/33 success. An explicit `reasoning_effort` wins;
@@ -1242,6 +1408,7 @@ mod tests {
             hook_settings: None,
             baseline_request: None,
             app_server: None,
+            side: None,
         };
         let effort = |req: &TurnRequest, p: &LaunchPlan| {
             let (spec, _) = runtime.plan_with(

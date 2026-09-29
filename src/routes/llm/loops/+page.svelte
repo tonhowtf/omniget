@@ -4,7 +4,8 @@
   import type { RunMode } from "$lib/stores/llm-run-mode.svelte";
   /**
    * Loops: the same prompt run round after round until a check command
-   * passes or the round/minute budget runs out.
+   * passes or the round/minute budget runs out. Without a check command an
+   * independent auditor (the agent's small model) judges each round (3.7).
    */
   import { onMount } from "svelte";
   import { page } from "$app/state";
@@ -23,6 +24,8 @@
     resumeLoop,
     settleLoop,
     shortTime,
+    auditOverhead,
+    type LoopAudit,
     type LoopDef,
   } from "$lib/stores/llm-jobs-store.svelte";
   import CatalogLoops from "$components/central/run/CatalogLoops.svelte";
@@ -55,6 +58,7 @@
   let checkCommand = $state("");
   /** Resume by itself after a restart (3.1); unchecked = the setting. */
   let autoResume = $state(false);
+  let tokenBudget = $state<number | null>(null);
   // A loop made here is the person's own: the chat's default (2.7, D2).
   let runMode = $state<RunMode>("auto_edits");
   let creating = $state(false);
@@ -91,9 +95,33 @@
     return typeof n === "number" && n > 0 ? Math.floor(n) : null;
   }
 
+  /** Stop reasons the app names; anything else (an error) shows as it is. */
+  const KNOWN_STOPS = ["audit_complete", "audit_blocked", "audit_unavailable", "audit_disagrees", "token_budget", "max_rounds"];
+
   function reason(loop: LoopDef): string {
     if (budgetIncident(loop)) return $t("llm.loops.paused_budget") as string;
-    return loop.stop_reason === "check_passed" ? $t("llm.loops.check_passed") : loop.stop_reason ?? "";
+    const r = loop.stop_reason ?? "";
+    if (r === "check_passed") return $t("llm.loops.check_passed");
+    if (KNOWN_STOPS.includes(r)) return $t(`llm.loops.stop.${r}`);
+    if (r.startsWith("round_failed: ")) return $t("llm.loops.stop.round_failed", { error: r.slice(14) });
+    return r;
+  }
+
+  function verdictClass(a: LoopAudit): string {
+    switch (a.verdict) {
+      case "complete":
+        return "green";
+      case "blocked":
+        return "orange";
+      case "continue":
+        return "blue";
+      default:
+        return "red";
+    }
+  }
+
+  function usd(n: number | null | undefined): string {
+    return `US$ ${(n ?? 0).toFixed(4)}`;
   }
 
   /** The budget incident that paused the loop, if one did. */
@@ -128,6 +156,7 @@
       auto_resume: autoResume ? true : null,
       run_mode: runMode,
       max_cost_usd: typeof maxCost === "number" && maxCost > 0 ? maxCost : null,
+      token_budget: positive(tokenBudget),
     });
     creating = false;
     if (loop) {
@@ -199,6 +228,10 @@
         <span class="field-label">{$t("llm.loops.check_command")}</span>
         <input class="input mono" type="text" bind:value={checkCommand} placeholder="npm test" />
       </label>
+      <label class="field small">
+        <span class="field-label">{$t("llm.loops.token_budget")}</span>
+        <input class="input" type="number" min="1" step="1000" bind:value={tokenBudget} />
+      </label>
     </div>
     <label class="auto-resume">
       <input type="checkbox" bind:checked={autoResume} />
@@ -221,6 +254,7 @@
         {#if checkCommand.trim()}<p><code>{checkCommand}</code></p>{/if}
         {#if positive(maxMinutes)}<p>{$t("llm.loops.max_minutes")}: {positive(maxMinutes)}</p>{/if}
         {#if typeof maxCost === "number" && maxCost > 0}<p>{$t("llm.loops.max_cost")}: US$ {maxCost}</p>{/if}
+        {#if positive(tokenBudget)}<p>{$t("llm.loops.token_budget")}: {positive(tokenBudget)}</p>{/if}
         <p>{$t("llm.run_mode.label")}: {$t(`llm.run_mode.${runMode}`)}</p>
         <button type="button" class="button active" disabled={creating || !agentId || !prompt.trim()} onclick={create}>{$t("llm.loops.start")}</button>
         <button type="button" class="button" disabled={creating} onclick={() => reviewing = false}>{$t("llm.loops.edit")}</button>
@@ -253,6 +287,8 @@
               {#if cost(loop)}<span class="dim">{cost(loop)}</span>{/if}
               {#if (loop.finished_ms || loop.state === "paused") && reason(loop)}
                 <span class="line dim">{reason(loop)}</span>
+              {:else if loop.note}
+                <span class="line dim" title={$t("llm.loops.note")}>{loop.note}</span>
               {:else}
                 <span class="line"></span>
               {/if}
@@ -291,6 +327,34 @@
                   <div class="field-label">{$t("llm.loops.last_check")}</div>
                   <pre class="pre">{loop.last_check}</pre>
                 {/if}
+                {#if loop.token_budget || loop.tokens_used}
+                  <div class="field-label">{$t("llm.loops.token_budget")}</div>
+                  <span class="text">{$t("llm.loops.tokens", { used: loop.tokens_used ?? 0, budget: loop.token_budget ?? "∞" })}</span>
+                {/if}
+                {#if loop.rounds_guided}
+                  <p class="hint">{$t("llm.loops.guided", { count: loop.rounds_guided })}</p>
+                {/if}
+                {#if loop.audits && loop.audits.length > 0}
+                  {@const cost = auditOverhead(loop.audits)}
+                  <div class="field-label">{$t("llm.loops.audits")}</div>
+                  <ol class="audit-list">
+                    {#each loop.audits as a (a.round)}
+                      <li class="audit">
+                        <span class="dim">#{a.round}</span>
+                        <span class="pill {verdictClass(a)}">{a.verdict ? $t(`llm.loops.verdict.${a.verdict}`) : $t("llm.loops.verdict.none")}</span>
+                        <span class="audit-note">{a.note || a.error || ""}</span>
+                        {#if a.claimed_done}
+                          <span class="tag" title={$t("llm.loops.claimed_done_hint")}>{$t("llm.loops.claimed_done")}</span>
+                        {/if}
+                        <span class="dim" title={$t(`llm.loops.side_reason.${a.reason.replace("+fallback", "")}`)}>{a.model}</span>
+                        {#if a.cost_usd != null}<span class="dim">{usd(a.cost_usd)}</span>{/if}
+                      </li>
+                    {/each}
+                  </ol>
+                  {#if cost.share != null}
+                    <p class="hint">{$t("llm.loops.overhead", { audit: usd(cost.audit), rounds: usd(cost.rounds), percent: Math.round(cost.share * 100) })}</p>
+                  {/if}
+                {/if}
                 <div class="field-label">{$t("llm.loops.jobs")}</div>
                 {#if rounds.length === 0}
                   <p class="hint">{$t("llm.loops.jobs_empty")}</p>
@@ -306,6 +370,8 @@
                 {/if}
                 {#if loop.state === "interrupted"}
                   <p class="hint">{$t("assist.runs.loop_interrupted_hint")}</p>
+                {:else if loop.state === "blocked"}
+                  <p class="hint">{$t("llm.loops.blocked_hint")}</p>
                 {/if}
                 {#if budgetIncident(loop)}
                   <p class="hint">
@@ -323,6 +389,13 @@
                     </button>
                     <button type="button" class="button" onclick={() => void settleLoop(loop.id, false)}>
                       {$t("assist.runs.action_discard")}
+                    </button>
+                  {:else if loop.state === "blocked"}
+                    <button type="button" class="button active" onclick={() => void resumeLoop(loop.id)}>
+                      {$t("assist.runs.action_resume")}
+                    </button>
+                    <button type="button" class="button" onclick={() => void deleteLoop(loop.id)}>
+                      {$t("llm.loops.delete")}
                     </button>
                   {:else if loop.state === "running" || loop.state === "paused"}
                     <button type="button" class="button" onclick={() => void cancelLoop(loop.id)}>
@@ -541,6 +614,39 @@
     align-items: center;
     gap: var(--space-1);
     text-decoration: none;
+  }
+
+  .audit-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .audit {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 0;
+    font-size: var(--text-sm);
+  }
+
+  .audit-note {
+    flex: 1;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    user-select: text;
+  }
+
+  .tag {
+    flex-shrink: 0;
+    padding: 0 6px;
+    border: var(--hairline) solid var(--separator);
+    border-radius: var(--radius-sm);
+    font-size: var(--text-xs);
+    color: var(--text-dim);
   }
 
   .pre {

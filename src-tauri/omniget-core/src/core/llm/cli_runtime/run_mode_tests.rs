@@ -100,6 +100,7 @@ async fn run(case: &Case<'_>) -> Row {
         hook_settings: None,
         baseline_request: None,
         app_server: None,
+        side: None,
     };
     let req = TurnRequest {
         model: ModelRef {
@@ -358,6 +359,7 @@ fn auto_edits_is_the_argv_of_before() {
         hook_settings: None,
         baseline_request: None,
         app_server: None,
+        side: None,
     };
     let argv = |p: &LaunchPlan| {
         runtime

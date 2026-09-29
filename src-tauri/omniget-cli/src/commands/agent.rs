@@ -798,7 +798,7 @@ pub enum AgentCommand {
         minutes: Option<u32>,
         #[arg(
             long,
-            help = "Shell command; the loop ends when it exits 0 (e.g. \"npm test\")"
+            help = "Shell command; the loop ends when it exits 0 (e.g. \"npm test\"). Without it, an independent auditor on the agent's small model decides when the work is done"
         )]
         check: Option<String>,
         #[arg(
@@ -809,6 +809,11 @@ pub enum AgentCommand {
         auto_resume: bool,
         #[arg(long, help = "Never start again by itself, whatever the app's setting")]
         no_auto_resume: bool,
+        #[arg(
+            long,
+            help = "Stop when the rounds and their audits spend this many billable tokens"
+        )]
+        token_budget: Option<u64>,
         #[arg(
             long,
             value_name = "MODE",
@@ -1392,7 +1397,7 @@ pub async fn execute(cmd: AgentCommand, json_out: bool) -> anyhow::Result<()> {
                     l["id"].as_str().unwrap_or(""),
                     l["name"].as_str().unwrap_or(""),
                     l["agent_id"].as_str().unwrap_or(""),
-                    l["check_command"].as_str().unwrap_or("none (DONE or budget)")
+                    l["check_command"].as_str().unwrap_or("none (the auditor or the budget)")
                 );
             }
             Ok(())
@@ -1407,6 +1412,7 @@ pub async fn execute(cmd: AgentCommand, json_out: bool) -> anyhow::Result<()> {
             schedule,
             auto_resume,
             no_auto_resume,
+            token_budget,
             mode,
             ..
         } => {
@@ -1414,7 +1420,7 @@ pub async fn execute(cmd: AgentCommand, json_out: bool) -> anyhow::Result<()> {
                 .post(
                     "/v1/agent/loop",
                     with_run_mode(
-                        json!({ "agent_id": agent, "prompt": prompt, "workspace": workspace(ws, false), "max_rounds": rounds, "max_minutes": minutes, "check_command": check, "schedule": schedule, "auto_resume": auto_resume_flag(auto_resume, no_auto_resume) }),
+                        json!({ "agent_id": agent, "prompt": prompt, "workspace": workspace(ws, false), "max_rounds": rounds, "max_minutes": minutes, "check_command": check, "schedule": schedule, "auto_resume": auto_resume_flag(auto_resume, no_auto_resume), "token_budget": token_budget }),
                         mode,
                     ),
                 )
@@ -1811,6 +1817,14 @@ mod tests {
                 "{m}"
             );
         }
+        // 3.7: a token budget for an audited Loop; a number only.
+        match T::try_parse_from(["t", "loop", "hi", "--token-budget", "50000"]) {
+            Ok(T {
+                c: AgentCommand::Loop { token_budget, .. },
+            }) => assert_eq!(token_budget, Some(50_000)),
+            _ => panic!("--token-budget must parse"),
+        }
+        assert!(T::try_parse_from(["t", "loop", "hi", "--token-budget", "lots"]).is_err());
     }
 
     #[test]

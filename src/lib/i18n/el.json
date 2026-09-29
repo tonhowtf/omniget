@@ -3572,11 +3572,13 @@
         "done": "Done",
         "failed": "Failed",
         "cancelled": "Cancelled",
-        "paused": "Σε παύση"
+        "paused": "Σε παύση",
+        "blocked": "Μπλοκαρισμένο",
+        "budget_limited": "Εξαντλήθηκε ο προϋπολογισμός"
       },
       "check_passed": "Condition met",
       "summary": "Up to {{rounds}} rounds. Stops earlier when a configured condition or time limit is reached.",
-      "no_check": "No check command: completion will be controlled by the round or time limit.",
+      "no_check": "Χωρίς εντολή ελέγχου: μετά από κάθε γύρο ένας ανεξάρτητος ελεγκτής (το μικρότερο μοντέλο του πράκτορα) αποφασίζει αν η δουλειά τελείωσε, για έως 20 γύρους.",
       "review": "Review loop",
       "edit": "Edit configuration",
       "auto_resume": "Αυτόματη συνέχιση μετά από επανεκκίνηση",
@@ -3588,7 +3590,37 @@
       "open_incident": "Άνοιγμα του συμβάντος",
       "cost_estimated": "(εκτίμηση)",
       "cost_tokens": "{{tokens}} σταθμισμένα tokens",
-      "cost_unknown": "{{count}} γύρος/οι άγνωστου κόστους"
+      "cost_unknown": "{{count}} γύρος/οι άγνωστου κόστους",
+      "stop": {
+        "audit_complete": "Επαληθεύτηκε από τον ελεγκτή",
+        "audit_blocked": "Ο ελεγκτής είδε τον πράκτορα μπλοκαρισμένο 3 γύρους στη σειρά",
+        "audit_unavailable": "Ο έλεγχος δεν ήταν διαθέσιμος δύο φορές στη σειρά",
+        "token_budget": "Εξαντλήθηκε ο προϋπολογισμός tokens",
+        "max_rounds": "Έφτασε το όριο γύρων",
+        "round_failed": "Ένας γύρος απέτυχε: {{error}}",
+        "audit_disagrees": "Ο πράκτορας είπε ότι τελείωσε και ο ελεγκτής διαφώνησε 3 φορές στη σειρά: αποφασίζεις εσύ"
+      },
+      "token_budget": "Προϋπολογισμός tokens",
+      "tokens": "{{used}} / {{budget}} tokens",
+      "guided": "{{count}} γύροι έστειλαν μόνο τη συνέχεια (η εργασία δεν ξαναστάλθηκε).",
+      "audits": "Ετυμηγορίες ελεγκτή",
+      "verdict": {
+        "continue": "Συνέχεια",
+        "complete": "Ολοκληρώθηκε",
+        "blocked": "Μπλοκαρισμένο",
+        "none": "Χωρίς ετυμηγορία"
+      },
+      "claimed_done": "είπε ότι τελείωσε",
+      "claimed_done_hint": "Ο πράκτορας είπε ότι τελείωσε· μόνο η ετυμηγορία του ελεγκτή τερματίζει τον βρόχο.",
+      "side_reason": {
+        "provider_small": "Το μικρότερο μοντέλο του ίδιου λογαριασμού",
+        "session_model": "Δεν είναι γνωστό μικρότερο μοντέλο: του ίδιου του πράκτορα",
+        "requested": "Επιλέχθηκε για αυτόν τον βρόχο",
+        "setting": "Ρύθμιση βοηθητικού μοντέλου"
+      },
+      "overhead": "Ελεγκτής {{audit}} για γύρους κόστους {{rounds}} ({{percent}}%).",
+      "blocked_hint": "Ο βρόχος σταμάτησε και σε χρειάζεται. Η συνέχιση τρέχει νέο γύρο, με νέο έλεγχο.",
+      "note": "Πρόοδος"
     },
     "limits": {
       "title": "Limits strip",

@@ -3572,11 +3572,13 @@
         "done": "Done",
         "failed": "Failed",
         "cancelled": "Cancelled",
-        "paused": "一時停止中"
+        "paused": "一時停止中",
+        "blocked": "ブロック",
+        "budget_limited": "予算に到達"
       },
       "check_passed": "Condition met",
       "summary": "Up to {{rounds}} rounds. Stops earlier when a configured condition or time limit is reached.",
-      "no_check": "No check command: completion will be controlled by the round or time limit.",
+      "no_check": "チェックコマンドなし: 各ラウンドの後、独立した監査役(エージェントの最小モデル)が作業の完了を判定します。最大20ラウンドです。",
       "review": "Review loop",
       "edit": "Edit configuration",
       "auto_resume": "再起動後に自動で再開",
@@ -3588,7 +3590,37 @@
       "open_incident": "インシデントを開く",
       "cost_estimated": "(推定)",
       "cost_tokens": "重み付きトークン {{tokens}}",
-      "cost_unknown": "コスト不明のラウンド {{count}}"
+      "cost_unknown": "コスト不明のラウンド {{count}}",
+      "stop": {
+        "audit_complete": "監査役が確認済み",
+        "audit_blocked": "監査役がエージェントのブロックを3ラウンド連続で確認",
+        "audit_unavailable": "監査が2回連続で利用不可",
+        "token_budget": "トークン予算に到達",
+        "max_rounds": "ラウンド上限に到達",
+        "round_failed": "ラウンドが失敗しました: {{error}}",
+        "audit_disagrees": "エージェントの完了申告に監査役が3回連続で同意しませんでした。判断してください"
+      },
+      "token_budget": "トークン予算",
+      "tokens": "{{used}} / {{budget}} トークン",
+      "guided": "{{count}} ラウンドは続きの指示だけを送信しました(タスクは再送していません)。",
+      "audits": "監査役の判定",
+      "verdict": {
+        "continue": "継続",
+        "complete": "完了",
+        "blocked": "ブロック",
+        "none": "判定なし"
+      },
+      "claimed_done": "完了と申告",
+      "claimed_done_hint": "エージェントは完了と申告しました。ループを終えるのは監査役の判定だけです。",
+      "side_reason": {
+        "provider_small": "同じアカウントの最小モデル",
+        "session_model": "より小さいモデルが不明: エージェント自身のモデル",
+        "requested": "このループ用に選択",
+        "setting": "サブモデルの設定"
+      },
+      "overhead": "監査役 {{audit}}、ラウンド {{rounds}}({{percent}}%)。",
+      "blocked_hint": "ループが停止し、あなたの判断が必要です。再開すると新しいラウンドが再び監査付きで実行されます。",
+      "note": "進捗"
     },
     "limits": {
       "title": "Limits strip",

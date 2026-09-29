@@ -3572,11 +3572,13 @@
         "done": "Done",
         "failed": "Failed",
         "cancelled": "Cancelled",
-        "paused": "已暫停"
+        "paused": "已暫停",
+        "blocked": "已受阻",
+        "budget_limited": "已達預算"
       },
       "check_passed": "Condition met",
       "summary": "Up to {{rounds}} rounds. Stops earlier when a configured condition or time limit is reached.",
-      "no_check": "No check command: completion will be controlled by the round or time limit.",
+      "no_check": "沒有檢查指令:每輪結束後,由獨立稽核者(代理最小的模型)判斷工作是否完成,最多 20 輪。",
       "review": "Review loop",
       "edit": "Edit configuration",
       "auto_resume": "重新啟動後自動繼續",
@@ -3588,7 +3590,37 @@
       "open_incident": "開啟事件",
       "cost_estimated": "（估算）",
       "cost_tokens": "{{tokens}} 加權 token",
-      "cost_unknown": "{{count}} 輪成本未知"
+      "cost_unknown": "{{count}} 輪成本未知",
+      "stop": {
+        "audit_complete": "已由稽核者確認",
+        "audit_blocked": "稽核者連續 3 輪看到代理受阻",
+        "audit_unavailable": "稽核連續兩次無法使用",
+        "token_budget": "已達 token 預算",
+        "max_rounds": "已達輪數上限",
+        "round_failed": "某一輪失敗:{{error}}",
+        "audit_disagrees": "代理連續 3 次自稱完成而稽核者不同意:由你決定"
+      },
+      "token_budget": "Token 預算",
+      "tokens": "{{used}} / {{budget}} tokens",
+      "guided": "有 {{count}} 輪只送出了繼續指引(未重新送出任務)。",
+      "audits": "稽核者判定",
+      "verdict": {
+        "continue": "繼續",
+        "complete": "完成",
+        "blocked": "已受阻",
+        "none": "無判定"
+      },
+      "claimed_done": "自稱完成",
+      "claimed_done_hint": "代理自稱已完成;只有稽核者的判定能結束迴圈。",
+      "side_reason": {
+        "provider_small": "同一帳號的最小模型",
+        "session_model": "未知更小的模型:使用代理自己的模型",
+        "requested": "為此迴圈指定",
+        "setting": "輔助模型設定"
+      },
+      "overhead": "稽核者 {{audit}},輪次花費 {{rounds}}({{percent}}%)。",
+      "blocked_hint": "迴圈已停止,需要你處理。繼續會再跑一輪,並再次稽核。",
+      "note": "進度"
     },
     "limits": {
       "title": "Limits strip",

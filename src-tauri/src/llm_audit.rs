@@ -131,6 +131,20 @@ pub fn loop_auto_resumed(loop_id: &str, reason: &str, restarts: u32, round: Opti
     );
 }
 
+/// The side model judged one round of a Loop (3.7). What it cost goes with
+/// it, since audits are spent on the Loop's budget (3.3); never the reply.
+pub fn loop_audited(loop_id: &str, a: &crate::jobs::LoopAudit) {
+    audit::log(
+        Actor::system("auditor"),
+        "loop.audited",
+        Entity::loop_(loop_id),
+        json!({
+            "round": a.round, "verdict": a.verdict, "model": a.model, "reason": a.reason,
+            "cost_usd": a.cost_usd, "tokens": a.tokens, "error": a.error.is_some(),
+        }),
+    );
+}
+
 /// The app started with no window (3.2): `cli` when a CLI brought it up
 /// (`--background`), `login` for the login item with agents in the
 /// background, `tray` for "start in tray only".

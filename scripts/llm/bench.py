@@ -82,6 +82,14 @@ BENCHES = {
         [],
         ["omniget-core", "omniget"],
     ),
+    "bn9": (
+        "loops_eval.py",
+        [CORE_LLM + "goal_audit.rs", CORE_LLM + "goal_audit.json", CORE_LLM + "router.rs", "src-tauri/src/jobs.rs",
+         "src-tauri/src/jobs/loop_audit.rs", "scripts/llm/fake_claude.py", "scripts/llm/loops_eval.py",
+         "scripts/llm/missions_eval.py"],
+        [],
+        [],
+    ),
     "bn10": (
         "codex_eval.py",
         [CORE_LLM + "cli_runtime/codex_app_server.rs", CORE_LLM + "cli_runtime/app_server_tests.rs",
@@ -233,7 +241,7 @@ def main():
     ap.add_argument("--prepared", help="immutable prepared.json; execute without Cargo")
     ap.add_argument("--all", action="store_true", help="every fake bench, whatever changed")
     ap.add_argument("--quick", action="store_true", help="fewer repetitions (iteration, not a gate)")
-    ap.add_argument("--only", default="", help="comma-separated: bn1,bn2,bn3,bn4,bn5,bn6,bn7,bn8,bn10,bn11,bn12")
+    ap.add_argument("--only", default="", help="comma-separated: bn1,bn2,bn3,bn4,bn5,bn6,bn7,bn8,bn9,bn10,bn11,bn12")
     ap.add_argument("--real", action="store_true", help="also run B0 (real Claude turns; spends quota)")
     ap.add_argument("--real-if-needed", action="store_true",
                     help="run B0 only when the turn argv or the harness changed")

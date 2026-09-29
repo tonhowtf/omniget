@@ -3572,11 +3572,13 @@
         "done": "Done",
         "failed": "Failed",
         "cancelled": "Cancelled",
-        "paused": "已暂停"
+        "paused": "已暂停",
+        "blocked": "已阻塞",
+        "budget_limited": "已达预算"
       },
       "check_passed": "Condition met",
       "summary": "Up to {{rounds}} rounds. Stops earlier when a configured condition or time limit is reached.",
-      "no_check": "No check command: completion will be controlled by the round or time limit.",
+      "no_check": "没有检查命令:每轮结束后,由独立审核者(代理最小的模型)判断工作是否完成,最多 20 轮。",
       "review": "Review loop",
       "edit": "Edit configuration",
       "auto_resume": "重启后自动继续",
@@ -3588,7 +3590,37 @@
       "open_incident": "打开事件",
       "cost_estimated": "（估算）",
       "cost_tokens": "{{tokens}} 加权 token",
-      "cost_unknown": "{{count}} 轮成本未知"
+      "cost_unknown": "{{count}} 轮成本未知",
+      "stop": {
+        "audit_complete": "已由审核者确认",
+        "audit_blocked": "审核者连续 3 轮看到代理受阻",
+        "audit_unavailable": "审核连续两次不可用",
+        "token_budget": "已达 token 预算",
+        "max_rounds": "已达轮数上限",
+        "round_failed": "某一轮失败:{{error}}",
+        "audit_disagrees": "代理连续 3 次自称完成而审核者不同意:由你决定"
+      },
+      "token_budget": "Token 预算",
+      "tokens": "{{used}} / {{budget}} tokens",
+      "guided": "有 {{count}} 轮只发送了继续指引(未重新发送任务)。",
+      "audits": "审核者判定",
+      "verdict": {
+        "continue": "继续",
+        "complete": "完成",
+        "blocked": "已阻塞",
+        "none": "无判定"
+      },
+      "claimed_done": "自称完成",
+      "claimed_done_hint": "代理自称已完成;只有审核者的判定能结束循环。",
+      "side_reason": {
+        "provider_small": "同一账号的最小模型",
+        "session_model": "未知更小的模型:使用代理自己的模型",
+        "requested": "为此循环指定",
+        "setting": "辅助模型设置"
+      },
+      "overhead": "审核者 {{audit}},轮次花费 {{rounds}}({{percent}}%)。",
+      "blocked_hint": "循环已停止,需要你来处理。继续会再跑一轮,并再次审核。",
+      "note": "进度"
     },
     "limits": {
       "title": "Limits strip",

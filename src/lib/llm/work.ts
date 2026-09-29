@@ -252,6 +252,10 @@ export function deriveWork(input: WorkInput): WorkItem[] {
         pill = "working";
         break;
       case "interrupted":
+      // The auditor stopped it (blocked 3 times, no verdict, 20 rounds) or
+      // the token budget ran out: a person decides what next (3.7).
+      case "blocked":
+      case "budget_limited":
         pill = "decision";
         break;
       // Held by a budget incident: the incident is the "needs you" item.

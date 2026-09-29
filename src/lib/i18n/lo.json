@@ -3572,11 +3572,13 @@
         "done": "Done",
         "failed": "Failed",
         "cancelled": "Cancelled",
-        "paused": "ຢຸດຊົ່ວຄາວ"
+        "paused": "ຢຸດຊົ່ວຄາວ",
+        "blocked": "ຖືກກັ້ນ",
+        "budget_limited": "ຮອດງົບປະມານແລ້ວ"
       },
       "check_passed": "Condition met",
       "summary": "Up to {{rounds}} rounds. Stops earlier when a configured condition or time limit is reached.",
-      "no_check": "No check command: completion will be controlled by the round or time limit.",
+      "no_check": "ບໍ່ມີຄຳສັ່ງກວດ: ຫຼັງແຕ່ລະຮອບ ຜູ້ກວດສອບອິດສະຫຼະ (ໂມເດລນ້ອຍທີ່ສຸດຂອງເອເຈນ) ຈະຕັດສິນວ່າວຽກສຳເລັດແລ້ວບໍ່, ສູງສຸດ 20 ຮອບ.",
       "review": "Review loop",
       "edit": "Edit configuration",
       "auto_resume": "ສືບຕໍ່ເອງຫຼັງຈາກເປີດຄືນ",
@@ -3588,7 +3590,37 @@
       "open_incident": "ເປີດເຫດການ",
       "cost_estimated": "(ຄາດຄະເນ)",
       "cost_tokens": "{{tokens}} ໂທເຄັນຖ່ວງນ້ຳໜັກ",
-      "cost_unknown": "{{count}} ຮອບທີ່ບໍ່ຮູ້ຄ່າໃຊ້ຈ່າຍ"
+      "cost_unknown": "{{count}} ຮອບທີ່ບໍ່ຮູ້ຄ່າໃຊ້ຈ່າຍ",
+      "stop": {
+        "audit_complete": "ຜູ້ກວດສອບຢືນຢັນແລ້ວ",
+        "audit_blocked": "ຜູ້ກວດສອບເຫັນເອເຈນຖືກກັ້ນ 3 ຮອບຕິດກັນ",
+        "audit_unavailable": "ການກວດສອບໃຊ້ບໍ່ໄດ້ສອງເທື່ອຕິດກັນ",
+        "token_budget": "ຮອດງົບ token ແລ້ວ",
+        "max_rounds": "ຮອດຈຳນວນຮອບສູງສຸດແລ້ວ",
+        "round_failed": "ມີຮອບໜຶ່ງລົ້ມເຫຼວ: {{error}}",
+        "audit_disagrees": "ເອເຈນບອກວ່າແລ້ວ ແລະ ຜູ້ກວດສອບບໍ່ເຫັນດ້ວຍ 3 ເທື່ອຕິດກັນ: ທ່ານເປັນຜູ້ຕັດສິນ"
+      },
+      "token_budget": "ງົບ token",
+      "tokens": "{{used}} / {{budget}} tokens",
+      "guided": "{{count}} ຮອບສົ່ງພຽງຄຳແນະນຳໃຫ້ສືບຕໍ່ (ບໍ່ໄດ້ສົ່ງວຽກຊ້ຳ).",
+      "audits": "ຄຳຕັດສິນຂອງຜູ້ກວດສອບ",
+      "verdict": {
+        "continue": "ສືບຕໍ່",
+        "complete": "ສຳເລັດ",
+        "blocked": "ຖືກກັ້ນ",
+        "none": "ບໍ່ມີຄຳຕັດສິນ"
+      },
+      "claimed_done": "ບອກວ່າແລ້ວ",
+      "claimed_done_hint": "ເອເຈນບອກວ່າແລ້ວ; ມີແຕ່ຄຳຕັດສິນຂອງຜູ້ກວດສອບທີ່ຈົບລູບໄດ້.",
+      "side_reason": {
+        "provider_small": "ໂມເດລນ້ອຍທີ່ສຸດຂອງບັນຊີດຽວກັນ",
+        "session_model": "ບໍ່ຮູ້ຈັກໂມເດລທີ່ນ້ອຍກວ່າ: ໃຊ້ຂອງເອເຈນເອງ",
+        "requested": "ເລືອກສຳລັບລູບນີ້",
+        "setting": "ການຕັ້ງຄ່າໂມເດລເສີມ"
+      },
+      "overhead": "ຜູ້ກວດສອບ {{audit}} ສຳລັບຮອບທີ່ໃຊ້ {{rounds}} ({{percent}}%).",
+      "blocked_hint": "ລູບຢຸດແລ້ວ ແລະ ຕ້ອງການທ່ານ. ສືບຕໍ່ຈະແລ່ນຮອບໃໝ່ ແລະ ກວດສອບອີກຄັ້ງ.",
+      "note": "ຄວາມຄືບໜ້າ"
     },
     "limits": {
       "title": "Limits strip",
