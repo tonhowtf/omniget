@@ -3449,7 +3449,8 @@
         "legacy_seen": "La clave de la extensión del navegador se usó en {{route}} a las {{when}}. Cambia ese script a un token con alcance.",
         "curl_hint": "Define OMNIGET_TOKEN con un token con el alcance jobs:operate (Tokens de acceso, abajo).",
         "scope_audit_read": "Leer el registro de auditoría (audit:read)",
-        "scope_budget_write": "Definir y subir presupuestos (budget:write)"
+        "scope_budget_write": "Definir y subir presupuestos (budget:write)",
+        "scope_workflow_trust": "Confiar en flujos de trabajo de repositorios (workflow:trust)"
       },
       "isolation": {
         "label": "Dónde escribe",
@@ -3512,6 +3513,30 @@
         "discard_work": "Descartar trabajo",
         "discard_confirm": "¿Descartar el trabajo de este job? Se borran su worktree y la rama {{branch}}.",
         "discarded": "Trabajo descartado. La rama {{branch}} estaba en {{tip}}."
+      },
+      "workflow": {
+        "title": "Flujo de trabajo del repositorio",
+        "state": {
+          "trusted": "En vigor",
+          "untrusted": "No confiable",
+          "invalid": "Inválido",
+          "none": "Ninguno"
+        },
+        "last_good": "La última versión válida sigue vigente hasta que se corrija el archivo.",
+        "no_last_good": "No hay versión válida anterior: las tareas en esta carpeta se rechazan hasta que se corrija el archivo.",
+        "defaults": "Valores por defecto:",
+        "commands": "Comandos que ejecuta en este equipo:",
+        "kind": {
+          "after_create": "tras crear el worktree",
+          "before_remove": "antes de eliminar el worktree",
+          "check": "comprobación tras la tarea"
+        },
+        "untrusted_hint": "Hasta que confíes en esta versión exacta, estos comandos se omiten y no se aplica un modo de ejecución más permisivo. Cualquier cambio en el archivo vuelve a preguntar.",
+        "trust": "Confiar en esta versión",
+        "revoke": "Dejar de confiar",
+        "template": "Plantilla del prompt",
+        "trusted_toast": "Flujo de trabajo confiable: sus comandos se ejecutan desde ahora",
+        "untrusted_toast": "El flujo de trabajo ya no es confiable"
       }
     },
     "loops": {

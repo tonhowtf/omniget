@@ -3449,7 +3449,8 @@
         "legacy_seen": "ブラウザー拡張機能のキーが {{when}} に {{route}} で使われました。そのスクリプトをスコープ付きトークンに切り替えてください。",
         "curl_hint": "OMNIGET_TOKEN に jobs:operate スコープのトークンを設定してください (下のアクセストークン)。",
         "scope_audit_read": "監査ログを読む（audit:read）",
-        "scope_budget_write": "予算の設定と引き上げ (budget:write)"
+        "scope_budget_write": "予算の設定と引き上げ (budget:write)",
+        "scope_workflow_trust": "リポジトリのワークフローを承認 (workflow:trust)"
       },
       "isolation": {
         "label": "書き込み先",
@@ -3512,6 +3513,30 @@
         "discard_work": "作業を破棄",
         "discard_confirm": "このジョブの作業を破棄しますか? worktree とブランチ {{branch}} が削除されます。",
         "discarded": "作業を破棄しました。ブランチ {{branch}} は {{tip}} でした。"
+      },
+      "workflow": {
+        "title": "リポジトリのワークフロー",
+        "state": {
+          "trusted": "有効",
+          "untrusted": "未承認",
+          "invalid": "無効",
+          "none": "なし"
+        },
+        "last_good": "ファイルが修正されるまで、最後の有効なバージョンが使われます。",
+        "no_last_good": "以前の有効なバージョンがありません。ファイルが修正されるまで、このフォルダーのジョブは拒否されます。",
+        "defaults": "既定値:",
+        "commands": "このコンピューターで実行するコマンド:",
+        "kind": {
+          "after_create": "worktree 作成後",
+          "before_remove": "worktree 削除前",
+          "check": "ジョブ後のチェック"
+        },
+        "untrusted_hint": "このバージョンそのものを承認するまで、これらのコマンドはスキップされ、より緩い実行モードも適用されません。ファイルを変更するたびに再承認が必要です。",
+        "trust": "このバージョンを承認",
+        "revoke": "承認を取り消す",
+        "template": "プロンプトのテンプレート",
+        "trusted_toast": "ワークフローを承認しました。今後そのコマンドが実行されます",
+        "untrusted_toast": "ワークフローの承認を取り消しました"
       }
     },
     "loops": {

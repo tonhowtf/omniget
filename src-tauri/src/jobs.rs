@@ -1330,69 +1330,6 @@ impl Jobs {
         Ok(job)
     }
 
-    /// [`Self::submit_with_deadline`] with the job's placement (2.3):
-    /// `isolation` (absent = the default of the kind) and the ref a worktree
-    /// starts from (absent = the user's checkout as it is on disk).
-    #[allow(clippy::too_many_arguments)]
-    pub fn submit_placed(
-        self: &Arc<Self>,
-        kind: &str,
-        agent_id: &str,
-        prompt: &str,
-        workspace: Option<String>,
-        deadline_min: Option<u32>,
-        isolation: Option<Isolation>,
-        base: Option<String>,
-    ) -> Result<Job, String> {
-        self.submit_as(
-            kind,
-            agent_id,
-            prompt,
-            workspace,
-            deadline_min,
-            isolation,
-            base,
-            None,
-        )
-    }
-
-    /// [`Self::submit_placed`] with the job's run mode (2.7); `None` = the
-    /// default of the kind ([`RunMode::default_for`]: a `run` asks first).
-    #[allow(clippy::too_many_arguments)]
-    pub fn submit_as(
-        self: &Arc<Self>,
-        kind: &str,
-        agent_id: &str,
-        prompt: &str,
-        workspace: Option<String>,
-        deadline_min: Option<u32>,
-        isolation: Option<Isolation>,
-        base: Option<String>,
-        run_mode: Option<RunMode>,
-    ) -> Result<Job, String> {
-        let mut job = self.new_job(kind, agent_id, prompt, workspace, None)?;
-        if let Some(mode) = run_mode {
-            job.run_mode = mode;
-        }
-        job.deadline_min = deadline_min.map(|m| m.clamp(1, 24 * 60));
-        if let Some(i) = isolation {
-            job.isolation = i;
-        }
-        job.base_ref = base.map(|b| b.trim().to_string()).filter(|b| !b.is_empty());
-        if job.base_ref.is_some() && job.isolation == Isolation::Shared {
-            return Err(format!(
-                "{ERR_JOBS}: a base ref needs a worktree (isolation worktree or auto)"
-            ));
-        }
-        self.save_job(&job);
-        let this = self.clone();
-        let id = job.id.clone();
-        tauri::async_runtime::spawn(async move {
-            this.run_job(&id, None).await;
-        });
-        Ok(job)
-    }
-
     /// Starts the job of a `job.start` command (2.5), owned by `owner`. The
     /// command's fields land on the row; `resume_of` continues that job's
     /// conversation (and folder, unless another is named); `model` becomes
@@ -1402,6 +1339,25 @@ impl Jobs {
         self: &Arc<Self>,
         s: &crate::job_commands::StartSpec,
         owner: &str,
+    ) -> Result<Job, String> {
+        self.start_spec(s, Some(owner), RunMode::ApprovalRequired)
+    }
+
+    /// The job of a start spec from the window (3.10: the same path as a
+    /// command, so the folder's workflow applies), with no owner and the
+    /// window's default mode when none was chosen.
+    pub fn submit_window(
+        self: &Arc<Self>,
+        s: &crate::job_commands::StartSpec,
+    ) -> Result<Job, String> {
+        self.start_spec(s, None, RunMode::AutoEdits)
+    }
+
+    fn start_spec(
+        self: &Arc<Self>,
+        s: &crate::job_commands::StartSpec,
+        owner: Option<&str>,
+        default_mode: RunMode,
     ) -> Result<Job, String> {
         let earlier = match &s.resume_of {
             Some(id) => {
@@ -1441,15 +1397,12 @@ impl Jobs {
             ));
         }
         job.title = s.title.clone();
-        job.owner = Some(owner.to_string());
+        job.owner = owner.map(str::to_string);
         // The mode asked for (2.7); none = the resumed job's, else a job from
         // outside asks first (D2).
         job.run_mode = match s.run_mode.as_deref() {
             Some(m) => RunMode::parse(m)?,
-            None => earlier
-                .as_ref()
-                .map(|e| e.run_mode)
-                .unwrap_or(RunMode::ApprovalRequired),
+            None => earlier.as_ref().map(|e| e.run_mode).unwrap_or(default_mode),
         };
         job.origin = Some(json!({
             "command_id": s.command_id,
@@ -1458,6 +1411,9 @@ impl Jobs {
             "effort": s.effort,
             "budget_usd": s.budget_usd,
             "resume_of": s.resume_of,
+            // What `.omniget/workflow.md` filled in and held back (3.10);
+            // its hooks and checks append their runs here.
+            "workflow": s.applied_workflow,
         }));
         if let Some(model) = s.model.as_deref() {
             let agent = self
@@ -2142,6 +2098,9 @@ impl Jobs {
             ends.as_ref(),
             &omniget_core::core::vcs::job_worktree::host_label(),
         ));
+        // The repository's checks from its workflow (3.10), when trusted:
+        // each exit code lands in the proof.
+        crate::job_workflow::run_checks(crate::job_workflow::store().as_deref(), &mut job).await;
         // A worktree the job did not change has nothing to review: it goes
         // now, with its branch (2.3).
         if job.worktree_path.is_some()
@@ -2194,8 +2153,14 @@ impl Jobs {
         let Some((_, root)) = worktree_root(job).await else {
             return;
         };
-        let first: String = job
-            .prompt
+        // The task as asked, not the workflow's template around it (3.10).
+        let task = job
+            .origin
+            .as_ref()
+            .and_then(|o| o["workflow"]["task"].as_str())
+            .unwrap_or(&job.prompt)
+            .to_string();
+        let first: String = task
             .lines()
             .find(|l| !l.trim().is_empty())
             .unwrap_or("")
@@ -2257,6 +2222,14 @@ impl Jobs {
             if recreated {
                 job.log
                     .push_str(&format!("⎇ worktree recreated from {branch}\n"));
+                // A fresh checkout again: the workflow's hook runs again (3.10).
+                crate::job_workflow::after_create(
+                    crate::job_workflow::store().as_deref(),
+                    job,
+                    &repo,
+                    &root,
+                )
+                .await?;
             }
             return Ok(());
         }
@@ -2287,7 +2260,19 @@ impl Jobs {
         job.worktree_path = Some(wt.path.join(sub).to_string_lossy().into_owned());
         job.branch = Some(wt.branch);
         job.base_oid = Some(wt.base_oid);
-        self.save_job_checked(job)
+        self.save_job_checked(job)?;
+        // The repository's `after_create` hook, only when its workflow is
+        // trusted (3.10; the hooks 2.3 deferred). A failure fails the job;
+        // the worktree stays until it is removed like any other.
+        let hooked = crate::job_workflow::after_create(
+            crate::job_workflow::store().as_deref(),
+            job,
+            &repo,
+            &wt.path,
+        )
+        .await;
+        self.save_job_checked(job)?;
+        hooked
     }
 
     /// Removes the job's worktree (2.3), never losing work: what is not
@@ -5050,6 +5035,14 @@ async fn worktree_root(job: &Job) -> Option<(std::path::PathBuf, std::path::Path
 async fn remove_job_worktree(
     job: &Job,
 ) -> Result<omniget_core::core::vcs::job_worktree::RemoveOutcome, String> {
+    remove_job_worktree_with(crate::job_workflow::store().as_deref(), job).await
+}
+
+/// [`remove_job_worktree`] with the workflow store given (tests bring their own).
+pub(crate) async fn remove_job_worktree_with(
+    store: Option<&omniget_core::core::llm::workflow::Store>,
+    job: &Job,
+) -> Result<omniget_core::core::vcs::job_worktree::RemoveOutcome, String> {
     use omniget_core::core::vcs::job_worktree;
     let (repo, root) = worktree_root(job)
         .await
@@ -5058,14 +5051,20 @@ async fn remove_job_worktree(
         .branch
         .clone()
         .unwrap_or_else(|| job_worktree::branch_of(&job.id));
-    job_worktree::remove(&repo, &root, &branch, job.base_oid.as_deref())
+    // The workflow's `before_remove` hook (3.10), when trusted: a failure
+    // blocks the removal.
+    let hook = crate::job_workflow::before_remove(store, job, &repo, &root).await?;
+    let mut out = job_worktree::remove(&repo, &root, &branch, job.base_oid.as_deref())
         .await
-        .map_err(|e| format!("{ERR_WORKTREE}: {e}"))
+        .map_err(|e| format!("{ERR_WORKTREE}: {e}"))?;
+    out.hook_note = (!hook.is_empty()).then_some(hook);
+    Ok(out)
 }
 
 /// The job log line of a removal: what was saved, what the branch became.
 pub fn removal_note(out: &omniget_core::core::vcs::job_worktree::RemoveOutcome) -> String {
-    let mut line = String::from("⎇ worktree removed");
+    let mut line = out.hook_note.clone().unwrap_or_default();
+    line.push_str("⎇ worktree removed");
     if let Some(c) = &out.saved {
         line.push_str(&format!(
             "; {} uncommitted file(s) saved as {}",

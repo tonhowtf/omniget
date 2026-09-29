@@ -109,6 +109,10 @@ impl Entity {
     pub fn setting(id: &str) -> Self {
         Self::of("setting", id)
     }
+    /// A repository's `.omniget/workflow.md` (3.10), by its root.
+    pub fn workflow(root: &str) -> Self {
+        Self::of("workflow", root)
+    }
 }
 
 /// One line as it is read back.

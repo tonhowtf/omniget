@@ -131,6 +131,7 @@ where
     let (c1, c2, c3) = (state.clone(), state.clone(), state.clone());
     let (a1, a2) = (state.clone(), state.clone());
     let review = state.clone();
+    let flow = state.clone();
     let s13 = state.clone();
     let (k1, k2) = (state.clone(), state.clone());
     let (s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11, s12) = (
@@ -523,10 +524,68 @@ where
         // Merged before the layer so the review routes get their scope too.
         .merge(review_routes(review))
         .merge(budget_routes())
+        .merge(workflow_routes(flow))
         .route_layer(axum::middleware::from_fn_with_state(
             guard,
             crate::bridge_tokens::guard,
         ))
+}
+
+#[derive(Deserialize)]
+struct TrustBody {
+    workspace: String,
+    #[serde(default)]
+    sha256: String,
+    #[serde(default)]
+    revoke: bool,
+}
+
+/// `.omniget/workflow.md` (3.10): `GET /v1/workflow?workspace=<dir>` (a
+/// read), `POST /v1/workflow/trust` (`workflow:trust`, which neither a job's
+/// token nor the extension key ever has: trusting runs the repository's
+/// commands) and `GET /v1/jobs/{id}/report` (the delegating agent's
+/// one-call report, a read of that job). `omniget agent workflow|report`.
+fn workflow_routes<S>(state: JobsBridgeState) -> Router<S>
+where
+    S: Clone + Send + Sync + 'static,
+{
+    Router::new()
+        .route(
+            "/v1/workflow",
+            get(|RawQuery(query): RawQuery| async move {
+                let ws = crate::job_commands::query_param(query.as_deref(), "workspace")
+                    .map(|w| {
+                        urlencoding::decode(w)
+                            .map(|c| c.into_owned())
+                            .unwrap_or_else(|_| w.to_string())
+                    })
+                    .unwrap_or_default();
+                ok(crate::job_workflow::status_of(&ws))
+            }),
+        )
+        .route(
+            "/v1/workflow/trust",
+            post(|who: Caller, Json(b): Json<TrustBody>| async move {
+                ok(crate::job_workflow::trust(
+                    &b.workspace,
+                    &b.sha256,
+                    b.revoke,
+                    caller(&who),
+                ))
+            }),
+        )
+        .route(
+            "/v1/jobs/{id}/report",
+            get(move |Path(id): Path<String>| async move {
+                match jobs::get(&state.app) {
+                    Ok(j) => match j.job(&id) {
+                        Some(job) => Json(crate::job_workflow::report(&job, true)).into_response(),
+                        None => fail(StatusCode::NOT_FOUND, format!("no job {id}")),
+                    },
+                    Err(e) => fail(StatusCode::INTERNAL_SERVER_ERROR, e),
+                }
+            }),
+        )
 }
 
 /// HTTP status of a review error, by its code.

@@ -3449,7 +3449,8 @@
         "legacy_seen": "A chave da extensão do navegador foi usada em {{route}} às {{when}}. Troque esse script por um token com escopo.",
         "curl_hint": "Defina OMNIGET_TOKEN com um token de escopo jobs:operate (Tokens de acesso, abaixo).",
         "scope_audit_read": "Ler o registro de auditoria (audit:read)",
-        "scope_budget_write": "Definir e aumentar orçamentos (budget:write)"
+        "scope_budget_write": "Definir e aumentar orçamentos (budget:write)",
+        "scope_workflow_trust": "Confiar em workflows de repositório (workflow:trust)"
       },
       "isolation": {
         "label": "Onde ele escreve",
@@ -3512,6 +3513,30 @@
         "discard_work": "Descartar trabalho",
         "discard_confirm": "Descartar o trabalho deste job? O worktree e a branch {{branch}} são apagados.",
         "discarded": "Trabalho descartado. A branch {{branch}} estava em {{tip}}."
+      },
+      "workflow": {
+        "title": "Workflow do repositório",
+        "state": {
+          "trusted": "Em vigor",
+          "untrusted": "Não confiável",
+          "invalid": "Inválido",
+          "none": "Nenhum"
+        },
+        "last_good": "A última versão válida continua valendo até o arquivo ser corrigido.",
+        "no_last_good": "Não há versão válida anterior: tarefas nesta pasta são recusadas até o arquivo ser corrigido.",
+        "defaults": "Padrões:",
+        "commands": "Comandos que ele roda neste computador:",
+        "kind": {
+          "after_create": "depois de criar o worktree",
+          "before_remove": "antes de remover o worktree",
+          "check": "verificação depois da tarefa"
+        },
+        "untrusted_hint": "Até você confiar nesta versão exata, esses comandos são pulados e um modo de execução mais solto não é aplicado. Qualquer mudança no arquivo pede de novo.",
+        "trust": "Confiar nesta versão",
+        "revoke": "Deixar de confiar",
+        "template": "Modelo de prompt",
+        "trusted_toast": "Workflow confiável: os comandos dele rodam a partir de agora",
+        "untrusted_toast": "Workflow deixou de ser confiável"
       }
     },
     "loops": {

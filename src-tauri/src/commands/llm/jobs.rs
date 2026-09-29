@@ -21,7 +21,9 @@ pub async fn llm_job_get(app: AppHandle, id: String) -> Result<Value, String> {
 
 /// `isolation`: `shared | worktree | auto` (absent = `auto`); `base`: the
 /// ref a worktree starts from (2.3); `run_mode`: what the job may do without
-/// asking (2.7; absent = `approval_required`, the default of a `run`).
+/// asking (2.7; absent = `auto_edits`, the window's default). The folder's
+/// `.omniget/workflow.md` fills what is left out and renders the prompt
+/// (3.10), as for a job started from outside.
 #[tauri::command]
 pub async fn llm_job_submit(
     app: AppHandle,
@@ -32,21 +34,51 @@ pub async fn llm_job_submit(
     base: Option<String>,
     run_mode: Option<String>,
 ) -> Result<Value, String> {
-    let isolation = isolation
-        .as_deref()
-        .filter(|s| !s.is_empty())
-        .map(jobs::Isolation::parse)
-        .transpose()?;
-    let run_mode = run_mode
-        .as_deref()
-        .filter(|s| !s.is_empty())
-        .map(jobs::RunMode::parse)
-        .transpose()?;
-    let job = jobs::get(&app)?.submit_as(
-        "run", &agent_id, &prompt, workspace, None, isolation, base, run_mode,
-    )?;
+    let blank = |v: Option<String>| v.filter(|s| !s.trim().is_empty());
+    let mut spec = crate::job_commands::StartSpec {
+        agent_id: agent_id.trim().to_string(),
+        prompt,
+        workspace: blank(workspace),
+        isolation: blank(isolation),
+        base: blank(base),
+        run_mode: blank(run_mode),
+        ..Default::default()
+    };
+    if let Some(i) = &spec.isolation {
+        jobs::Isolation::parse(i)?;
+    }
+    if let Some(m) = &spec.run_mode {
+        jobs::RunMode::parse(m)?;
+    }
+    crate::job_workflow::apply(crate::job_workflow::store().as_deref(), &mut spec)
+        .map_err(|e| e.text())?;
+    crate::job_workflow::default_agent(&mut spec);
+    let job = jobs::get(&app)?.submit_window(&spec)?;
     crate::llm_audit::job_created(omniget_core::core::llm::audit::Actor::window(), &job);
     to(job)
+}
+
+/// The `.omniget/workflow.md` of `folder`'s repository (3.10): in effect,
+/// invalid (with the last good version) or none, and whether it is trusted.
+#[tauri::command]
+pub async fn llm_workflow_status(folder: String) -> Result<Value, String> {
+    crate::job_workflow::status_of(&folder)
+}
+
+/// Trusts the version in effect (its SHA-256 as shown), or with `revoke`
+/// withdraws the trust: the hooks and checks run only while trusted.
+#[tauri::command]
+pub async fn llm_workflow_trust(
+    folder: String,
+    sha256: Option<String>,
+    revoke: Option<bool>,
+) -> Result<Value, String> {
+    crate::job_workflow::trust(
+        &folder,
+        sha256.as_deref().unwrap_or(""),
+        revoke.unwrap_or(false),
+        omniget_core::core::llm::audit::Actor::window(),
+    )
 }
 
 /// Removes a finished job's worktree (2.3): its uncommitted work is saved

@@ -234,7 +234,9 @@ pub fn scope(name: &str) -> Option<&'static str> {
         | "job_diff" => "orchestration_read",
         "missions_cancel" | "missions_pause" | "missions_resume" => "orchestration_control",
         "approval_respond" => "approvals_respond",
-        "agent_run" | "job_cancel" => "agents_run",
+        // `job_report` (3.10) answers the agent that delegated: the grant that
+        // lets it delegate, never a default.
+        "agent_run" | "job_cancel" | "job_report" => "agents_run",
         "job_get" | "job_wait" | "jobs_state" => "orchestration_read",
         "missions_create" => "orchestration_create",
         "agents_derived_list" | "groups_get" => "orchestration_read",
@@ -439,6 +441,7 @@ mod tests {
     fn agent_run_needs_its_own_grant() {
         assert_eq!(scope("agent_run"), Some("agents_run"));
         assert_eq!(scope("job_cancel"), Some("agents_run"));
+        assert_eq!(scope("job_report"), Some("agents_run"));
         for read in ["job_get", "job_wait", "jobs_state"] {
             assert_eq!(scope(read), Some("orchestration_read"));
         }
@@ -453,6 +456,7 @@ mod tests {
         };
         assert!(!allowed(&everything_else, "agent_run"));
         assert!(!allowed(&everything_else, "job_cancel"));
+        assert!(!allowed(&everything_else, "job_report"));
     }
 
     /// A job's diff is a read of orchestration data: only with that scope

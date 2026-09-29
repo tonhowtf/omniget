@@ -3449,7 +3449,8 @@
         "legacy_seen": "The browser extension's key was used on {{route}} at {{when}}. Switch that script to a scoped token.",
         "curl_hint": "Set OMNIGET_TOKEN to a token with the jobs:operate scope (Access tokens, below).",
         "scope_audit_read": "Read the audit log (audit:read)",
-        "scope_budget_write": "Set and raise budgets (budget:write)"
+        "scope_budget_write": "Set and raise budgets (budget:write)",
+        "scope_workflow_trust": "Trust repository workflows (workflow:trust)"
       },
       "isolation": {
         "label": "Where it writes",
@@ -3512,6 +3513,30 @@
         "discard_work": "Discard work",
         "discard_confirm": "Discard this job's work? Its worktree and the branch {{branch}} are deleted.",
         "discarded": "Work discarded. The branch {{branch}} was at {{tip}}."
+      },
+      "workflow": {
+        "title": "Repository workflow",
+        "state": {
+          "trusted": "In effect",
+          "untrusted": "Not trusted",
+          "invalid": "Invalid",
+          "none": "None"
+        },
+        "last_good": "The last valid version stays in effect until the file is fixed.",
+        "no_last_good": "No earlier valid version: jobs in this folder are refused until the file is fixed.",
+        "defaults": "Defaults:",
+        "commands": "Commands it runs on this computer:",
+        "kind": {
+          "after_create": "after the worktree is made",
+          "before_remove": "before the worktree is removed",
+          "check": "check after the job"
+        },
+        "untrusted_hint": "Until you trust this exact version, these commands are skipped and a looser run mode is not applied. Any change to the file asks again.",
+        "trust": "Trust this version",
+        "revoke": "Stop trusting",
+        "template": "Prompt template",
+        "trusted_toast": "Workflow trusted: its commands run from now on",
+        "untrusted_toast": "Workflow no longer trusted"
       }
     },
     "loops": {

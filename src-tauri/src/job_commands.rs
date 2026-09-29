@@ -158,12 +158,15 @@ pub struct Commands {
     pub engine: Arc<dyn Engine>,
     /// `None` when the run record is unavailable: `approval.respond` fails.
     pub approvals: Option<Approvals>,
+    /// The `.omniget/workflow.md` store (3.10); `None` = no workflow applies.
+    pub workflows: Option<Arc<omniget_core::core::llm::workflow::Store>>,
 }
 
 pub fn from_app(app: &tauri::AppHandle) -> Result<Commands, String> {
     Ok(Commands {
         engine: Arc::new(AppEngine(jobs::get(app)?)),
         approvals: crate::approvals::from_app(app).ok(),
+        workflows: crate::job_workflow::store(),
     })
 }
 
@@ -235,6 +238,9 @@ fn invalid(m: impl Into<String>) -> CmdError {
 pub struct StartSpec {
     #[serde(default)]
     pub command_id: String,
+    /// Empty = the `agent` of the folder's `.omniget/workflow.md` (3.10),
+    /// else [`crate::job_workflow::DEFAULT_AGENT`].
+    #[serde(default)]
     pub agent_id: String,
     #[serde(default)]
     pub prompt: String,
@@ -265,6 +271,13 @@ pub struct StartSpec {
     pub deadline_min: Option<u32>,
     #[serde(default)]
     pub resume_of: Option<String>,
+    /// `false` = start without the folder's `.omniget/workflow.md` (3.10).
+    #[serde(default)]
+    pub workflow: Option<bool>,
+    /// What the workflow filled in and held back (`Job.origin.workflow`);
+    /// set by [`crate::job_workflow::apply`], never by the caller.
+    #[serde(skip)]
+    pub applied_workflow: Option<Value>,
 }
 
 fn short(v: &Option<String>, max: usize, what: &str) -> Result<(), CmdError> {
@@ -309,8 +322,8 @@ pub fn parse_start(mut body: Value) -> Result<StartSpec, CmdError> {
     if s.prompt.len() > 64 * 1024 {
         return Err(invalid("`prompt` is over 64 KB"));
     }
-    if !is_id(&s.agent_id, 128) {
-        return Err(invalid("`agent_id` is required"));
+    if !s.agent_id.is_empty() && !is_id(&s.agent_id, 128) {
+        return Err(invalid("`agent_id` is a roster id"));
     }
     short(&s.title, 200, "title")?;
     short(&s.purpose, 1000, "purpose")?;
@@ -479,6 +492,17 @@ impl Commands {
                 }
                 let mut spec = parse_start(rest)?;
                 spec.command_id = command_id.clone();
+                // A resumed job keeps its agent; then the folder's workflow
+                // fills what the caller left out (3.10).
+                if spec.agent_id.is_empty() {
+                    if let Some(earlier) =
+                        spec.resume_of.as_deref().and_then(|r| self.engine.job(r))
+                    {
+                        spec.agent_id = earlier.agent_id;
+                    }
+                }
+                crate::job_workflow::apply(self.workflows.as_deref(), &mut spec)?;
+                crate::job_workflow::default_agent(&mut spec);
                 let job = self
                     .engine
                     .start(&spec, &c.owner)
@@ -818,7 +842,9 @@ pub fn mcp_caller(p: &crate::mcp::policy::Principal) -> Caller {
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 struct AgentRunArgs {
     command_id: String,
-    agent_id: String,
+    /// Absent = the folder's workflow `agent`, else the default agent.
+    #[serde(default)]
+    agent_id: Option<String>,
     #[serde(default)]
     prompt: Option<String>,
     #[serde(default)]
@@ -845,6 +871,8 @@ struct AgentRunArgs {
     deadline_min: Option<u32>,
     #[serde(default)]
     resume_of: Option<String>,
+    #[serde(default)]
+    workflow: Option<bool>,
 }
 
 #[derive(Deserialize)]
@@ -942,7 +970,7 @@ pub fn mcp_job(cmds: &Commands, job: &Job, after_seq: Option<i64>) -> Value {
 pub fn handles(name: &str) -> bool {
     matches!(
         name,
-        "agent_run" | "job_get" | "job_wait" | "job_cancel" | "jobs_state"
+        "agent_run" | "job_get" | "job_wait" | "job_cancel" | "jobs_state" | "job_report"
     )
 }
 
@@ -959,11 +987,12 @@ pub async fn mcp_call(
         "agent_run" => {
             let a: AgentRunArgs = mcp_args(args)?;
             let body = json!({
-                "command_id": a.command_id, "type": "job.start", "agent_id": a.agent_id,
+                "command_id": a.command_id, "type": "job.start", "agent_id": a.agent_id.unwrap_or_default(),
                 "prompt": a.prompt.unwrap_or_default(), "task": a.task, "workspace": a.workspace,
                 "title": a.title, "purpose": a.purpose, "model": a.model, "effort": a.effort,
                 "run_mode": a.run_mode, "isolation": a.isolation, "base": a.base,
                 "budget_usd": a.budget_usd, "deadline_min": a.deadline_min, "resume_of": a.resume_of,
+                "workflow": a.workflow,
             });
             let (r, replayed) = cmds.execute(&c, &body).map_err(mcp_err)?;
             Ok(json!({
@@ -992,6 +1021,17 @@ pub async fn mcp_call(
                 .await
                 .map_err(mcp_err)?;
             Ok(mcp_job(cmds, &job, a.after_seq))
+        }
+        // 3.10: the verdict, the agent's OUTCOME, the host's proof, the diff
+        // summary and what the workflow did, in one call.
+        "job_report" => {
+            let a: JobArgs = mcp_args(args)?;
+            let job = cmds.readable(&c, &a.job_id).map_err(mcp_err)?;
+            let mut v = crate::job_workflow::report(&job, false);
+            if let Some(after) = a.after_seq {
+                v["changed"] = json!(job.state_seq > after);
+            }
+            Ok(v)
         }
         "job_cancel" => {
             let a: CancelArgs = mcp_args(args)?;

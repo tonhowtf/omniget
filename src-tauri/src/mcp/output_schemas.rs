@@ -531,6 +531,22 @@ fn own(name: &str) -> Option<Value> {
             }),
             &["id", "state", "state_seq", "pendingApprovals"],
         ),
+        "job_report" => obj(
+            json!({
+                "jobId": ty("string"), "state": ty("string"), "stateSeq": ty("integer"), "verdict": ty("string"),
+                "title": nullable("string"), "agentId": ty("string"), "runMode": ty("string"), "isolation": ty("string"),
+                "outcome": or_null(obj(json!({"status": ty("string"), "summary": ty("string")}), &["status"])),
+                "result": nullable("string"), "jobError": nullable("string"), "failureReason": nullable("string"),
+                "diff": obj(json!({"available": ty("boolean"), "filesChanged": nullable("integer"), "files": arr(obj(json!({"path": ty("string"), "status": ty("string")}), &["path", "status"]))}), &["available", "files"]),
+                "proof": obj(json!({"checks": {}, "tokens": {}}), &[]),
+                "workflow": {},
+                "changed": ty("boolean"),
+                "next": ty("string"),
+            }),
+            &[
+                "jobId", "state", "stateSeq", "verdict", "diff", "proof", "next",
+            ],
+        ),
         "job_cancel" => obj(
             json!({"jobId": nullable("string"), "state": ty("string"), "replayed": ty("boolean")}),
             &["jobId", "state", "replayed"],
@@ -906,6 +922,23 @@ mod tests {
             "job_cancel",
             &json!({"jobId":"j1","state":"cancelled","replayed":false}),
         );
+        // `job_workflow::report(job, false)` of a real job (3.10).
+        let mut done = crate::jobs::Job {
+            id: "j1".into(),
+            state: "review".into(),
+            agent_id: "a".into(),
+            outcome: Some(json!({"status": "succeeded", "summary": "did it"})),
+            diff_files: Some(vec![omniget_core::core::llm::snapshot::FileChange {
+                path: "a.txt".into(),
+                status: "A".into(),
+                additions: Some(1),
+                deletions: Some(0),
+                binary: false,
+            }]),
+            ..Default::default()
+        };
+        done.proof = Some(crate::jobs::build_proof(&done, None, "h"));
+        check("job_report", &crate::job_workflow::report(&done, false));
         check(
             "jobs_state",
             &json!({"jobs":[{"jobId":"j1","state":"done","stateSeq":4,"title":"t","createdMs":1}],"active":0}),

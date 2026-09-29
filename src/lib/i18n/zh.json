@@ -3449,7 +3449,8 @@
         "legacy_seen": "浏览器扩展的密钥于 {{when}} 在 {{route}} 上被使用。请把该脚本换成带权限范围的令牌。",
         "curl_hint": "将 OMNIGET_TOKEN 设为具有 jobs:operate 权限范围的令牌（见下方访问令牌）。",
         "scope_audit_read": "读取审计日志（audit:read）",
-        "scope_budget_write": "设置和提高预算（budget:write）"
+        "scope_budget_write": "设置和提高预算（budget:write）",
+        "scope_workflow_trust": "信任仓库工作流 (workflow:trust)"
       },
       "isolation": {
         "label": "写入位置",
@@ -3512,6 +3513,30 @@
         "discard_work": "丢弃工作",
         "discard_confirm": "丢弃此任务的工作？其 worktree 和分支 {{branch}} 将被删除。",
         "discarded": "工作已丢弃。分支 {{branch}} 原指向 {{tip}}。"
+      },
+      "workflow": {
+        "title": "仓库工作流",
+        "state": {
+          "trusted": "生效中",
+          "untrusted": "未信任",
+          "invalid": "无效",
+          "none": "无"
+        },
+        "last_good": "在文件修复之前，最后一个有效版本继续生效。",
+        "no_last_good": "没有之前的有效版本：在文件修复之前，此文件夹中的任务会被拒绝。",
+        "defaults": "默认值：",
+        "commands": "它在这台电脑上运行的命令：",
+        "kind": {
+          "after_create": "创建 worktree 之后",
+          "before_remove": "移除 worktree 之前",
+          "check": "任务结束后的检查"
+        },
+        "untrusted_hint": "在你信任这个确切版本之前，这些命令会被跳过，也不会应用更宽松的运行模式。文件的任何改动都需要重新确认。",
+        "trust": "信任此版本",
+        "revoke": "取消信任",
+        "template": "提示词模板",
+        "trusted_toast": "已信任工作流：从现在起运行其命令",
+        "untrusted_toast": "已不再信任工作流"
       }
     },
     "loops": {

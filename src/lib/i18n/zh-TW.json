@@ -3449,7 +3449,8 @@
         "legacy_seen": "瀏覽器擴充功能的金鑰於 {{when}} 在 {{route}} 上被使用。請將該指令碼改用具權限範圍的權杖。",
         "curl_hint": "將 OMNIGET_TOKEN 設為具有 jobs:operate 權限範圍的權杖（見下方存取權杖）。",
         "scope_audit_read": "讀取稽核日誌（audit:read）",
-        "scope_budget_write": "設定和提高預算（budget:write）"
+        "scope_budget_write": "設定和提高預算（budget:write）",
+        "scope_workflow_trust": "信任儲存庫工作流程 (workflow:trust)"
       },
       "isolation": {
         "label": "寫入位置",
@@ -3512,6 +3513,30 @@
         "discard_work": "捨棄工作",
         "discard_confirm": "捨棄此工作的成果？其 worktree 和分支 {{branch}} 將被刪除。",
         "discarded": "工作已捨棄。分支 {{branch}} 原指向 {{tip}}。"
+      },
+      "workflow": {
+        "title": "儲存庫工作流程",
+        "state": {
+          "trusted": "生效中",
+          "untrusted": "未信任",
+          "invalid": "無效",
+          "none": "無"
+        },
+        "last_good": "在檔案修正之前，最後一個有效版本會繼續生效。",
+        "no_last_good": "沒有先前的有效版本：在檔案修正之前，此資料夾中的工作會被拒絕。",
+        "defaults": "預設值：",
+        "commands": "它在這台電腦上執行的指令：",
+        "kind": {
+          "after_create": "建立 worktree 之後",
+          "before_remove": "移除 worktree 之前",
+          "check": "工作結束後的檢查"
+        },
+        "untrusted_hint": "在你信任這個確切版本之前，這些指令會被略過，也不會套用更寬鬆的執行模式。檔案的任何變更都需要重新確認。",
+        "trust": "信任此版本",
+        "revoke": "取消信任",
+        "template": "提示詞範本",
+        "trusted_toast": "已信任工作流程：從現在起執行其指令",
+        "untrusted_toast": "已不再信任工作流程"
       }
     },
     "loops": {

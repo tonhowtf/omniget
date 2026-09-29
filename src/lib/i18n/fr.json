@@ -3449,7 +3449,8 @@
         "legacy_seen": "La clé de l'extension du navigateur a été utilisée sur {{route}} à {{when}}. Passez ce script à un jeton à portée limitée.",
         "curl_hint": "Définissez OMNIGET_TOKEN avec un jeton ayant la portée jobs:operate (Jetons d'accès, ci-dessous).",
         "scope_audit_read": "Lire le journal d'audit (audit:read)",
-        "scope_budget_write": "Définir et relever les budgets (budget:write)"
+        "scope_budget_write": "Définir et relever les budgets (budget:write)",
+        "scope_workflow_trust": "Approuver les workflows de dépôt (workflow:trust)"
       },
       "isolation": {
         "label": "Où il écrit",
@@ -3512,6 +3513,30 @@
         "discard_work": "Abandonner le travail",
         "discard_confirm": "Abandonner le travail de ce job ? Son worktree et la branche {{branch}} seront supprimés.",
         "discarded": "Travail abandonné. La branche {{branch}} était à {{tip}}."
+      },
+      "workflow": {
+        "title": "Workflow du dépôt",
+        "state": {
+          "trusted": "En vigueur",
+          "untrusted": "Non approuvé",
+          "invalid": "Invalide",
+          "none": "Aucun"
+        },
+        "last_good": "La dernière version valide reste en vigueur jusqu'à ce que le fichier soit corrigé.",
+        "no_last_good": "Aucune version valide antérieure : les tâches dans ce dossier sont refusées jusqu'à la correction du fichier.",
+        "defaults": "Valeurs par défaut :",
+        "commands": "Commandes qu'il exécute sur cet ordinateur :",
+        "kind": {
+          "after_create": "après la création du worktree",
+          "before_remove": "avant la suppression du worktree",
+          "check": "vérification après la tâche"
+        },
+        "untrusted_hint": "Tant que vous n'approuvez pas cette version exacte, ces commandes sont ignorées et un mode d'exécution plus permissif n'est pas appliqué. Toute modification du fichier redemande.",
+        "trust": "Approuver cette version",
+        "revoke": "Retirer l'approbation",
+        "template": "Modèle de prompt",
+        "trusted_toast": "Workflow approuvé : ses commandes s'exécutent désormais",
+        "untrusted_toast": "Workflow plus approuvé"
       }
     },
     "loops": {

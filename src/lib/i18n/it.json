@@ -3449,7 +3449,8 @@
         "legacy_seen": "La chiave dell'estensione del browser è stata usata su {{route}} alle {{when}}. Passa quello script a un token con ambito.",
         "curl_hint": "Imposta OMNIGET_TOKEN con un token con ambito jobs:operate (Token di accesso, qui sotto).",
         "scope_audit_read": "Leggere il registro di audit (audit:read)",
-        "scope_budget_write": "Impostare e alzare i budget (budget:write)"
+        "scope_budget_write": "Impostare e alzare i budget (budget:write)",
+        "scope_workflow_trust": "Considerare attendibili i workflow dei repository (workflow:trust)"
       },
       "isolation": {
         "label": "Dove scrive",
@@ -3512,6 +3513,30 @@
         "discard_work": "Scarta il lavoro",
         "discard_confirm": "Scartare il lavoro di questo job? Il worktree e il branch {{branch}} vengono eliminati.",
         "discarded": "Lavoro scartato. Il branch {{branch}} era a {{tip}}."
+      },
+      "workflow": {
+        "title": "Workflow del repository",
+        "state": {
+          "trusted": "In vigore",
+          "untrusted": "Non attendibile",
+          "invalid": "Non valido",
+          "none": "Nessuno"
+        },
+        "last_good": "L'ultima versione valida resta in vigore finché il file non viene corretto.",
+        "no_last_good": "Nessuna versione valida precedente: i job in questa cartella vengono rifiutati finché il file non viene corretto.",
+        "defaults": "Valori predefiniti:",
+        "commands": "Comandi che esegue su questo computer:",
+        "kind": {
+          "after_create": "dopo la creazione del worktree",
+          "before_remove": "prima della rimozione del worktree",
+          "check": "verifica dopo il job"
+        },
+        "untrusted_hint": "Finché non consideri attendibile questa versione esatta, questi comandi vengono saltati e non si applica una modalità di esecuzione più permissiva. Ogni modifica al file lo richiede di nuovo.",
+        "trust": "Considera attendibile questa versione",
+        "revoke": "Revoca l'attendibilità",
+        "template": "Modello del prompt",
+        "trusted_toast": "Workflow attendibile: i suoi comandi vengono eseguiti da ora",
+        "untrusted_toast": "Workflow non più attendibile"
       }
     },
     "loops": {

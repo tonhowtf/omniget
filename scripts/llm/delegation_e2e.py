@@ -29,6 +29,27 @@ Scenarios (`--scenario`, default: every one implemented):
     The real-agent end to end (<= 10.4 s + 1 s with Claude) is B0's number:
     the delegated job is the same turn as a mission job.
 
+  * `workflow` (3.10): `.omniget/workflow.md` in a repository.
+      - "delegue a correção X" with no flag at all (MCP `agent_run`,
+        `/v1/commands`, the CLI's body from a subfolder): 5/5 jobs get the
+        workflow's agent, run mode, isolation, deadline and rendered prompt;
+      - a flag the caller gives wins; `workflow: false` opts out;
+      - an invalid reload keeps the previous version in effect (the job says
+        `from_last_good` and carries the error); with no earlier valid
+        version the start is refused with `ERR_WORKFLOW_INVALID`;
+      - an untrusted (changed) file never loosens the run mode;
+      - hooks: untrusted never run (0 runs), trusted run once per worktree, a
+        failing `before_remove` keeps the worktree, a changed file stops them
+        again; checks land in the proof only when trusted;
+      - `job_report` answers in one call, without host paths, only to the
+        client that started the job, behind the deny-by-default grant.
+    Level: `job_commands::tests::bn5_workflow_delegation_without_flags` (the
+    production `Commands::execute` and MCP tool bodies over the stand-in
+    engine, a real workflow store) and `job_workflow::tests` (real git
+    repositories and worktrees, real hook processes through
+    `jobs::remove_job_worktree_with`), plus the parser/store/runner tests of
+    `omniget-core` (`llm::workflow`).
+
 How the grace period is tested: the flag (`bridge.legacy_agent_routes`,
 default on in this version) is flipped inside the test on the same running
 server; on = 200 + `Deprecation: true`, off = 403. The next version flips the
@@ -181,7 +202,40 @@ def scenario_delegate():
     return runs, goals, {"metrics": m}
 
 
-SCENARIOS = {"auth": scenario_auth, "delegate": scenario_delegate}
+def scenario_workflow():
+    runs = []
+    with tempfile.TemporaryDirectory() as d:
+        out = pathlib.Path(d) / "bn5.jsonl"
+        runs.append(run_tests("omniget", "job_commands::tests::bn5_workflow", out))
+        runs.append(run_tests("omniget", "job_workflow::", out))
+        runs.append(run_tests("omniget-core", "llm::workflow", out))
+        lines = [l for l in read_lines(out) if l.get("scenario") == "workflow"]
+    m = {l["metric"]: l.get("value") for l in lines if "metric" in l}
+    goals = [
+        {"goal": "\"delegue a correção X\" without flags gets the workflow's agent/run_mode/isolation/prompt",
+         "target": "5/5", "value": m.get("workflow_delegations_ok"), "pass": m.get("workflow_delegations_ok") == 5},
+        {"goal": "a flag the caller gives wins over the workflow", "target": True,
+         "value": m.get("flags_win"), "pass": m.get("flags_win") is True},
+        {"goal": "invalid reload keeps the previous config (error surfaced on the job)", "target": True,
+         "value": m.get("invalid_reload_keeps_previous"), "pass": m.get("invalid_reload_keeps_previous") is True},
+        {"goal": "invalid file without a last good version refuses the start", "target": "ERR_WORKFLOW_INVALID",
+         "value": m.get("invalid_without_last_good_refused"), "pass": m.get("invalid_without_last_good_refused") is True},
+        {"goal": "untrusted file never loosens run_mode", "target": True,
+         "value": m.get("untrusted_run_mode_held"), "pass": m.get("untrusted_run_mode_held") is True},
+        {"goal": "untrusted hooks never run", "target": 0,
+         "value": {"untrusted": m.get("untrusted_hook_runs"), "after_change": m.get("changed_file_hook_runs")},
+         "pass": m.get("untrusted_hook_runs") == 0 and m.get("changed_file_hook_runs") == 0},
+        {"goal": "trusted after_create runs once; failing before_remove blocks removal", "target": "1 / blocked",
+         "value": {"after_create": m.get("trusted_after_create_runs"), "blocked": m.get("before_remove_failure_blocks_removal")},
+         "pass": m.get("trusted_after_create_runs") == 1 and m.get("before_remove_failure_blocks_removal") is True},
+        {"goal": "job_report: one call for the delegating agent, deny-by-default grant", "target": True,
+         "value": {"one_call": m.get("job_report_one_call"), "deny_by_default": m.get("job_report_denied_by_default")},
+         "pass": m.get("job_report_one_call") is True and m.get("job_report_denied_by_default") is True},
+    ]
+    return runs, goals, {"metrics": m}
+
+
+SCENARIOS = {"auth": scenario_auth, "delegate": scenario_delegate, "workflow": scenario_workflow}
 NOT_YET = {}
 
 
@@ -193,7 +247,7 @@ def main():
     ap.add_argument("--out", default=str(ROOT / "estudos" / "88-onda2" / "bn5-delegation.json"))
     args = ap.parse_args()
     if args.real:
-        sys.exit("--real: both scenarios are --fake (the real-model number is B0, missions_eval.py --reps 3).")
+        sys.exit("--real: every scenario is --fake (the real-model number is B0, missions_eval.py --reps 3).")
     wanted = [s.strip() for s in args.scenario.split(",") if s.strip()] or list(SCENARIOS)
     unknown = [s for s in wanted if s not in SCENARIOS]
     if unknown:
@@ -211,7 +265,8 @@ def main():
         "mode": "fake",
         "scenarios": wanted,
         "level": {"auth": "HTTP on 127.0.0.1 + production guard + jobs.db token table + JobTokenLease; child env via real spawn_turn",
-                  "delegate": "production job_commands (execute, receipts, wait, HTTP handlers, MCP tools) + guard over HTTP; stand-in engine with a real broker and run record"},
+                  "delegate": "production job_commands (execute, receipts, wait, HTTP handlers, MCP tools) + guard over HTTP; stand-in engine with a real broker and run record",
+                  "workflow": "production Commands::execute + MCP tools + workflow store over a stand-in engine; hooks against real git worktrees and processes"},
         "runs": runs,
         "goals": goals,
         "detail": detail,

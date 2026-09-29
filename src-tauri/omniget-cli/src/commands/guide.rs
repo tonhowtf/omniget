@@ -23,9 +23,12 @@ Inside a job, do not delegate
 
 Pick an agent
   omniget agent agents                     roster ids and names
+  In a repository with .omniget/workflow.md the agent, run mode, isolation,
+  deadline, budget and prompt template come from that file: leave the flags
+  out and pass only the task.
 
 Start a job and wait for its end
-  omniget agent run --agent <id> "<task>"
+  omniget agent run [--agent <id>] "<task>"
       --title <text>        short name shown in lists
       --command-id <id>     idempotency key: the same id returns the same job
       --workspace <dir>     folder to work in (default: the current one)
@@ -34,9 +37,17 @@ Start a job and wait for its end
       --base <ref>          start the worktree from this branch or commit
       --deadline-min <n>    stop after n minutes
       --detach              print the job id and return at once
+      --no-workflow         ignore the repository's .omniget/workflow.md
   It waits on the app's long poll (no timer) and only accepts an end that is
   newer than the start. Exit 0: done, review or done_unreported; exit 1:
   failed, cancelled, or the agent said OUTCOME: failed.
+
+Report back (one call)
+  omniget agent report <id>                verdict, the agent's OUTCOME, the
+                                           host's proof (checks, base->head),
+                                           files changed, what the workflow did
+  verdicts: succeeded, needs_review, unreported, checks_failed,
+            failed_by_agent, failed, cancelled, running, waiting_approval
 
 Follow, stop, inspect
   omniget agent jobs [<id>] [--cancel]     list, follow one, or stop it
@@ -55,6 +66,19 @@ Budgets
   omniget agent budget list
   omniget agent budget set loop:<id> 0.05 --window run
   omniget agent budget raise <incident id> <new amount>
+
+The repository's workflow (.omniget/workflow.md)
+  YAML on top (agent, run_mode, isolation, base, deadline_min, budget_usd,
+  model, effort, checks, hooks.after_create, hooks.before_remove, include)
+  and a prompt template below with {{task}} {{title}} {{agent}} {{workspace}}
+  {{repo}} {{branch}} {{base}} {{isolation}} {{run_mode}} {{files}}; an
+  unknown variable makes the file invalid. A broken edit keeps the last good
+  version in effect. Hooks, checks and a run_mode looser than
+  approval_required apply only while the person trusts the file's SHA-256;
+  any change needs a new approval. Only the person trusts, never a job:
+  omniget agent workflow show              what is in effect, and trusted?
+  omniget agent workflow check [FILE]      validate (no app needed)
+  omniget agent workflow trust [--sha256 <hash>] [--revoke]
 
 End states
   done              ended well, reported its OUTCOME
@@ -77,8 +101,12 @@ HTTP (scripts), with a token from LLM -> Jobs -> Access tokens
   GET  /v1/jobs/<id>/wait?until=terminal&after_seq=N&timeout_ms=30000
        408 ERR_WAIT_TIMEOUT: call again
 
+  GET  /v1/jobs/<id>/report                the same as `omniget agent report`
+  GET  /v1/workflow?workspace=<dir>
+
 MCP (a connection with the agents_run grant): agent_run, job_get, job_wait,
-job_cancel, jobs_state, job_diff, and approval_respond with its own grant.
+job_report, job_cancel, jobs_state, job_diff, and approval_respond with its
+own grant.
 "#;
 
 pub fn execute(topic: Option<String>) -> anyhow::Result<()> {
@@ -122,6 +150,11 @@ mod tests {
             "OUTCOME: succeeded|failed",
             "/v1/commands",
             "agent_run",
+            "job_report",
+            "omniget agent report",
+            ".omniget/workflow.md",
+            "--no-workflow",
+            "workflow trust",
         ] {
             assert!(AGENTS.contains(needle), "{needle}");
         }
@@ -129,5 +162,8 @@ mod tests {
             include_str!("../../../../claude-plugin/omniget/skills/omniget-agents/SKILL.md");
         assert!(skill.contains("omniget guide agents"));
         assert!(skill.contains("OMNIGET_JOB_ID"));
+        assert!(skill.contains("omniget agent report"));
+        assert!(skill.contains("job_report"));
+        assert!(skill.contains(".omniget/workflow.md"));
     }
 }

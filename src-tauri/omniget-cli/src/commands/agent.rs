@@ -1,4 +1,4 @@
-//! `omniget agent run|loop|jobs|explain|status|diff|approvals|approve|integrate|discard|budget|agents`: talks to the running desktop app
+//! `omniget agent run|loop|jobs|explain|status|diff|report|approvals|approve|integrate|discard|budget|workflow|agents`: talks to the running desktop app
 //! through the local bridge (`127.0.0.1:<port>` from `settings.json`) with a
 //! scoped token (2.1): `OMNIGET_TOKEN` if set, else the CLI token the app
 //! keeps in `<app_data>/llm/cli-token`. The browser extension's key in
@@ -209,9 +209,11 @@ fn with_run_mode(mut body: Value, mode: Option<String>) -> Value {
 }
 
 /// The body of `POST /v1/agent/run`. `--isolate` asks for a worktree,
-/// `--shared` for the folder itself; neither leaves the app's `auto`.
+/// `--shared` for the folder itself; neither leaves the app's `auto` (or
+/// the workflow's `isolation`). No `--agent` sends none: the folder's
+/// workflow (or the app) picks it.
 fn run_body(
-    agent: &str,
+    agent: Option<&str>,
     prompt: &str,
     workspace: Option<String>,
     deadline_min: Option<u32>,
@@ -219,7 +221,13 @@ fn run_body(
     shared: bool,
     base: Option<String>,
 ) -> Value {
-    let mut body = json!({ "agent_id": agent, "prompt": prompt, "workspace": workspace, "deadline_min": deadline_min });
+    let mut body = json!({ "prompt": prompt, "workspace": workspace });
+    if let Some(a) = agent.filter(|a| !a.trim().is_empty()) {
+        body["agent_id"] = json!(a);
+    }
+    if let Some(d) = deadline_min {
+        body["deadline_min"] = json!(d);
+    }
     if isolate {
         body["isolation"] = json!("worktree");
     } else if shared {
@@ -632,8 +640,12 @@ pub enum AgentCommand {
         /// `<prompt>`; with --tool: `[<agent: catalog id | file.md>] <prompt>`
         #[arg(required = true, num_args = 1..=2)]
         args: Vec<String>,
-        #[arg(short, long, default_value = "omni")]
-        agent: String,
+        #[arg(
+            short,
+            long,
+            help = "Roster agent (default: the `agent` of the folder's .omniget/workflow.md, else omni)"
+        )]
+        agent: Option<String>,
         #[arg(
             long,
             help = "Coding CLI that runs it: claude, codex, gemini, opencode, qwen, cursor … or native"
@@ -710,6 +722,11 @@ pub enum AgentCommand {
             help = "What the agent may do without asking: approval_required (default: every edit and command asks), auto_edits, auto, full_access"
         )]
         mode: Option<String>,
+        #[arg(
+            long,
+            help = "Ignore the repository's .omniget/workflow.md (its defaults and prompt template)"
+        )]
+        no_workflow: bool,
     },
     /// Keep an agent working until a check passes or the budget runs out;
     /// `--catalog <loop id>` runs a loop of the catalog instead of a prompt
@@ -821,10 +838,180 @@ pub enum AgentCommand {
         #[command(subcommand)]
         cmd: BudgetCommand,
     },
+    /// Everything to report a job back in one answer: verdict, the agent's
+    /// OUTCOME, the host's proof (checks, base→head), the files it changed
+    /// and what the repository's workflow did (3.10)
+    Report { id: String },
+    /// The repository's `.omniget/workflow.md` (3.10): what is in effect,
+    /// trust its hooks and checks, or validate the file
+    Workflow {
+        #[command(subcommand)]
+        cmd: WorkflowCommand,
+    },
     /// List the running and finished Loops
     Loops,
     /// List the agents of the roster
     Agents,
+}
+
+#[derive(clap::Subcommand)]
+pub enum WorkflowCommand {
+    /// The version in effect (or the error and the last good version), its
+    /// defaults, the commands it would run and whether they are trusted
+    Show {
+        #[arg(short, long, help = "Folder in the repository (default: current dir)")]
+        workspace: Option<String>,
+    },
+    /// Approve the version in effect: its hooks and checks run from now on,
+    /// until the file changes. Asks on a terminal; elsewhere give --sha256
+    /// (from `show`), so what is trusted is what was read
+    Trust {
+        #[arg(short, long, help = "Folder in the repository (default: current dir)")]
+        workspace: Option<String>,
+        #[arg(
+            long,
+            value_name = "HASH",
+            help = "The SHA-256 (or its first 12+ characters) `show` printed"
+        )]
+        sha256: Option<String>,
+        #[arg(long, help = "Stop trusting this repository's workflow")]
+        revoke: bool,
+    },
+    /// Validate the file without the app: front matter, template variables
+    /// (exit 1 when invalid)
+    Check {
+        #[arg(help = "The file (default: .omniget/workflow.md of the current repository)")]
+        file: Option<String>,
+    },
+}
+
+/// Percent-encodes a query value (RFC 3986 unreserved kept).
+fn query_value(v: &str) -> String {
+    v.bytes()
+        .map(|b| match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                (b as char).to_string()
+            }
+            _ => format!("%{b:02X}"),
+        })
+        .collect()
+}
+
+/// `omniget agent workflow show`: the status in a few lines.
+fn workflow_text(v: &Value) -> String {
+    let mut out = String::new();
+    let state = v["state"].as_str().unwrap_or("?");
+    out.push_str(&format!("{}\n", v["path"].as_str().unwrap_or("")));
+    if state == "none" {
+        out.push_str("no workflow: jobs here use the flags and the app's defaults\n");
+        return out;
+    }
+    if let Some(e) = v["error"].as_str() {
+        out.push_str(&format!("invalid: {e}\n"));
+        if v["from_last_good"] == json!(true) {
+            out.push_str("the last good version stays in effect until the file is fixed\n");
+        } else {
+            out.push_str("no earlier valid version: jobs in this repository are refused until it is fixed (or --no-workflow)\n");
+        }
+    }
+    let Some(a) = v.get("active").filter(|a| !a.is_null()) else {
+        return out;
+    };
+    let sha = a["sha256"].as_str().unwrap_or("");
+    out.push_str(&format!(
+        "in effect: sha256 {sha} ({})\n",
+        if v["trusted"] == json!(true) {
+            "trusted"
+        } else {
+            "not trusted"
+        }
+    ));
+    if let Some(c) = a["config"].as_object() {
+        for (k, val) in c {
+            if k == "hooks" || k == "checks" || val.is_null() {
+                continue;
+            }
+            out.push_str(&format!("  {k}: {val}\n"));
+        }
+    }
+    let cmds = v["commands"].as_array().cloned().unwrap_or_default();
+    if !cmds.is_empty() {
+        out.push_str("commands it runs (only while trusted):\n");
+        for c in &cmds {
+            out.push_str(&format!(
+                "  {:<14} {}\n",
+                c["kind"].as_str().unwrap_or(""),
+                c["command"].as_str().unwrap_or("")
+            ));
+        }
+    }
+    if let Some(r) = v["skipped_reason"].as_str() {
+        out.push_str(&format!("held until trusted ({}): {r}\n", v["gated"]));
+    }
+    out
+}
+
+/// `omniget agent report <id>`: the verdict first, then the facts.
+fn report_text(v: &Value) -> String {
+    let mut out = format!(
+        "{} {} ({})\n",
+        v["jobId"].as_str().unwrap_or(""),
+        v["verdict"].as_str().unwrap_or("?"),
+        v["state"].as_str().unwrap_or("?")
+    );
+    if let Some(o) = v["outcome"].as_object() {
+        out.push_str(&format!(
+            "OUTCOME: {} — {}\n",
+            o.get("status").and_then(Value::as_str).unwrap_or("?"),
+            o.get("summary").and_then(Value::as_str).unwrap_or("")
+        ));
+    }
+    if let Some(e) = v["jobError"].as_str() {
+        out.push_str(&format!("error: {e}\n"));
+    }
+    let d = &v["diff"];
+    if let Some(n) = d["filesChanged"].as_u64() {
+        out.push_str(&format!(
+            "{n} file(s) changed, +{} -{}\n",
+            d["additions"].as_u64().unwrap_or(0),
+            d["deletions"].as_u64().unwrap_or(0)
+        ));
+        for f in d["files"].as_array().into_iter().flatten().take(20) {
+            out.push_str(&format!(
+                "  {} {}\n",
+                f["status"].as_str().unwrap_or(""),
+                f["path"].as_str().unwrap_or("")
+            ));
+        }
+    }
+    for c in v["proof"]["checks"].as_array().into_iter().flatten() {
+        out.push_str(&format!(
+            "check {} `{}`: exit {}\n",
+            if c["ok"] == json!(true) { "✓" } else { "✗" },
+            c["command"].as_str().unwrap_or(""),
+            c["exit_code"]
+        ));
+    }
+    if let Some(w) = v["proof"]["checksSkipped"].as_str() {
+        out.push_str(&format!("checks skipped: {w}\n"));
+    }
+    if let Some(w) = v["workflow"].as_object() {
+        out.push_str(&format!(
+            "workflow sha256 {} ({}), filled: {}\n",
+            w.get("sha256")
+                .and_then(Value::as_str)
+                .map(|s| &s[..12.min(s.len())])
+                .unwrap_or("?"),
+            if w.get("trusted") == Some(&json!(true)) {
+                "trusted"
+            } else {
+                "not trusted"
+            },
+            w.get("filled").cloned().unwrap_or(json!([]))
+        ));
+    }
+    out.push_str(&format!("next: {}\n", v["next"].as_str().unwrap_or("")));
+    out
 }
 
 #[derive(clap::Subcommand)]
@@ -928,6 +1115,49 @@ fn fresh_command_id() -> String {
     )
 }
 
+/// `omniget agent workflow check [FILE]`: parses the file with the app's
+/// own parser (the same crate), no app needed.
+fn workflow_check(file: Option<&str>, json_out: bool) -> anyhow::Result<()> {
+    use omniget_core::core::llm::workflow;
+    let path = match file {
+        Some(f) => std::path::PathBuf::from(f),
+        None => workflow::root_of(&std::env::current_dir()?).join(workflow::FILE),
+    };
+    let text = std::fs::read_to_string(&path)
+        .with_context(|| format!("cannot read {}", path.display()))?;
+    match workflow::parse(&text) {
+        Ok(w) => {
+            if json_out {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(
+                        &json!({"valid": true, "workflow": w, "commands": w.commands(), "gated": w.gated()})
+                    )?
+                );
+            } else {
+                println!(
+                    "{}: valid (sha256 {})",
+                    path.display(),
+                    workflow::short(&w.sha256)
+                );
+                for c in w.commands() {
+                    println!("  {:<14} {}", c.kind, c.command);
+                }
+                if !w.gated().is_empty() {
+                    println!("held until trusted: {}", w.gated().join(", "));
+                }
+            }
+            Ok(())
+        }
+        Err(e) => {
+            if json_out {
+                println!("{}", json!({"valid": false, "error": e}));
+            }
+            bail!("{}: {e}", path.display())
+        }
+    }
+}
+
 /// Why a command that starts work refuses to run inside a job (2.6: the
 /// delegation depth is 1; the app refuses too).
 const INSIDE_A_JOB: &str = "OMNIGET_JOB_ID is set: this runs inside an OmniGet job, and a job never starts another job (delegation depth 1). Do the task yourself, in this turn.";
@@ -937,6 +1167,24 @@ pub async fn execute(cmd: AgentCommand, json_out: bool) -> anyhow::Result<()> {
         && job_context().is_some()
     {
         bail!(INSIDE_A_JOB);
+    }
+    // Trusting a workflow runs the repository's commands later: a person's
+    // act, never a job's (its token lacks `workflow:trust` too).
+    if matches!(
+        cmd,
+        AgentCommand::Workflow {
+            cmd: WorkflowCommand::Trust { .. }
+        }
+    ) && job_context().is_some()
+    {
+        bail!("OMNIGET_JOB_ID is set: a job never trusts a repository's workflow; the person does, in OmniGet or with this command outside a job.");
+    }
+    // Validating the file needs no app.
+    if let AgentCommand::Workflow {
+        cmd: WorkflowCommand::Check { file },
+    } = &cmd
+    {
+        return workflow_check(file.as_deref(), json_out);
     }
     let bridge = Bridge::open()?;
     match cmd {
@@ -1018,6 +1266,7 @@ pub async fn execute(cmd: AgentCommand, json_out: bool) -> anyhow::Result<()> {
             mode,
             command_id,
             title,
+            no_workflow,
             ..
         } => {
             let prompt = match args.as_slice() {
@@ -1028,7 +1277,7 @@ pub async fn execute(cmd: AgentCommand, json_out: bool) -> anyhow::Result<()> {
             // the job and the state it started in.
             let mut body = with_run_mode(
                 run_body(
-                    &agent,
+                    agent.as_deref(),
                     &prompt,
                     workspace(ws, no_workspace),
                     deadline_min,
@@ -1043,6 +1292,9 @@ pub async fn execute(cmd: AgentCommand, json_out: bool) -> anyhow::Result<()> {
             body["channel"] = json!("cli");
             if let Some(t) = title {
                 body["title"] = json!(t);
+            }
+            if no_workflow {
+                body["workflow"] = json!(false);
             }
             let receipt = bridge.post("/v1/commands", body).await?;
             let id = receipt["job_id"].as_str().unwrap_or("").to_string();
@@ -1271,6 +1523,68 @@ pub async fn execute(cmd: AgentCommand, json_out: bool) -> anyhow::Result<()> {
             }
             Ok(())
         }
+        AgentCommand::Report { id } => {
+            let v = bridge.get(&format!("/v1/jobs/{id}/report")).await?;
+            if json_out {
+                println!("{}", serde_json::to_string_pretty(&v)?);
+            } else {
+                print!("{}", report_text(&v));
+            }
+            Ok(())
+        }
+        AgentCommand::Workflow { cmd } => {
+            let dir = |w: Option<String>| workspace(w, false).unwrap_or_default();
+            let status = |ws: &str| format!("/v1/workflow?workspace={}", query_value(ws));
+            let v = match cmd {
+                WorkflowCommand::Show { workspace: w } => bridge.get(&status(&dir(w))).await?,
+                WorkflowCommand::Trust {
+                    workspace: w,
+                    sha256,
+                    revoke,
+                } => {
+                    let ws = dir(w);
+                    let sha = if revoke {
+                        String::new()
+                    } else {
+                        match sha256 {
+                            Some(s) => s,
+                            None => {
+                                use std::io::IsTerminal;
+                                let now = bridge.get(&status(&ws)).await?;
+                                eprint!("{}", workflow_text(&now));
+                                let Some(sha) = now["active"]["sha256"].as_str().map(String::from)
+                                else {
+                                    bail!("no valid workflow to trust here");
+                                };
+                                if !std::io::stdin().is_terminal() {
+                                    bail!("stdin is not a terminal: read `omniget agent workflow show`, then pass --sha256 {}", &sha[..12]);
+                                }
+                                eprint!("Trust these commands of this repository? [y/N] ");
+                                let mut line = String::new();
+                                std::io::stdin().read_line(&mut line)?;
+                                if !matches!(line.trim(), "y" | "Y" | "yes") {
+                                    bail!("not trusted");
+                                }
+                                sha
+                            }
+                        }
+                    };
+                    bridge
+                        .post(
+                            "/v1/workflow/trust",
+                            json!({ "workspace": ws, "sha256": sha, "revoke": revoke }),
+                        )
+                        .await?
+                }
+                WorkflowCommand::Check { .. } => unreachable!("handled before the bridge"),
+            };
+            if json_out {
+                println!("{}", serde_json::to_string_pretty(&v)?);
+            } else {
+                print!("{}", workflow_text(&v));
+            }
+            Ok(())
+        }
         AgentCommand::Budget { cmd } => {
             let v = match cmd {
                 BudgetCommand::List => bridge.get("/v1/budget").await?,
@@ -1422,7 +1736,7 @@ mod tests {
 
     #[test]
     fn mode_goes_in_the_body_only_when_given() {
-        let body = || run_body("a", "p", None, None, false, false, None);
+        let body = || run_body(Some("a"), "p", None, None, false, false, None);
         assert!(with_run_mode(body(), None).get("run_mode").is_none());
         assert_eq!(
             with_run_mode(body(), Some("auto_edits".into()))["run_mode"],
@@ -1460,15 +1774,86 @@ mod tests {
 
     #[test]
     fn run_body_carries_the_placement() {
-        let plain = run_body("a", "p", Some("/w".into()), None, false, false, None);
+        let plain = run_body(Some("a"), "p", Some("/w".into()), None, false, false, None);
         assert!(plain.get("isolation").is_none() && plain.get("base").is_none());
-        let iso = run_body("a", "p", None, Some(5), true, false, Some("main".into()));
+        let iso = run_body(
+            Some("a"),
+            "p",
+            None,
+            Some(5),
+            true,
+            false,
+            Some("main".into()),
+        );
         assert_eq!(iso["isolation"], "worktree");
         assert_eq!(iso["base"], "main");
         assert_eq!(iso["deadline_min"], 5);
-        let shared = run_body("a", "p", None, None, false, true, Some("  ".into()));
+        let shared = run_body(Some("a"), "p", None, None, false, true, Some("  ".into()));
         assert_eq!(shared["isolation"], "shared");
         assert!(shared.get("base").is_none());
+    }
+
+    /// 3.10: without `--agent` or `--isolate` the body leaves them out, so
+    /// the repository's workflow (or the app) decides; `--no-workflow`
+    /// opts out; the report and the workflow status read in a few lines.
+    #[test]
+    fn a_bare_run_leaves_the_choices_to_the_workflow() {
+        let bare = run_body(None, "fix X", Some("/w".into()), None, false, false, None);
+        assert_eq!(bare, json!({"prompt": "fix X", "workspace": "/w"}));
+        use clap::Parser;
+        #[derive(Parser)]
+        struct T {
+            #[command(subcommand)]
+            c: AgentCommand,
+        }
+        let t = T::try_parse_from(["t", "run", "fix X", "--no-workflow"]).unwrap();
+        assert!(matches!(
+            t.c,
+            AgentCommand::Run {
+                agent: None,
+                no_workflow: true,
+                ..
+            }
+        ));
+        for argv in [
+            &["t", "workflow", "show"][..],
+            &["t", "workflow", "trust", "--sha256", "abcdef123456"],
+            &["t", "workflow", "trust", "--revoke"],
+            &["t", "workflow", "check", "x.md"],
+            &["t", "report", "j1"],
+        ] {
+            assert!(T::try_parse_from(argv).is_ok(), "{argv:?}");
+        }
+        assert_eq!(query_value("/a b/ç"), "%2Fa%20b%2F%C3%A7");
+        let report = json!({"jobId": "j1", "verdict": "needs_review", "state": "review",
+            "outcome": {"status": "succeeded", "summary": "fixed"},
+            "diff": {"filesChanged": 1, "additions": 2, "deletions": 0, "files": [{"status": "M", "path": "a.rs"}]},
+            "proof": {"checks": [{"command": "cargo test", "ok": true, "exit_code": 0}]},
+            "workflow": {"sha256": "0123456789abcdef", "trusted": true, "filled": ["agent"]},
+            "next": "show the diff"});
+        let text = report_text(&report);
+        for needle in [
+            "j1 needs_review (review)",
+            "OUTCOME: succeeded — fixed",
+            "M a.rs",
+            "check ✓ `cargo test`: exit 0",
+            "0123456789ab (trusted)",
+        ] {
+            assert!(text.contains(needle), "{needle}: {text}");
+        }
+        let status = json!({"path": "/r/.omniget/workflow.md", "state": "invalid", "error": "template, line 2: unknown variable `x`",
+            "from_last_good": true, "trusted": false, "active": {"sha256": "abc", "config": {"agent": "claude-code"}},
+            "commands": [{"kind": "after_create", "command": "pnpm i"}], "gated": ["after_create"], "skipped_reason": "not trusted"});
+        let text = workflow_text(&status);
+        for needle in [
+            "invalid: template, line 2",
+            "last good version stays",
+            "not trusted",
+            "agent: \"claude-code\"",
+            "after_create   pnpm i",
+        ] {
+            assert!(text.contains(needle), "{needle}: {text}");
+        }
     }
 
     #[test]
