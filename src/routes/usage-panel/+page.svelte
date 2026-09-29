@@ -306,7 +306,7 @@
 
   <footer>
     <button onclick={openApp}>{$t("usage_tray.panel.open_app")}</button>
-    <button onclick={() => openClaude(null, true)}>{$t("usage_tray.panel.add_account")}</button>
+    <button onclick={() => openClaude(null, true)}>{$t("usage_tray.panel.add_claude_account")}</button>
     {#if !empty}
       <button class:on={choosing} onclick={() => (choosing = !choosing)}>{$t("usage_tray.panel.choose")}</button>
     {/if}

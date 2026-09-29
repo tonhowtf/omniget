@@ -471,7 +471,8 @@
     "replay_saved": "回放已保存到",
     "review_ai": "用 AI 复盘",
     "history_source_sgp": "来自后端",
-    "search_source_sgp": "客户端隐藏了战绩，已改从 Riot 后端 (SGP) 获取。"
+    "search_source_sgp": "客户端隐藏了战绩，已改从 Riot 后端 (SGP) 获取。",
+    "connection_diagnostics": "Connection diagnostics"
   },
   "music": {
     "nav_label": "Music sections",
@@ -1268,7 +1269,8 @@
       "failed": "{{count}} 个失败",
       "dismiss": "关闭通知",
       "transferred": "已下载 {{size}}"
-    }
+    },
+    "stats_line_one": "{{count}} download · {{size}} saved"
   },
   "toast": {
     "download_complete": "完成！{{name}} 已保存到你的文件夹",
@@ -1338,7 +1340,8 @@
       "lang_es": "Español",
       "lang_el": "Ελληνικά",
       "lang_fa": "فارسی",
-      "lang_lo": "ລາວ"
+      "lang_lo": "ລາວ",
+      "preview_pending": "Preview only. Apply appearance to save these changes."
     },
     "download": {
       "default_output_dir": "默认文件夹",
@@ -1459,7 +1462,9 @@
       "copy_to_clipboard_on_hotkey_desc": "自动将下载的文件复制到剪贴板以便粘贴",
       "filename_template": "文件名模板",
       "filename_template_desc": "yt-dlp 下载文件的输出模板",
-      "filename_template_preview": "预览：{{preview}}"
+      "filename_template_preview": "预览：{{preview}}",
+      "filename_template_invalid": "Not saved. Enter a filename template containing %(ext)s for the file extension.",
+      "filename_template_save_failed": "Could not save this template. Your edit is still shown."
     },
     "update_available": "OmniGet {{version}} 可用",
     "update_button": "立即更新",
@@ -1474,7 +1479,12 @@
       "unavailable": "不可用",
       "hint_chrome": "chrome://extensions → 开发者模式 → “加载已解压的扩展程序” → 选择导出的文件夹。",
       "hint_firefox": "about:debugging#/runtime/this-firefox → “临时载入附加组件” → 选择导出文件夹中的 manifest.json。Firefox 重启后会移除临时附加组件，因此在我们上架 AMO 之前需要重复此操作。",
-      "hint_safari": "自 Safari 14 起，扩展必须通过 Mac App Store 分发。OmniGet 扩展的 Safari 版本尚未发布。"
+      "hint_safari": "自 Safari 14 起，扩展必须通过 Mac App Store 分发。OmniGet 扩展的 Safari 版本尚未发布。",
+      "install_title": "Install or update extension — {{browser}}",
+      "extracted_to": "The extension was extracted to:",
+      "open_folder": "Open folder",
+      "install_steps": "Installation steps",
+      "reload_hint": "If the extension is already installed, reload it at {{page}} using this folder, or remove the old copy and add this one."
     },
     "rules": {
       "title": "规则",
@@ -1501,7 +1511,13 @@
       "test_title": "测试链接",
       "test_placeholder": "粘贴一个链接，看看哪条规则会命中",
       "test_run": "测试",
-      "test_no_match": "没有规则命中这个链接"
+      "test_no_match": "没有规则命中这个链接",
+      "load_failed": "Could not load download rules. Try again before changing them.",
+      "save_failed": "Could not save rules. Your edits are still shown; use Save to try again.",
+      "unnamed": "Unnamed rule",
+      "removed": "Removed “{{name}}”.",
+      "undo_remove": "Undo removal",
+      "test_failed": "Could not test this URL. Try again; this does not mean no rule matches."
     },
     "storage": {
       "title": "存储",
@@ -1526,7 +1542,9 @@
       "silence_done": "发现 {{saved}} 的静音 —— 播放时可以跳过",
       "portable_label": "Portable Mode",
       "portable_active": "Portable mode is active. OmniGet's data is stored in {{dir}}.",
-      "portable_macos_notice": "On macOS the WebView still stores its session data under ~/Library, and portable mode cannot redirect it. Only OmniGet's own data is portable here — see github.com/tonhowtf/omniget/issues/227."
+      "portable_macos_notice": "On macOS the WebView still stores its session data under ~/Library, and portable mode cannot redirect it. Only OmniGet's own data is portable here — see github.com/tonhowtf/omniget/issues/227.",
+      "stats_load_failed": "Could not read storage statistics.",
+      "portable_load_failed": "Could not check portable mode."
     },
     "dependencies": {
       "title": "依赖项",
@@ -1558,7 +1576,8 @@
       "filter_all_files": "所有文件",
       "set_file_failed": "设置文件失败：{{msg}}",
       "open_folder_failed": "打开文件夹失败：{{msg}}",
-      "system_font_suffix": "系统"
+      "system_font_suffix": "系统",
+      "load_failed": "Could not check installed components. Try again."
     },
     "typography": {
       "section_title": "排版",
@@ -1596,7 +1615,8 @@
       "host": "主机",
       "port": "端口",
       "username": "用户名",
-      "password": "密码"
+      "password": "密码",
+      "save_failed": "Could not save the proxy fields. Your edits are still shown; try again."
     },
     "advanced": {
       "max_concurrent_downloads": "并发下载数",
@@ -1687,7 +1707,11 @@
       "copy": "复制",
       "copied_url": "端点 URL 已复制到剪贴板。",
       "copied_token": "令牌已复制到剪贴板。",
-      "unavailable": "桥接不可用。请重启应用。"
+      "unavailable": "桥接不可用。请重启应用。",
+      "load_failed": "Could not read the browser connection status.",
+      "pair_listener_failed": "Could not monitor pairing. Reopen this section to try again.",
+      "rotate_confirm": "Generate a new pairing token? Previously paired browsers will lose access until you pair them again or update their token.",
+      "rotate_confirm_action": "Generate new token"
     },
     "cat_cookies": "Cookies",
     "cat_channels": "频道",
@@ -1728,7 +1752,29 @@
       "history": "AI 历史",
       "history_clear": "清除",
       "history_clear_confirm": "清除所有 AI 历史？",
-      "history_empty": "暂无 AI 结果。"
+      "history_empty": "暂无 AI 结果。",
+      "save_test": "儲存並測試",
+      "unsaved": "這些設定尚未儲存。測試前會先儲存；摘要前請先儲存設定。",
+      "saving": "正在保存…",
+      "provider_endpoint": "Custom endpoint (local or remote)",
+      "connection_kind": "Connection type: {{kind}}",
+      "connection_key": "Connection API key",
+      "remove_key": "Remove saved key",
+      "keep_key": "Keep saved key",
+      "key_remove_pending": "Saving will remove this key from these AI settings. Keys in other connections and at the provider stay unchanged.",
+      "off_keeps_keys": "AI is off. Saved keys are retained; select their connection type to remove them.",
+      "endpoint_url": "Endpoint URL",
+      "endpoint_url_desc": "OpenAI-compatible service URL. This may be a server on this computer or a remote provider.",
+      "endpoint_loopback": "Destination: this computer (loopback address).",
+      "endpoint_remote": "Destination: a network endpoint. Requests may leave this computer.",
+      "discard": "Discard changes",
+      "draft_retained": "Unsaved changes are kept when switching sections while the app is open. Save or discard them. Testing saves them first; summarizing uses saved settings.",
+      "load_failed": "Could not load AI settings. Try again before editing.",
+      "save_failed": "Could not save AI settings. Your changes are still here; try saving again.",
+      "history_load_failed": "Could not load AI history. Your saved results may still be available.",
+      "history_clear_failed": "Could not clear AI history. Try again.",
+      "test_effect": "Testing sends a short AI request using the selected connection and model. The provider may charge for it.",
+      "summarize_effect": "Fetches subtitles and sends their text to the saved AI connection. If subtitles are unavailable, it may download audio and send it for transcription. Provider charges may apply. The result is saved in history."
     },
     "channels": {
       "title": "已关注的频道",
@@ -1746,7 +1792,10 @@
       "remove_confirm": "停止关注此频道？",
       "enabled": "已启用",
       "auto_download": "自动下载",
-      "interval": "间隔（分钟）"
+      "interval": "间隔（分钟）",
+      "load_failed": "Could not load followed channels. Try again.",
+      "checking": "Checking…",
+      "interval_invalid": "Choose a whole number from 5 to 1440 minutes."
     },
     "cookies": {
       "title": "Cookies",
@@ -1845,7 +1894,20 @@
       }
     },
     "cat_profile": "Profile",
-    "cat_world": "World"
+    "cat_world": "World",
+    "save_failed": "Could not save this change. Try again.",
+    "retry": "Try again",
+    "search": {
+      "clear": "Clear search",
+      "title": "Search settings",
+      "count": "{{count}} results",
+      "empty": "No settings found. Try another word or choose a category.",
+      "destination_hint": "Options may require enabling the related feature or choosing a provider first. Nothing was enabled by this search.",
+      "back": "Back to results"
+    },
+    "world": {
+      "pet_load_failed": "Could not check desktop pet availability. Try again."
+    }
   },
   "omnibox": {
     "placeholder": "粘贴链接或搜索",
@@ -2071,6 +2133,8 @@
     "feature_tech": "使用 Tauri + Rust 构建，快速且轻量",
     "tagline": "随时随地，下载一切。",
     "credit": "由 tonho.wtf 用心打造",
+    "technical_details": "Technical details",
+    "feature_i18n_count": "Available in {{count}} languages",
     "wmb_credits_title": "washmybelly 鸣谢",
     "wmb_credits_body": "washmybelly 使用了以下开源项目提供的数据和思路。它们的许可证及具体文件列在 THIRD_PARTY.md 中。privacy.sexy 的源代码（AGPL-3.0）见下方链接。",
     "wmb_credit_data": "数据",
@@ -2129,7 +2193,8 @@
     "error": "错误",
     "loading": "Loading…",
     "unknown_error": "未知错误",
-    "cookie_error_message": "自动 Cookie 检测仅适用于 Firefox。Chrome、Edge 等基于 Chromium 的浏览器会阻止 Cookie 访问。解决方法：安装 Firefox 并登录您的账户，或从浏览器导出 cookies.txt 文件并在设置 > 下载 > Cookie 文件中配置。"
+    "cookie_error_message": "自动 Cookie 检测仅适用于 Firefox。Chrome、Edge 等基于 Chromium 的浏览器会阻止 Cookie 访问。解决方法：安装 Firefox 并登录您的账户，或从浏览器导出 cookies.txt 文件并在设置 > 下载 > Cookie 文件中配置。",
+    "retry": "Try again"
   },
   "platforms": {
     "bilibili": {
@@ -2787,6 +2852,11 @@
       "empty": "No agents yet.",
       "no_profile": "No local profile",
       "search": "Search agents",
+      "view_agents": "智能體",
+      "view_chats": "對話",
+      "search_chats": "搜尋對話",
+      "no_chats": "沒有已儲存的對話。",
+      "no_chat_matches": "找不到符合搜尋內容的對話。",
       "load_failed": "无法读取已保存的聊天。"
     },
     "role": {
@@ -2811,7 +2881,9 @@
       "allow": "Allow",
       "deny": "Deny",
       "always": "Always",
-      "always_hint": "Allow now and stop asking for this kind of call (for a command: the same program and subcommand)."
+      "always_hint": "Allow now and stop asking for this kind of call (for a command: the same program and subcommand).",
+      "other_chat_running": "{agent} 正在另一個對話中工作。",
+      "open_running": "開啟對話"
     },
     "composer": {
       "placeholder": "Message the agent…",
@@ -2862,7 +2934,9 @@
       "skills": "Skills",
       "skills_empty": "No skill installed. Install one in the Skills tab.",
       "save_error": "Could not save. Your changes are still here. Try again.",
-      "roles_hint": "The coordinator divides and follows the work. Workers carry out assigned tasks; advisors help evaluate decisions."
+      "roles_hint": "The coordinator divides and follows the work. Workers carry out assigned tasks; advisors help evaluate decisions.",
+      "delete_warning": "要移除 {name} 嗎？智能體及其設定會被移除。已儲存的對話仍可閱讀，但沒有智能體就無法繼續。",
+      "delete_confirm": "刪除智能體"
     },
     "template": {
       "solo": "Solo",
@@ -2898,7 +2972,15 @@
       "connect": "Connect or manage providers",
       "local_hint": "Local server: make sure it is running and has models installed. No saved API key is required.",
       "no_models": "This provider returned no models. Check the models available on the server or enter an identifier manually.",
-      "load_failed": "无法读取你的提供商：{{error}}"
+      "load_failed": "无法读取你的提供商：{{error}}",
+      "providers_failed": "Could not load saved connections. Your saved settings have not been removed.",
+      "reopen_browser": "Reopen browser",
+      "stop_waiting": "Stop waiting",
+      "stop_waiting_hint": "This stops waiting in OmniGet. Close the browser tab to leave the external sign-in.",
+      "auth_expired": "Sign-in has not been confirmed after two minutes. Check the browser or start again.",
+      "saved_connections": "Saved connections",
+      "other_providers": "Other providers",
+      "choose_or_enter": "Load the available models, then choose one or enter its exact identifier."
     },
     "err": {
       "unavailable": "The LLM backend is not wired yet.",
@@ -3214,8 +3296,11 @@
         "preserved_retry": "Your account and agent are preserved. Retry without creating duplicates.",
         "connecting": "Connecting…",
         "err_unknown_provider": "Unknown provider",
-        "err_credential_failed": "Credential validation failed"
+        "err_credential_failed": "Credential validation failed",
+        "new_api_connection": "Connect a new API provider"
       },
+      "models_limits": "Review models and execution limits",
+      "advanced_accounts": "Advanced: CLI accounts, fallback and limits",
       "sandbox_full": "已允许完全访问",
       "sandbox_full_hint": "此账户的回合可以编辑文件，运行模式为“完全访问”的回合不经询问直接运行。",
       "sandbox_allow_full": "允许完全访问",
@@ -3237,7 +3322,8 @@
       "save": "Save",
       "cancel": "Cancel",
       "hint": "The pattern matches the command of the shell or the path of a file tool; * matches anything. The last matching rule wins.",
-      "failed": "The rules could not be saved."
+      "failed": "The rules could not be saved.",
+      "scope_required": "請輸入工具和範圍。只有要涵蓋所有目標時才使用 *。"
     },
     "prune": {
       "title": "Context pruning",
@@ -3263,7 +3349,8 @@
       "key_forget": "Forget key",
       "key_saved": "Key saved.",
       "key_missing": "Without a key nothing is sent and pruning stays off.",
-      "not_wired": "The change did not reach the backend."
+      "not_wired": "The change did not reach the backend.",
+      "save_failed": "Could not confirm these settings. Reload to check the saved values."
     },
     "workspace": {
       "pick": "Attach a folder",
@@ -3703,7 +3790,9 @@
           "under": "比节奏慢 {{delta}}%",
           "ahead": "比节奏快 {{delta}}%",
           "ahead_out": "比节奏快 {{delta}}% · {{time}}后用尽"
-        }
+        },
+        "connect_hint": "No accounts to monitor. Open OmniGet, then AI connections to set one up.",
+        "open_after_error": "Could not load limits. Open OmniGet to check your connections."
       }
     },
     "chat": {
@@ -3758,6 +3847,9 @@
       "no_matches": "No matching agents",
       "templates_impact": "Review the template and its effect on the existing team before applying it.",
       "mcp_server_hint": "让其他 AI 应用使用 OmniGet：打开服务器，创建只含所需权限的客户端，再把它的代码片段粘贴到该应用中。",
+      "roster_load_error": "Could not load agents. Try again to recover your saved agents.",
+      "history_list_error": "Could not load conversation history. Your current draft is still here.",
+      "history_load_error": "Could not load this conversation. Try again before continuing.",
       "create_loop": "创建循环"
     },
     "prompts": {
@@ -6387,7 +6479,10 @@
         "err_name_long": "名称最多 48 个字符。",
         "err_connection": "请选择一个连接。",
         "err_purpose_long": "用途描述太长。",
-        "err_failed": "机器人未能创建。"
+        "err_failed": "机器人未能创建。",
+        "draft_session": "Your form stays in this app window while you connect. Return here to finish.",
+        "return_to_draft": "Return to agent setup",
+        "advanced_setup": "Configure model, fallback and permissions manually"
       },
       "state": {
         "available": "可用",
@@ -7449,7 +7544,8 @@
       "now": "now",
       "in_min": "in {{count}} min",
       "in_hours": "in {{hours}}h{{minutes}}",
-      "in_days": "in {{count}} days"
+      "in_days": "in {{count}} days",
+      "add_claude_account": "Add Claude account"
     }
   },
   "washmybelly": {

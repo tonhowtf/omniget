@@ -1,17 +1,26 @@
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
-import { updateSettings, getSettings } from "$lib/stores/settings-store.svelte";
+import { updateSettings, getSettings, type AppSettings } from "$lib/stores/settings-store.svelte";
 import { loadTranslations, locale, t } from "$lib/i18n";
 import { get } from "svelte/store";
+import { showToast } from "$lib/stores/toast-store.svelte";
+import { parseSettingNumber } from "$lib/settings-search";
+
+/** Use for event handlers that cannot present a field-specific persistence error. */
+export async function saveSettings(partial: Record<string, unknown>): Promise<AppSettings | null> {
+  try { return await updateSettings(partial); }
+  catch { showToast("error", get(t)("settings.save_failed")); return null; }
+}
+
 
 export async function chooseCookieFile() {
   const selected = await open({
-    title: "Select cookies.txt file",
+    title: get(t)("settings.cookies.import_file_dialog_title"),
     filters: [{ name: "Cookies", extensions: ["txt"] }],
     multiple: false,
   });
   if (selected && typeof selected === "string") {
-    await updateSettings({ download: { cookie_file: selected } });
+    await saveSettings({ download: { cookie_file: selected } });
   }
 }
 
@@ -22,40 +31,44 @@ export async function chooseFolder() {
     title: tt("settings.download.default_output_dir") as string,
   });
   if (selected) {
-    await updateSettings({ download: { default_output_dir: selected } });
+    await saveSettings({ download: { default_output_dir: selected } });
   }
 }
 
 export async function changeTheme(value: string) {
-  await updateSettings({ appearance: { theme: value } });
+  await saveSettings({ appearance: { theme: value } });
 }
 
 export async function changeLanguage(e: Event) {
   const value = (e.target as HTMLSelectElement).value;
-  await updateSettings({ appearance: { language: value } });
-  await loadTranslations(value, "/settings");
-  locale.set(value);
+  if (!await saveSettings({ appearance: { language: value } })) return;
+  try {
+    await loadTranslations(value, "/settings");
+    locale.set(value);
+  } catch { showToast("error", get(t)("settings.save_failed")); }
 }
 
 export async function toggleBool(section: string, key: string, current: boolean) {
-  await updateSettings({ [section]: { [key]: !current } });
+  await saveSettings({ [section]: { [key]: !current } });
 }
 
 export async function changeNumber(section: string, key: string, e: Event) {
-  const value = parseInt((e.target as HTMLInputElement).value, 10);
-  if (!isNaN(value) && value > 0) {
-    await updateSettings({ [section]: { [key]: value } });
-    if (key === "max_concurrent_downloads") {
-      try {
-        await invoke("update_max_concurrent", { max: value });
-      } catch {}
-    }
+  const input = e.target as HTMLInputElement;
+  const value = parseSettingNumber(input.value, input.min, input.max);
+  if (value === null || !input.validity.valid) {
+    input.reportValidity();
+    return;
+  }
+  if (!await saveSettings({ [section]: { [key]: value } })) return;
+  if (key === "max_concurrent_downloads") {
+    try { await invoke("update_max_concurrent", { max: value }); }
+    catch { showToast("error", get(t)("settings.save_failed")); }
   }
 }
 
 export async function changeQuality(e: Event) {
   const value = (e.target as HTMLSelectElement).value;
-  await updateSettings({ download: { video_quality: value } });
+  await saveSettings({ download: { video_quality: value } });
 }
 
 export type DependencyStatus = {
@@ -78,8 +91,8 @@ export async function loadDeps(): Promise<DependencyStatus[]> {
 
 export const CORE_THEMES = [
   { id: "system", labelKey: "settings.appearance.theme_system", colors: null as string[] | null },
-  { id: "light", labelKey: null, label: "Light", colors: ["#F6F4F0", "#1E1C19", "#FF9D24"] },
-  { id: "dark", labelKey: null, label: "Dark", colors: ["#1B1B1D", "#F4F2EE", "#FF9D24"] },
+  { id: "light", labelKey: "design.light", label: "Light", colors: ["#F6F4F0", "#1E1C19", "#FF9D24"] },
+  { id: "dark", labelKey: "design.dark", label: "Dark", colors: ["#1B1B1D", "#F4F2EE", "#FF9D24"] },
 ];
 
 export const MORE_THEMES = [

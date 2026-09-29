@@ -471,7 +471,8 @@
     "replay_saved": "Replay salvo em",
     "review_ai": "Revisar com IA",
     "history_source_sgp": "via backend",
-    "search_source_sgp": "Histórico buscado no backend da Riot (SGP), porque o cliente escondeu."
+    "search_source_sgp": "Histórico buscado no backend da Riot (SGP), porque o cliente escondeu.",
+    "connection_diagnostics": "Diagnóstico da conexão"
   },
   "music": {
     "nav_label": "Seções de música",
@@ -1268,7 +1269,8 @@
       "failed": "{{count}} falharam",
       "dismiss": "Dispensar aviso",
       "transferred": "{{size}} baixados"
-    }
+    },
+    "stats_line_one": "{{count}} download · {{size}} salvos"
   },
   "toast": {
     "download_complete": "Pronto! {{name}} está na sua pasta",
@@ -1338,7 +1340,8 @@
       "lang_es": "Español",
       "lang_el": "Ελληνικά",
       "lang_fa": "فارسی",
-      "lang_lo": "ລາວ"
+      "lang_lo": "ລາວ",
+      "preview_pending": "Somente prévia. Aplique a aparência para salvar estas alterações."
     },
     "download": {
       "default_output_dir": "Pasta padrão",
@@ -1459,7 +1462,9 @@
       "copy_to_clipboard_on_hotkey_desc": "Copiar automaticamente o arquivo baixado para o clipboard para fácil colagem",
       "filename_template": "Template de nome",
       "filename_template_desc": "Template yt-dlp para nome dos arquivos baixados",
-      "filename_template_preview": "Preview: {{preview}}"
+      "filename_template_preview": "Preview: {{preview}}",
+      "filename_template_invalid": "Não salvo. Informe um modelo de nome que contenha %(ext)s para a extensão do arquivo.",
+      "filename_template_save_failed": "Não foi possível salvar este modelo. Sua edição continua visível."
     },
     "update_available": "OmniGet {{version}} está disponível",
     "update_button": "atualizar agora",
@@ -1474,7 +1479,12 @@
       "unavailable": "Indisponível",
       "hint_chrome": "chrome://extensions → Modo do desenvolvedor → \"Carregar sem compactação\" → selecionar a pasta extraída.",
       "hint_firefox": "about:debugging#/runtime/this-firefox → \"Carregar complemento temporário\" → selecionar manifest.json da pasta extraída. O Firefox descarta complementos temporários ao reiniciar, então isso precisa ser repetido até publicarmos na AMO.",
-      "hint_safari": "O Safari exige que extensões venham pela Mac App Store desde o Safari 14. Ainda não publicamos uma versão Safari da extensão do OmniGet."
+      "hint_safari": "O Safari exige que extensões venham pela Mac App Store desde o Safari 14. Ainda não publicamos uma versão Safari da extensão do OmniGet.",
+      "install_title": "Instalar ou atualizar extensão — {{browser}}",
+      "extracted_to": "A extensão foi extraída para:",
+      "open_folder": "Abrir pasta",
+      "install_steps": "Como instalar",
+      "reload_hint": "Se a extensão já estiver instalada, recarregue-a em {{page}} usando esta pasta ou remova a cópia antiga e adicione esta."
     },
     "rules": {
       "title": "Regras",
@@ -1501,7 +1511,13 @@
       "test_title": "Testar um link",
       "test_placeholder": "Cole um link para ver qual regra o pega",
       "test_run": "Testar",
-      "test_no_match": "Nenhuma regra pega este link"
+      "test_no_match": "Nenhuma regra pega este link",
+      "load_failed": "Não foi possível carregar as regras de download. Tente novamente antes de alterá-las.",
+      "save_failed": "Não foi possível salvar as regras. Suas edições continuam visíveis; use Salvar para tentar novamente.",
+      "unnamed": "Regra sem nome",
+      "removed": "“{{name}}” removida.",
+      "undo_remove": "Desfazer remoção",
+      "test_failed": "Não foi possível testar esta URL. Tente novamente; isso não significa que nenhuma regra corresponde."
     },
     "storage": {
       "title": "Armazenamento",
@@ -1526,7 +1542,9 @@
       "silence_done": "{{saved}} de silêncio encontrado — o player pode pular",
       "portable_label": "Portable Mode",
       "portable_active": "Portable mode is active. OmniGet's data is stored in {{dir}}.",
-      "portable_macos_notice": "On macOS the WebView still stores its session data under ~/Library, and portable mode cannot redirect it. Only OmniGet's own data is portable here — see github.com/tonhowtf/omniget/issues/227."
+      "portable_macos_notice": "On macOS the WebView still stores its session data under ~/Library, and portable mode cannot redirect it. Only OmniGet's own data is portable here — see github.com/tonhowtf/omniget/issues/227.",
+      "stats_load_failed": "Não foi possível ler as estatísticas de armazenamento.",
+      "portable_load_failed": "Não foi possível verificar o modo portátil."
     },
     "dependencies": {
       "title": "Dependências",
@@ -1558,7 +1576,8 @@
       "filter_all_files": "Todos os arquivos",
       "set_file_failed": "Falha ao definir arquivo: {{msg}}",
       "open_folder_failed": "Falha ao abrir pasta: {{msg}}",
-      "system_font_suffix": "sistema"
+      "system_font_suffix": "sistema",
+      "load_failed": "Não foi possível verificar os componentes instalados. Tente novamente."
     },
     "typography": {
       "section_title": "Tipografia",
@@ -1596,7 +1615,8 @@
       "host": "Host",
       "port": "Porta",
       "username": "Usuário",
-      "password": "Senha"
+      "password": "Senha",
+      "save_failed": "Não foi possível salvar os campos do proxy. Suas edições continuam visíveis; tente novamente."
     },
     "advanced": {
       "max_concurrent_downloads": "Downloads simultâneos",
@@ -1687,7 +1707,11 @@
       "copy": "Copiar",
       "copied_url": "URL do endpoint copiada para a área de transferência.",
       "copied_token": "Token copiado para a área de transferência.",
-      "unavailable": "Bridge indisponível. Reinicie o app."
+      "unavailable": "Bridge indisponível. Reinicie o app.",
+      "load_failed": "Não foi possível ler o estado da conexão com o navegador.",
+      "pair_listener_failed": "Não foi possível acompanhar o pareamento. Reabra esta seção para tentar novamente.",
+      "rotate_confirm": "Gerar um novo token de pareamento? Navegadores já pareados perderão acesso até você pareá-los novamente ou atualizar o token.",
+      "rotate_confirm_action": "Gerar novo token"
     },
     "cat_cookies": "Cookies",
     "cat_channels": "Canais",
@@ -1728,7 +1752,29 @@
       "history": "Histórico de IA",
       "history_clear": "Limpar",
       "history_clear_confirm": "Limpar todo o histórico de IA?",
-      "history_empty": "Nenhum resultado de IA ainda."
+      "history_empty": "Nenhum resultado de IA ainda.",
+      "save_test": "Salvar e testar",
+      "unsaved": "Estas configurações ainda não foram salvas. O teste salvará as alterações antes de executar; salve-as antes de resumir.",
+      "saving": "Salvando…",
+      "provider_endpoint": "Endpoint personalizado (local ou remoto)",
+      "connection_kind": "Tipo de conexão: {{kind}}",
+      "connection_key": "Chave de API da conexão",
+      "remove_key": "Remover chave salva",
+      "keep_key": "Manter chave salva",
+      "key_remove_pending": "Ao salvar, esta chave será removida destas configurações de IA. Chaves em outras conexões e no provedor serão mantidas.",
+      "off_keeps_keys": "A IA está desligada. As chaves salvas são mantidas; selecione o tipo da conexão para removê-las.",
+      "endpoint_url": "URL do endpoint",
+      "endpoint_url_desc": "URL de um serviço compatível com OpenAI. Pode ser um servidor neste computador ou um provedor remoto.",
+      "endpoint_loopback": "Destino: este computador (endereço de loopback).",
+      "endpoint_remote": "Destino: um endpoint de rede. As requisições podem sair deste computador.",
+      "discard": "Descartar alterações",
+      "draft_retained": "Alterações não salvas são mantidas ao trocar de seção enquanto o app estiver aberto. Salve ou descarte. O teste salva antes; o resumo usa a configuração salva.",
+      "load_failed": "Não foi possível carregar as configurações de IA. Tente novamente antes de editar.",
+      "save_failed": "Não foi possível salvar as configurações de IA. Suas alterações foram mantidas; tente salvar novamente.",
+      "history_load_failed": "Não foi possível carregar o histórico de IA. Seus resultados salvos podem continuar disponíveis.",
+      "history_clear_failed": "Não foi possível limpar o histórico de IA. Tente novamente.",
+      "test_effect": "O teste envia uma requisição curta de IA usando a conexão e o modelo selecionados. O provedor pode cobrar por ela.",
+      "summarize_effect": "Busca legendas e envia seu texto à conexão de IA salva. Se não houver legendas, pode baixar áudio e enviá-lo para transcrição. Pode haver cobrança do provedor. O resultado é salvo no histórico."
     },
     "channels": {
       "title": "Canais seguidos",
@@ -1746,7 +1792,10 @@
       "remove_confirm": "Parar de seguir este canal?",
       "enabled": "Ativado",
       "auto_download": "Download automático",
-      "interval": "A cada (min)"
+      "interval": "A cada (min)",
+      "load_failed": "Não foi possível carregar os canais seguidos. Tente novamente.",
+      "checking": "Verificando…",
+      "interval_invalid": "Escolha um número inteiro entre 5 e 1440 minutos."
     },
     "cookies": {
       "title": "Cookies",
@@ -1845,7 +1894,20 @@
       }
     },
     "cat_profile": "Perfil",
-    "cat_world": "Mundo"
+    "cat_world": "Mundo",
+    "save_failed": "Não foi possível salvar esta alteração. Tente novamente.",
+    "retry": "Tentar novamente",
+    "search": {
+      "clear": "Limpar busca",
+      "title": "Buscar configurações",
+      "count": "{{count}} resultados",
+      "empty": "Nenhuma configuração encontrada. Tente outra palavra ou escolha uma categoria.",
+      "destination_hint": "Algumas opções exigem ativar o recurso relacionado ou escolher um provedor primeiro. Esta busca não ativou nenhum recurso.",
+      "back": "Voltar aos resultados"
+    },
+    "world": {
+      "pet_load_failed": "Não foi possível verificar a disponibilidade do pet na área de trabalho. Tente novamente."
+    }
   },
   "omnibox": {
     "placeholder": "Cole um link ou pesquise",
@@ -2048,7 +2110,7 @@
     "card_project_desc": "Roadmap, philosophy and how to contribute.",
     "card_terms_title": "Terms & ethics",
     "card_terms_desc": "What OmniGet expects from you, and what you can expect back.",
-    "description": "o seu downloader de mídia. código aberto e gratuito.",
+    "description": "Baixe mídia de sites compatíveis, organize seus arquivos e trabalhe com agentes de IA no desktop. Gratuito e de código aberto.",
     "terms_title": "termos de uso",
     "terms_text": "OmniGet é fornecido como está e sem garantias. o app facilita o download de conteúdo disponível publicamente na internet, mas não nos responsabilizamos pelo que você baixa ou pelo que faz com o conteúdo. ao usar o OmniGet, você concorda com isso.",
     "legal_title": "base legal",
@@ -2069,8 +2131,10 @@
     "feature_themes": "11 temas: Dark, Light, Catppuccin (4 sabores), One Dark Pro, Dracula, NyxVamp (3 variantes)",
     "feature_i18n": "disponível em Inglês, Português, Chinês, Japonês, Italiano e Francês",
     "feature_tech": "feito com Tauri + Rust. rápido e leve",
-    "tagline": "Baixe qualquer coisa, de qualquer lugar.",
+    "tagline": "Seus downloads e agentes de IA em um só lugar.",
     "credit": "Feito com amor por tonho.wtf",
+    "technical_details": "Detalhes técnicos",
+    "feature_i18n_count": "Disponível em {{count}} idiomas",
     "wmb_credits_title": "Créditos do washmybelly",
     "wmb_credits_body": "O washmybelly usa dados e ideias destes projetos de código aberto. As licenças e os arquivos exatos estão listados em THIRD_PARTY.md. O código-fonte do privacy.sexy (AGPL-3.0) está no link abaixo.",
     "wmb_credit_data": "dados",
@@ -2129,7 +2193,8 @@
     "error": "Erro",
     "loading": "Loading…",
     "unknown_error": "Erro desconhecido",
-    "cookie_error_message": "A detecção automática de cookies funciona apenas com Firefox. Chrome, Edge e outros navegadores baseados em Chromium bloqueiam o acesso. Para usar cookies: instale o Firefox e faça login nas suas contas, ou exporte um arquivo cookies.txt do seu navegador e configure em Configurações > Download > Arquivo de cookies."
+    "cookie_error_message": "A detecção automática de cookies funciona apenas com Firefox. Chrome, Edge e outros navegadores baseados em Chromium bloqueiam o acesso. Para usar cookies: instale o Firefox e faça login nas suas contas, ou exporte um arquivo cookies.txt do seu navegador e configure em Configurações > Download > Arquivo de cookies.",
+    "retry": "Tentar novamente"
   },
   "platforms": {
     "bilibili": {
@@ -2771,10 +2836,10 @@
     "tab": {
       "chat": "Conversa",
       "roster": "Equipe de agentes",
-      "models": "Modelos e rotas",
+      "models": "Modelos e limites",
       "mcp": "MCP",
       "skills": "Skills",
-      "accounts": "Contas",
+      "accounts": "Conexões",
       "arena": "Arena",
       "jobs": "Jobs",
       "loops": "Loops"
@@ -2787,6 +2852,11 @@
       "empty": "Nenhum agente ainda.",
       "no_profile": "Sem perfil local",
       "search": "Buscar agentes",
+      "view_agents": "Agentes",
+      "view_chats": "Conversas",
+      "search_chats": "Buscar conversas",
+      "no_chats": "Nenhuma conversa salva.",
+      "no_chat_matches": "Nenhuma conversa corresponde a esta busca.",
       "load_failed": "Não foi possível ler suas conversas salvas."
     },
     "role": {
@@ -2811,7 +2881,9 @@
       "allow": "Permitir",
       "deny": "Negar",
       "always": "Sempre",
-      "always_hint": "Permite agora e para de perguntar para esse tipo de chamada (para um comando: o mesmo programa e subcomando)."
+      "always_hint": "Permite agora e para de perguntar para esse tipo de chamada (para um comando: o mesmo programa e subcomando).",
+      "other_chat_running": "{agent} está trabalhando em outra conversa.",
+      "open_running": "Abrir conversa"
     },
     "composer": {
       "placeholder": "Escreva para o agente…",
@@ -2839,7 +2911,7 @@
     },
     "roster": {
       "title": "Equipe de agentes",
-      "new": "Novo agente",
+      "new": "Criar agente",
       "name": "Nome",
       "role": "Papel",
       "model_policy": "Modelo",
@@ -2862,7 +2934,9 @@
       "skills": "Skills",
       "skills_empty": "Nenhuma skill instalada. Instale uma na aba Skills.",
       "save_error": "Não foi possível salvar. Suas alterações foram mantidas. Tente novamente.",
-      "roles_hint": "O coordenador divide e acompanha o trabalho. Executores realizam tarefas atribuídas; consultores ajudam a avaliar decisões."
+      "roles_hint": "O coordenador divide e acompanha o trabalho. Executores realizam tarefas atribuídas; consultores ajudam a avaliar decisões.",
+      "delete_warning": "Remover {name}? O agente e suas configurações serão removidos. As conversas salvas continuarão disponíveis para leitura, mas não poderão continuar sem um agente.",
+      "delete_confirm": "Excluir agente"
     },
     "template": {
       "solo": "Solo",
@@ -2875,10 +2949,10 @@
       "preview": "Ver equipe"
     },
     "models": {
-      "title": "Modelos e rotas",
+      "title": "Modelos e limites",
       "providers": "Provedores",
       "no_providers": "Nenhuma chave de API salva ainda.",
-      "add_key_hint": "As chaves ficam em LLM → Modelos e rotas.",
+      "add_key_hint": "Conecte este provedor em Conexões de IA antes de usar seus modelos.",
       "load": "Carregar modelos",
       "loading": "Carregando…",
       "count": "{{count}} modelos",
@@ -2895,10 +2969,18 @@
       "openrouter_ok": "Chave do OpenRouter salva.",
       "openrouter_failed": "O login do OpenRouter falhou: {{error}}",
       "routing_unavailable": "Estas estratégias ainda não são aplicadas. Configure um modelo fixo ou uma sequência de alternativas para cada agente em Equipe de agentes.",
-      "connect": "Conectar ou gerenciar provedores",
+      "connect": "Gerenciar conexões de IA",
       "local_hint": "Servidor local: verifique se está em execução e possui modelos instalados. Não é necessária uma chave de API salva.",
       "no_models": "Este provedor não retornou modelos. Verifique os modelos disponíveis no servidor ou informe o identificador manualmente.",
-      "load_failed": "Não foi possível ler seus provedores: {{error}}"
+      "load_failed": "Não foi possível ler seus provedores: {{error}}",
+      "providers_failed": "Não foi possível carregar as conexões. Suas configurações salvas não foram removidas.",
+      "reopen_browser": "Reabrir navegador",
+      "stop_waiting": "Parar de aguardar",
+      "stop_waiting_hint": "Isso encerra a espera no OmniGet. Feche a aba do navegador para sair da autenticação externa.",
+      "auth_expired": "A autenticação não foi confirmada após dois minutos. Verifique o navegador ou comece novamente.",
+      "saved_connections": "Conexões salvas",
+      "other_providers": "Outros provedores",
+      "choose_or_enter": "Carregue os modelos disponíveis e escolha um ou digite seu identificador exato."
     },
     "err": {
       "unavailable": "O backend de LLM ainda não está ligado.",
@@ -3090,8 +3172,8 @@
       "copied": "Copiado"
     },
     "accounts": {
-      "title": "Contas e cota",
-      "lede": "Assinaturas de CLI, cada uma no seu diretório de config. O OmniGet guarda um ponteiro — nunca uma credencial.",
+      "title": "Conexões de IA",
+      "lede": "Escolha uma assinatura, um provedor de API ou um modelo local para seus agentes.",
       "refresh": "Atualizar",
       "new": "Nova conta",
       "detected": "Encontrado nesta máquina:",
@@ -3214,8 +3296,11 @@
         "preserved_retry": "Sua conta e seu agente são preservados. Tente novamente sem criar duplicatas.",
         "connecting": "Conectando…",
         "err_unknown_provider": "Unknown provider",
-        "err_credential_failed": "Credential validation failed"
+        "err_credential_failed": "Credential validation failed",
+        "new_api_connection": "Conectar um novo provedor de API"
       },
+      "models_limits": "Revisar modelos e limites de execução",
+      "advanced_accounts": "Avançado: contas CLI, alternativas e limites",
       "sandbox_full": "acesso total permitido",
       "sandbox_full_hint": "Os turnos desta conta podem editar arquivos, e um turno no modo Acesso total roda sem perguntar.",
       "sandbox_allow_full": "Permitir acesso total",
@@ -3237,7 +3322,8 @@
       "save": "Salvar",
       "cancel": "Cancelar",
       "hint": "O padrão casa com o comando do shell ou com o caminho de uma ferramenta de arquivo; * casa com tudo. Vale a última regra que casar.",
-      "failed": "Não foi possível salvar as regras."
+      "failed": "Não foi possível salvar as regras.",
+      "scope_required": "Informe uma ferramenta e um escopo. Use * somente se quiser abranger todos os destinos."
     },
     "prune": {
       "title": "Poda de contexto",
@@ -3263,7 +3349,8 @@
       "key_forget": "Esquecer chave",
       "key_saved": "Chave salva.",
       "key_missing": "Sem chave nada é enviado e a poda fica desligada.",
-      "not_wired": "A mudança não chegou ao backend."
+      "not_wired": "A mudança não chegou ao backend.",
+      "save_failed": "Não foi possível confirmar estas configurações. Recarregue para verificar os valores salvos."
     },
     "workspace": {
       "pick": "Anexar pasta",
@@ -3703,7 +3790,9 @@
           "under": "{{delta}}% abaixo do ritmo",
           "ahead": "{{delta}}% acima do ritmo",
           "ahead_out": "{{delta}}% acima do ritmo · acaba em {{time}}"
-        }
+        },
+        "connect_hint": "Nenhuma conta para monitorar. Abra o OmniGet e vá a Conexões de IA para configurar.",
+        "open_after_error": "Não foi possível carregar os limites. Abra o OmniGet para verificar as conexões."
       }
     },
     "chat": {
@@ -3739,7 +3828,7 @@
       "create": "Criar tarefa",
       "jobs_hint": "Execute uma tarefa em segundo plano. Abra os detalhes para ver o resultado, aprovar uma ferramenta ou parar a execução.",
       "loops_hint": "Repita uma tarefa até uma verificação passar ou atingir o limite. Revise as condições de parada antes de iniciar.",
-      "models_hint": "Conecte um provedor API e escolha o modelo de um agente. Assinaturas de chat são configuradas em Conexões.",
+      "models_hint": "As conexões são gerenciadas em Conexões de IA. Escolha um modelo para um agente ou abra os ajustes avançados de execução abaixo.",
       "mcp_hint": "Conecte uma ferramenta, teste e escolha quais agentes podem usá-la. Adicionar uma conexão não concede permissão.",
       "skills_hint": "Habilidades dão instruções reutilizáveis aos agentes. Revise a origem e a análise antes de instalar e associe a habilidade a um agente.",
       "observatory_hint": "Veja a atividade medida e as cotas dos provedores. Medição ausente fica indisponível, nunca zero. Diagnósticos só iniciam quando você os abre.",
@@ -3758,6 +3847,9 @@
       "no_matches": "Nenhum agente encontrado",
       "templates_impact": "Revise o modelo e seu efeito na equipe atual antes de aplicar.",
       "mcp_server_hint": "Deixe outros apps de IA usarem o OmniGet: ligue o servidor, crie um cliente só com as permissões de que ele precisa e cole o trecho no app.",
+      "roster_load_error": "Não foi possível carregar os agentes. Tente novamente para recuperar seus agentes salvos.",
+      "history_list_error": "Não foi possível carregar o histórico. Seu rascunho atual continua aqui.",
+      "history_load_error": "Não foi possível carregar esta conversa. Tente novamente antes de continuar.",
       "create_loop": "Criar loop"
     },
     "prompts": {
@@ -6364,8 +6456,8 @@
         "read_only": "Só consultar, nunca salvar"
       },
       "create": {
-        "open": "Criar bot",
-        "title": "Criar um bot",
+        "open": "Criar agente",
+        "title": "Criar um agente",
         "lede": "Dê um nome e uma finalidade, escolha o que ele pode fazer e a conexão em que roda. Ele não recebe acesso a código nem a terminal, a menos que você marque.",
         "name": "Nome",
         "name_placeholder": "Companheiro de leitura",
@@ -6381,13 +6473,16 @@
         "no_connection": "Nenhuma conexão pronta ainda.",
         "connect_first": "Conecte uma conta ou modelo primeiro",
         "instructions": "Instruções",
-        "submit": "Criar bot",
+        "submit": "Criar agente",
         "creating": "Criando…",
         "err_name": "Dê um nome ao bot.",
         "err_name_long": "Use no máximo 48 caracteres no nome.",
         "err_connection": "Escolha uma conexão.",
         "err_purpose_long": "A finalidade está longa demais.",
-        "err_failed": "O bot não foi criado."
+        "err_failed": "O bot não foi criado.",
+        "draft_session": "Seu formulário fica salvo nesta janela enquanto você conecta. Volte aqui para concluir.",
+        "return_to_draft": "Voltar à criação do agente",
+        "advanced_setup": "Configurar modelo, alternativas e permissões manualmente"
       },
       "state": {
         "available": "Disponível",
@@ -7449,7 +7544,8 @@
       "now": "agora",
       "in_min": "em {{count}} min",
       "in_hours": "em {{hours}}h{{minutes}}",
-      "in_days": "em {{count}} dias"
+      "in_days": "em {{count}} dias",
+      "add_claude_account": "Adicionar conta Claude"
     }
   },
   "washmybelly": {

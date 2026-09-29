@@ -10,9 +10,8 @@
    *
    * The key is written straight to the backend's secret store through
    * `llm_prune_set_jev_key`; it is never held in settings, never read back,
-   * and the field is cleared as soon as it is saved. Everything degrades
-   * quietly when the commands are not registered yet: the toggles keep working
-   * on local state and a hint says the change did not reach the backend.
+   * and the field is cleared after saving. A failed setting write restores the
+   * last confirmed values; unavailable settings are disabled until refreshed.
    */
   import { invoke } from "@tauri-apps/api/core";
   import { onMount } from "svelte";
@@ -49,32 +48,45 @@
   let busy = $state(false);
   let offline = $state(false);
   let saved = $state(false);
+  let ready = $state(false);
+  let confirmed = { enabled: false, judge: "local" as Judge, minTokens: 50000 };
+  const judgeGroup = $props.id();
 
   async function refresh() {
+    if (busy) return;
+    busy = true;
     try {
       const status = await invoke<PruneStatus | null>("llm_prune_status");
-      if (!status) return;
+      if (!status) throw new Error("ERR_PRUNE_STATUS");
       enabled = status.enabled;
       judge = status.judge === "jev" ? "jev" : "local";
       hasKey = status.has_key;
       omitted = status.omitted;
       minTokens = status.min_tokens ?? 50000;
       receipts = (status.receipts ?? []).slice().reverse();
+      confirmed = { enabled, judge, minTokens };
+      ready = true;
       offline = false;
     } catch {
-      // Not wired yet, or the backend said no: keep the local state and say so.
+      ready = false;
       offline = true;
-    }
+    } finally { busy = false; }
   }
 
   onMount(refresh);
 
   async function push() {
+    if (busy || !ready) return;
+    if (!Number.isFinite(minTokens)) { minTokens = confirmed.minTokens; return; }
+    minTokens = Math.min(1_000_000, Math.max(1_000, Math.round(minTokens)));
     busy = true;
     try {
       await invoke("llm_prune_set_config", { enabled, judge, minTokens });
+      confirmed = { enabled, judge, minTokens };
       offline = false;
     } catch {
+      ({ enabled, judge, minTokens } = confirmed);
+      ready = false;
       offline = true;
     } finally {
       busy = false;
@@ -82,13 +94,13 @@
   }
 
   function toggle() {
-    if (busy) return;
+    if (busy || !ready) return;
     enabled = !enabled;
     void push();
   }
 
   function pick(next: Judge) {
-    if (busy || judge === next) return;
+    if (busy || !ready || judge === next) return;
     judge = next;
     void push();
   }
@@ -142,7 +154,7 @@
           role="switch"
           aria-checked={enabled}
           aria-label={$t("llm.prune.title")}
-          disabled={busy}
+          disabled={busy || !ready}
           onclick={toggle}
         >
           <span class="toggle-knob"></span>
@@ -159,28 +171,11 @@
           </div>
         </div>
         <div class="group-row-trailing">
-          <div class="mac-segmented" role="tablist">
-            <button
-              type="button"
-              class="mac-segmented-btn"
-              class:active={judge === "local"}
-              role="tab"
-              aria-selected={judge === "local"}
-              onclick={() => pick("local")}
-            >
-              {$t("llm.prune.judge_local")}
-            </button>
-            <button
-              type="button"
-              class="mac-segmented-btn"
-              class:active={judge === "jev"}
-              role="tab"
-              aria-selected={judge === "jev"}
-              onclick={() => pick("jev")}
-            >
-              {$t("llm.prune.judge_jev")}
-            </button>
-          </div>
+          <fieldset class="judge-choice">
+            <legend class="field-label">{$t("llm.prune.judge")}</legend>
+            <label><input type="radio" name={judgeGroup} checked={judge === "local"} disabled={busy || !ready} onchange={() => pick("local")} />{$t("llm.prune.judge_local")}</label>
+            <label><input type="radio" name={judgeGroup} checked={judge === "jev"} disabled={busy || !ready} onchange={() => pick("jev")} />{$t("llm.prune.judge_jev")}</label>
+          </fieldset>
         </div>
       </div>
 
@@ -201,6 +196,8 @@
           type="number"
           min="1000"
           step="1000"
+          max="1000000"
+          disabled={busy || !ready}
           bind:value={minTokens}
           onchange={() => void push()}
           aria-label={$t("llm.prune.min_tokens")}
@@ -276,11 +273,14 @@
   {/if}
 
   {#if offline}
-    <p class="hint danger">{$t("llm.prune.not_wired")}</p>
+    <p class="hint danger" role="alert">{$t("llm.prune.save_failed")}</p>
+    <button type="button" class="button" disabled={busy} onclick={refresh}>{$t("llm.surface.retry")}</button>
   {/if}
 </section>
 
 <style>
+  .judge-choice { border: 0; margin: 0; padding: 0; display: flex; gap: var(--space-3); flex-wrap: wrap; }
+  .judge-choice label { display: flex; align-items: center; gap: var(--space-2); font-size: var(--text-sm); }
   .prune {
     display: flex;
     flex-direction: column;

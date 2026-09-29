@@ -18,16 +18,20 @@
     value = null,
     explicit = false,
     busy = false,
+    connectHref = "/llm/accounts?guide=api",
+    onconnect,
     onchange,
   }: {
     value?: ModelRef | null;
     explicit?: boolean;
     busy?: boolean;
+    connectHref?: string;
+    onconnect?: () => void;
     onchange: (ref: ModelRef) => void;
   } = $props();
 
   type Kind = { id: string; name: string };
-  type KeyView = { id: string; kind: string; name: string };
+  type KeyView = { id: string; kind: string; name: string; has_key?: boolean };
 
   let kinds = $state<Kind[]>([]);
   let saved = $state<KeyView[]>([]);
@@ -38,6 +42,7 @@
   let models = $state<string[]>([]);
   let loading = $state(false);
   let providerError = $state(false);
+  let providersLoading = $state(true);
   let loadError = $state<string | null>(null);
   let modelsLoaded = $state(false);
   let requestId = 0;
@@ -45,19 +50,19 @@
 
   async function loadProviders() {
     providerError = false;
+    providersLoading = true;
     try {
       kinds = (await invoke<Kind[] | null>("tool_keys_kinds")) ?? [];
     } catch {
-      kinds = [];
       providerError = true;
     }
     try {
       saved = (await invoke<KeyView[] | null>("tool_keys_list")) ?? [];
     } catch {
-      saved = [];
       providerError = true;
     }
-    if (!provider) provider = saved[0]?.kind ?? kinds[0]?.id ?? "";
+    if (!provider) provider = saved.find(key => key.has_key !== false)?.id ?? "ollama";
+    providersLoading = false;
   }
 
   async function loadModels() {
@@ -97,7 +102,7 @@
     onchange({ provider, model: model.trim() });
   }
 
-  let hasKey = $derived(saved.some((k) => k.kind === provider));
+  let hasKey = $derived(saved.some((k) => (k.id === provider || k.kind === provider) && k.has_key !== false));
 
   onMount(() => {
     void loadProviders();
@@ -105,25 +110,36 @@
 </script>
 
 <div class="picker">
-  {#if providerError}<div class="provider-error" role="alert"><span>{$t("llm.err.unavailable")}</span><button type="button" class="button" onclick={loadProviders}>{$t("llm.models.load")}</button></div>{/if}
+  {#if providersLoading}<p class="picker-note" role="status">{$t("llm.models.loading")}</p>{/if}
+  {#if providerError}<div class="provider-error" role="alert"><span>{$t("llm.models.providers_failed")}</span><button type="button" class="button" disabled={providersLoading} onclick={loadProviders}>{$t("llm.surface.retry")}</button></div>{/if}
   <label class="field">
     <span class="field-label">{$t("llm.roster.provider")}</span>
-    <select class="input" disabled={busy} bind:value={provider} onchange={changeProvider}>
-      {#if provider && !kinds.some(kind => kind.id === provider)}<option value={provider}>{provider}</option>{/if}
-      {#each kinds as kind (kind.id)}
-        <option value={kind.id}>{kind.name}</option>
-      {/each}
+    <select class="input" disabled={busy || providersLoading} bind:value={provider} onchange={changeProvider}>
+      {#if provider && !kinds.some(kind => kind.id === provider) && !saved.some(key => key.id === provider) && !isLocalModelProvider(provider)}<option value={provider}>{provider}</option>{/if}
+      {#if saved.length}
+        <optgroup label={$t("llm.models.saved_connections")}>
+          {#each saved as key (key.id)}<option value={key.id}>{key.name || key.kind} · {kinds.find(kind => kind.id === key.kind)?.name ?? key.kind}</option>{/each}
+        </optgroup>
+      {/if}
+      <optgroup label={$t("llm.accounts.wizard.local_model")}>
+        <option value="ollama">Ollama</option><option value="lmstudio">LM Studio</option><option value="llama-server">llama.cpp</option>
+      </optgroup>
+      <optgroup label={$t("llm.models.other_providers")}>
+        {#each kinds.filter(kind => !isLocalModelProvider(kind.id) && !saved.some(key => key.id === kind.id)) as kind (kind.id)}<option value={kind.id}>{kind.name}</option>{/each}
+      </optgroup>
     </select>
     {#if isLocalModelProvider(provider)}
       <span class="field-hint">{$t("llm.models.local_hint")}</span>
-    {:else if !hasKey && provider}
+    {:else if !hasKey && provider && !providersLoading && !providerError}
       <span class="field-hint">{$t("llm.models.add_key_hint")}</span>
+      <a href={connectHref} onclick={() => onconnect?.()}>{$t("llm.surface.connect")}</a>
     {/if}
   </label>
 
   <label class="field">
     <span class="field-label">{$t("llm.roster.model")}</span>
-    <input class="input" disabled={busy} bind:value={model} list={optionsId} onchange={() => commit()} />
+    <input class="input" disabled={busy} bind:value={model} list={optionsId} onchange={() => commit()} aria-describedby={`${optionsId}-hint`} />
+    <span id={`${optionsId}-hint`} class="field-hint">{$t("llm.models.choose_or_enter")}</span>
     <datalist id={optionsId}>
       {#each models as m (m)}
         <option value={m}></option>
@@ -133,7 +149,7 @@
 
   <div class="picker-actions">
     {#if explicit}<button type="button" class="button primary" disabled={busy || !provider || !model.trim()} onclick={() => commit(true)}>{$t("llm.conv.switch_model")}</button>{/if}
-    <button type="button" class="button" onclick={loadModels} disabled={busy || loading || !provider}>
+    <button type="button" class="button" onclick={loadModels} disabled={busy || providersLoading || loading || !provider}>
       {loading ? $t("llm.models.loading") : $t("llm.models.load")}
     </button>
     {#if models.length > 0}

@@ -33,6 +33,7 @@
         href={tab.href}
         class="about-nav-item"
         class:active={isActive(tab.href)}
+        aria-current={isActive(tab.href) ? "page" : undefined}
       >
         <span class="about-nav-icon" aria-hidden="true">
           {#if tab.icon === "overview"}
@@ -62,6 +63,8 @@
     display: flex;
     gap: var(--space-6);
     max-width: 880px;
+    width: 100%;
+    box-sizing: border-box;
     margin: 0 auto;
     padding: var(--space-5) var(--space-6) var(--space-8);
     align-items: flex-start;

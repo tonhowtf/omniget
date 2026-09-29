@@ -471,7 +471,8 @@
     "replay_saved": "Replay salvato in",
     "review_ai": "Rivedi con l'IA",
     "history_source_sgp": "via backend",
-    "search_source_sgp": "Cronologia presa dal backend di Riot (SGP), perché il client l'ha nascosta."
+    "search_source_sgp": "Cronologia presa dal backend di Riot (SGP), perché il client l'ha nascosta.",
+    "connection_diagnostics": "Connection diagnostics"
   },
   "music": {
     "nav_label": "Music sections",
@@ -1268,7 +1269,8 @@
       "failed": "{{count}} non riusciti",
       "dismiss": "Chiudi avviso",
       "transferred": "{{size}} scaricati"
-    }
+    },
+    "stats_line_one": "{{count}} download · {{size}} saved"
   },
   "toast": {
     "download_complete": "Fatto! {{name}} e nella tua cartella",
@@ -1338,7 +1340,8 @@
       "lang_es": "Español",
       "lang_el": "Ελληνικά",
       "lang_fa": "فارسی",
-      "lang_lo": "ລາວ"
+      "lang_lo": "ລາວ",
+      "preview_pending": "Preview only. Apply appearance to save these changes."
     },
     "download": {
       "default_output_dir": "Cartella predefinita",
@@ -1459,7 +1462,9 @@
       "copy_to_clipboard_on_hotkey_desc": "Copia automaticamente il file scaricato negli appunti per incollare facilmente",
       "filename_template": "Modello nome file",
       "filename_template_desc": "Modello di output yt-dlp per i file scaricati",
-      "filename_template_preview": "Anteprima: {{preview}}"
+      "filename_template_preview": "Anteprima: {{preview}}",
+      "filename_template_invalid": "Not saved. Enter a filename template containing %(ext)s for the file extension.",
+      "filename_template_save_failed": "Could not save this template. Your edit is still shown."
     },
     "update_available": "OmniGet {{version}} è disponibile",
     "update_button": "aggiorna ora",
@@ -1474,7 +1479,12 @@
       "unavailable": "Non disponibile",
       "hint_chrome": "chrome://extensions → Modalità sviluppatore → \"Carica estensione non pacchettizzata\" → seleziona la cartella estratta.",
       "hint_firefox": "about:debugging#/runtime/this-firefox → \"Carica componente aggiuntivo temporaneo\" → seleziona manifest.json nella cartella estratta. Firefox rimuove i componenti temporanei al riavvio, quindi va ripetuto finché non pubblichiamo su AMO.",
-      "hint_safari": "Dal Safari 14 le estensioni devono passare dal Mac App Store. Una versione Safari dell'estensione OmniGet non è ancora pubblicata."
+      "hint_safari": "Dal Safari 14 le estensioni devono passare dal Mac App Store. Una versione Safari dell'estensione OmniGet non è ancora pubblicata.",
+      "install_title": "Install or update extension — {{browser}}",
+      "extracted_to": "The extension was extracted to:",
+      "open_folder": "Open folder",
+      "install_steps": "Installation steps",
+      "reload_hint": "If the extension is already installed, reload it at {{page}} using this folder, or remove the old copy and add this one."
     },
     "rules": {
       "title": "Regole",
@@ -1501,7 +1511,13 @@
       "test_title": "Prova un link",
       "test_placeholder": "Incolla un link per vedere quale regola lo prende",
       "test_run": "Prova",
-      "test_no_match": "Nessuna regola prende questo link"
+      "test_no_match": "Nessuna regola prende questo link",
+      "load_failed": "Could not load download rules. Try again before changing them.",
+      "save_failed": "Could not save rules. Your edits are still shown; use Save to try again.",
+      "unnamed": "Unnamed rule",
+      "removed": "Removed “{{name}}”.",
+      "undo_remove": "Undo removal",
+      "test_failed": "Could not test this URL. Try again; this does not mean no rule matches."
     },
     "storage": {
       "title": "Archiviazione",
@@ -1526,7 +1542,9 @@
       "silence_done": "{{saved}} di silenzio trovato — il player può saltarlo",
       "portable_label": "Portable Mode",
       "portable_active": "Portable mode is active. OmniGet's data is stored in {{dir}}.",
-      "portable_macos_notice": "On macOS the WebView still stores its session data under ~/Library, and portable mode cannot redirect it. Only OmniGet's own data is portable here — see github.com/tonhowtf/omniget/issues/227."
+      "portable_macos_notice": "On macOS the WebView still stores its session data under ~/Library, and portable mode cannot redirect it. Only OmniGet's own data is portable here — see github.com/tonhowtf/omniget/issues/227.",
+      "stats_load_failed": "Could not read storage statistics.",
+      "portable_load_failed": "Could not check portable mode."
     },
     "dependencies": {
       "title": "Dipendenze",
@@ -1558,7 +1576,8 @@
       "filter_all_files": "Tutti i file",
       "set_file_failed": "Impostazione file fallita: {{msg}}",
       "open_folder_failed": "Apertura cartella fallita: {{msg}}",
-      "system_font_suffix": "sistema"
+      "system_font_suffix": "sistema",
+      "load_failed": "Could not check installed components. Try again."
     },
     "typography": {
       "section_title": "Tipografia",
@@ -1596,7 +1615,8 @@
       "host": "Host",
       "port": "Porta",
       "username": "Nome utente",
-      "password": "Password"
+      "password": "Password",
+      "save_failed": "Could not save the proxy fields. Your edits are still shown; try again."
     },
     "advanced": {
       "max_concurrent_downloads": "Download simultanei",
@@ -1687,7 +1707,11 @@
       "copy": "Copia",
       "copied_url": "URL dell'endpoint copiato negli appunti.",
       "copied_token": "Token copiato negli appunti.",
-      "unavailable": "Bridge non disponibile. Riavvia l'app."
+      "unavailable": "Bridge non disponibile. Riavvia l'app.",
+      "load_failed": "Could not read the browser connection status.",
+      "pair_listener_failed": "Could not monitor pairing. Reopen this section to try again.",
+      "rotate_confirm": "Generate a new pairing token? Previously paired browsers will lose access until you pair them again or update their token.",
+      "rotate_confirm_action": "Generate new token"
     },
     "cat_cookies": "Cookies",
     "cat_channels": "Canali",
@@ -1728,7 +1752,29 @@
       "history": "Cronologia IA",
       "history_clear": "Cancella",
       "history_clear_confirm": "Cancellare tutta la cronologia IA?",
-      "history_empty": "Ancora nessun risultato IA."
+      "history_empty": "Ancora nessun risultato IA.",
+      "save_test": "Salva e prova",
+      "unsaved": "Queste impostazioni non sono salvate. Il test le salverà prima di partire; salvale prima di riassumere.",
+      "saving": "Salvataggio…",
+      "provider_endpoint": "Custom endpoint (local or remote)",
+      "connection_kind": "Connection type: {{kind}}",
+      "connection_key": "Connection API key",
+      "remove_key": "Remove saved key",
+      "keep_key": "Keep saved key",
+      "key_remove_pending": "Saving will remove this key from these AI settings. Keys in other connections and at the provider stay unchanged.",
+      "off_keeps_keys": "AI is off. Saved keys are retained; select their connection type to remove them.",
+      "endpoint_url": "Endpoint URL",
+      "endpoint_url_desc": "OpenAI-compatible service URL. This may be a server on this computer or a remote provider.",
+      "endpoint_loopback": "Destination: this computer (loopback address).",
+      "endpoint_remote": "Destination: a network endpoint. Requests may leave this computer.",
+      "discard": "Discard changes",
+      "draft_retained": "Unsaved changes are kept when switching sections while the app is open. Save or discard them. Testing saves them first; summarizing uses saved settings.",
+      "load_failed": "Could not load AI settings. Try again before editing.",
+      "save_failed": "Could not save AI settings. Your changes are still here; try saving again.",
+      "history_load_failed": "Could not load AI history. Your saved results may still be available.",
+      "history_clear_failed": "Could not clear AI history. Try again.",
+      "test_effect": "Testing sends a short AI request using the selected connection and model. The provider may charge for it.",
+      "summarize_effect": "Fetches subtitles and sends their text to the saved AI connection. If subtitles are unavailable, it may download audio and send it for transcription. Provider charges may apply. The result is saved in history."
     },
     "channels": {
       "title": "Canali seguiti",
@@ -1746,7 +1792,10 @@
       "remove_confirm": "Smettere di seguire questo canale?",
       "enabled": "Attivo",
       "auto_download": "Download automatico",
-      "interval": "Ogni (min)"
+      "interval": "Ogni (min)",
+      "load_failed": "Could not load followed channels. Try again.",
+      "checking": "Checking…",
+      "interval_invalid": "Choose a whole number from 5 to 1440 minutes."
     },
     "cookies": {
       "title": "Cookies",
@@ -1845,7 +1894,20 @@
       }
     },
     "cat_profile": "Profile",
-    "cat_world": "World"
+    "cat_world": "World",
+    "save_failed": "Could not save this change. Try again.",
+    "retry": "Try again",
+    "search": {
+      "clear": "Clear search",
+      "title": "Search settings",
+      "count": "{{count}} results",
+      "empty": "No settings found. Try another word or choose a category.",
+      "destination_hint": "Options may require enabling the related feature or choosing a provider first. Nothing was enabled by this search.",
+      "back": "Back to results"
+    },
+    "world": {
+      "pet_load_failed": "Could not check desktop pet availability. Try again."
+    }
   },
   "omnibox": {
     "placeholder": "Incolla un link o cerca",
@@ -2071,6 +2133,8 @@
     "feature_tech": "realizzato con Tauri + Rust. veloce e leggero",
     "tagline": "Scarica qualsiasi cosa, da qualsiasi luogo.",
     "credit": "Fatto con amore da tonho.wtf",
+    "technical_details": "Technical details",
+    "feature_i18n_count": "Available in {{count}} languages",
     "wmb_credits_title": "Crediti di washmybelly",
     "wmb_credits_body": "washmybelly include dati e idee di questi progetti open source. Le licenze e i file esatti sono elencati in THIRD_PARTY.md. Il codice sorgente di privacy.sexy (AGPL-3.0) si trova nel link qui sotto.",
     "wmb_credit_data": "dati",
@@ -2129,7 +2193,8 @@
     "error": "Errore",
     "loading": "Loading…",
     "unknown_error": "Errore sconosciuto",
-    "cookie_error_message": "Il rilevamento automatico dei cookie funziona solo con Firefox. Chrome, Edge e altri browser Chromium bloccano l'accesso. Installa Firefox e accedi ai tuoi account, oppure esporta un file cookies.txt e configuralo in Impostazioni > Download > File cookie."
+    "cookie_error_message": "Il rilevamento automatico dei cookie funziona solo con Firefox. Chrome, Edge e altri browser Chromium bloccano l'accesso. Installa Firefox e accedi ai tuoi account, oppure esporta un file cookies.txt e configuralo in Impostazioni > Download > File cookie.",
+    "retry": "Try again"
   },
   "platforms": {
     "bilibili": {
@@ -2787,6 +2852,11 @@
       "empty": "No agents yet.",
       "no_profile": "No local profile",
       "search": "Search agents",
+      "view_agents": "Agenti",
+      "view_chats": "Conversazioni",
+      "search_chats": "Cerca conversazioni",
+      "no_chats": "Nessuna conversazione salvata.",
+      "no_chat_matches": "Nessuna conversazione corrisponde alla ricerca.",
       "load_failed": "Non è stato possibile leggere le chat salvate."
     },
     "role": {
@@ -2811,7 +2881,9 @@
       "allow": "Allow",
       "deny": "Deny",
       "always": "Always",
-      "always_hint": "Allow now and stop asking for this kind of call (for a command: the same program and subcommand)."
+      "always_hint": "Allow now and stop asking for this kind of call (for a command: the same program and subcommand).",
+      "other_chat_running": "{agent} sta lavorando in un'altra conversazione.",
+      "open_running": "Apri conversazione"
     },
     "composer": {
       "placeholder": "Message the agent…",
@@ -2862,7 +2934,9 @@
       "skills": "Skills",
       "skills_empty": "No skill installed. Install one in the Skills tab.",
       "save_error": "Could not save. Your changes are still here. Try again.",
-      "roles_hint": "The coordinator divides and follows the work. Workers carry out assigned tasks; advisors help evaluate decisions."
+      "roles_hint": "The coordinator divides and follows the work. Workers carry out assigned tasks; advisors help evaluate decisions.",
+      "delete_warning": "Rimuovere {name}? L'agente e le sue impostazioni verranno rimosse. Le conversazioni salvate resteranno leggibili, ma non potranno continuare senza un agente.",
+      "delete_confirm": "Elimina agente"
     },
     "template": {
       "solo": "Solo",
@@ -2898,7 +2972,15 @@
       "connect": "Connect or manage providers",
       "local_hint": "Local server: make sure it is running and has models installed. No saved API key is required.",
       "no_models": "This provider returned no models. Check the models available on the server or enter an identifier manually.",
-      "load_failed": "Impossibile leggere i tuoi provider: {{error}}"
+      "load_failed": "Impossibile leggere i tuoi provider: {{error}}",
+      "providers_failed": "Could not load saved connections. Your saved settings have not been removed.",
+      "reopen_browser": "Reopen browser",
+      "stop_waiting": "Stop waiting",
+      "stop_waiting_hint": "This stops waiting in OmniGet. Close the browser tab to leave the external sign-in.",
+      "auth_expired": "Sign-in has not been confirmed after two minutes. Check the browser or start again.",
+      "saved_connections": "Saved connections",
+      "other_providers": "Other providers",
+      "choose_or_enter": "Load the available models, then choose one or enter its exact identifier."
     },
     "err": {
       "unavailable": "The LLM backend is not wired yet.",
@@ -3214,8 +3296,11 @@
         "preserved_retry": "Your account and agent are preserved. Retry without creating duplicates.",
         "connecting": "Connecting…",
         "err_unknown_provider": "Unknown provider",
-        "err_credential_failed": "Credential validation failed"
+        "err_credential_failed": "Credential validation failed",
+        "new_api_connection": "Connect a new API provider"
       },
+      "models_limits": "Review models and execution limits",
+      "advanced_accounts": "Advanced: CLI accounts, fallback and limits",
       "sandbox_full": "accesso completo consentito",
       "sandbox_full_hint": "I turni di questo account possono modificare file, e un turno in modalità Accesso completo viene eseguito senza chiedere.",
       "sandbox_allow_full": "Consenti accesso completo",
@@ -3237,7 +3322,8 @@
       "save": "Save",
       "cancel": "Cancel",
       "hint": "The pattern matches the command of the shell or the path of a file tool; * matches anything. The last matching rule wins.",
-      "failed": "The rules could not be saved."
+      "failed": "The rules could not be saved.",
+      "scope_required": "Inserisci uno strumento e un ambito. Usa * solo per includere tutti i destinatari."
     },
     "prune": {
       "title": "Context pruning",
@@ -3263,7 +3349,8 @@
       "key_forget": "Forget key",
       "key_saved": "Key saved.",
       "key_missing": "Without a key nothing is sent and pruning stays off.",
-      "not_wired": "The change did not reach the backend."
+      "not_wired": "The change did not reach the backend.",
+      "save_failed": "Could not confirm these settings. Reload to check the saved values."
     },
     "workspace": {
       "pick": "Attach a folder",
@@ -3703,7 +3790,9 @@
           "under": "{{delta}}% sotto il ritmo",
           "ahead": "{{delta}}% sopra il ritmo",
           "ahead_out": "{{delta}}% sopra il ritmo · finisce tra {{time}}"
-        }
+        },
+        "connect_hint": "No accounts to monitor. Open OmniGet, then AI connections to set one up.",
+        "open_after_error": "Could not load limits. Open OmniGet to check your connections."
       }
     },
     "chat": {
@@ -3758,6 +3847,9 @@
       "no_matches": "No matching agents",
       "templates_impact": "Review the template and its effect on the existing team before applying it.",
       "mcp_server_hint": "Lascia che altre app di IA usino OmniGet: accendi il server, crea un client con solo i permessi necessari e incolla il suo snippet nell'app.",
+      "roster_load_error": "Could not load agents. Try again to recover your saved agents.",
+      "history_list_error": "Could not load conversation history. Your current draft is still here.",
+      "history_load_error": "Could not load this conversation. Try again before continuing.",
       "create_loop": "Crea un ciclo"
     },
     "prompts": {
@@ -6387,7 +6479,10 @@
         "err_name_long": "Usa al massimo 48 caratteri per il nome.",
         "err_connection": "Scegli una connessione.",
         "err_purpose_long": "Lo scopo è troppo lungo.",
-        "err_failed": "Il bot non è stato creato."
+        "err_failed": "Il bot non è stato creato.",
+        "draft_session": "Your form stays in this app window while you connect. Return here to finish.",
+        "return_to_draft": "Return to agent setup",
+        "advanced_setup": "Configure model, fallback and permissions manually"
       },
       "state": {
         "available": "Disponibile",
@@ -7449,7 +7544,8 @@
       "now": "now",
       "in_min": "in {{count}} min",
       "in_hours": "in {{hours}}h{{minutes}}",
-      "in_days": "in {{count}} days"
+      "in_days": "in {{count}} days",
+      "add_claude_account": "Add Claude account"
     }
   },
   "washmybelly": {

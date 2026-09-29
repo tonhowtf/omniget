@@ -65,33 +65,36 @@ export async function initChangelog(): Promise<void> {
 export async function fetchChangelog(): Promise<string> {
   if (changelogBody) return changelogBody;
 
-  try {
-    const res = await fetch(
-      `https://api.github.com/repos/tonhowtf/omniget/releases/tags/v${currentVersion}`,
-      { headers: { Accept: "application/vnd.github.v3+json" } }
-    );
-    if (res.ok) {
-      const data = await res.json();
-      if (data.body) {
-        changelogBody = data.body;
-        return data.body;
-      }
-    }
-  } catch {}
+  const deadline = Date.now() + 5_000;
+  const urls = [
+    `https://api.github.com/repos/tonhowtf/omniget/releases/tags/v${currentVersion}`,
+    "https://api.github.com/repos/tonhowtf/omniget/releases/latest",
+  ];
 
-  try {
-    const res = await fetch(
-      "https://api.github.com/repos/tonhowtf/omniget/releases/latest",
-      { headers: { Accept: "application/vnd.github.v3+json" } }
-    );
-    if (res.ok) {
+  for (const url of urls) {
+    const timeoutMs = deadline - Date.now();
+    if (timeoutMs <= 0) break;
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetch(url, {
+        headers: { Accept: "application/vnd.github.v3+json" },
+        signal: controller.signal,
+      });
+      if (!res.ok) continue;
+
       const data = await res.json();
       if (data.body) {
         changelogBody = data.body;
         return data.body;
       }
+    } catch {
+      // A missing network or slow release API should end in the empty state.
+    } finally {
+      clearTimeout(timeout);
     }
-  } catch {}
+  }
 
   return "";
 }

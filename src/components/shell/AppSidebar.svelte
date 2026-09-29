@@ -213,7 +213,7 @@
   .sidebar-navigation { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: thin; }
   :global(.mac-source-list) { overflow-y: hidden; }
   @media (max-width: 860px) { .profile-copy { display: none; } .mac-sidebar-profile { padding-inline: 8px; } }
-  .help-link { background: var(--accent-soft); min-height: 44px; }
+  .help-link { min-height: 44px; }
   .mac-nav-label small, .profile-copy small { display: block; font-size: 11px; line-height: 1.3; color: var(--text-muted); }
   .profile-copy { display: flex; flex-direction: column; min-width: 0; }
   .mac-sidebar-profile { min-height: 44px; box-sizing: border-box; }

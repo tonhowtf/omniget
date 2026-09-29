@@ -41,7 +41,7 @@
             <p class="about-tagline">{$t("about.tagline")}</p>
             <p class="about-desc">{$t("about.description")}</p>
             {#if buildDetails}
-                <span class="about-build">{buildDetails}</span>
+                <details class="about-technical"><summary>{$t("about.technical_details")}</summary><span class="about-build">{buildDetails}</span></details>
             {/if}
         </div>
     </header>
@@ -85,6 +85,9 @@
 </div>
 
 <style>
+    .about-technical { color: var(--text-muted); font-size: var(--text-sm); }
+    .about-technical summary { cursor: pointer; padding: 4px 0; }
+    .about-technical summary:focus-visible { outline: var(--focus-ring); }
     .about-overview {
         display: flex;
         flex-direction: column;

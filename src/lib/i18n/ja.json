@@ -471,7 +471,8 @@
     "replay_saved": "リプレイの保存先",
     "review_ai": "AIで振り返る",
     "history_source_sgp": "バックエンド経由",
-    "search_source_sgp": "クライアントが隠したため、履歴はRiotのバックエンド (SGP) から取得しました。"
+    "search_source_sgp": "クライアントが隠したため、履歴はRiotのバックエンド (SGP) から取得しました。",
+    "connection_diagnostics": "Connection diagnostics"
   },
   "music": {
     "nav_label": "Music sections",
@@ -1268,7 +1269,8 @@
       "failed": "{{count}} 件失敗",
       "dismiss": "通知を閉じる",
       "transferred": "{{size}} ダウンロード済み"
-    }
+    },
+    "stats_line_one": "{{count}} download · {{size}} saved"
   },
   "toast": {
     "download_complete": "完了！{{name}} はフォルダに保存されました",
@@ -1338,7 +1340,8 @@
       "lang_es": "Español",
       "lang_el": "Ελληνικά",
       "lang_fa": "فارسی",
-      "lang_lo": "ລາວ"
+      "lang_lo": "ລາວ",
+      "preview_pending": "Preview only. Apply appearance to save these changes."
     },
     "download": {
       "default_output_dir": "既定のフォルダ",
@@ -1459,7 +1462,9 @@
       "copy_to_clipboard_on_hotkey_desc": "ダウンロードしたファイルを自動的にクリップボードにコピーして貼り付けやすくします",
       "filename_template": "ファイル名テンプレート",
       "filename_template_desc": "ダウンロードファイルのyt-dlp出力テンプレート",
-      "filename_template_preview": "プレビュー: {{preview}}"
+      "filename_template_preview": "プレビュー: {{preview}}",
+      "filename_template_invalid": "Not saved. Enter a filename template containing %(ext)s for the file extension.",
+      "filename_template_save_failed": "Could not save this template. Your edit is still shown."
     },
     "update_available": "OmniGet {{version}} が利用可能です",
     "update_button": "今すぐ更新",
@@ -1474,7 +1479,12 @@
       "unavailable": "利用できません",
       "hint_chrome": "chrome://extensions → デベロッパーモード → 「パッケージ化されていない拡張機能を読み込む」 → 書き出したフォルダーを選択します。",
       "hint_firefox": "about:debugging#/runtime/this-firefox → 「一時的なアドオンを読み込む」 → 書き出したフォルダー内の manifest.json を選択します。Firefox は再起動時に一時アドオンを破棄するため、AMO で公開するまでは毎回やり直す必要があります。",
-      "hint_safari": "Safari 14 以降、拡張機能は Mac App Store 経由での配布が必須です。OmniGet 拡張機能の Safari 版はまだ公開していません。"
+      "hint_safari": "Safari 14 以降、拡張機能は Mac App Store 経由での配布が必須です。OmniGet 拡張機能の Safari 版はまだ公開していません。",
+      "install_title": "Install or update extension — {{browser}}",
+      "extracted_to": "The extension was extracted to:",
+      "open_folder": "Open folder",
+      "install_steps": "Installation steps",
+      "reload_hint": "If the extension is already installed, reload it at {{page}} using this folder, or remove the old copy and add this one."
     },
     "rules": {
       "title": "ルール",
@@ -1501,7 +1511,13 @@
       "test_title": "リンクを試す",
       "test_placeholder": "リンクを貼るとどのルールが拾うか分かります",
       "test_run": "試す",
-      "test_no_match": "このリンクに一致するルールはありません"
+      "test_no_match": "このリンクに一致するルールはありません",
+      "load_failed": "Could not load download rules. Try again before changing them.",
+      "save_failed": "Could not save rules. Your edits are still shown; use Save to try again.",
+      "unnamed": "Unnamed rule",
+      "removed": "Removed “{{name}}”.",
+      "undo_remove": "Undo removal",
+      "test_failed": "Could not test this URL. Try again; this does not mean no rule matches."
     },
     "storage": {
       "title": "ストレージ",
@@ -1526,7 +1542,9 @@
       "silence_done": "無音 {{saved}} 分を検出 — 再生時にスキップできます",
       "portable_label": "Portable Mode",
       "portable_active": "Portable mode is active. OmniGet's data is stored in {{dir}}.",
-      "portable_macos_notice": "On macOS the WebView still stores its session data under ~/Library, and portable mode cannot redirect it. Only OmniGet's own data is portable here — see github.com/tonhowtf/omniget/issues/227."
+      "portable_macos_notice": "On macOS the WebView still stores its session data under ~/Library, and portable mode cannot redirect it. Only OmniGet's own data is portable here — see github.com/tonhowtf/omniget/issues/227.",
+      "stats_load_failed": "Could not read storage statistics.",
+      "portable_load_failed": "Could not check portable mode."
     },
     "dependencies": {
       "title": "依存関係",
@@ -1558,7 +1576,8 @@
       "filter_all_files": "すべてのファイル",
       "set_file_failed": "ファイルの設定に失敗しました: {{msg}}",
       "open_folder_failed": "フォルダーを開けませんでした: {{msg}}",
-      "system_font_suffix": "システム"
+      "system_font_suffix": "システム",
+      "load_failed": "Could not check installed components. Try again."
     },
     "typography": {
       "section_title": "タイポグラフィ",
@@ -1596,7 +1615,8 @@
       "host": "ホスト",
       "port": "ポート",
       "username": "ユーザー名",
-      "password": "パスワード"
+      "password": "パスワード",
+      "save_failed": "Could not save the proxy fields. Your edits are still shown; try again."
     },
     "advanced": {
       "max_concurrent_downloads": "同時ダウンロード数",
@@ -1687,7 +1707,11 @@
       "copy": "コピー",
       "copied_url": "エンドポイントURLをクリップボードにコピーしました。",
       "copied_token": "トークンをクリップボードにコピーしました。",
-      "unavailable": "ブリッジが利用できません。アプリを再起動してください。"
+      "unavailable": "ブリッジが利用できません。アプリを再起動してください。",
+      "load_failed": "Could not read the browser connection status.",
+      "pair_listener_failed": "Could not monitor pairing. Reopen this section to try again.",
+      "rotate_confirm": "Generate a new pairing token? Previously paired browsers will lose access until you pair them again or update their token.",
+      "rotate_confirm_action": "Generate new token"
     },
     "cat_cookies": "クッキー",
     "cat_channels": "チャンネル",
@@ -1728,7 +1752,29 @@
       "history": "AI 履歴",
       "history_clear": "クリア",
       "history_clear_confirm": "すべての AI 履歴を消去しますか？",
-      "history_empty": "AI の結果はまだありません。"
+      "history_empty": "AI の結果はまだありません。",
+      "save_test": "保存してテスト",
+      "unsaved": "設定はまだ保存されていません。テストの前に保存されます。要約する前に設定を保存してください。",
+      "saving": "保存中…",
+      "provider_endpoint": "Custom endpoint (local or remote)",
+      "connection_kind": "Connection type: {{kind}}",
+      "connection_key": "Connection API key",
+      "remove_key": "Remove saved key",
+      "keep_key": "Keep saved key",
+      "key_remove_pending": "Saving will remove this key from these AI settings. Keys in other connections and at the provider stay unchanged.",
+      "off_keeps_keys": "AI is off. Saved keys are retained; select their connection type to remove them.",
+      "endpoint_url": "Endpoint URL",
+      "endpoint_url_desc": "OpenAI-compatible service URL. This may be a server on this computer or a remote provider.",
+      "endpoint_loopback": "Destination: this computer (loopback address).",
+      "endpoint_remote": "Destination: a network endpoint. Requests may leave this computer.",
+      "discard": "Discard changes",
+      "draft_retained": "Unsaved changes are kept when switching sections while the app is open. Save or discard them. Testing saves them first; summarizing uses saved settings.",
+      "load_failed": "Could not load AI settings. Try again before editing.",
+      "save_failed": "Could not save AI settings. Your changes are still here; try saving again.",
+      "history_load_failed": "Could not load AI history. Your saved results may still be available.",
+      "history_clear_failed": "Could not clear AI history. Try again.",
+      "test_effect": "Testing sends a short AI request using the selected connection and model. The provider may charge for it.",
+      "summarize_effect": "Fetches subtitles and sends their text to the saved AI connection. If subtitles are unavailable, it may download audio and send it for transcription. Provider charges may apply. The result is saved in history."
     },
     "channels": {
       "title": "フォロー中のチャンネル",
@@ -1746,7 +1792,10 @@
       "remove_confirm": "このチャンネルのフォローを解除しますか？",
       "enabled": "有効",
       "auto_download": "自動ダウンロード",
-      "interval": "間隔（分）"
+      "interval": "間隔（分）",
+      "load_failed": "Could not load followed channels. Try again.",
+      "checking": "Checking…",
+      "interval_invalid": "Choose a whole number from 5 to 1440 minutes."
     },
     "cookies": {
       "title": "Cookies",
@@ -1845,7 +1894,20 @@
       }
     },
     "cat_profile": "Profile",
-    "cat_world": "World"
+    "cat_world": "World",
+    "save_failed": "Could not save this change. Try again.",
+    "retry": "Try again",
+    "search": {
+      "clear": "Clear search",
+      "title": "Search settings",
+      "count": "{{count}} results",
+      "empty": "No settings found. Try another word or choose a category.",
+      "destination_hint": "Options may require enabling the related feature or choosing a provider first. Nothing was enabled by this search.",
+      "back": "Back to results"
+    },
+    "world": {
+      "pet_load_failed": "Could not check desktop pet availability. Try again."
+    }
   },
   "omnibox": {
     "placeholder": "リンクを貼り付けるか検索",
@@ -2071,6 +2133,8 @@
     "feature_tech": "Tauri + Rustで構築。高速かつ軽量",
     "tagline": "どこからでも、何でもダウンロード。",
     "credit": "tonho.wtf が愛を込めて作りました",
+    "technical_details": "Technical details",
+    "feature_i18n_count": "Available in {{count}} languages",
     "wmb_credits_title": "washmybellyのクレジット",
     "wmb_credits_body": "washmybellyは、これらのオープンソースプロジェクトのデータやアイデアを取り込んでいます。ライセンスと該当ファイルの詳細はTHIRD_PARTY.mdに記載されています。privacy.sexyのソース（AGPL-3.0）は下のリンクから確認できます。",
     "wmb_credit_data": "データ",
@@ -2129,7 +2193,8 @@
     "error": "エラー",
     "loading": "Loading…",
     "unknown_error": "不明なエラー",
-    "cookie_error_message": "自動Cookie検出はFirefoxでのみ動作します。Chrome、Edgeなどはアクセスをブロックします。Firefoxをインストールしてログインするか、cookies.txtファイルを設定 > ダウンロード > Cookieファイルで設定してください。"
+    "cookie_error_message": "自動Cookie検出はFirefoxでのみ動作します。Chrome、Edgeなどはアクセスをブロックします。Firefoxをインストールしてログインするか、cookies.txtファイルを設定 > ダウンロード > Cookieファイルで設定してください。",
+    "retry": "Try again"
   },
   "platforms": {
     "bilibili": {
@@ -2787,6 +2852,11 @@
       "empty": "No agents yet.",
       "no_profile": "No local profile",
       "search": "Search agents",
+      "view_agents": "エージェント",
+      "view_chats": "会話",
+      "search_chats": "会話を検索",
+      "no_chats": "保存された会話はありません。",
+      "no_chat_matches": "検索に一致する会話はありません。",
       "load_failed": "保存したチャットを読み込めませんでした。"
     },
     "role": {
@@ -2811,7 +2881,9 @@
       "allow": "Allow",
       "deny": "Deny",
       "always": "Always",
-      "always_hint": "Allow now and stop asking for this kind of call (for a command: the same program and subcommand)."
+      "always_hint": "Allow now and stop asking for this kind of call (for a command: the same program and subcommand).",
+      "other_chat_running": "{agent} は別の会話で作業中です。",
+      "open_running": "会話を開く"
     },
     "composer": {
       "placeholder": "Message the agent…",
@@ -2862,7 +2934,9 @@
       "skills": "Skills",
       "skills_empty": "No skill installed. Install one in the Skills tab.",
       "save_error": "Could not save. Your changes are still here. Try again.",
-      "roles_hint": "The coordinator divides and follows the work. Workers carry out assigned tasks; advisors help evaluate decisions."
+      "roles_hint": "The coordinator divides and follows the work. Workers carry out assigned tasks; advisors help evaluate decisions.",
+      "delete_warning": "{name} を削除しますか？エージェントと設定が削除されます。保存済みの会話は閲覧できますが、エージェントなしでは続行できません。",
+      "delete_confirm": "エージェントを削除"
     },
     "template": {
       "solo": "Solo",
@@ -2898,7 +2972,15 @@
       "connect": "Connect or manage providers",
       "local_hint": "Local server: make sure it is running and has models installed. No saved API key is required.",
       "no_models": "This provider returned no models. Check the models available on the server or enter an identifier manually.",
-      "load_failed": "プロバイダーを読み込めませんでした: {{error}}"
+      "load_failed": "プロバイダーを読み込めませんでした: {{error}}",
+      "providers_failed": "Could not load saved connections. Your saved settings have not been removed.",
+      "reopen_browser": "Reopen browser",
+      "stop_waiting": "Stop waiting",
+      "stop_waiting_hint": "This stops waiting in OmniGet. Close the browser tab to leave the external sign-in.",
+      "auth_expired": "Sign-in has not been confirmed after two minutes. Check the browser or start again.",
+      "saved_connections": "Saved connections",
+      "other_providers": "Other providers",
+      "choose_or_enter": "Load the available models, then choose one or enter its exact identifier."
     },
     "err": {
       "unavailable": "The LLM backend is not wired yet.",
@@ -3214,8 +3296,11 @@
         "preserved_retry": "Your account and agent are preserved. Retry without creating duplicates.",
         "connecting": "Connecting…",
         "err_unknown_provider": "Unknown provider",
-        "err_credential_failed": "Credential validation failed"
+        "err_credential_failed": "Credential validation failed",
+        "new_api_connection": "Connect a new API provider"
       },
+      "models_limits": "Review models and execution limits",
+      "advanced_accounts": "Advanced: CLI accounts, fallback and limits",
       "sandbox_full": "フルアクセス許可",
       "sandbox_full_hint": "このアカウントのターンはファイルを編集でき、実行モードがフルアクセスのターンは確認なしで実行されます。",
       "sandbox_allow_full": "フルアクセスを許可",
@@ -3237,7 +3322,8 @@
       "save": "Save",
       "cancel": "Cancel",
       "hint": "The pattern matches the command of the shell or the path of a file tool; * matches anything. The last matching rule wins.",
-      "failed": "The rules could not be saved."
+      "failed": "The rules could not be saved.",
+      "scope_required": "ツールと範囲を入力してください。* はすべての対象に適用するときだけ使います。"
     },
     "prune": {
       "title": "Context pruning",
@@ -3263,7 +3349,8 @@
       "key_forget": "Forget key",
       "key_saved": "Key saved.",
       "key_missing": "Without a key nothing is sent and pruning stays off.",
-      "not_wired": "The change did not reach the backend."
+      "not_wired": "The change did not reach the backend.",
+      "save_failed": "Could not confirm these settings. Reload to check the saved values."
     },
     "workspace": {
       "pick": "Attach a folder",
@@ -3703,7 +3790,9 @@
           "under": "ペースより{{delta}}%少ない",
           "ahead": "ペースより{{delta}}%多い",
           "ahead_out": "ペースより{{delta}}%多い · あと{{time}}で上限"
-        }
+        },
+        "connect_hint": "No accounts to monitor. Open OmniGet, then AI connections to set one up.",
+        "open_after_error": "Could not load limits. Open OmniGet to check your connections."
       }
     },
     "chat": {
@@ -3758,6 +3847,9 @@
       "no_matches": "No matching agents",
       "templates_impact": "Review the template and its effect on the existing team before applying it.",
       "mcp_server_hint": "他の AI アプリから OmniGet を使えるようにします。サーバーをオンにし、必要な権限だけのクライアントを作り、そのスニペットをアプリに貼り付けます。",
+      "roster_load_error": "Could not load agents. Try again to recover your saved agents.",
+      "history_list_error": "Could not load conversation history. Your current draft is still here.",
+      "history_load_error": "Could not load this conversation. Try again before continuing.",
       "create_loop": "ループを作成"
     },
     "prompts": {
@@ -6387,7 +6479,10 @@
         "err_name_long": "名前は48文字以内にしてください。",
         "err_connection": "接続を選択してください。",
         "err_purpose_long": "目的が長すぎます。",
-        "err_failed": "ボットを作成できませんでした。"
+        "err_failed": "ボットを作成できませんでした。",
+        "draft_session": "Your form stays in this app window while you connect. Return here to finish.",
+        "return_to_draft": "Return to agent setup",
+        "advanced_setup": "Configure model, fallback and permissions manually"
       },
       "state": {
         "available": "利用可能",
@@ -7449,7 +7544,8 @@
       "now": "now",
       "in_min": "in {{count}} min",
       "in_hours": "in {{hours}}h{{minutes}}",
-      "in_days": "in {{count}} days"
+      "in_days": "in {{count}} days",
+      "add_claude_account": "Add Claude account"
     }
   },
   "washmybelly": {

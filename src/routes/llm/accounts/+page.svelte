@@ -15,7 +15,7 @@
    * subscription is `llm://rerouted`, which the backend pushes and which stops
    * when the tab closes — no timer lives in this route.
    */
-  import { onMount } from "svelte";
+  import { onMount, tick } from "svelte";
   import { page } from "$app/state";
   import { t } from "$lib/i18n";
   import { showToast } from "$lib/stores/toast-store.svelte";
@@ -59,6 +59,7 @@
   let newCli = $state<CliKind>("claude");
   let newLabel = $state("");
   let creating = $state(false);
+  let usageSection = $state<HTMLElement | null>(null);
   /** Share settings/skills/commands with the new profile, never the identity. */
   let newShare = $state(true);
   /** Clock of the render, not a ticking one: read once per page load. */
@@ -98,9 +99,20 @@
     }
     void refresh();
     void detectClis();
+    let disposed = false;
     let stop: (() => void) | null = null;
-    startSwitchLog().then((fn) => (stop = fn));
-    return () => stop?.();
+    startSwitchLog().then(fn => { if (disposed) fn(); else stop = fn; });
+    return () => { disposed = true; stop?.(); };
+  });
+  $effect(() => {
+    getAccountsState();
+    getUsageState();
+    if (page.url.hash !== "#usage" || !usageSection) return;
+    const target = usageSection;
+    void tick().then(() => {
+      target.scrollIntoView({ block: "start" });
+      target.focus({ preventScroll: true });
+    });
   });
 </script>
 
@@ -116,13 +128,23 @@
       <button class="button" type="button" disabled={busy} onclick={refresh}>
         {$t("llm.accounts.refresh")}
       </button>
-      <button class="button active" type="button" onclick={() => (creating = !creating)}>
-        {$t("llm.accounts.new")}
-      </button>
+
     </div>
   </header>
 
-  <ConnectionWizard initial={page.url.searchParams.get("guide") ?? ""} />
+  {#if page.url.searchParams.get("returnTo") === "agent"}
+    <p class="return-draft"><a href="/llm/roster?create=1">{$t("assist.bots.create.return_to_draft")}</a></p>
+  {:else if page.url.searchParams.get("returnTo") === "editor"}
+    <p class="return-draft"><a href="/llm/roster?edit=resume">{$t("llm.roster.return_to_edit")}</a></p>
+  {/if}
+  {#key page.url.searchParams.get("guide")}
+    <ConnectionWizard initial={page.url.searchParams.get("guide") ?? ""} returnToAgent={page.url.searchParams.get("returnTo") === "agent"} returnToEditor={page.url.searchParams.get("returnTo") === "editor"} />
+  {/key}
+  <p class="connection-links"><a href="/llm/models">{$t("llm.accounts.models_limits")}</a></p>
+
+  <details class="advanced-accounts">
+    <summary>{$t("llm.accounts.advanced_accounts")}</summary>
+    <button class="button" type="button" onclick={() => (creating = !creating)} aria-expanded={creating}>{$t("llm.accounts.new")}</button>
 
   {#if detected.length > 0}
     <p class="detected">
@@ -224,7 +246,10 @@
 
   <AcpAgents />
 
-  <h2 class="section-title">{$t("llm.accounts.usage")}</h2>
+  </details>
+
+  <section id="usage" bind:this={usageSection} tabindex="-1" aria-labelledby="usage-heading">
+  <h2 id="usage-heading" class="section-title">{$t("llm.accounts.usage")}</h2>
   {#if getUsageState() === "unavailable"}
     <div class="empty-state">
       <div class="empty-state-title">{$t("llm.accounts.usage_unavailable")}</div>
@@ -236,9 +261,16 @@
   {:else}
     <UsageDashboard report={usage} />
   {/if}
+  </section>
 </div>
 
 <style>
+  .advanced-accounts { margin-block: var(--space-5); }
+  .advanced-accounts > summary { cursor: pointer; padding-block: var(--space-4); font-weight: 600; }
+  .advanced-accounts > .button { margin-bottom: var(--space-4); }
+  .connection-links, .return-draft { font-size: var(--text-sm); }
+  #usage { scroll-margin-top: var(--space-4); }
+  #usage:focus-visible { outline: var(--focus-ring); outline-offset: var(--focus-ring-offset); }
   .accounts-page {
     flex: 1;
     min-height: 0;

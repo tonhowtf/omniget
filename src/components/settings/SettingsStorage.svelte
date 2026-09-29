@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { open } from "@tauri-apps/plugin-dialog";
   import { t } from "$lib/i18n";
@@ -33,6 +34,9 @@
 
   let stats = $state<StoreStats | null>(null);
   let portable = $state<PortableInfo | null>(null);
+  let statsLoading = $state(true);
+  let statsError = $state(false);
+  let portableError = $state(false);
   let running = $state(false);
   let probing = $state(false);
 
@@ -58,18 +62,23 @@
   );
 
   async function loadStats() {
+    statsLoading = true;
+    statsError = false;
     try {
       stats = await invoke<StoreStats>("content_store_stats");
     } catch {
-      stats = null;
+      statsError = true;
+    } finally {
+      statsLoading = false;
     }
   }
 
   async function loadPortable() {
+    portableError = false;
     try {
       portable = await invoke<PortableInfo>("get_portable_info");
     } catch {
-      portable = null;
+      portableError = true;
     }
   }
 
@@ -140,21 +149,27 @@
     }
   }
 
-  $effect(() => {
+  onMount(() => {
     void loadStats();
     void loadPortable();
   });
 </script>
 
-<section class="section">
+<section class="section" data-setting-key="settings.storage.title">
   <h5 class="section-title">{$t("settings.storage.title")}</h5>
   <p class="muted">{$t("settings.storage.description")}</p>
 
+  {#if portableError}
+    <div class="card" role="alert">
+      <p>{$t("settings.storage.portable_load_failed")}</p>
+      <button class="button" onclick={loadPortable}>{$t("error.remedy.retry")}</button>
+    </div>
+  {/if}
   {#if portable?.is_portable}
     <div class="card portable-card">
       <div class="setting-row">
         <div class="setting-col">
-          <span class="setting-label">{$t("settings.storage.portable_label")}</span>
+          <span class="setting-label" data-setting-key="settings.storage.portable_label">{$t("settings.storage.portable_label")}</span>
           <span class="setting-path wrap">
             {$t("settings.storage.portable_active", { dir: portable.data_dir ?? "<app>/data" })}
           </span>
@@ -177,9 +192,13 @@
   <div class="card">
     <div class="setting-row">
       <div class="setting-col">
-        <span class="setting-label">{$t("settings.storage.dedupe_label")}</span>
+        <span class="setting-label" data-setting-key="settings.storage.dedupe_label">{$t("settings.storage.dedupe_label")}</span>
         <span class="setting-path">
-          {#if stats && stats.objects > 0 && stats.savings_measurable}
+          {#if statsLoading}
+            {$t("common.loading")}
+          {:else if statsError}
+            <span role="alert">{$t("settings.storage.stats_load_failed")}</span>
+          {:else if stats && stats.objects > 0 && stats.savings_measurable}
             {$t("settings.storage.dedupe_stats", {
               objects: stats.objects,
               saved: humanBytes(saved),
@@ -193,6 +212,7 @@
           {/if}
         </span>
       </div>
+      {#if statsError}<button class="button" disabled={statsLoading} onclick={loadStats}>{$t("error.remedy.retry")}</button>{/if}
       <button type="button" class="button" disabled={running} onclick={runDedupe}>
         {running ? $t("settings.storage.dedupe_running") : $t("settings.storage.dedupe_action")}
       </button>
@@ -202,7 +222,7 @@
 
     <div class="setting-row">
       <div class="setting-col">
-        <span class="setting-label">{$t("settings.storage.silence_label")}</span>
+        <span class="setting-label" data-setting-key="settings.storage.silence_label">{$t("settings.storage.silence_label")}</span>
         <span class="setting-path">{$t("settings.storage.silence_hint")}</span>
       </div>
       <button type="button" class="button" disabled={probing} onclick={probeSilence}>

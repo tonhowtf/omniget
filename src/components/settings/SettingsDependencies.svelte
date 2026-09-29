@@ -1,9 +1,10 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, tick } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "$lib/i18n";
   import { getSettings, type DependencyStatus } from "./settings-helpers";
   import { showToast } from "$lib/stores/toast-store.svelte";
+  import Modal from "$components/music/Modal.svelte";
   import DependencyRow from "./DependencyRow.svelte";
 
   let { deps = [], installingDep = null, onInstallDep, onRefresh }: {
@@ -32,19 +33,24 @@
   }
 
   let extStatuses = $state<BrowserExtStatus[]>([]);
+  let extensionsLoading = $state(true);
+  let extensionsError = $state(false);
+  let installTrigger: HTMLButtonElement | undefined;
   let busyBrowser = $state<string | null>(null);
   let installModal = $state<{ browser: string; path: string; hint: string } | null>(null);
 
-  onMount(async () => {
-    try {
-      extStatuses = await invoke<BrowserExtStatus[]>("browser_extension_status");
-    } catch (e) {
-      console.warn("[ext] status failed", e);
-    }
-  });
+  async function loadExtensions() {
+    extensionsLoading = true;
+    extensionsError = false;
+    try { extStatuses = await invoke<BrowserExtStatus[]>("browser_extension_status"); }
+    catch { extensionsError = true; }
+    finally { extensionsLoading = false; }
+  }
+  onMount(() => { void loadExtensions(); });
 
-  async function exportExtension(browser: string) {
+  async function exportExtension(browser: string, trigger: HTMLButtonElement) {
     if (busyBrowser) return;
+    installTrigger = trigger;
     busyBrowser = browser;
     try {
       const res = await invoke<{ path: string; version: string | null; browser: string }>(
@@ -74,6 +80,7 @@
 
   function closeInstall() {
     installModal = null;
+    void tick().then(() => installTrigger?.focus());
   }
 
   function browserLabel(b: string): string {
@@ -88,6 +95,8 @@
   <section class="section">
     <h5 class="section-title">{$t("settings.browser_ext.title")}</h5>
     <p class="muted">{$t("settings.browser_ext.description")}</p>
+    {#if extensionsLoading}<p role="status">{$t("common.loading")}</p>{/if}
+    {#if extensionsError}<div role="alert"><p>{$t("settings.dependencies.load_failed")}</p><button class="button" onclick={loadExtensions}>{$t("settings.retry")}</button></div>{/if}
     <div class="card">
       {#each extStatuses as ext, i (ext.browser)}
         {#if i > 0}<div class="divider"></div>{/if}
@@ -105,8 +114,8 @@
           {#if ext.installable}
             <button
               class="button"
-              disabled={busyBrowser === ext.browser}
-              onclick={() => exportExtension(ext.browser)}
+              disabled={busyBrowser !== null}
+              onclick={(e) => exportExtension(ext.browser, e.currentTarget)}
             >
               {busyBrowser === ext.browser
                 ? $t("settings.browser_ext.extracting")
@@ -159,64 +168,25 @@
 {/if}
 
 {#if installModal}
-  <div class="overlay" role="presentation" onclick={(e) => { if (e.target === e.currentTarget) closeInstall(); }}>
-    <div class="dialog" role="dialog" aria-modal="true">
-      <header class="head">
-        <h3>Instalar / Atualizar extensão — {browserLabel(installModal.browser)}</h3>
-        <button class="close" onclick={closeInstall} aria-label="fechar">×</button>
-      </header>
-      <div class="body">
-        <p>A extensão foi extraída para:</p>
-        <code class="path">{installModal.path}</code>
-        <button class="button" onclick={() => openFolder(installModal!.path)}>Abrir pasta</button>
-        <h4>Como instalar / atualizar</h4>
-        <p class="hint">{installModal.hint}</p>
-        <p class="hint small">
-          Se a extensão já está instalada, clique em "Recarregar" no <code>{installModal.browser === 'firefox' ? 'about:debugging' : 'chrome://extensions'}</code> apontando pra essa pasta — ou remova a antiga e adicione a nova.
-        </p>
-      </div>
-      <footer class="foot">
-        <button class="button" onclick={closeInstall}>Fechar</button>
-      </footer>
+  <Modal title={$t("settings.browser_ext.install_title", { browser: browserLabel(installModal.browser) })} width={560} onclose={closeInstall}>
+    <div class="body">
+      <p>{$t("settings.browser_ext.extracted_to")}</p>
+      <code class="path">{installModal.path}</code>
+      <button class="button" onclick={() => openFolder(installModal!.path)}>{$t("settings.browser_ext.open_folder")}</button>
+      <h3>{$t("settings.browser_ext.install_steps")}</h3>
+      <p class="hint">{installModal.hint}</p>
+      <p class="hint">{$t("settings.browser_ext.reload_hint", { page: installModal.browser === "firefox" ? "about:debugging" : "chrome://extensions" })}</p>
     </div>
-  </div>
+    <div class="foot"><button class="button" onclick={closeInstall}>{$t("common.close")}</button></div>
+  </Modal>
 {/if}
 
 <style>
-  .muted { color: rgba(255, 255, 255, 0.6); font-size: 12px; line-height: 1.4; margin: 0 0 8px; }
-  .small { font-size: 11px; }
-  .overlay {
-    position: fixed; inset: 0; background: rgba(0, 0, 0, 0.6);
-    display: grid; place-items: center; z-index: 999;
-  }
-  .dialog {
-    background: var(--surface);
-    border: none;
-    border-radius: 12px;
-    width: min(560px, 90vw);
-    max-height: 80vh; overflow: auto;
-    display: flex; flex-direction: column;
-  }
-  .head {
-    display: flex; justify-content: space-between; align-items: center;
-    padding: 16px 20px; border-bottom: none;
-  }
-  .head h3 { margin: 0; font-size: 16px; }
-  .close {
-    background: transparent; border: 0; color: rgba(255, 255, 255, 0.6);
-    font-size: 22px; line-height: 1; cursor: pointer;
-  }
-  .body { padding: 16px 20px; display: flex; flex-direction: column; gap: 12px; }
-  .body h4 { margin: 8px 0 0; font-size: 13px; font-weight: 600; }
-  .body p { margin: 0; font-size: 13px; line-height: 1.5; }
-  .body .hint { color: rgba(255, 255, 255, 0.7); }
-  .path {
-    display: block; padding: 8px 10px; background: rgba(0, 0, 0, 0.4);
-    border-radius: 6px; font-family: var(--font-mono, monospace); font-size: 11px;
-    word-break: break-all;
-  }
-  .foot {
-    padding: 12px 20px; border-top: none;
-    display: flex; justify-content: flex-end;
-  }
+  .muted, .hint { color: var(--text-muted); font-size: var(--text-sm); line-height: var(--leading-base); margin: 0 0 var(--space-2); }
+  .small { font-size: var(--text-xs); }
+  .body { display: flex; flex-direction: column; gap: var(--space-3); }
+  .body h3 { margin: var(--space-2) 0 0; font-size: var(--text-base); }
+  .body p { margin: 0; line-height: var(--leading-base); }
+  .path { display: block; padding: var(--space-2) var(--space-3); background: var(--control-bg); color: var(--text); border: 1px solid var(--content-border); border-radius: var(--radius-sm); font-family: var(--font-mono); font-size: var(--text-sm); word-break: break-all; }
+  .foot { padding-top: var(--space-4); display: flex; justify-content: flex-end; }
 </style>

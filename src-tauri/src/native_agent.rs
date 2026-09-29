@@ -287,6 +287,9 @@ async fn call_inner(
                     .ok_or("WINDOW_NOT_FOUND")?;
                 local_window(&window)?;
                 window
+                    .unminimize()
+                    .map_err(|_| "FRONTEND_NOT_READY: restore window")?;
+                window
                     .show()
                     .map_err(|_| "FRONTEND_NOT_READY: show window")?;
                 // On macOS, making a window key does not activate a background

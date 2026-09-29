@@ -84,8 +84,8 @@
   {/if}
 
   {#if loading}
-    <div class="loading">
-      <span class="spinner"></span>
+    <div class="loading" role="status" aria-label={$t("common.loading") as string}>
+      <span class="spinner" aria-hidden="true"></span>
     </div>
   {:else if body}
     <div class="card">

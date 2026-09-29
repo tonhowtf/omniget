@@ -70,6 +70,7 @@
   let cityEdit = $state<EditorHandoff | null>(null);
   let canvasRef = $state<{ say: (ent: number, text: string) => void; focus: (ent: number) => void; frameHouse: () => void } | null>(null);
   let residents = $state<AgentRow[]>([]);
+  let residentsReady = $state(false);
   let demoBusy = $state(false);
 
   /** Scripted jobs on a scripted provider: the house at work, no token spent. */
@@ -228,7 +229,7 @@
             bind:this={canvasRef}
             {visit}
             followAll={demoBusy}
-            onagents={(list) => (residents = list)}
+            onagents={(list) => { residents = list; residentsReady = true; }}
             onready={onCanvasReady}
             onvisitfailed={(error) => {
               showToast("error", error);
@@ -239,6 +240,7 @@
         {#if !visit}
           <ActivityPanel
             agents={residents}
+            loading={!residentsReady}
             {demoBusy}
             onfocus={(ent) => canvasRef?.focus(ent)}
             ondemo={() => void runDemo()}

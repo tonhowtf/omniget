@@ -20,7 +20,7 @@
   let { agent = null }: { agent?: AgentDef | null } = $props();
 
   let conversation = $derived(getActiveConversation());
-  let turn = $derived(getActiveTurn());
+  let turn = $derived(getActiveTurn(conversation?.id ?? null));
   let modelText = $derived(effectiveModelLabel(conversation, agent));
   let grants = $derived<ToolGrant[]>(agent?.tools ?? []);
   let budget = $derived(agent?.budget ?? {});

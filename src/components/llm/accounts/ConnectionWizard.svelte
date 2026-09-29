@@ -9,8 +9,11 @@
   import { loadRoster, selectAgent } from '$lib/stores/llm-store.svelte';
   import type { AgentDef } from '$lib/llm/types';
   import AgentOrb from '../AgentOrb.svelte';
-  let { initial = '' }: { initial?: string } = $props();
+  let { initial = '', returnToAgent = false, returnToEditor = false }: { initial?: string; returnToAgent?: boolean; returnToEditor?: boolean } = $props();
   type Kind = { id: string; name: string; base_url: string };
+  type SavedKey = { id: string; kind: string; name: string; has_key: boolean };
+  let savedKeys = $state<SavedKey[]>([]);
+  let selectedKey = $state('');
   let mode = $state('');
   let step = $state(0);
   let busy = $state(false);
@@ -44,7 +47,10 @@
           if (mode === 'subscription') {
             clis = await invoke('llm_accounts_detect');
             accounts = (await invoke<AccountsSnapshot>('llm_accounts_list')).accounts;
-          } else if (mode === 'api') kinds = await invoke('tool_keys_kinds');
+          } else if (mode === 'api') {
+            [kinds, savedKeys] = await Promise.all([invoke<Kind[]>('tool_keys_kinds'), invoke<SavedKey[]>('tool_keys_list')]);
+            selectedKey = savedKeys.some(k => k.id === credentialId) ? credentialId : '';
+          }
         });
       } else if (initial) void choose(initial);
     } catch { /* A malformed draft can safely be discarded. */ }
@@ -66,14 +72,21 @@
     try { await fn(); } catch (e) { error = String(e); } finally { busy = false; }
   }
   async function choose(next: string) {
-    mode = next; credentialId = ''; key = ''; step = 1; verified = false; agentId = ''; attempt = crypto.randomUUID(); models = []; model = ''; account = ''; loginOpened = false;
+    mode = next; selectedKey = ''; credentialId = ''; key = ''; step = 1; verified = false; agentId = ''; attempt = crypto.randomUUID(); models = []; model = ''; account = ''; loginOpened = false;
     await guard(async () => {
       if (mode === 'subscription') {
         const [detected, snapshot] = await Promise.all([invoke<CliDetected[]>('llm_accounts_detect'), invoke<AccountsSnapshot>('llm_accounts_list')]);
         clis = detected; accounts = snapshot.accounts;
-      } else if (mode === 'api') { kinds = await invoke<Kind[]>('tool_keys_kinds'); provider = 'openai'; }
+      } else if (mode === 'api') { [kinds, savedKeys] = await Promise.all([invoke<Kind[]>('tool_keys_kinds'), invoke<SavedKey[]>('tool_keys_list')]); provider = 'openai'; }
       else provider = 'ollama';
     });
+  }
+  function pickSavedKey() {
+    credentialId = selectedKey;
+    key = ''; models = []; model = '';
+    const saved = savedKeys.find(k => k.id === selectedKey);
+    if (saved) provider = saved.kind;
+    changed();
   }
   async function connect() {
     lastAction = connect;
@@ -88,8 +101,8 @@
       } else {
         if (mode === 'api') {
           const kind = kinds.find(k => k.id === provider);
-          if (!kind) throw new Error($t('llm.accounts.wizard.err_unknown_provider'));
-          if (key) {
+          if (!kind && !selectedKey) throw new Error($t('llm.accounts.wizard.err_unknown_provider'));
+          if (key.trim() && !selectedKey && kind) {
             credentialId ||= `setup-${attempt}`; persist();
             await invoke('tool_keys_save', { entry: { id: credentialId, name: name.trim() || kind.name, kind: provider, base_url: kind.base_url, key } });
             key = '';
@@ -170,9 +183,15 @@
         {#if loginOpened}<p role="status">{$t('llm.accounts.wizard.terminal_opened')}</p>{/if}
         {#if loginOpened || account}<button class="button" disabled={busy} onclick={() => step = 2}>{$t('llm.accounts.wizard.signed_in_continue')}</button>{/if}
       {:else}
-        <label>{$t('llm.accounts.wizard.provider_label')}<select class="input" bind:value={provider} onchange={() => changed(true)} disabled={busy}>{#if mode === 'api'}{#each kinds.filter(k => !['custom', 'newapi', 'ollama'].includes(k.id)) as k}<option value={k.id}>{k.name}</option>{/each}{:else}<option value="ollama">Ollama</option><option value="lmstudio">LM Studio</option><option value="llama-server">llama.cpp</option>{/if}</select></label>
-        {#if mode === 'api'}<label>{$t('llm.accounts.wizard.api_key')}<input class="input" type="password" autocomplete="off" bind:value={key} disabled={busy} /></label><p>{$t('llm.accounts.wizard.key_vault_note')}</p>{:else}<p>{$t('llm.accounts.wizard.local_server_note')}</p><a href="/llm/models">{$t('llm.accounts.wizard.open_local_models')}</a>{/if}
-        <button class="button active" disabled={busy} onclick={connect}>{$t('llm.accounts.wizard.check_connection')}</button>
+        {#if mode === 'api' && savedKeys.length}
+          <label>{$t('llm.models.saved_connections')}<select class="input" bind:value={selectedKey} onchange={pickSavedKey} disabled={busy}>
+            <option value="">{$t('llm.accounts.wizard.new_api_connection')}</option>
+            {#each savedKeys.filter(k => k.has_key) as saved (saved.id)}<option value={saved.id}>{saved.name || saved.kind}</option>{/each}
+          </select></label>
+        {/if}
+        <label>{$t('llm.accounts.wizard.provider_label')}<select class="input" bind:value={provider} onchange={() => changed(true)} disabled={busy || !!selectedKey}>{#if mode === 'api'}{#if selectedKey && !kinds.some(k => k.id === provider)}<option value={provider}>{provider}</option>{/if}{#each kinds.filter(k => k.id === provider || !['custom', 'newapi', 'ollama'].includes(k.id)) as k}<option value={k.id}>{k.name}</option>{/each}{:else}<option value="ollama">Ollama</option><option value="lmstudio">LM Studio</option><option value="llama-server">llama.cpp</option>{/if}</select></label>
+        {#if mode === 'api'}{#if !selectedKey}<label>{$t('llm.accounts.wizard.api_key')}<input class="input" type="password" autocomplete="off" bind:value={key} disabled={busy} /></label>{/if}<p>{$t('llm.accounts.wizard.key_vault_note')}</p>{:else}<p>{$t('llm.accounts.wizard.local_server_note')}</p><a href="/llm/models">{$t('llm.accounts.wizard.open_local_models')}</a>{/if}
+        <button class="button active" disabled={busy || (mode === 'api' && !credentialId && !key.trim())} onclick={connect}>{$t('llm.accounts.wizard.check_connection')}</button>
       {/if}
     {:else if step === 2}
       <p>{$t('llm.accounts.wizard.new_agent_note')}</p>
@@ -182,7 +201,7 @@
       <p>{$t('llm.accounts.wizard.test_note')}</p>
       <p role="status">{verified ? $t('llm.accounts.wizard.verified') : busy ? $t('llm.accounts.wizard.waiting') : $t('llm.accounts.wizard.prepared_unverified')}</p>
       {#if mode === 'subscription'}<button class="button" disabled={busy} onclick={() => guard(async () => { await invoke('llm_accounts_login', { id: account }); verified = false; })}>{$t('llm.accounts.wizard.sign_in_again')}</button>{/if}
-      <div class="actions"><button class="button active" disabled={busy} onclick={test}>{$t('llm.accounts.wizard.test_agent')}</button>{#if busy}<button class="button" onclick={() => controller?.abort()}>{$t('llm.accounts.wizard.cancel_test')}</button>{/if}{#if verified}<button class="button active" onclick={() => { selectAgent(agentId); goto('/llm'); }}>{$t('llm.accounts.wizard.open_conversation')}</button>{/if}</div>
+      <div class="actions"><button class="button active" disabled={busy} onclick={test}>{$t('llm.accounts.wizard.test_agent')}</button>{#if busy}<button class="button" onclick={() => controller?.abort()}>{$t('llm.accounts.wizard.cancel_test')}</button>{/if}{#if verified}<button class="button active" onclick={() => { selectAgent(agentId); goto(returnToAgent ? '/llm/roster?create=1' : returnToEditor ? '/llm/roster?edit=resume' : '/llm'); }}>{returnToAgent ? $t('assist.bots.create.return_to_draft') : returnToEditor ? $t('llm.roster.return_to_edit') : $t('llm.accounts.wizard.open_conversation')}</button>{/if}</div>
     {/if}
     {#if error && diagnosis}
       <div class="problem" role="alert">

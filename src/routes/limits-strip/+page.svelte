@@ -41,6 +41,17 @@
 
   let snap = $state<Snapshot>({ open: true, edge: "top", look: DEFAULT_LOOK, rings: [] });
   let openId = $state<string | null>(null);
+  let initialLoading = $state(true);
+  let loadFailed = $state(false);
+  let openingApp = $state(false);
+
+  async function openConnections() {
+    if (openingApp) return;
+    openingApp = true;
+    try { await invoke("usage_tray_open_app"); }
+    catch { loadFailed = true; }
+    finally { openingApp = false; }
+  }
   /** From Rust, in real window pixels: divided by the scale inside the zoomed stage. */
   let offset = $state(0);
   let now = $state(Date.now());
@@ -242,6 +253,8 @@
       listen<Snapshot>("limits://state", (e) => {
         now = Date.now();
         snap = e.payload;
+        initialLoading = false;
+        loadFailed = false;
       }),
     );
     arm(
@@ -255,7 +268,8 @@
         now = Date.now();
         snap = s;
       })
-      .catch(() => {});
+      .catch(() => { loadFailed = true; })
+      .finally(() => { initialLoading = false; });
 
     const dark = matchMedia("(prefers-color-scheme: dark)");
     const readTheme = () => {
@@ -347,7 +361,13 @@
         {/each}
       </div>
     {:else}
-      <span class="empty" title={$t("llm.limits.strip.empty") as string}>–</span>
+      {#if initialLoading}
+        <span class="empty" role="status" aria-label={$t("common.loading")}>…</span>
+      {:else}
+        <button class="empty empty-action" type="button" disabled={openingApp} onclick={openConnections}
+          aria-label={$t(loadFailed ? "llm.limits.strip.open_after_error" : "llm.limits.strip.connect_hint")}
+          title={$t(loadFailed ? "llm.limits.strip.open_after_error" : "llm.limits.strip.connect_hint")}>+</button>
+      {/if}
     {/each}
   </div>
 
@@ -785,6 +805,10 @@
     text-align: center;
     color: var(--ink-dim);
   }
+
+  .empty-action { min-height: 32px; border: none; border-radius: 8px; background: transparent; font: inherit; font-size: 21px; cursor: pointer; }
+  .empty-action:hover { background: var(--fill-1); color: var(--text); }
+  .empty-action:focus-visible { outline: var(--focus-ring); }
 
   .card {
     flex: 1;

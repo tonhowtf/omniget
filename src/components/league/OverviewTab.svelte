@@ -261,6 +261,8 @@
   {#if restartError}
     <div class="action-error" role="alert">{restartError}</div>
   {/if}
+  <details class="repair-details">
+    <summary>{$t("league.connection_diagnostics")}</summary>
   <div class="repair-row">
     {#if restartConfirming}
       <span class="repair-note">{$t("league.restart_ux_warning")}</span>
@@ -270,6 +272,7 @@
       <button class="button subtle" onclick={() => (restartConfirming = true)}>{$t("league.restart_ux")}</button>
     {/if}
   </div>
+  </details>
   {#if phase === "ChampSelect" && champSelect}
     <section class="card">
       <div class="card-head">
@@ -467,6 +470,9 @@
 {/if}
 
 <style>
+  .repair-details { color: var(--text-muted); font-size: var(--text-sm); }
+  .repair-details summary { cursor: pointer; padding: 8px 0; }
+  .repair-details summary:focus-visible { outline: var(--focus-ring); }
   .skin-row {
     display: flex;
     flex-wrap: wrap;

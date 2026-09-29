@@ -471,7 +471,8 @@
     "replay_saved": "ບັນທຶກຣີເພລໄວ້ທີ່",
     "review_ai": "ທົບທວນດ້ວຍ AI",
     "history_source_sgp": "ຜ່ານເຊີບເວີ",
-    "search_source_sgp": "ດຶງປະຫວັດຈາກເຊີບເວີຂອງ Riot (SGP), ເພາະໄຄລເອັນຊ່ອນໄວ້."
+    "search_source_sgp": "ດຶງປະຫວັດຈາກເຊີບເວີຂອງ Riot (SGP), ເພາະໄຄລເອັນຊ່ອນໄວ້.",
+    "connection_diagnostics": "Connection diagnostics"
   },
   "music": {
     "nav_label": "Music sections",
@@ -1268,7 +1269,8 @@
       "failed": "ລົ້ມເຫຼວ {{count}} ລາຍການ",
       "dismiss": "ປິດການແຈ້ງເຕືອນ",
       "transferred": "ດາວໂຫຼດແລ້ວ {{size}}"
-    }
+    },
+    "stats_line_one": "{{count}} download · {{size}} saved"
   },
   "toast": {
     "download_complete": "ສຳເລັດ! {{name}} ຢູ່ໃນໂຟລເດີຂອງທ່ານແລ້ວ",
@@ -1338,7 +1340,8 @@
       "lang_es": "Español",
       "lang_el": "Ελληνικά",
       "lang_fa": "فارسی",
-      "lang_lo": "ລາວ"
+      "lang_lo": "ລາວ",
+      "preview_pending": "Preview only. Apply appearance to save these changes."
     },
     "download": {
       "default_output_dir": "ໂຟລເດີເລີ່ມຕົ້ນ",
@@ -1459,7 +1462,9 @@
       "copy_to_clipboard_on_hotkey_desc": "ສຳເນົາໄຟລ໌ທີ່ດາວໂຫຼດໄປຄລິບບອດອັດຕະໂນມັດ ເພື່ອວາງໄດ້ງ່າຍ",
       "filename_template": "ແມ່ແບບຊື່ໄຟລ໌",
       "filename_template_desc": "ແມ່ແບບຜົນລັບ yt-dlp ສຳລັບໄຟລ໌ທີ່ດາວໂຫຼດ",
-      "filename_template_preview": "ຕົວຢ່າງ: {{preview}}"
+      "filename_template_preview": "ຕົວຢ່າງ: {{preview}}",
+      "filename_template_invalid": "Not saved. Enter a filename template containing %(ext)s for the file extension.",
+      "filename_template_save_failed": "Could not save this template. Your edit is still shown."
     },
     "update_available": "OmniGet {{version}} ພ້ອມໃຫ້ອັບເດດແລ້ວ",
     "update_button": "ອັບເດດດຽວນີ້",
@@ -1474,7 +1479,12 @@
       "unavailable": "ບໍ່ພ້ອມໃຊ້ງານ",
       "hint_chrome": "chrome://extensions → Developer mode → \"Load unpacked\" → ເລືອກໂຟລເດີທີ່ແຕກໄຟລ໌ແລ້ວ.",
       "hint_firefox": "about:debugging#/runtime/this-firefox → \"Load Temporary Add-on\" → ເລືອກ manifest.json ໃນໂຟລເດີທີ່ແຕກໄຟລ໌ແລ້ວ. Firefox ຈະລຶບສ່ວນເສີມຊົ່ວຄາວເມື່ອປິດເປີດໃໝ່ ສະນັ້ນຕ້ອງເຮັດຊ້ຳຈົນກວ່າພວກເຮົາຈະເຜີຍແຜ່ໃນ AMO.",
-      "hint_safari": "ຕັ້ງແຕ່ Safari 14, Safari ກຳນົດໃຫ້ສ່ວນຂະຫຍາຍຕ້ອງເຜີຍແຜ່ຜ່ານ Mac App Store. ສ່ວນຂະຫຍາຍ OmniGet ສຳລັບ Safari ຍັງບໍ່ໄດ້ເຜີຍແຜ່."
+      "hint_safari": "ຕັ້ງແຕ່ Safari 14, Safari ກຳນົດໃຫ້ສ່ວນຂະຫຍາຍຕ້ອງເຜີຍແຜ່ຜ່ານ Mac App Store. ສ່ວນຂະຫຍາຍ OmniGet ສຳລັບ Safari ຍັງບໍ່ໄດ້ເຜີຍແຜ່.",
+      "install_title": "Install or update extension — {{browser}}",
+      "extracted_to": "The extension was extracted to:",
+      "open_folder": "Open folder",
+      "install_steps": "Installation steps",
+      "reload_hint": "If the extension is already installed, reload it at {{page}} using this folder, or remove the old copy and add this one."
     },
     "rules": {
       "title": "ກົດ",
@@ -1501,7 +1511,13 @@
       "test_title": "ທົດສອບລິ້ງ",
       "test_placeholder": "ວາງລິ້ງເພື່ອເບິ່ງວ່າກົດໃດຈັບໄດ້",
       "test_run": "ທົດສອບ",
-      "test_no_match": "ບໍ່ມີກົດໃດກົງກັບລິ້ງນີ້"
+      "test_no_match": "ບໍ່ມີກົດໃດກົງກັບລິ້ງນີ້",
+      "load_failed": "Could not load download rules. Try again before changing them.",
+      "save_failed": "Could not save rules. Your edits are still shown; use Save to try again.",
+      "unnamed": "Unnamed rule",
+      "removed": "Removed “{{name}}”.",
+      "undo_remove": "Undo removal",
+      "test_failed": "Could not test this URL. Try again; this does not mean no rule matches."
     },
     "storage": {
       "title": "ບ່ອນເກັບຂໍ້ມູນ",
@@ -1526,7 +1542,9 @@
       "silence_done": "ພົບຊ່ວງງຽບ {{saved}} — ການຫຼິ້ນສາມາດຂ້າມໄດ້",
       "portable_label": "ໂໝດພົກພາ",
       "portable_active": "ໂໝດພົກພາເປີດໃຊ້ຢູ່. ຂໍ້ມູນຂອງ OmniGet ຖືກເກັບໄວ້ໃນ {{dir}}.",
-      "portable_macos_notice": "ໃນ macOS, WebView ຍັງເກັບຂໍ້ມູນເຊສຊັນໄວ້ພາຍໃຕ້ ~/Library ແລະ ໂໝດພົກພາບໍ່ສາມາດປ່ຽນເສັ້ນທາງໄດ້. ມີແຕ່ຂໍ້ມູນຂອງ OmniGet ເອງທີ່ພົກພາໄດ້ — ເບິ່ງ github.com/tonhowtf/omniget/issues/227."
+      "portable_macos_notice": "ໃນ macOS, WebView ຍັງເກັບຂໍ້ມູນເຊສຊັນໄວ້ພາຍໃຕ້ ~/Library ແລະ ໂໝດພົກພາບໍ່ສາມາດປ່ຽນເສັ້ນທາງໄດ້. ມີແຕ່ຂໍ້ມູນຂອງ OmniGet ເອງທີ່ພົກພາໄດ້ — ເບິ່ງ github.com/tonhowtf/omniget/issues/227.",
+      "stats_load_failed": "Could not read storage statistics.",
+      "portable_load_failed": "Could not check portable mode."
     },
     "dependencies": {
       "title": "ສ່ວນປະກອບທີ່ຈຳເປັນ",
@@ -1558,7 +1576,8 @@
       "filter_all_files": "ໄຟລ໌ທັງໝົດ",
       "set_file_failed": "ຕັ້ງໄຟລ໌ບໍ່ສຳເລັດ: {{msg}}",
       "open_folder_failed": "ເປີດໂຟລເດີບໍ່ສຳເລັດ: {{msg}}",
-      "system_font_suffix": "ລະບົບ"
+      "system_font_suffix": "ລະບົບ",
+      "load_failed": "Could not check installed components. Try again."
     },
     "typography": {
       "section_title": "ຕົວອັກສອນ",
@@ -1596,7 +1615,8 @@
       "host": "ໂຮສ",
       "port": "ພອດ",
       "username": "ຊື່ຜູ້ໃຊ້",
-      "password": "ລະຫັດຜ່ານ"
+      "password": "ລະຫັດຜ່ານ",
+      "save_failed": "Could not save the proxy fields. Your edits are still shown; try again."
     },
     "advanced": {
       "max_concurrent_downloads": "ການດາວໂຫຼດພ້ອມກັນ",
@@ -1687,7 +1707,11 @@
       "copy": "ສຳເນົາ",
       "copied_url": "ສຳເນົາ URL ປາຍທາງໄປຄລິບບອດແລ້ວ.",
       "copied_token": "ສຳເນົາໂທເຄັນໄປຄລິບບອດແລ້ວ.",
-      "unavailable": "Bridge ບໍ່ພ້ອມໃຊ້ງານ. ລອງເປີດແອັບໃໝ່."
+      "unavailable": "Bridge ບໍ່ພ້ອມໃຊ້ງານ. ລອງເປີດແອັບໃໝ່.",
+      "load_failed": "Could not read the browser connection status.",
+      "pair_listener_failed": "Could not monitor pairing. Reopen this section to try again.",
+      "rotate_confirm": "Generate a new pairing token? Previously paired browsers will lose access until you pair them again or update their token.",
+      "rotate_confirm_action": "Generate new token"
     },
     "cat_cookies": "ຄຸກກີ້",
     "cat_channels": "ຊ່ອງ",
@@ -1728,7 +1752,29 @@
       "history": "ປະຫວັດ AI",
       "history_clear": "ລ້າງ",
       "history_clear_confirm": "ລ້າງປະຫວັດ AI ທັງໝົດບໍ່?",
-      "history_empty": "ຍັງບໍ່ມີຜົນລັບ AI."
+      "history_empty": "ຍັງບໍ່ມີຜົນລັບ AI.",
+      "save_test": "Save and test",
+      "unsaved": "These settings are not saved. Testing will save them first; save them before summarizing.",
+      "saving": "Saving…",
+      "provider_endpoint": "Custom endpoint (local or remote)",
+      "connection_kind": "Connection type: {{kind}}",
+      "connection_key": "Connection API key",
+      "remove_key": "Remove saved key",
+      "keep_key": "Keep saved key",
+      "key_remove_pending": "Saving will remove this key from these AI settings. Keys in other connections and at the provider stay unchanged.",
+      "off_keeps_keys": "AI is off. Saved keys are retained; select their connection type to remove them.",
+      "endpoint_url": "Endpoint URL",
+      "endpoint_url_desc": "OpenAI-compatible service URL. This may be a server on this computer or a remote provider.",
+      "endpoint_loopback": "Destination: this computer (loopback address).",
+      "endpoint_remote": "Destination: a network endpoint. Requests may leave this computer.",
+      "discard": "Discard changes",
+      "draft_retained": "Unsaved changes are kept when switching sections while the app is open. Save or discard them. Testing saves them first; summarizing uses saved settings.",
+      "load_failed": "Could not load AI settings. Try again before editing.",
+      "save_failed": "Could not save AI settings. Your changes are still here; try saving again.",
+      "history_load_failed": "Could not load AI history. Your saved results may still be available.",
+      "history_clear_failed": "Could not clear AI history. Try again.",
+      "test_effect": "Testing sends a short AI request using the selected connection and model. The provider may charge for it.",
+      "summarize_effect": "Fetches subtitles and sends their text to the saved AI connection. If subtitles are unavailable, it may download audio and send it for transcription. Provider charges may apply. The result is saved in history."
     },
     "channels": {
       "title": "ຊ່ອງທີ່ຕິດຕາມ",
@@ -1746,7 +1792,10 @@
       "remove_confirm": "ຢຸດຕິດຕາມຊ່ອງນີ້ບໍ່?",
       "enabled": "ເປີດໃຊ້",
       "auto_download": "ດາວໂຫຼດອັດຕະໂນມັດ",
-      "interval": "ທຸກໆ (ນາທີ)"
+      "interval": "ທຸກໆ (ນາທີ)",
+      "load_failed": "Could not load followed channels. Try again.",
+      "checking": "Checking…",
+      "interval_invalid": "Choose a whole number from 5 to 1440 minutes."
     },
     "cookies": {
       "title": "ຄຸກກີ້",
@@ -1845,7 +1894,20 @@
       }
     },
     "cat_profile": "Profile",
-    "cat_world": "World"
+    "cat_world": "World",
+    "save_failed": "Could not save this change. Try again.",
+    "retry": "Try again",
+    "search": {
+      "clear": "Clear search",
+      "title": "Search settings",
+      "count": "{{count}} results",
+      "empty": "No settings found. Try another word or choose a category.",
+      "destination_hint": "Options may require enabling the related feature or choosing a provider first. Nothing was enabled by this search.",
+      "back": "Back to results"
+    },
+    "world": {
+      "pet_load_failed": "Could not check desktop pet availability. Try again."
+    }
   },
   "omnibox": {
     "placeholder": "ວາງລິ້ງ ຫຼື ຄົ້ນຫາ",
@@ -2071,6 +2133,8 @@
     "feature_tech": "ສ້າງດ້ວຍ Tauri + Rust. ໄວ ແລະ ເບົາ",
     "tagline": "ດາວໂຫຼດທຸກຢ່າງ, ຈາກທຸກບ່ອນ.",
     "credit": "ສ້າງດ້ວຍຄວາມຮັກໂດຍ tonho.wtf",
+    "technical_details": "Technical details",
+    "feature_i18n_count": "Available in {{count}} languages",
     "wmb_credits_title": "ເຄຣດິດຂອງ washmybelly",
     "wmb_credits_body": "washmybelly ນຳໃຊ້ຂໍ້ມູນ ແລະ ແນວຄວາມຄິດຈາກໂຄງການໂອເພັນຊອດ (open-source) ຕໍ່ໄປນີ້. ໃບອະນຸຍາດ ແລະ ໄຟລ໌ຕົ້ນສະບັບແຕ່ລະອັນມີລາຍຊື່ຢູ່ໃນ THIRD_PARTY.md. ຕົ້ນສະບັບຂອງ privacy.sexy (AGPL-3.0) ຢູ່ທີ່ລິ້ງຂ້າງລຸ່ມນີ້.",
     "wmb_credit_data": "ຂໍ້ມູນ",
@@ -2129,7 +2193,8 @@
     "error": "ຂໍ້ຜິດພາດ",
     "loading": "ກຳລັງໂຫຼດ…",
     "unknown_error": "ຂໍ້ຜິດພາດທີ່ບໍ່ຮູ້ຈັກ",
-    "cookie_error_message": "ການກວດຫາຄຸກກີ້ອັດຕະໂນມັດໃຊ້ໄດ້ກັບ Firefox ເທົ່ານັ້ນ. Chrome, Edge ແລະ ບຣາວເຊີອື່ນທີ່ອີງໃສ່ Chromium ຈະບລັອກການເຂົ້າເຖິງຄຸກກີ້. ເພື່ອໃຊ້ຄຸກກີ້: ຕິດຕັ້ງ Firefox ແລະ ເຂົ້າສູ່ລະບົບບັນຊີຂອງທ່ານຢູ່ນັ້ນ, ຫຼື ສົ່ງອອກໄຟລ໌ cookies.txt ຈາກບຣາວເຊີຂອງທ່ານ ແລະ ຕັ້ງຄ່າໃນ ການຕັ້ງຄ່າ > ດາວໂຫຼດ > ໄຟລ໌ຄຸກກີ້."
+    "cookie_error_message": "ການກວດຫາຄຸກກີ້ອັດຕະໂນມັດໃຊ້ໄດ້ກັບ Firefox ເທົ່ານັ້ນ. Chrome, Edge ແລະ ບຣາວເຊີອື່ນທີ່ອີງໃສ່ Chromium ຈະບລັອກການເຂົ້າເຖິງຄຸກກີ້. ເພື່ອໃຊ້ຄຸກກີ້: ຕິດຕັ້ງ Firefox ແລະ ເຂົ້າສູ່ລະບົບບັນຊີຂອງທ່ານຢູ່ນັ້ນ, ຫຼື ສົ່ງອອກໄຟລ໌ cookies.txt ຈາກບຣາວເຊີຂອງທ່ານ ແລະ ຕັ້ງຄ່າໃນ ການຕັ້ງຄ່າ > ດາວໂຫຼດ > ໄຟລ໌ຄຸກກີ້.",
+    "retry": "Try again"
   },
   "platforms": {
     "bilibili": {
@@ -2787,6 +2852,11 @@
       "empty": "No agents yet.",
       "no_profile": "No local profile",
       "search": "Search agents",
+      "view_agents": "Agents",
+      "view_chats": "Chats",
+      "search_chats": "Search chats",
+      "no_chats": "No saved conversations.",
+      "no_chat_matches": "No conversations match this search.",
       "load_failed": "ອ່ານແຊັດທີ່ບັນທຶກໄວ້ບໍ່ໄດ້."
     },
     "role": {
@@ -2811,7 +2881,9 @@
       "allow": "Allow",
       "deny": "Deny",
       "always": "Always",
-      "always_hint": "Allow now and stop asking for this kind of call (for a command: the same program and subcommand)."
+      "always_hint": "Allow now and stop asking for this kind of call (for a command: the same program and subcommand).",
+      "other_chat_running": "{agent} is working in another conversation.",
+      "open_running": "Open chat"
     },
     "composer": {
       "placeholder": "Message the agent…",
@@ -2862,7 +2934,9 @@
       "skills": "Skills",
       "skills_empty": "No skill installed. Install one in the Skills tab.",
       "save_error": "Could not save. Your changes are still here. Try again.",
-      "roles_hint": "The coordinator divides and follows the work. Workers carry out assigned tasks; advisors help evaluate decisions."
+      "roles_hint": "The coordinator divides and follows the work. Workers carry out assigned tasks; advisors help evaluate decisions.",
+      "delete_warning": "Remove {name}? The agent and its settings will be removed. Saved conversations stay available to read, but you will not be able to continue them without an agent.",
+      "delete_confirm": "Delete agent"
     },
     "template": {
       "solo": "Solo",
@@ -2898,7 +2972,15 @@
       "connect": "Connect or manage providers",
       "local_hint": "Local server: make sure it is running and has models installed. No saved API key is required.",
       "no_models": "This provider returned no models. Check the models available on the server or enter an identifier manually.",
-      "load_failed": "ອ່ານຜູ້ໃຫ້ບໍລິການບໍ່ໄດ້: {{error}}"
+      "load_failed": "ອ່ານຜູ້ໃຫ້ບໍລິການບໍ່ໄດ້: {{error}}",
+      "providers_failed": "Could not load saved connections. Your saved settings have not been removed.",
+      "reopen_browser": "Reopen browser",
+      "stop_waiting": "Stop waiting",
+      "stop_waiting_hint": "This stops waiting in OmniGet. Close the browser tab to leave the external sign-in.",
+      "auth_expired": "Sign-in has not been confirmed after two minutes. Check the browser or start again.",
+      "saved_connections": "Saved connections",
+      "other_providers": "Other providers",
+      "choose_or_enter": "Load the available models, then choose one or enter its exact identifier."
     },
     "err": {
       "unavailable": "The LLM backend is not wired yet.",
@@ -3214,8 +3296,11 @@
         "preserved_retry": "Your account and agent are preserved. Retry without creating duplicates.",
         "connecting": "Connecting…",
         "err_unknown_provider": "Unknown provider",
-        "err_credential_failed": "Credential validation failed"
+        "err_credential_failed": "Credential validation failed",
+        "new_api_connection": "Connect a new API provider"
       },
+      "models_limits": "Review models and execution limits",
+      "advanced_accounts": "Advanced: CLI accounts, fallback and limits",
       "sandbox_full": "ອະນຸຍາດການເຂົ້າເຖິງເຕັມທີ່ແລ້ວ",
       "sandbox_full_hint": "ຮອບຂອງບັນຊີນີ້ແກ້ໄຂໄຟລ໌ໄດ້, ແລະ ຮອບທີ່ໂໝດເປັນເຂົ້າເຖິງເຕັມທີ່ຈະເຮັດວຽກໂດຍບໍ່ຖາມ.",
       "sandbox_allow_full": "ອະນຸຍາດການເຂົ້າເຖິງເຕັມທີ່",
@@ -3237,7 +3322,8 @@
       "save": "Save",
       "cancel": "Cancel",
       "hint": "The pattern matches the command of the shell or the path of a file tool; * matches anything. The last matching rule wins.",
-      "failed": "The rules could not be saved."
+      "failed": "The rules could not be saved.",
+      "scope_required": "Enter both a tool and a scope. Use * only when you mean every target."
     },
     "prune": {
       "title": "Context pruning",
@@ -3263,7 +3349,8 @@
       "key_forget": "Forget key",
       "key_saved": "Key saved.",
       "key_missing": "Without a key nothing is sent and pruning stays off.",
-      "not_wired": "The change did not reach the backend."
+      "not_wired": "The change did not reach the backend.",
+      "save_failed": "Could not confirm these settings. Reload to check the saved values."
     },
     "workspace": {
       "pick": "Attach a folder",
@@ -3703,7 +3790,9 @@
           "under": "ຊ້າກວ່າຈັງຫວະ {{delta}}%",
           "ahead": "ໄວກວ່າຈັງຫວະ {{delta}}%",
           "ahead_out": "ໄວກວ່າຈັງຫວະ {{delta}}% · ໝົດໃນ {{time}}"
-        }
+        },
+        "connect_hint": "No accounts to monitor. Open OmniGet, then AI connections to set one up.",
+        "open_after_error": "Could not load limits. Open OmniGet to check your connections."
       }
     },
     "chat": {
@@ -3758,6 +3847,9 @@
       "no_matches": "No matching agents",
       "templates_impact": "Review the template and its effect on the existing team before applying it.",
       "mcp_server_hint": "ໃຫ້ແອັບ AI ອື່ນໃຊ້ OmniGet: ເປີດເຊີບເວີ, ສ້າງລູກຂ່າຍທີ່ມີແຕ່ສິດທີ່ຈຳເປັນ, ແລ້ວວາງສ່ວນໂຄດຂອງມັນໃສ່ແອັບນັ້ນ.",
+      "roster_load_error": "Could not load agents. Try again to recover your saved agents.",
+      "history_list_error": "Could not load conversation history. Your current draft is still here.",
+      "history_load_error": "Could not load this conversation. Try again before continuing.",
       "create_loop": "ສ້າງລູບ"
     },
     "prompts": {
@@ -6387,7 +6479,10 @@
         "err_name_long": "ໃຊ້ບໍ່ເກີນ 48 ຕົວອັກສອນສຳລັບຊື່.",
         "err_connection": "ເລືອກການເຊື່ອມຕໍ່.",
         "err_purpose_long": "ຈຸດປະສົງຍາວເກີນໄປ.",
-        "err_failed": "ບໍ່ໄດ້ສ້າງບອດ."
+        "err_failed": "ບໍ່ໄດ້ສ້າງບອດ.",
+        "draft_session": "Your form stays in this app window while you connect. Return here to finish.",
+        "return_to_draft": "Return to agent setup",
+        "advanced_setup": "Configure model, fallback and permissions manually"
       },
       "state": {
         "available": "ພ້ອມໃຊ້",
@@ -7449,7 +7544,8 @@
       "now": "now",
       "in_min": "in {{count}} min",
       "in_hours": "in {{hours}}h{{minutes}}",
-      "in_days": "in {{count}} days"
+      "in_days": "in {{count}} days",
+      "add_claude_account": "Add Claude account"
     }
   },
   "washmybelly": {

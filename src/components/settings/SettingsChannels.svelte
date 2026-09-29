@@ -4,7 +4,6 @@
   import { t, locale as i18nLocale } from "$lib/i18n";
   import { get } from "svelte/store";
   import { showToast } from "$lib/stores/toast-store.svelte";
-  import timeAgo from "$lib/time-ago";
 
   type Channel = {
     id: string;
@@ -20,6 +19,20 @@
   let channels = $state<Channel[]>([]);
   let newUrl = $state("");
   let adding = $state(false);
+  let loading = $state(true);
+  let loadError = $state(false);
+  let busyIds = $state<string[]>([]);
+  let checkingIds = $state<string[]>([]);
+
+  function begin(id: string): boolean {
+    if (busyIds.includes(id)) return false;
+    busyIds = [...busyIds, id];
+    return true;
+  }
+
+  function finish(id: string) {
+    busyIds = busyIds.filter((value) => value !== id);
+  }
 
   async function syncTray() {
     try {
@@ -33,11 +46,15 @@
   }
 
   async function load() {
+    loading = true;
+    loadError = false;
     try {
       channels = await invoke<Channel[]>("channels_list");
       await syncTray();
-    } catch (e: any) {
-      showToast("error", typeof e === "string" ? e : $t("common.error"));
+    } catch {
+      loadError = true;
+    } finally {
+      loading = false;
     }
   }
 
@@ -45,7 +62,7 @@
 
   async function addChannel() {
     const url = newUrl.trim();
-    if (!url || adding) return;
+    if (!url || adding || loading || loadError) return;
     adding = true;
     try {
       await invoke("channel_add", { url });
@@ -59,12 +76,14 @@
   }
 
   async function removeChannel(id: string) {
-    if (!confirm($t("settings.channels.remove_confirm"))) return;
+    if (busyIds.includes(id) || !confirm($t("settings.channels.remove_confirm")) || !begin(id)) return;
     try {
       await invoke("channel_remove", { id });
       await load();
     } catch (e: any) {
       showToast("error", typeof e === "string" ? e : $t("common.error"));
+    } finally {
+      finish(id);
     }
   }
 
@@ -72,15 +91,20 @@
     id: string,
     fields: { enabled?: boolean; autoDownload?: boolean; intervalMinutes?: number },
   ) {
+    if (!begin(id)) return;
     try {
       await invoke("channel_update", { id, ...fields });
       await load();
     } catch (e: any) {
       showToast("error", typeof e === "string" ? e : $t("common.error"));
+    } finally {
+      finish(id);
     }
   }
 
   async function checkNow(id: string) {
+    if (!begin(id)) return;
+    checkingIds = [...checkingIds, id];
     try {
       const n = await invoke<number>("channel_check_now", { id });
       showToast(
@@ -90,22 +114,33 @@
       await load();
     } catch (e: any) {
       showToast("error", typeof e === "string" ? e : $t("common.error"));
+    } finally {
+      checkingIds = checkingIds.filter((value) => value !== id);
+      finish(id);
     }
   }
 
   function lastChecked(ms: number | null): string {
-    if (!ms) return $t("settings.channels.never") as string;
-    const loc = get(i18nLocale) || "en";
-    return timeAgo(ms, loc.startsWith("pt") ? "pt" : "en");
+    if (!ms) return $t("settings.channels.never");
+    const seconds = Math.max(0, Math.floor((Date.now() - ms) / 1000));
+    const unit: Intl.RelativeTimeFormatUnit = seconds < 60 ? "second" : seconds < 3600 ? "minute" : seconds < 86400 ? "hour" : "day";
+    const divisor = unit === "second" ? 1 : unit === "minute" ? 60 : unit === "hour" ? 3600 : 86400;
+    return new Intl.RelativeTimeFormat(get(i18nLocale) || "en", { numeric: "auto" }).format(-Math.floor(seconds / divisor), unit);
   }
 
   function onIntervalChange(id: string, e: Event) {
-    const v = parseInt((e.target as HTMLInputElement).value, 10);
-    if (!Number.isNaN(v)) patch(id, { intervalMinutes: v });
+    const input = e.target as HTMLInputElement;
+    const value = Number(input.value);
+    if (!Number.isInteger(value) || value < 5 || value > 1440) {
+      input.value = String(channels.find((channel) => channel.id === id)?.interval_minutes ?? 60);
+      showToast("error", $t("settings.channels.interval_invalid"));
+      return;
+    }
+    void patch(id, { intervalMinutes: value });
   }
 </script>
 
-<section class="section">
+<section class="section" data-setting-key="settings.channels.title">
   <h5 class="section-title">{$t('settings.channels.title')}</h5>
 
   <div class="card">
@@ -114,17 +149,26 @@
         type="text"
         class="input-text"
         placeholder={$t('settings.channels.add_placeholder')}
+        aria-label={$t('settings.channels.add_placeholder')}
+        disabled={adding}
         bind:value={newUrl}
         onkeydown={(e) => { if (e.key === "Enter") addChannel(); }}
       />
-      <button class="add-btn" disabled={!newUrl.trim() || adding} onclick={addChannel}>
-        {$t('settings.channels.add')}
+      <button class="add-btn" disabled={!newUrl.trim() || adding || loading || loadError} onclick={addChannel}>
+        {adding ? $t('common.loading') : $t('settings.channels.add')}
       </button>
     </div>
     <span class="setting-path add-hint">{$t('settings.channels.add_hint')}</span>
   </div>
 
-  {#if channels.length === 0}
+  {#if loading && channels.length === 0}
+    <div class="card empty" role="status">{$t('common.loading')}</div>
+  {:else if loadError}
+    <div class="card empty" role="alert">
+      <p>{$t('settings.channels.load_failed')}</p>
+      <button class="link-btn" disabled={loading} onclick={load}>{$t('error.remedy.retry')}</button>
+    </div>
+  {:else if channels.length === 0}
     <div class="card empty">
       <span class="empty-title">{$t('settings.channels.empty_title')}</span>
       <span class="setting-path">{$t('settings.channels.empty_hint')}</span>
@@ -133,21 +177,22 @@
     <div class="card">
       {#each channels as ch, i (ch.id)}
         {#if i > 0}<div class="divider"></div>{/if}
-        <div class="channel">
+        <div class="channel" aria-busy={busyIds.includes(ch.id)}>
           <div class="channel-head">
             <div class="channel-id">
               <span class="channel-title" title={ch.url}>{ch.title}</span>
               <span class="setting-path">{$t('settings.channels.last_checked', { when: lastChecked(ch.last_checked_ms) })}</span>
             </div>
             <div class="channel-actions">
-              <button class="link-btn" onclick={() => checkNow(ch.id)}>{$t('settings.channels.check_now')}</button>
-              <button class="link-btn danger" onclick={() => removeChannel(ch.id)}>{$t('settings.channels.remove')}</button>
+              <button class="link-btn" disabled={busyIds.includes(ch.id)} onclick={() => checkNow(ch.id)}>{checkingIds.includes(ch.id) ? $t('settings.channels.checking') : $t('settings.channels.check_now')}</button>
+              <button class="link-btn danger" disabled={busyIds.includes(ch.id)} onclick={() => removeChannel(ch.id)}>{$t('settings.channels.remove')}</button>
             </div>
           </div>
           <div class="channel-controls">
             <label class="ctrl">
               <button
                 class="toggle"
+                disabled={busyIds.includes(ch.id)}
                 class:on={ch.enabled}
                 onclick={() => patch(ch.id, { enabled: !ch.enabled })}
                 role="switch"
@@ -159,6 +204,7 @@
             <label class="ctrl">
               <button
                 class="toggle"
+                disabled={busyIds.includes(ch.id)}
                 class:on={ch.auto_download}
                 onclick={() => patch(ch.id, { autoDownload: !ch.auto_download })}
                 role="switch"
@@ -172,6 +218,7 @@
               <input
                 type="number"
                 class="input-number"
+                disabled={busyIds.includes(ch.id)}
                 min="5"
                 max="1440"
                 value={ch.interval_minutes}
@@ -186,6 +233,8 @@
 </section>
 
 <style>
+  .link-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
   .add-row {
     display: flex;
     gap: 8px;

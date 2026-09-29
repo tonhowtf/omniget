@@ -1,10 +1,10 @@
 <script lang="ts">
   import {
     getSettings,
-    updateSettings,
     type TypographySettings,
   } from "$lib/stores/settings-store.svelte";
   import { t } from "$lib/i18n";
+  import { saveSettings as updateSettings } from "./settings-helpers";
 
   type Preset = {
     id: string;
@@ -186,7 +186,7 @@
   <section class="section">
     <h5 class="section-title">{$t("settings.typography.section_title")}</h5>
 
-    <div class="card">
+    <div class="card" data-setting-key="settings.typography.presets_title">
       <div class="setting-row">
         <div class="setting-col">
           <span class="setting-label">{$t("settings.typography.presets_title")}</span>
@@ -206,6 +206,7 @@
             type="button"
             class="preset-card"
             class:active={isActive}
+            aria-pressed={isActive}
             onclick={() => applyPreset(preset)}
           >
             <div class="preset-head">
@@ -224,11 +225,11 @@
       </div>
     </div>
 
-    <div class="card">
+    <div class="card" data-setting-key="settings.typography.fonts_title">
       <div class="setting-row">
         <div class="setting-col">
           <span class="setting-label">{$t("settings.typography.fonts_title")}</span>
-          <span class="setting-path">
+          <span class="setting-path" id="setting-settings-typography-fonts_title-help">
             {$t("settings.typography.fonts_desc")}
           </span>
         </div>
@@ -240,9 +241,9 @@
       <div class="font-row">
         <label class="font-field">
           <span class="font-label">{$t("settings.typography.display_label")}</span>
-          <select value={typo.font_display} onchange={changeDisplay}>
+          <select data-setting-key="settings.typography.display_label" aria-describedby="setting-settings-typography-fonts_title-help" value={typo.font_display} onchange={changeDisplay}>
             {#each FONT_OPTIONS.filter((f) => f.family === "display" || f.family === "any") as opt (opt.value)}
-              <option value={opt.value}>{opt.label}{opt.bundled ? "" : ` (${$t("settings.dependencies.system_font_suffix")})`}</option>
+              <option value={opt.value}>{opt.value === "system-ui" ? $t("settings.appearance.theme_system") : opt.label}{opt.bundled ? "" : ` (${$t("settings.dependencies.system_font_suffix")})`}</option>
             {/each}
           </select>
         </label>
@@ -257,9 +258,9 @@
       <div class="font-row">
         <label class="font-field">
           <span class="font-label">{$t("settings.typography.body_label")}</span>
-          <select value={typo.font_body} onchange={changeBody}>
+          <select data-setting-key="settings.typography.body_label" value={typo.font_body} onchange={changeBody}>
             {#each FONT_OPTIONS.filter((f) => f.family !== "mono") as opt (opt.value)}
-              <option value={opt.value}>{opt.label}{opt.bundled ? "" : ` (${$t("settings.dependencies.system_font_suffix")})`}</option>
+              <option value={opt.value}>{opt.value === "system-ui" ? $t("settings.appearance.theme_system") : opt.label}{opt.bundled ? "" : ` (${$t("settings.dependencies.system_font_suffix")})`}</option>
             {/each}
           </select>
         </label>
@@ -274,9 +275,9 @@
       <div class="font-row">
         <label class="font-field">
           <span class="font-label">{$t("settings.typography.mono_label")}</span>
-          <select value={typo.font_mono} onchange={changeMono}>
+          <select data-setting-key="settings.typography.mono_label" value={typo.font_mono} onchange={changeMono}>
             {#each FONT_OPTIONS as opt (opt.value)}
-              <option value={opt.value}>{opt.label}{opt.bundled ? "" : ` (${$t("settings.dependencies.system_font_suffix")})`}</option>
+              <option value={opt.value}>{opt.value === "system-ui" ? $t("settings.appearance.theme_system") : opt.label}{opt.bundled ? "" : ` (${$t("settings.dependencies.system_font_suffix")})`}</option>
             {/each}
           </select>
         </label>
@@ -311,7 +312,8 @@
           max="1.9"
           step="0.05"
           value={typo.line_height_base}
-          oninput={changeLineHeight}
+          data-setting-key="settings.typography.line_height_label"
+          onchange={changeLineHeight}
           aria-label={$t("settings.typography.line_height_label") as string}
         />
         <span class="slider-edge">1.90</span>
@@ -340,7 +342,8 @@
           max="1.25"
           step="0.05"
           value={typo.spacing_scale}
-          oninput={changeSpacing}
+          data-setting-key="settings.typography.spacing_label"
+          onchange={changeSpacing}
           aria-label={$t("settings.typography.spacing_label") as string}
         />
         <span class="slider-edge">1.25×</span>
@@ -348,7 +351,7 @@
     </div>
 
     <div class="card preview-card">
-      <div class="setting-row">
+      <div class="setting-row" data-setting-key="settings.typography.preview_title">
         <div class="setting-col">
           <span class="setting-label">{$t("settings.typography.preview_title")}</span>
           <span class="setting-path">
@@ -360,7 +363,7 @@
         <h1 class="preview-h1">Aula 03 · Anatomia do coração</h1>
         <h2 class="preview-h2">Conceitos chave</h2>
         <p class="preview-body">
-          O coração tem <a class="preview-link">[[câmaras cardíacas]]</a>
+          O coração tem <span class="preview-link">[[câmaras cardíacas]]</span>
           divididas em átrios e ventrículos. O ventrículo esquerdo é mais musculoso
           porque bombeia sangue contra a resistência sistêmica.
         </p>

@@ -825,7 +825,8 @@ pub fn use_in_app(id: &str) -> anyhow::Result<()> {
         e.model.clone(),
         app_base_url(&e.kind, &e.base_url),
         e.key.clone(),
-    );
+    )
+    .map_err(anyhow::Error::msg)?;
     Ok(())
 }
 
