@@ -3602,7 +3602,9 @@
           "under": "ペースより{{delta}}%少ない",
           "ahead": "ペースより{{delta}}%多い",
           "ahead_out": "ペースより{{delta}}%多い · あと{{time}}で上限"
-        }
+        },
+        "connect_hint": "No accounts to monitor. Open OmniGet, then AI connections to set one up.",
+        "open_after_error": "Could not load limits. Open OmniGet to check your connections."
       }
     },
     "chat": {
@@ -5122,7 +5124,8 @@
       "now": "now",
       "in_min": "in {{count}} min",
       "in_hours": "in {{hours}}h{{minutes}}",
-      "in_days": "in {{count}} days"
+      "in_days": "in {{count}} days",
+      "add_claude_account": "Add Claude account"
     }
   }
 }

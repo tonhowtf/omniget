@@ -3602,7 +3602,9 @@
           "under": "{{delta}}% abaixo do ritmo",
           "ahead": "{{delta}}% acima do ritmo",
           "ahead_out": "{{delta}}% acima do ritmo · acaba em {{time}}"
-        }
+        },
+        "connect_hint": "Nenhuma conta para monitorar. Abra o OmniGet e vá a Conexões de IA para configurar.",
+        "open_after_error": "Não foi possível carregar os limites. Abra o OmniGet para verificar as conexões."
       }
     },
     "chat": {
@@ -5122,7 +5124,8 @@
       "now": "agora",
       "in_min": "em {{count}} min",
       "in_hours": "em {{hours}}h{{minutes}}",
-      "in_days": "em {{count}} dias"
+      "in_days": "em {{count}} dias",
+      "add_claude_account": "Adicionar conta Claude"
     }
   }
 }

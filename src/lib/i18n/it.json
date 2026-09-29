@@ -3602,7 +3602,9 @@
           "under": "{{delta}}% sotto il ritmo",
           "ahead": "{{delta}}% sopra il ritmo",
           "ahead_out": "{{delta}}% sopra il ritmo · finisce tra {{time}}"
-        }
+        },
+        "connect_hint": "No accounts to monitor. Open OmniGet, then AI connections to set one up.",
+        "open_after_error": "Could not load limits. Open OmniGet to check your connections."
       }
     },
     "chat": {
@@ -5122,7 +5124,8 @@
       "now": "now",
       "in_min": "in {{count}} min",
       "in_hours": "in {{hours}}h{{minutes}}",
-      "in_days": "in {{count}} days"
+      "in_days": "in {{count}} days",
+      "add_claude_account": "Add Claude account"
     }
   }
 }
