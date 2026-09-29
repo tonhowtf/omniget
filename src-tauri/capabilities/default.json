@@ -12,6 +12,7 @@
     "clipboard-manager:allow-write-text",
     "updater:default",
     "process:allow-restart",
-    "core:window:allow-start-dragging"
+    "core:window:allow-start-dragging",
+    "core:window:allow-set-fullscreen"
   ]
 }

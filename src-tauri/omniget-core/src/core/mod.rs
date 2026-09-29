@@ -53,5 +53,6 @@ pub mod test_env;
 pub mod threads;
 pub mod tools;
 pub mod vcs;
+pub mod video;
 pub mod washmybelly;
 pub mod ytdlp;

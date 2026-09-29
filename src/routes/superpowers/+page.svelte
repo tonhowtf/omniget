@@ -24,6 +24,14 @@
       enabled: getSettings()?.music?.enabled ?? true,
     },
     {
+      id: "video",
+      icon: "video",
+      title: $t("video.title") as string,
+      descKey: "superpowers.video_desc",
+      href: "/video",
+      enabled: getSettings()?.video?.enabled ?? true,
+    },
+    {
       id: "league",
       icon: "league",
       title: "League of Legends",

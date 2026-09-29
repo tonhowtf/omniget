@@ -745,6 +745,21 @@ pub fn run() {
                             });
                             continue;
                         }
+                        // links in notes exported by /video: open the player there
+                        if raw.starts_with("omniget://watch") {
+                            use tauri::Emitter;
+                            let q: std::collections::HashMap<String, String> =
+                                url.query_pairs().into_owned().collect();
+                            crate::tray::show_window(&handle);
+                            let _ = handle.emit(
+                                "video-deep-link",
+                                serde_json::json!({
+                                    "key": q.get("key").cloned().unwrap_or_default(),
+                                    "t": q.get("t").and_then(|t| t.parse::<f64>().ok()).unwrap_or(0.0),
+                                }),
+                            );
+                            continue;
+                        }
                         tauri::async_runtime::spawn(async move {
                             if let Err(error) =
                                 external_url::handle_external_url(&handle, raw, "deep-link").await
@@ -933,6 +948,91 @@ pub fn run() {
             _ => {}
         })
         .invoke_handler(ipc_guard::guard(tauri::generate_handler![
+            commands::video::video_status,
+            commands::video::video_roots_add,
+            commands::video::video_roots_remove,
+            commands::video::video_scan,
+            commands::video::video_scan_cancel,
+            commands::video::video_items,
+            commands::video::video_item,
+            commands::video::video_home,
+            commands::video::video_shows,
+            commands::video::video_show,
+            commands::video::video_courses,
+            commands::video::video_course,
+            commands::video::video_course_import,
+            commands::video::video_course_remove,
+            commands::video::video_play,
+            commands::video::video_play_fallback,
+            commands::video::video_progress,
+            commands::video::video_set_watched,
+            commands::video::video_continue_remove,
+            commands::video::video_history,
+            commands::video::video_history_clear,
+            commands::video::video_prefs_get,
+            commands::video::video_prefs_set,
+            commands::video::video_open_external,
+            commands::video::video_reveal,
+            commands::video::link::video_link_resolve,
+            commands::video::notes::video_notes,
+            commands::video::notes::video_note_add,
+            commands::video::notes::video_note_update,
+            commands::video::notes::video_note_delete,
+            commands::video::notes::video_notes_export,
+            commands::video::study::video_transcript,
+            commands::video::study::video_transcribe,
+            commands::video::study::video_transcript_search,
+            commands::video::study::video_silences,
+            commands::video::study::video_ask,
+            commands::video::study::video_cards,
+            commands::video::study::video_cards_due,
+            commands::video::study::video_card_add,
+            commands::video::study::video_card_review,
+            commands::video::study::video_card_delete,
+            commands::video::study::video_anki_export,
+            commands::video::sources::video_sources,
+            commands::video::sources::video_source_remove,
+            commands::video::sources::video_source_toggle,
+            commands::video::jellyfin::video_jf_connect,
+            commands::video::jellyfin::video_jf_quickconnect_start,
+            commands::video::jellyfin::video_jf_quickconnect_poll,
+            commands::video::jellyfin::video_jf_views,
+            commands::video::jellyfin::video_jf_items,
+            commands::video::jellyfin::video_jf_resume,
+            commands::video::jellyfin::video_jf_nextup,
+            commands::video::jellyfin::video_jf_item,
+            commands::video::jellyfin::video_jf_children,
+            commands::video::jellyfin::video_jf_play,
+            commands::video::jellyfin::video_jf_report,
+            commands::video::iptv::video_iptv_add,
+            commands::video::iptv::video_iptv_add_xtream,
+            commands::video::iptv::video_iptv_refresh,
+            commands::video::iptv::video_iptv_groups,
+            commands::video::iptv::video_iptv_channels,
+            commands::video::iptv::video_iptv_epg,
+            commands::video::iptv::video_iptv_favorite,
+            commands::video::iptv::video_iptv_play,
+            commands::video::addons::video_addon_install,
+            commands::video::addons::video_addons,
+            commands::video::addons::video_addon_remove,
+            commands::video::addons::video_addon_catalog,
+            commands::video::addons::video_addon_meta,
+            commands::video::addons::video_addon_streams,
+            commands::video::addons::video_addon_play,
+            commands::video::anilist::video_anilist_set_token,
+            commands::video::anilist::video_anilist_viewer,
+            commands::video::anilist::video_anilist_search,
+            commands::video::anilist::video_anilist_media,
+            commands::video::anilist::video_anilist_list,
+            commands::video::anilist::video_anilist_progress,
+            commands::video::anilist::video_aniskip,
+            commands::video::cast::video_cast_discover,
+            commands::video::cast::video_cast_start,
+            commands::video::cast::video_cast_control,
+            commands::video::cast::video_cast_stop,
+            commands::video::cast::video_cast_status,
+            commands::video::video_open_path,
+            commands::video::video_source_for_key,
             commands::music::music_status,
             commands::music::music_roots_add,
             commands::music::music_roots_remove,
