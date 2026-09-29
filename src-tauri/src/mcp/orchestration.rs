@@ -168,6 +168,19 @@ pub fn tools() -> Vec<ToolDef> {
         ("job_diff","What a job of an owned mission changed in its folder, from the host's own snapshots (no agent tokens): files with status and +/- (binary files marked), totals, and with format=patch the unified diff (redacted, cut at 32 KB). A job whose turns took no snapshot answers available=false with the reason, never an empty diff. No host paths.",json!({"jobId":id_schema,"format":{"type":"string","enum":["files","patch"],"default":"files"}}),json!(["jobId"])),
         ("approvals_list","Pending permission questions of an owned mission's runs. Answering one needs approval_respond, a separate grant the person gives in OmniGet (off by default).",json!({"missionId":id_schema}),json!(["missionId"])),
         ("approval_respond","Answer one pending permission question of an owned mission's run, as the person would in the OmniGet window: accept (this call), accept_session (this tool for the rest of the turn), decline, or cancel (decline and stop the turn). Exactly one answer applies; a second one is ERR_NO_ASK. accept_always stays a desktop decision. Needs the approvals_respond grant; an agent session can never answer.",json!({"approvalId":{"type":"string","minLength":1,"maxLength":64},"decision":{"type":"string","enum":["accept","accept_session","decline","cancel"]}}),json!(["approvalId","decision"])),
+        ("agent_run","Start one of the person's agents (roster id) on a task as a background job in OmniGet, and return at once with its jobId and stateSeq. commandId makes it idempotent: the same id again returns the same job; the same id with other fields is ERR_COMMAND_CONFLICT. workspace is an absolute folder (a git repository gets its own worktree when another job is writing there). Permission questions of the job wait for an answer (approval_respond, with that grant, or the OmniGet window). A job never starts another job. Needs the agents_run grant; you only see the jobs you started.",json!({
+            "commandId":{"type":"string","minLength":1,"maxLength":128},"agentId":{"type":"string","minLength":1,"maxLength":128},
+            "prompt":{"type":"string","minLength":1,"maxLength":65536},"task":{"type":"string","minLength":1,"maxLength":65536,"description":"Same as prompt; give one."},
+            "workspace":{"type":"string","maxLength":4096},"title":{"type":"string","maxLength":200},"purpose":{"type":"string","maxLength":1000},
+            "model":{"type":"string","maxLength":100},"effort":{"type":"string","enum":["low","medium","high","xhigh","max"]},
+            "runMode":{"type":"string","maxLength":32},"isolation":{"type":"string","enum":["shared","worktree","auto"]},"base":{"type":"string","maxLength":256},
+            "budgetUsd":{"type":"number","exclusiveMinimum":0,"maximum":1000},"deadlineMin":{"type":"integer","minimum":1,"maximum":1440},
+            "resumeOf":{"type":"string","maxLength":64,"description":"A finished job of yours whose conversation this one continues."}
+        }),json!(["commandId","agentId"])),
+        ("job_get","Read one job you started (or a job of a mission you own): state and stateSeq, title, the agent's OUTCOME, result (cut), error, what changed (counts), and pendingApprovals with the approvalId to answer. With afterSeq, changed says whether the state moved since.",json!({"jobId":id_schema,"afterSeq":{"type":"integer","minimum":0}}),json!(["jobId"])),
+        ("job_wait","Wait (up to timeoutMs, max 25000) until one of your jobs reaches one of the until states (any state change when empty; \"terminal\" = every end state) with a stateSeq above afterSeq, so an old state never ends the wait. A timeout is the error ERR_WAIT_TIMEOUT: call again. A job that ended elsewhere is ERR_WAIT_UNREACHABLE.",json!({"jobId":id_schema,"until":{"type":"array","maxItems":10,"items":{"type":"string","enum":["queued","waiting_workspace","running","waiting_approval","done","review","done_unreported","failed","cancelled","interrupted","terminal"]}},"afterSeq":{"type":"integer","minimum":0},"timeoutMs":{"type":"integer","minimum":1,"maximum":25000}}),json!(["jobId"])),
+        ("job_cancel","Stop one of your jobs (queued or running). commandId makes it idempotent. Needs the agents_run grant.",json!({"jobId":id_schema,"commandId":{"type":"string","minLength":1,"maxLength":128}}),json!(["jobId","commandId"])),
+        ("jobs_state","Your last 25 jobs (id, state, stateSeq, title) and how many are still active.",json!({}),json!([])),
         ("missions_create","Create a bounded native mission using a local execution grant. File tools create new files or edit existing ones only against the SHA-256 of the revision last read; shell and arbitrary executors are unavailable.",json!({
             "grantId":id_schema,"workspaceId":id_schema,"executorId":id_schema,"objective":{"type":"string","minLength":1,"maxLength":8192},"budgetTokens":{"type":"integer","minimum":1},"maxMinutes":{"type":"integer","minimum":1,"maximum":240,"description":"Active work minutes before the mission blocks for a person (default 15)."},"idempotencyKey":{"type":"string","minLength":1,"maxLength":100},
             "criteria":{"type":"array","minItems":1,"maxItems":16,"items":{"type":"object","additionalProperties":false,"properties":{"path":{"type":"string","minLength":1,"maxLength":1024},"contains":{"type":"array","maxItems":8,"items":{"type":"string","minLength":1,"maxLength":512}}},"required":["path"]}},
@@ -223,7 +236,7 @@ fn owned_job(db: &AssistDb, p: &Principal, job: &str) -> Result<(), String> {
 /// the 64 KB ceiling).
 const JOB_DIFF_FILES: usize = 200;
 const JOB_DIFF_PATCH: usize = 32 * 1024;
-fn job_diff_reply(
+pub(crate) fn job_diff_reply(
     job: &crate::jobs::Job,
     patch: Option<&str>,
     complete: bool,
@@ -641,6 +654,24 @@ fn approval_respond(
     }))
 }
 
+/// The job a `job_diff` or `approval_respond` call is about, when the
+/// client started it itself (`Job.owner`); `None` sends it down the mission
+/// path, which refuses what it does not own.
+fn started_job(app: &AppHandle, p: &Principal, name: &str, args: &Value) -> Option<String> {
+    let jobs = crate::jobs::get(app).ok()?;
+    let job = if name == "job_diff" {
+        args["jobId"].as_str()?.to_string()
+    } else {
+        let door = crate::approvals::from_app(app).ok()?;
+        let q = door.registry.permission(args["approvalId"].as_str()?)?;
+        (door.job_of)(&q.run_id)?
+    };
+    let owner = format!("mcp:{}", p.id);
+    jobs.job(&job)
+        .filter(|j| j.owner.as_deref() == Some(owner.as_str()))
+        .map(|j| j.id)
+}
+
 pub async fn call(
     app: &AppHandle,
     p: &Principal,
@@ -661,7 +692,24 @@ pub async fn call(
     {
         return Err("ARGUMENT_LIMIT_EXCEEDED".into());
     }
+    // The job tools of the command surface (2.5): the client's own jobs.
+    if crate::job_commands::handles(name) {
+        let cmds = crate::job_commands::from_app(app).map_err(|_| "ORCHESTRATION_UNAVAILABLE")?;
+        return crate::job_commands::mcp_call(&cmds, p, name, args)
+            .await
+            .and_then(bounded);
+    }
     let db = omniget_core::core::assist::db::global().map_err(|_| "ORCHESTRATION_UNAVAILABLE")?;
+    // `job_diff` and `approval_respond` of a job the client started with
+    // `agent_run` (2.5): the same answers, owned through `Job.owner`
+    // instead of a mission.
+    if matches!(name, "job_diff" | "approval_respond") && started_job(app, p, name, &args).is_some()
+    {
+        let cmds = crate::job_commands::from_app(app).map_err(|_| "ORCHESTRATION_UNAVAILABLE")?;
+        return crate::job_commands::mcp_call(&cmds, p, name, args)
+            .await
+            .and_then(bounded);
+    }
     let result = match name {
         "agents_list" | "workspaces_list" => {
             let _: Empty = parse(args)?;

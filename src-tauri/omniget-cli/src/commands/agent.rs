@@ -14,6 +14,18 @@ pub(crate) struct Bridge {
     base: String,
     token: String,
     http: reqwest::Client,
+    /// `OMNIGET_JOB_ID` when this runs inside a job's turn (2.6): sent as
+    /// `X-Omniget-Job`, so the app refuses a job started from a job.
+    job: Option<String>,
+}
+
+/// The job this process runs inside, if any (the app sets it on a job's
+/// child, 2.6).
+pub(crate) fn job_context() -> Option<String> {
+    std::env::var("OMNIGET_JOB_ID")
+        .ok()
+        .map(|v| v.trim().to_string())
+        .filter(|v| !v.is_empty())
 }
 
 impl Bridge {
@@ -24,27 +36,84 @@ impl Bridge {
             .context("settings.json not found: open the OmniGet app once")?;
         let json: Value = serde_json::from_str(&raw)?;
         let bridge = &json["app_settings"]["bridge"];
-        let port = bridge["port"]
-            .as_u64()
-            .filter(|p| *p > 0)
-            .ok_or_else(|| anyhow!("the app has no bridge port yet: open OmniGet once"))?;
-        let token = resolve_token(
-            std::env::var("OMNIGET_TOKEN").ok(),
-            std::fs::read_to_string(dir.join("llm").join("cli-token")).ok(),
-            bridge["token"].as_str(),
-        );
+        let job = job_context();
+        // Inside a job the app hands the address (2.6) and the job's own
+        // token, which reaches that job only: never the CLI token file.
+        let base = match std::env::var("OMNIGET_BRIDGE_URL")
+            .ok()
+            .filter(|u| u.starts_with("http://127.0.0.1:"))
+        {
+            Some(url) => url.trim_end_matches('/').to_string(),
+            None => {
+                let port = bridge["port"]
+                    .as_u64()
+                    .filter(|p| *p > 0)
+                    .ok_or_else(|| anyhow!("the app has no bridge port yet: open OmniGet once"))?;
+                format!("http://127.0.0.1:{port}")
+            }
+        };
+        let token = match (&job, std::env::var("OMNIGET_JOB_TOKEN").ok()) {
+            (Some(_), Some(t)) if !t.trim().is_empty() => t.trim().to_string(),
+            _ => resolve_token(
+                std::env::var("OMNIGET_TOKEN").ok(),
+                std::fs::read_to_string(dir.join("llm").join("cli-token")).ok(),
+                bridge["token"].as_str(),
+            ),
+        };
         Ok(Self {
-            base: format!("http://127.0.0.1:{port}"),
+            base,
             token,
+            // Above the longest wait the bridge accepts (120 s).
             http: reqwest::Client::builder()
-                .timeout(Duration::from_secs(30))
+                .timeout(Duration::from_secs(150))
                 .build()?,
+            job,
         })
     }
 
+    fn authed(&self, req: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
+        let req = req.bearer_auth(&self.token);
+        match &self.job {
+            Some(j) => req.header("x-omniget-job", j),
+            None => req,
+        }
+    }
+
+    /// `GET /v1/jobs/{id}/wait`: `Ok(Some(job))` once it matches, `Ok(None)`
+    /// on the bridge's timeout (408), an error for anything else.
+    async fn wait(
+        &self,
+        id: &str,
+        until: &str,
+        after_seq: i64,
+        timeout_ms: u64,
+    ) -> anyhow::Result<Option<Value>> {
+        let res = self
+            .authed(self.http.get(format!(
+                "{}/v1/jobs/{id}/wait?until={until}&after_seq={after_seq}&timeout_ms={timeout_ms}",
+                self.base
+            )))
+            .send()
+            .await
+            .context("the OmniGet app is not running (the bridge did not answer)")?;
+        let status = res.status();
+        let body: Value = res.json().await.unwrap_or(Value::Null);
+        if status.as_u16() == 408 {
+            return Ok(None);
+        }
+        if !status.is_success() {
+            bail!(
+                "{}: {}",
+                status,
+                body["error"].as_str().unwrap_or("request failed")
+            );
+        }
+        Ok(Some(body))
+    }
+
     async fn send(&self, req: reqwest::RequestBuilder) -> anyhow::Result<Value> {
-        let res = req
-            .bearer_auth(&self.token)
+        let res = self
+            .authed(req)
             .send()
             .await
             .context("the OmniGet app is not running (the bridge did not answer)")?;
@@ -69,9 +138,7 @@ impl Bridge {
     /// `error` the bridge sends.
     async fn get_text(&self, path: &str) -> anyhow::Result<String> {
         let res = self
-            .http
-            .get(format!("{}{path}", self.base))
-            .bearer_auth(&self.token)
+            .authed(self.http.get(format!("{}{path}", self.base)))
             .send()
             .await
             .context("the OmniGet app is not running (the bridge did not answer)")?;
@@ -96,7 +163,11 @@ impl Bridge {
 /// Which bearer the CLI sends: `OMNIGET_TOKEN`, then the app's CLI token
 /// file, then (deprecated) the extension key, which the agent routes stop
 /// accepting in the next version.
-fn resolve_token(env: Option<String>, file: Option<String>, extension: Option<&str>) -> String {
+pub(crate) fn resolve_token(
+    env: Option<String>,
+    file: Option<String>,
+    extension: Option<&str>,
+) -> String {
     if let Some(t) = env.map(|t| t.trim().to_string()).filter(|t| !t.is_empty()) {
         return t;
     }
@@ -167,12 +238,34 @@ fn print_job_line(j: &Value) {
     );
 }
 
-async fn follow(bridge: &Bridge, id: &str, json_out: bool) -> anyhow::Result<()> {
+/// Every state a job ends in (the bridge's `until=terminal`).
+const TERMINAL: &[&str] = &[
+    "done",
+    "review",
+    "done_unreported",
+    "failed",
+    "cancelled",
+    "interrupted",
+];
+
+/// Follows a job to its end on the bridge's long poll (2.5): each call
+/// sleeps until the job's state moves past the one shown, so the CLI never
+/// polls on a timer. With `start_seq` (the start receipt's `state_seq`, its
+/// `queued`), an end only counts when it is newer than that start (84#P8:
+/// `--wait` concludes after observing queued/running → an end, never on a
+/// state it saw before). A quiet job gets its log refreshed every 5 s.
+async fn follow(
+    bridge: &Bridge,
+    id: &str,
+    json_out: bool,
+    start_seq: Option<i64>,
+) -> anyhow::Result<()> {
+    let mut job = bridge.get(&format!("/v1/jobs/{id}")).await?;
     let mut last_state = String::new();
     let mut seen_log = 0usize;
     loop {
-        let job = bridge.get(&format!("/v1/jobs/{id}")).await?;
         let state = job["state"].as_str().unwrap_or("").to_string();
+        let seq = job["state_seq"].as_i64().unwrap_or(0);
         let log = job["log"].as_str().unwrap_or("");
         if !json_out {
             if log.len() > seen_log && log.is_char_boundary(seen_log) {
@@ -202,44 +295,63 @@ async fn follow(bridge: &Bridge, id: &str, json_out: bool) -> anyhow::Result<()>
                 last_state = state.clone();
             }
         }
-        if matches!(state.as_str(), "done" | "review" | "failed" | "cancelled") {
-            if json_out {
-                println!("{}", serde_json::to_string_pretty(&job)?);
-            } else {
-                if let Some(text) = job["result"].as_str().filter(|t| !t.is_empty()) {
-                    println!("{text}");
-                }
-                if let Some(err) = job["error"].as_str() {
-                    eprintln!("error: {err}");
-                }
-                let u = &job["usage"];
-                if u.is_object() {
-                    let cost = u["cost_usd"]
-                        .as_f64()
-                        .map(|c| format!(", ${c:.4}"))
-                        .unwrap_or_default();
-                    eprintln!(
-                        "[{}: {} tokens in, {} out{cost}]",
-                        u["model"].as_str().unwrap_or("?"),
-                        u["input_tokens"].as_u64().unwrap_or(0),
-                        u["output_tokens"].as_u64().unwrap_or(0),
-                    );
-                }
-            }
-            // `review`: it ended well and changed files a person should look at.
-            if state == "review" && !json_out {
-                if let Some(stamp) = job["proof"]["stamp"].as_str() {
-                    eprintln!("proof: {stamp}");
-                }
-                eprintln!("  it changed files: `omniget agent diff {id}` shows them");
-            }
-            if !matches!(state.as_str(), "done" | "review") {
-                std::process::exit(1);
-            }
-            return Ok(());
+        if is_end(&state, seq, start_seq) {
+            return finish(id, &job, &state, json_out);
         }
-        tokio::time::sleep(Duration::from_millis(800)).await;
+        job = match bridge.wait(id, "", seq, 5_000).await? {
+            Some(next) => next,
+            None => bridge.get(&format!("/v1/jobs/{id}")).await?,
+        };
     }
+}
+
+/// An end state that is newer than the start the caller saw.
+fn is_end(state: &str, seq: i64, start_seq: Option<i64>) -> bool {
+    TERMINAL.contains(&state) && start_seq.is_none_or(|s| seq > s)
+}
+
+fn finish(id: &str, job: &Value, state: &str, json_out: bool) -> anyhow::Result<()> {
+    if json_out {
+        println!("{}", serde_json::to_string_pretty(job)?);
+    } else {
+        if let Some(text) = job["result"].as_str().filter(|t| !t.is_empty()) {
+            println!("{text}");
+        }
+        if let Some(err) = job["error"].as_str() {
+            eprintln!("error: {err}");
+        }
+        let u = &job["usage"];
+        if u.is_object() {
+            let cost = u["cost_usd"]
+                .as_f64()
+                .map(|c| format!(", ${c:.4}"))
+                .unwrap_or_default();
+            eprintln!(
+                "[{}: {} tokens in, {} out{cost}]",
+                u["model"].as_str().unwrap_or("?"),
+                u["input_tokens"].as_u64().unwrap_or(0),
+                u["output_tokens"].as_u64().unwrap_or(0),
+            );
+        }
+        // `review`: it ended well and changed files a person should look at.
+        if state == "review" {
+            if let Some(stamp) = job["proof"]["stamp"].as_str() {
+                eprintln!("proof: {stamp}");
+            }
+            eprintln!("  it changed files: `omniget agent diff {id}` shows them");
+        }
+        if state == "done_unreported" {
+            eprintln!(
+                "  the agent ended without its OUTCOME line: read the result before relying on it"
+            );
+        }
+    }
+    // The agent's own verdict counts too (2.6): `OUTCOME: failed` exits 1.
+    let said_failed = job["outcome"]["status"].as_str() == Some("failed");
+    if !matches!(state, "done" | "review" | "done_unreported") || said_failed {
+        std::process::exit(1);
+    }
+    Ok(())
 }
 
 /// `omniget agent explain` in plain lines: what the watchdog and the deadline
@@ -485,6 +597,20 @@ pub enum AgentCommand {
         detach: bool,
         #[arg(
             long,
+            conflicts_with = "detach",
+            help = "Wait for the end (the default): only an end newer than the start counts; exit 1 if it failed"
+        )]
+        wait: bool,
+        #[arg(
+            long,
+            value_name = "ID",
+            help = "Idempotency key: the same id again returns the same job instead of starting another"
+        )]
+        command_id: Option<String>,
+        #[arg(long, help = "A short name for the job in lists")]
+        title: Option<String>,
+        #[arg(
+            long,
             value_name = "MIN",
             help = "Stop the job after this many minutes (default: the app setting, 60)"
         )]
@@ -602,6 +728,20 @@ pub enum AgentCommand {
     Agents,
 }
 
+/// A command id no other run of this CLI will send: time, pid and a counter.
+fn fresh_command_id() -> String {
+    static N: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    format!(
+        "cli-{nanos:x}-{:x}-{}",
+        std::process::id(),
+        N.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+    )
+}
+
 pub async fn execute(cmd: AgentCommand, json_out: bool) -> anyhow::Result<()> {
     let bridge = Bridge::open()?;
     match cmd {
@@ -668,7 +808,7 @@ pub async fn execute(cmd: AgentCommand, json_out: bool) -> anyhow::Result<()> {
                 println!("{id}");
                 return Ok(());
             }
-            follow(&bridge, &id, json_out).await
+            follow(&bridge, &id, json_out, job["state_seq"].as_i64()).await
         }
         AgentCommand::Run {
             args,
@@ -680,32 +820,38 @@ pub async fn execute(cmd: AgentCommand, json_out: bool) -> anyhow::Result<()> {
             isolate,
             shared,
             base,
+            command_id,
+            title,
             ..
         } => {
             let prompt = match args.as_slice() {
                 [p] => p.clone(),
                 _ => bail!("two arguments (`<agent> <prompt>`) need --tool; without it, give only the prompt and pick the roster agent with --agent"),
             };
-            let job = bridge
-                .post(
-                    "/v1/agent/run",
-                    run_body(
-                        &agent,
-                        &prompt,
-                        workspace(ws, no_workspace),
-                        deadline_min,
-                        isolate,
-                        shared,
-                        base,
-                    ),
-                )
-                .await?;
-            let id = job["id"].as_str().unwrap_or("").to_string();
+            // `job.start` on the command surface (2.5): the receipt names
+            // the job and the state it started in.
+            let mut body = run_body(
+                &agent,
+                &prompt,
+                workspace(ws, no_workspace),
+                deadline_min,
+                isolate,
+                shared,
+                base,
+            );
+            body["type"] = json!("job.start");
+            body["command_id"] = json!(command_id.unwrap_or_else(fresh_command_id));
+            body["channel"] = json!("cli");
+            if let Some(t) = title {
+                body["title"] = json!(t);
+            }
+            let receipt = bridge.post("/v1/commands", body).await?;
+            let id = receipt["job_id"].as_str().unwrap_or("").to_string();
             if detach {
                 println!("{id}");
                 return Ok(());
             }
-            follow(&bridge, &id, json_out).await
+            follow(&bridge, &id, json_out, receipt["job"]["state_seq"].as_i64()).await
         }
         AgentCommand::Loop {
             catalog: Some(id),
@@ -784,7 +930,7 @@ pub async fn execute(cmd: AgentCommand, json_out: bool) -> anyhow::Result<()> {
             print_job_line(&job);
             Ok(())
         }
-        AgentCommand::Jobs { id: Some(id), .. } => follow(&bridge, &id, json_out).await,
+        AgentCommand::Jobs { id: Some(id), .. } => follow(&bridge, &id, json_out, None).await,
         AgentCommand::Jobs { id: None, .. } => {
             let jobs = bridge.get("/v1/jobs").await?;
             if json_out {
@@ -959,6 +1105,16 @@ mod tests {
         );
         assert_eq!(resolve_token(None, None, Some("ext")), "ext");
         assert_eq!(resolve_token(None, None, None), "");
+    }
+
+    #[test]
+    fn an_end_counts_only_after_the_start() {
+        assert!(!is_end("queued", 1, Some(1)));
+        assert!(!is_end("done", 1, Some(1)), "a state it saw at the start");
+        assert!(is_end("done", 3, Some(1)));
+        assert!(is_end("done_unreported", 3, Some(1)));
+        assert!(is_end("review", 2, None));
+        assert!(!is_end("waiting_approval", 5, Some(1)));
     }
 
     #[test]

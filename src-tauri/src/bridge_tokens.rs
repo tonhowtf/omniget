@@ -441,6 +441,23 @@ pub fn route_need(method: &Method, path: &str) -> Option<Need> {
         ["v1", "jobs", id] if get => need(SCOPE_JOBS_READ, Some(id)),
         ["v1", "jobs", id, "explain" | "diff" | "proof"] if get => need(SCOPE_JOBS_READ, Some(id)),
         ["v1", "jobs", id, "cancel"] if post => need(SCOPE_JOBS_OPERATE, Some(id)),
+        // Item 2.5: waiting is a read of that job.
+        ["v1", "jobs", id, "wait"] if get => need(SCOPE_JOBS_READ, Some(id)),
+        // The command surface: any valid user token passes the route, and
+        // each command checks its own scope (`job.start` and
+        // `job.interrupt` need `jobs:operate`, `approval.respond`
+        // `approvals:respond`). A job's own token is refused here (it is
+        // bound to its job): a job never starts a job. The extension key is
+        // not accepted on a route that did not exist before it.
+        ["v1", "commands"] if post => Some(Need {
+            scope: SCOPE_JOBS_READ,
+            job: None,
+            legacy_ok: false,
+        }),
+        // The Catalog installs things (S1 residue of 2.1): an operator's
+        // scope; the extension key keeps working through the grace period,
+        // like the other agent routes, because `omniget agentkit` sent it.
+        ["v1", "agentkit", _] if post => need(SCOPE_JOBS_OPERATE, None),
         ["v1", "agent", "run" | "run-tool" | "loop" | "loop-catalog"] if post => {
             need(SCOPE_JOBS_OPERATE, None)
         }
@@ -801,7 +818,7 @@ mod tests {
             let end = rest[q + 1..].find('"').unwrap();
             paths.push(rest[q + 1..q + 1 + end].to_string());
         }
-        assert_eq!(paths.len(), 18, "{paths:?}");
+        assert_eq!(paths.len(), 20, "{paths:?}");
         for p in &paths {
             let concrete = p.replace("{id}", "j1");
             let ok = route_need(&Method::GET, &concrete).is_some()
@@ -830,6 +847,14 @@ mod tests {
         assert_eq!(answer.scope, SCOPE_APPROVALS_RESPOND);
         assert!(!answer.legacy_ok);
         assert!(route_need(&Method::POST, "/v1/approvals").is_none());
+        // 2.5: the command surface is closed to the extension key and to a
+        // job's own token (bound to its job); waiting reads one job.
+        let cmd = p("/v1/commands");
+        assert!(!cmd.legacy_ok && cmd.job.is_none());
+        let w = g("/v1/jobs/j1/wait");
+        assert_eq!((w.scope, w.job.as_deref()), (SCOPE_JOBS_READ, Some("j1")));
+        assert!(route_need(&Method::GET, "/v1/commands").is_none());
+        assert_eq!(p("/v1/agentkit/apply").scope, SCOPE_JOBS_OPERATE);
         assert!(route_need(&Method::POST, "/v1/jobs").is_none());
         assert!(route_need(&Method::GET, "/v1/nope").is_none());
     }

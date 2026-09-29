@@ -4081,6 +4081,8 @@ export type TranslationKeys =
   | 'mcp_auth.reason_label'
   | 'mcp_auth.title'
 
+  | 'mcp_connections.agents_run'
+  | 'mcp_connections.agents_run_help'
   | 'mcp_connections.app_capture'
   | 'mcp_connections.app_control'
   | 'mcp_connections.app_observe'

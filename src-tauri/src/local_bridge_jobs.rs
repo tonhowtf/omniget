@@ -10,7 +10,9 @@
 //! <agent> --tool <x>`); `POST /v1/agent/loop-catalog` starts a catalog loop
 //! on the Loops engine (`omniget agent loop --catalog <id>`); `GET
 //! /v1/playbooks` lists the playbook runs; `GET /v1/approvals` and `POST
-//! /v1/approvals/{id}` read and answer the durable asks (2.2).
+//! /v1/approvals/{id}` read and answer the durable asks (2.2). `POST
+//! /v1/commands` and `GET /v1/jobs/{id}/wait` are the asynchronous,
+//! idempotent command surface (2.5, `job_commands`).
 
 use axum::extract::{Path, RawQuery};
 use axum::http::{header, HeaderMap, StatusCode};
@@ -38,7 +40,7 @@ impl JobsBridgeState {
     }
 
     /// The guard of every route below: tokens are read from `jobs.db`.
-    fn guard(&self) -> crate::bridge_tokens::Guard {
+    pub(crate) fn guard(&self) -> crate::bridge_tokens::Guard {
         let app = self.app.clone();
         crate::bridge_tokens::Guard {
             extension: self.token.clone(),
@@ -112,6 +114,7 @@ where
     let (c1, c2, c3) = (state.clone(), state.clone(), state.clone());
     let (a1, a2) = (state.clone(), state.clone());
     let s13 = state.clone();
+    let (k1, k2) = (state.clone(), state.clone());
     let (s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11, s12) = (
         state.clone(),
         state.clone(),
@@ -162,24 +165,98 @@ where
                 },
             ),
         )
+        // Kept for one version as a shortcut of `job.start` on `/v1/commands`
+        // (2.5): same checks, a fresh command id, the whole job back as
+        // before, and a `Deprecation` header pointing at the new route.
         .route(
             "/v1/agent/run",
             post(
-                move |headers: HeaderMap, Json(b): Json<RunBody>| async move {
-                    guarded!(s2, headers, |j: std::sync::Arc<jobs::Jobs>| ok(b
-                        .isolation
-                        .as_deref()
-                        .map(jobs::Isolation::parse)
-                        .transpose()
-                        .and_then(|isolation| j.submit_placed(
-                            "run",
-                            &b.agent_id,
-                            &b.prompt,
-                            b.workspace.clone(),
-                            b.deadline_min,
-                            isolation,
-                            b.base.clone(),
-                        ))))
+                move |headers: HeaderMap,
+                      principal: Option<axum::Extension<crate::mcp::policy::Principal>>,
+                      Json(b): Json<RunBody>| async move {
+                    let cmds = match crate::job_commands::from_app(&s2.app) {
+                        Ok(c) => c,
+                        Err(e) => return fail(StatusCode::INTERNAL_SERVER_ERROR, e),
+                    };
+                    let Some(p) = principal else {
+                        return fail(StatusCode::UNAUTHORIZED, "no principal");
+                    };
+                    let c = crate::job_commands::http_caller(&p.0, &headers, false);
+                    let body = json!({
+                        "command_id": format!("run-{}", uuid::Uuid::new_v4().simple()),
+                        "type": "job.start",
+                        "agent_id": b.agent_id,
+                        "prompt": b.prompt,
+                        "workspace": b.workspace,
+                        "deadline_min": b.deadline_min,
+                        "isolation": b.isolation,
+                        "base": b.base,
+                    });
+                    match cmds.execute(&c, &body) {
+                        Ok((r, _)) => {
+                            let job = r["job_id"].as_str().and_then(|id| cmds.engine.job(id));
+                            let mut res = Json(json!(job)).into_response();
+                            res.headers_mut().insert(
+                                "deprecation",
+                                axum::http::HeaderValue::from_static("true"),
+                            );
+                            res.headers_mut().insert(
+                                header::LINK,
+                                axum::http::HeaderValue::from_static("</v1/commands>; rel=\"successor-version\""),
+                            );
+                            res
+                        }
+                        Err(e) => fail(
+                            StatusCode::from_u16(e.status).unwrap_or(StatusCode::BAD_REQUEST),
+                            e.text(),
+                        ),
+                    }
+                },
+            ),
+        )
+        // The command surface (2.5): `job.start`, `job.interrupt`,
+        // `approval.respond`, idempotent by `command_id`. The route asks
+        // for any valid token; the command itself checks its scope.
+        .route(
+            "/v1/commands",
+            post(
+                move |headers: HeaderMap,
+                      principal: Option<axum::Extension<crate::mcp::policy::Principal>>,
+                      Json(b): Json<Value>| async move {
+                    match crate::job_commands::from_app(&k1.app) {
+                        Ok(c) => crate::job_commands::http_command(
+                            &c,
+                            principal.as_ref().map(|p| &p.0),
+                            &headers,
+                            &b,
+                        ),
+                        Err(e) => fail(StatusCode::INTERNAL_SERVER_ERROR, e),
+                    }
+                },
+            ),
+        )
+        // Long poll on the job's state (2.5): wakes on the change, matches
+        // only a state newer than `after_seq`, 408 on timeout.
+        .route(
+            "/v1/jobs/{id}/wait",
+            get(
+                move |Path(id): Path<String>,
+                      RawQuery(query): RawQuery,
+                      headers: HeaderMap,
+                      principal: Option<axum::Extension<crate::mcp::policy::Principal>>| async move {
+                    match crate::job_commands::from_app(&k2.app) {
+                        Ok(c) => {
+                            crate::job_commands::http_wait(
+                                &c,
+                                principal.as_ref().map(|p| &p.0),
+                                &headers,
+                                &id,
+                                query.as_deref(),
+                            )
+                            .await
+                        }
+                        Err(e) => fail(StatusCode::INTERNAL_SERVER_ERROR, e),
+                    }
                 },
             ),
         )
@@ -258,15 +335,11 @@ where
         .route(
             "/v1/jobs/{id}",
             get(
-                move |Path(id): Path<String>, headers: HeaderMap| async move {
-                    guarded!(
-                        s6,
-                        headers,
-                        |j: std::sync::Arc<jobs::Jobs>| match j.job(&id) {
-                            Some(job) => Json(json!(job)).into_response(),
-                            None => fail(StatusCode::NOT_FOUND, format!("no job {id}")),
-                        }
-                    )
+                move |Path(id): Path<String>, RawQuery(query): RawQuery| async move {
+                    match crate::job_commands::from_app(&s6.app) {
+                        Ok(c) => crate::job_commands::http_job(&c, &id, query.as_deref()),
+                        Err(e) => fail(StatusCode::INTERNAL_SERVER_ERROR, e),
+                    }
                 },
             ),
         )

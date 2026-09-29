@@ -7079,7 +7079,9 @@
     "system_read": "Lire l'état de cet ordinateur, les analyses et les plans (washmybelly)",
     "system_change": "Préparer des plans de nettoyage, maintenir l'alimentation, le mode jeu et les captures FPS (washmybelly)",
     "approvals_respond": "Répondre aux demandes d’autorisation de ses missions",
-    "approvals_respond_help": "Avec ceci, le client peut autoriser les appels d’outils de ses propres missions, y compris des commandes shell, comme si vous appuyiez sur Autoriser ici. Ne l’accordez qu’à un client en qui vous avez autant confiance qu’en vous. Il ne peut jamais créer de règle « toujours autoriser », et un agent ne répond jamais à ses propres questions."
+    "approvals_respond_help": "Avec ceci, le client peut autoriser les appels d’outils de ses propres missions, y compris des commandes shell, comme si vous appuyiez sur Autoriser ici. Ne l’accordez qu’à un client en qui vous avez autant confiance qu’en vous. Il ne peut jamais créer de règle « toujours autoriser », et un agent ne répond jamais à ses propres questions.",
+    "agents_run": "Lancer vos agents en tâches de fond",
+    "agents_run_help": "Avec ceci, le client peut lancer n'importe quel agent de votre liste sur une tâche, dans le dossier qu'il indique, en arrière-plan, comme `omniget agent run`. Il ne voit et n'arrête que les tâches qu'il a lancées. Les demandes d'autorisation des agents vous attendent toujours, sauf si vous autorisez aussi ce client à y répondre."
   },
   "mcp_auth": {
     "title": "Un client IA vous demande de vous connecter",

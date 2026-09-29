@@ -7079,7 +7079,9 @@
     "system_read": "Read this computer's status, scans and plans (washmybelly)",
     "system_change": "Prepare cleanup plans, hold power, game mode and FPS captures (washmybelly)",
     "approvals_respond": "Answer permission questions of owned missions",
-    "approvals_respond_help": "With this, the client can allow the tool calls of its own missions, shell commands included, as if you pressed Allow here. Give it only to a client you trust like yourself. It can never create an “always allow” rule, and an agent can never answer its own questions."
+    "approvals_respond_help": "With this, the client can allow the tool calls of its own missions, shell commands included, as if you pressed Allow here. Give it only to a client you trust like yourself. It can never create an “always allow” rule, and an agent can never answer its own questions.",
+    "agents_run": "Run your agents as background jobs",
+    "agents_run_help": "With this, the client can start any agent of your roster on a task, in a folder it names, as a background job, just like `omniget agent run`. It only sees and stops the jobs it started. The agents' permission questions still wait for you, unless you also let this client answer them."
   },
   "mcp_auth": {
     "title": "An AI client asks you to sign in",

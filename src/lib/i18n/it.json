@@ -7079,7 +7079,9 @@
     "system_read": "Legge lo stato di questo computer, le scansioni e i piani (washmybelly)",
     "system_change": "Prepara piani di pulizia, gestisce l'alimentazione, la modalità gioco e le rilevazioni FPS (washmybelly)",
     "approvals_respond": "Rispondere alle richieste di permesso delle sue missioni",
-    "approvals_respond_help": "Con questo, il client può consentire le chiamate agli strumenti delle proprie missioni, comandi shell inclusi, come se premessi Consenti qui. Concedilo solo a un client di cui ti fidi come di te stesso. Non può mai creare una regola “consenti sempre”, e un agente non risponde mai alle proprie domande."
+    "approvals_respond_help": "Con questo, il client può consentire le chiamate agli strumenti delle proprie missioni, comandi shell inclusi, come se premessi Consenti qui. Concedilo solo a un client di cui ti fidi come di te stesso. Non può mai creare una regola “consenti sempre”, e un agente non risponde mai alle proprie domande.",
+    "agents_run": "Eseguire i tuoi agenti come attività in background",
+    "agents_run_help": "Con questo, il client può avviare qualsiasi agente del tuo elenco su un'attività, nella cartella che indica, in background, come `omniget agent run`. Vede e ferma solo le attività che ha avviato. Le richieste di autorizzazione degli agenti aspettano comunque te, a meno che tu non permetta anche a questo client di rispondere."
   },
   "mcp_auth": {
     "title": "Un client IA ti chiede di accedere",

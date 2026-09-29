@@ -150,6 +150,27 @@ pub struct Job {
     /// code, tokens, cost and time. Never written by the agent; 0 tokens.
     #[serde(default)]
     pub proof: Option<Value>,
+    /// A short name for lists, given by whoever started the job (2.5).
+    #[serde(default)]
+    pub title: Option<String>,
+    /// Who started the job through the command surface (2.5): `token:<id>`
+    /// for a bridge token, `mcp:<client>` for an MCP client. An MCP client
+    /// reads, waits on, cancels and answers the asks of the jobs it owns.
+    #[serde(default)]
+    pub owner: Option<String>,
+    /// The permission mode asked for (`job.start.run_mode`), stored as given;
+    /// item 2.7 maps it onto the runtimes.
+    #[serde(default)]
+    pub run_mode: Option<String>,
+    /// The agent's own last word (2.6): `{status: succeeded|failed, summary}`
+    /// from its `OUTCOME:` line. `None` when it wrote none (a `run` job then
+    /// ends `done_unreported`).
+    #[serde(default)]
+    pub outcome: Option<Value>,
+    /// The rest of the `job.start` command: `command_id`, `purpose`,
+    /// `model`, `effort`, `budget_usd`, `resume_of`.
+    #[serde(default)]
+    pub origin: Option<Value>,
 }
 
 /// How a job is placed in its folder (2.3). `Auto` is the default of a job
@@ -577,6 +598,9 @@ pub struct Jobs {
     loop_waits: Mutex<HashMap<String, CancellationToken>>,
     /// When the cron ticker last ran the worktree GC (epoch ms).
     last_worktree_gc: std::sync::atomic::AtomicU64,
+    /// Bumped on every saved row, so `wait` (2.5) sleeps until something
+    /// changed instead of polling.
+    changes: tokio::sync::watch::Sender<u64>,
 }
 
 /// A question of a job's turn, as the bus forwarder hands it to the runner.
@@ -724,6 +748,12 @@ pub fn ensure_schema(db: &Connection, now_ms: i64) -> Result<(), String> {
         // Diff by base..tip and the host's proof (2.4).
         "head_oid TEXT",
         "proof TEXT",
+        // Command surface and outcome (2.5, 2.6).
+        "title TEXT",
+        "owner TEXT",
+        "run_mode TEXT",
+        "outcome TEXT",
+        "origin TEXT",
     ] {
         let _ = db.execute(&format!("ALTER TABLE jobs ADD COLUMN {column}"), []);
     }
@@ -740,6 +770,8 @@ pub fn ensure_schema(db: &Connection, now_ms: i64) -> Result<(), String> {
     migrate_triggers(db, now_ms);
     // Scoped control tokens of the bridge (2.1).
     crate::bridge_tokens::ensure_schema(db).map_err(|e| format!("{ERR_JOBS}: {e}"))?;
+    // Receipts of `POST /v1/commands` and the MCP job tools (2.5).
+    crate::job_commands::ensure_schema(db).map_err(|e| format!("{ERR_JOBS}: {e}"))?;
     Ok(())
 }
 
@@ -772,6 +804,7 @@ pub fn get(app: &AppHandle) -> Result<Arc<Jobs>, String> {
         loop_waits: Mutex::new(HashMap::new()),
         // The boot pass counts as a GC run.
         last_worktree_gc: std::sync::atomic::AtomicU64::new(now_ms()),
+        changes: tokio::sync::watch::channel(0).0,
     });
     if JOBS.set(jobs.clone()).is_ok() {
         let limits = crate::commands::llm::watchdog::limits(app);
@@ -896,13 +929,22 @@ fn row_to_job(r: &rusqlite::Row<'_>) -> rusqlite::Result<Job> {
         proof: r
             .get::<_, Option<String>>(36)?
             .and_then(|s| serde_json::from_str(&s).ok()),
+        title: r.get(37)?,
+        owner: r.get(38)?,
+        run_mode: r.get(39)?,
+        outcome: r
+            .get::<_, Option<String>>(40)?
+            .and_then(|s| serde_json::from_str(&s).ok()),
+        origin: r
+            .get::<_, Option<String>>(41)?
+            .and_then(|s| serde_json::from_str(&s).ok()),
     })
 }
 
-const JOB_COLS: &str = "id, kind, agent_id, conversation_id, prompt, workspace, state, loop_id, trigger_id, request_id, created_ms, started_ms, finished_ms, result, error, log, usage, state_seq, seen_ms, failure_reason, deadline_min, deadline_ms, wait_reason, diff_files, additions, deletions, diff_clipped, diff_unavailable, spec, playbook_id, isolation, base_ref, worktree_path, branch, base_oid, head_oid, proof";
+const JOB_COLS: &str = "id, kind, agent_id, conversation_id, prompt, workspace, state, loop_id, trigger_id, request_id, created_ms, started_ms, finished_ms, result, error, log, usage, state_seq, seen_ms, failure_reason, deadline_min, deadline_ms, wait_reason, diff_files, additions, deletions, diff_clipped, diff_unavailable, spec, playbook_id, isolation, base_ref, worktree_path, branch, base_oid, head_oid, proof, title, owner, run_mode, outcome, origin";
 
 impl Jobs {
-    fn db(&self) -> std::sync::MutexGuard<'_, Connection> {
+    pub(crate) fn db(&self) -> std::sync::MutexGuard<'_, Connection> {
         self.db.lock().unwrap_or_else(|e| e.into_inner())
     }
 
@@ -1045,7 +1087,12 @@ impl Jobs {
                     job.branch,
                     job.base_oid,
                     job.head_oid,
-                    job.proof.as_ref().map(|p| p.to_string())
+                    job.proof.as_ref().map(|p| p.to_string()),
+                    job.title,
+                    job.owner,
+                    job.run_mode,
+                    job.outcome.as_ref().map(|o| o.to_string()),
+                    job.origin.as_ref().map(|o| o.to_string())
                 ],
             )
             .map_err(|_| "JOB_STORAGE_UNAVAILABLE".to_owned())?;
@@ -1062,6 +1109,7 @@ impl Jobs {
         light.diff_files = None;
         light.proof = None;
         let _ = self.app.emit(EVENT_JOB, &light);
+        self.changes.send_modify(|n| *n = n.wrapping_add(1));
         Ok(())
     }
 
@@ -1273,6 +1321,98 @@ impl Jobs {
             this.run_job(&id, None).await;
         });
         Ok(job)
+    }
+
+    /// Starts the job of a `job.start` command (2.5), owned by `owner`. The
+    /// command's fields land on the row; `resume_of` continues that job's
+    /// conversation (and folder, unless another is named); `model` becomes
+    /// the conversation's model on the agent's own provider; `budget_usd`
+    /// guards the turn ([`with_budget`]). `effort` is recorded only.
+    pub fn submit_command(
+        self: &Arc<Self>,
+        s: &crate::job_commands::StartSpec,
+        owner: &str,
+    ) -> Result<Job, String> {
+        let earlier = match &s.resume_of {
+            Some(id) => {
+                let e = self
+                    .job(id)
+                    .ok_or_else(|| format!("{ERR_JOBS}: no job {id} to resume"))?;
+                if is_active(&e.state) {
+                    return Err(format!("{ERR_JOBS}: job {id} is still {}", e.state));
+                }
+                Some(e)
+            }
+            None => None,
+        };
+        let workspace = s
+            .workspace
+            .clone()
+            .or_else(|| earlier.as_ref().and_then(|e| e.workspace.clone()));
+        let mut job = self.new_job(
+            "run",
+            &s.agent_id,
+            &s.prompt,
+            workspace,
+            earlier.as_ref().map(|e| e.conversation_id.clone()),
+        )?;
+        job.deadline_min = s.deadline_min.map(|m| m.clamp(1, 24 * 60));
+        if let Some(i) = &s.isolation {
+            job.isolation = Isolation::parse(i)?;
+        }
+        job.base_ref = s
+            .base
+            .as_ref()
+            .map(|b| b.trim().to_string())
+            .filter(|b| !b.is_empty());
+        if job.base_ref.is_some() && job.isolation == Isolation::Shared {
+            return Err(format!(
+                "{ERR_JOBS}: a base ref needs a worktree (isolation worktree or auto)"
+            ));
+        }
+        job.title = s.title.clone();
+        job.owner = Some(owner.to_string());
+        job.run_mode = s.run_mode.clone();
+        job.origin = Some(json!({
+            "command_id": s.command_id,
+            "purpose": s.purpose,
+            "model": s.model,
+            "effort": s.effort,
+            "budget_usd": s.budget_usd,
+            "resume_of": s.resume_of,
+        }));
+        if let Some(model) = s.model.as_deref() {
+            let agent = self
+                .llm
+                .agent(&s.agent_id)
+                .ok_or_else(|| format!("{ERR_JOBS}: no agent `{}`", s.agent_id))?;
+            let omniget_core::core::llm::agent::ModelPolicy::Fixed { model: current } = agent.model
+            else {
+                return Err(format!(
+                    "{ERR_JOBS}: agent `{}` routes between models; pick one in the app instead of `model`",
+                    s.agent_id
+                ));
+            };
+            self.llm.switch_model(
+                &job.conversation_id,
+                omniget_core::core::llm::types::ModelRef {
+                    provider: current.provider,
+                    model: model.to_string(),
+                },
+            )?;
+        }
+        self.save_job_checked(&job)?;
+        let this = self.clone();
+        let id = job.id.clone();
+        tauri::async_runtime::spawn(async move {
+            this.run_job(&id, None).await;
+        });
+        Ok(job)
+    }
+
+    /// Something saved a job row since `seen` (see [`Self::changes`]).
+    pub fn subscribe(&self) -> tokio::sync::watch::Receiver<u64> {
+        self.changes.subscribe()
     }
 
     pub fn cancel(&self, id: &str) -> Result<Job, String> {
@@ -1618,6 +1758,11 @@ impl Jobs {
                     },
                 )
             });
+        // A budget from `job.start` (2.5) rides on whatever guard the job has.
+        let guard = with_budget(
+            guard,
+            job.origin.as_ref().and_then(|o| o["budget_usd"].as_f64()),
+        );
         job.deadline_ms = guard.as_ref().and_then(|g| g.deadline_ms);
         if self.save_job_checked(&job).is_err() {
             cancel.cancel();
@@ -1876,7 +2021,12 @@ impl Jobs {
         if let Some(tid) = job.trigger_id.clone() {
             // Routines keep their own rule (only a changed result, muted).
             self.notify_routine(&tid, &job);
-        } else if job.kind == "run" && matches!(job.state.as_str(), "done" | "review" | "failed") {
+        } else if job.kind == "run"
+            && matches!(
+                job.state.as_str(),
+                "done" | "review" | "done_unreported" | "failed"
+            )
+        {
             let ok = job.state != "failed";
             let detail = if ok {
                 job.result.clone().unwrap_or_default()
@@ -4274,7 +4424,38 @@ pub fn state_view(view: &GateView, job: &dyn Fn(&str) -> Option<Job>) -> Value {
 /// A job that ended well: `done`, or `review` (it wrote files a person has
 /// not looked at yet, 2.4).
 pub fn is_success(state: &str) -> bool {
-    matches!(state, "done" | "review")
+    matches!(state, "done" | "review" | "done_unreported")
+}
+
+/// A job that ended, one way or another: nothing will move it by itself.
+pub fn is_terminal(state: &str) -> bool {
+    matches!(
+        state,
+        "done" | "review" | "done_unreported" | "failed" | "cancelled" | "interrupted"
+    )
+}
+
+/// Adds a `job.start` budget (US$) to the job's guard: the job stops
+/// `failed` (reason `limit`) once its known cost passes it. A provider with
+/// no price never trips it (the cost stays unknown).
+pub fn with_budget(guard: Option<JobGuard>, budget_usd: Option<f64>) -> Option<JobGuard> {
+    let Some(budget) = budget_usd.filter(|b| *b > 0.0) else {
+        return guard;
+    };
+    let mut g = guard.unwrap_or_default();
+    let before = g.check.take();
+    g.check = Some(Arc::new(move |tokens, usd| {
+        if let Some(check) = &before {
+            check(tokens, usd)?;
+        }
+        match usd {
+            Some(spent) if spent > budget => Err(format!(
+                "the job spent US$ {spent:.4}, past its budget of US$ {budget:.4}"
+            )),
+            _ => Ok(()),
+        }
+    }));
+    Some(g)
 }
 
 /// The state a job ends in once its diff is known: a `done` job that

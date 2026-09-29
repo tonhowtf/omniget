@@ -23,6 +23,7 @@ pub mod extension_storage;
 pub mod external_url;
 pub mod hotkey;
 pub mod ipc_guard;
+pub mod job_commands;
 pub mod jobs;
 pub mod limits_strip;
 pub mod llm_attention;
