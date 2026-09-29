@@ -1,7 +1,7 @@
 {
   "name": "omniget",
-  "version": "0.6.0",
-  "description": "Fetch media, captions and transcripts from a pasted URL with OmniGet's tooling (yt-dlp, ffmpeg, whisper.cpp or cloud speech APIs), and hand tasks to your OmniGet agents when you ask.",
+  "version": "0.7.0",
+  "description": "Fetch media, captions and transcripts from a pasted URL with OmniGet's tooling (yt-dlp, ffmpeg, whisper.cpp or cloud speech APIs), hand tasks to your OmniGet agents when you ask, and, with the desktop app, recall and keep what OmniGet remembers about you.",
   "author": {
     "name": "Theodore Imonigie"
   },
@@ -14,6 +14,7 @@
     "transcript",
     "whisper",
     "youtube",
-    "instagram"
+    "instagram",
+    "memory"
   ]
 }

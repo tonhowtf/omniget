@@ -261,6 +261,18 @@ pub trait TurnAugment: Send + Sync {
         conversation_id: &str,
         user_input: &str,
     ) -> Option<String>;
+
+    /// Called once a turn finished normally, off the stream (the reply was
+    /// already sent). Must not block: spawn anything slow. `assist::memory`
+    /// extracts facts here.
+    fn after_turn(
+        &self,
+        _agent: &AgentDef,
+        _conversation_id: &str,
+        _user_input: &str,
+        _reply: &str,
+    ) {
+    }
 }
 
 pub struct Coordinator {
@@ -654,7 +666,7 @@ impl Coordinator {
             self.persist(&conversation_id, &agent.id, &system);
             history.push(system);
         }
-        let user_msg = Message::text(Role::User, user_input);
+        let user_msg = Message::text(Role::User, user_input.clone());
         self.persist(&conversation_id, &agent.id, &user_msg);
         history.push(user_msg);
 
@@ -1437,6 +1449,21 @@ impl Coordinator {
             agent: agent.id.clone(),
             usage: total,
         });
+
+        if matches!(finish, FinishReason::Stop)
+            && turn_error.is_none()
+            && !crate::core::assist::authority::external(&conversation_id)
+            && !last_text.is_empty()
+        {
+            let hooks = self
+                .augments
+                .read()
+                .unwrap_or_else(|e| e.into_inner())
+                .clone();
+            for h in hooks {
+                h.after_turn(&agent, &conversation_id, &user_input, &last_text);
+            }
+        }
 
         // Context pruning runs here and only here: the turn is over, the
         // stream is closed, and the judge — a model or a network call — gets

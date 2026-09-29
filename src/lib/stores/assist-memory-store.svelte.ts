@@ -301,3 +301,100 @@ export async function reindexMemory(): Promise<Outcome<number>> {
     return { ok: false, errorKey: memoryErrorKey(e) };
   }
 }
+
+// ── Recall engine (retain, hybrid search, entities, notes) ──────────────
+
+export interface MemoryStats {
+  active: number;
+  with_vector: number;
+  entities: number;
+  notes: number;
+  links: number;
+  retains_today: number;
+  facts_today: number;
+  last_retain_ms?: number | null;
+  last_retain_error?: string | null;
+  semantic_ready: boolean;
+  auto_retain: boolean;
+  consolidate: boolean;
+}
+
+export interface MemoryEntity {
+  id: string;
+  name: string;
+  kind: string;
+  mentions: number;
+  last_ms: number;
+  note?: string | null;
+}
+
+export type RecallArm = "semantic" | "keyword" | "graph" | "temporal";
+
+export interface RecallWhy {
+  arms: RecallArm[];
+  semantic?: number | null;
+  keyword_rank?: number | null;
+  graph?: number | null;
+  temporal?: number | null;
+  rrf: number;
+  proofs: number;
+  occurred_start?: number | null;
+  occurred_end?: number | null;
+}
+
+export interface RecallHit extends MemoryItem {
+  score: number;
+  why: RecallWhy;
+}
+
+export interface RecallResult {
+  hits: RecallHit[];
+  entities: string[];
+  window?: [number, number] | null;
+  semantic: boolean;
+}
+
+export interface RetainReport {
+  extracted: number;
+  created: string[];
+  reinforced: string[];
+  skipped: number;
+  duplicate: boolean;
+}
+
+async function attempt<T>(f: () => Promise<T>): Promise<Outcome<T>> {
+  try {
+    return { ok: true, value: await f() };
+  } catch (e) {
+    return { ok: false, errorKey: memoryErrorKey(e) };
+  }
+}
+
+export async function memoryStats(): Promise<Outcome<MemoryStats>> {
+  return attempt(() => invoke<MemoryStats>("assist_memory_stats"));
+}
+
+export async function memoryEntities(limit = 60): Promise<Outcome<MemoryEntity[]>> {
+  return attempt(() => invoke<MemoryEntity[]>("assist_memory_entities", { limit }));
+}
+
+export async function searchMemory(query: string, limit = 20): Promise<Outcome<RecallResult>> {
+  return attempt(() => invoke<RecallResult>("assist_memory_search", { query, limit }));
+}
+
+export async function setMemorySettings(input: {
+  auto_retain?: boolean;
+  consolidate?: boolean;
+}): Promise<Outcome<MemoryStats>> {
+  return attempt(() => invoke<MemoryStats>("assist_memory_set_settings", { input }));
+}
+
+export async function prepareSemanticMemory(): Promise<Outcome<number>> {
+  return attempt(() => invoke<number>("assist_memory_prepare_semantic"));
+}
+
+export async function retainText(text: string, context?: string): Promise<Outcome<RetainReport>> {
+  const out = await attempt(() => invoke<RetainReport>("assist_memory_retain_text", { text, context }));
+  if (out.ok) await loadAllScopes(false);
+  return out;
+}

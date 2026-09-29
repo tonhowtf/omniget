@@ -10,7 +10,7 @@ use tauri::{AppHandle, Manager};
 pub fn catalog(p: &Principal) -> Vec<Value> {
     tools(p).into_iter().map(|tool| {
         let writes = matches!(policy::scope(tool.name), Some("enqueue" | "control" | "company_control" | "orchestration_control" | "orchestration_create" | "app_control" | "app_capture" | "system_change" | "approvals_respond" | "agents_run"))
-            || matches!(tool.name, "auth_connection_request" | "diagnostic_bundle_create" | "catalog_install");
+            || matches!(tool.name, "auth_connection_request" | "diagnostic_bundle_create" | "catalog_install" | "memory_retain");
         let open_world = matches!(tool.name, "download_enqueue" | "downloads_batch_enqueue" | "download_retry" | "download_resume" | "media_inspect" | "media_collection_list");
         let mut value = serde_json::to_value(&tool).expect("static tool schema serializes");
         // MCP semantics: destructive = may undo or discard existing work
@@ -52,6 +52,11 @@ pub fn tools(p: &Principal) -> Vec<ToolDef> {
     );
     list.extend(
         super::orchestration::tools()
+            .into_iter()
+            .filter(|t| policy::allowed(p, t.name)),
+    );
+    list.extend(
+        super::memory::tools()
             .into_iter()
             .filter(|t| policy::allowed(p, t.name)),
     );
@@ -209,6 +214,9 @@ pub async fn call(app: &AppHandle, p: &Principal, name: &str, a: Value) -> Resul
             return Err("TOOL_NOT_AUTHORIZED".into());
         }
         return super::orchestration::call(app, p, name, a).await;
+    }
+    if matches!(policy::scope(name), Some("memory_read" | "memory_write")) {
+        return super::memory::call(app, p, name, a).await;
     }
     if policy::scope(name) == Some("catalog") {
         if !policy::allowed(p, name) {

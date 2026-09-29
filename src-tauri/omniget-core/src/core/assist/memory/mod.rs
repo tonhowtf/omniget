@@ -19,12 +19,26 @@
 //!   subject and kind), keeping the chain for the history screen;
 //! - forgetting removes every version, the index rows and the cached profile,
 //!   and leaves hashes behind.
+//!
+//! On top of the records sits the Hindsight-style layer (estudos/91-hindsight):
+//! [`retain`] extracts facts from each turn, [`graph`] keeps their dates,
+//! vectors, entities and links, [`retrieve`] recalls with four fused arms,
+//! [`consolidate`] keeps a note per entity and [`reflect`] answers from memory.
+//! All of it is derived from `memory_records` and purged with it.
 
+pub mod consolidate;
+pub mod graph;
 mod records;
+pub mod reflect;
+pub mod retain;
+pub mod retrieve;
 mod search;
+pub mod temporal;
 mod toolset;
 mod transfer;
 
+#[cfg(test)]
+mod bench;
 #[cfg(test)]
 mod tests;
 
@@ -34,10 +48,14 @@ use serde_json::Value;
 use super::ctx::Scope;
 use super::db::Migration;
 
+pub use graph::{Entity, EntityRef};
 pub use records::{
     confirm, correct, expire_due, forget, get, history, list, remember, retract, scopes,
     Correction, ScopeSummary, Written,
 };
+pub use reflect::Reflection;
+pub use retain::{RetainInput, RetainReport};
+pub use retrieve::{Hit, Probe, Why};
 pub use search::{augment_text, profile, recall, reindex, source_line, Profile};
 pub use toolset::{augment, call_tool, has_recall_grant, toolset};
 pub use transfer::{
@@ -54,10 +72,11 @@ pub const ERR_MEMORY_IMPORT: &str = "ERR_MEMORY_IMPORT";
 /// Longest text one record may hold.
 pub const MAX_CONTENT_CHARS: usize = 4000;
 
-pub const MIGRATIONS: &[Migration] = &[Migration {
-    module: "memory",
-    version: 1,
-    sql: "
+pub const MIGRATIONS: &[Migration] = &[
+    Migration {
+        module: "memory",
+        version: 1,
+        sql: "
 CREATE TABLE memory_records(
     id TEXT PRIMARY KEY,
     principal TEXT NOT NULL,
@@ -107,7 +126,82 @@ CREATE VIRTUAL TABLE memory_fts USING fts5(
     tokenize = 'unicode61 remove_diacritics 2'
 );
 ",
-}];
+    },
+    Migration {
+        module: "memory",
+        version: 2,
+        sql: "
+CREATE TABLE memory_meta(
+    record_id TEXT PRIMARY KEY,
+    occurred_start INTEGER,
+    occurred_end INTEGER,
+    proofs INTEGER NOT NULL DEFAULT 1,
+    hits INTEGER NOT NULL DEFAULT 0,
+    last_hit_ms INTEGER
+);
+CREATE INDEX memory_meta_when ON memory_meta(occurred_start);
+CREATE TABLE memory_vectors(
+    record_id TEXT PRIMARY KEY,
+    source TEXT NOT NULL,
+    dim INTEGER NOT NULL,
+    vec BLOB NOT NULL
+);
+CREATE TABLE memory_entities(
+    id TEXT PRIMARY KEY,
+    principal TEXT NOT NULL,
+    name TEXT NOT NULL,
+    norm TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    mentions INTEGER NOT NULL DEFAULT 0,
+    first_ms INTEGER NOT NULL,
+    last_ms INTEGER NOT NULL
+);
+CREATE UNIQUE INDEX memory_entities_norm ON memory_entities(principal, norm);
+CREATE TABLE memory_entity_refs(
+    record_id TEXT NOT NULL,
+    entity_id TEXT NOT NULL,
+    PRIMARY KEY(record_id, entity_id)
+);
+CREATE INDEX memory_entity_refs_entity ON memory_entity_refs(entity_id);
+CREATE TABLE memory_links(
+    src TEXT NOT NULL,
+    dst TEXT NOT NULL,
+    kind TEXT NOT NULL CHECK(kind IN ('semantic','causal','temporal')),
+    weight REAL NOT NULL,
+    PRIMARY KEY(src, dst, kind)
+);
+CREATE INDEX memory_links_dst ON memory_links(dst);
+CREATE TABLE memory_entity_notes(
+    entity_id TEXT NOT NULL,
+    scope TEXT NOT NULL,
+    text TEXT NOT NULL,
+    ids TEXT NOT NULL,
+    built_ms INTEGER NOT NULL,
+    PRIMARY KEY(entity_id, scope)
+);
+CREATE TABLE memory_dirty_entities(
+    entity_id TEXT NOT NULL,
+    scope TEXT NOT NULL,
+    PRIMARY KEY(entity_id, scope)
+);
+CREATE TABLE memory_retain_log(
+    key TEXT PRIMARY KEY,
+    conversation TEXT,
+    bot TEXT,
+    at_ms INTEGER NOT NULL,
+    facts INTEGER NOT NULL,
+    reinforced INTEGER NOT NULL,
+    status TEXT NOT NULL,
+    detail TEXT
+);
+CREATE INDEX memory_retain_log_at ON memory_retain_log(at_ms);
+CREATE TABLE memory_settings(
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
+",
+    },
+];
 
 /// Every tool this module offers; `bots` maps the `memory` capability to these.
 pub const TOOL_NAMES: &[&str] = &[
@@ -116,6 +210,8 @@ pub const TOOL_NAMES: &[&str] = &[
     "memory_correct",
     "memory_forget",
     "memory_profile",
+    "memory_reflect",
+    "memory_retain",
 ];
 
 /// What kind of knowledge a record is.
@@ -362,4 +458,121 @@ pub(crate) fn record_hash(id: &str) -> String {
 
 pub(crate) fn not_found() -> String {
     format!("{ERR_MEMORY_NOT_FOUND}: no such memory")
+}
+
+// ── The Hindsight-style layer, for the app ───────────────────────────────
+
+use super::ctx::AssistCtx;
+use super::db::AssistDb;
+
+/// Counts for the memory screen.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+pub struct Stats {
+    pub active: i64,
+    pub with_vector: i64,
+    pub entities: i64,
+    pub notes: i64,
+    pub links: i64,
+    /// Retains logged in the last 24 hours, and facts they saved.
+    pub retains_today: i64,
+    pub facts_today: i64,
+    #[serde(default)]
+    pub last_retain_ms: Option<i64>,
+    #[serde(default)]
+    pub last_retain_error: Option<String>,
+    /// The local embedding model is loaded (meaning search works).
+    pub semantic_ready: bool,
+    pub auto_retain: bool,
+    pub consolidate: bool,
+}
+
+pub fn stats(db: &AssistDb, now: i64) -> Result<Stats, String> {
+    let mut s = db.with(|c| {
+        let n = |sql: &str| c.query_row(sql, [], |r| r.get::<_, i64>(0));
+        let day = now - 86_400_000;
+        let (retains, facts): (i64, i64) = c.query_row(
+            "SELECT COUNT(*), COALESCE(SUM(facts), 0) FROM memory_retain_log WHERE at_ms >= ?1",
+            [day],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )?;
+        let last: Option<(i64, String, Option<String>)> = {
+            use rusqlite::OptionalExtension;
+            c.query_row(
+                "SELECT at_ms, status, detail FROM memory_retain_log ORDER BY at_ms DESC LIMIT 1",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            )
+            .optional()?
+        };
+        Ok(Stats {
+            active: n("SELECT COUNT(*) FROM memory_records WHERE status = 'active'")?,
+            with_vector: c.query_row(
+                "SELECT COUNT(*) FROM memory_vectors v JOIN memory_records r ON r.id = v.record_id WHERE r.status = 'active' AND v.source = ?1",
+                [retrieve::vector_source().unwrap_or("")],
+                |r| r.get(0),
+            )?,
+            entities: n("SELECT COUNT(*) FROM memory_entities")?,
+            notes: n("SELECT COUNT(*) FROM memory_entity_notes")?,
+            links: n("SELECT COUNT(*) FROM memory_links")?,
+            retains_today: retains,
+            facts_today: facts,
+            last_retain_ms: last.as_ref().map(|l| l.0),
+            last_retain_error: last.filter(|l| l.1 == "failed").and_then(|l| l.2),
+            ..Default::default()
+        })
+    })?;
+    s.semantic_ready = retrieve::vector_source() == Some("e5");
+    s.auto_retain = retain::setting(db, "auto_retain");
+    s.consolidate = retain::setting(db, "consolidate");
+    Ok(s)
+}
+
+/// Entities the caller can see, most mentioned first, with their notes.
+pub fn entities(db: &AssistDb, ctx: &AssistCtx, limit: usize) -> Result<Vec<Entity>, String> {
+    let keys = (!ctx.is_user_ui()).then(|| ctx.readable_keys());
+    db.with(|c| graph::list_entities(c, &ctx.principal, keys.as_deref(), limit.clamp(1, 500)))
+}
+
+/// Hybrid search with the reasons, for the memory screen. Blocking (it may
+/// run the local model): call from `spawn_blocking`.
+pub fn search_explained(
+    db: &AssistDb,
+    ctx: &AssistCtx,
+    query: &str,
+    limit: usize,
+    now: i64,
+) -> Result<Probe, String> {
+    let qvec = retrieve::embed_query(query);
+    retrieve::hybrid(db, ctx, query, qvec.as_deref(), limit, now)
+}
+
+/// Downloads once the multilingual models (vectors and reranker, ≈ 250 MB)
+/// and the ONNX runtime if missing, embeds every record, then rebuilds the
+/// entity notes.
+pub async fn prepare_semantic(db: std::sync::Arc<AssistDb>) -> Result<usize, String> {
+    let progress = crate::core::tools::noop_progress();
+    if !crate::core::onnxrt::is_installed() {
+        crate::core::onnxrt::install_runtime(None, &progress)
+            .await
+            .map_err(|e| e.to_string())?;
+    }
+    use crate::core::embed::xlmr::{ensure, Model};
+    ensure(Model::E5, &progress)
+        .await
+        .map_err(|e| e.to_string())?;
+    ensure(Model::Reranker, &progress)
+        .await
+        .map_err(|e| e.to_string())?;
+    let d = db.clone();
+    let n = tokio::task::spawn_blocking(move || retain::backfill_vectors(&d, 100_000))
+        .await
+        .map_err(|e| e.to_string())??;
+    toolset::spawn_upkeep(db);
+    Ok(n)
+}
+
+/// Vectors for records without one, then the entity notes, in the
+/// background.
+pub fn upkeep(db: std::sync::Arc<AssistDb>) {
+    toolset::spawn_upkeep(db);
 }

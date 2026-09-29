@@ -76,6 +76,8 @@ pub const SCOPES: &[&str] = &[
     // (`agent_run`, `job_cancel`). Never a default: the person ticks it,
     // and the client then only sees the jobs it started.
     "agents_run",
+    "memory_read",
+    "memory_write",
 ];
 pub fn create(name: String, scopes: Vec<String>) -> Result<ConnectionGrant, String> {
     if name.trim().is_empty()
@@ -246,6 +248,8 @@ pub fn scope(name: &str) -> Option<&'static str> {
         "agents_derived_list" | "groups_get" => "orchestration_read",
         "agents_prepare" | "groups_prepare" | "group_tasks_create" => "orchestration_create",
         "catalog_search" | "catalog_get" | "catalog_plan_install" | "catalog_install" => "catalog",
+        "memory_recall" | "memory_reflect" => "memory_read",
+        "memory_retain" => "memory_write",
         // washmybelly: wmb_execute and wmb_restore from outside only create
         // an approval request the person answers in the OmniGet window.
         "wmb_plan"

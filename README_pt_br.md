@@ -349,6 +349,14 @@ O `omniget-cli claude` pula os pedidos de permissão do Claude Code por padrão.
 
 Medido no projeto de demonstração (um teste falhando, um bug de um caractere), build de release, Apple Silicon: o Claude Code pelo OmniGet corrige em cerca de 15 segundos. O `qwen3:8b` no Ollama faz o mesmo em cerca de 3 minutos.
 
+### Memória que aprende
+
+- **Aprende a cada conversa.** Depois de um turno, uma chamada ao seu modelo separa o que vale guardar: o que você disse, o que aconteceu e quando (datas relativas viram datas de verdade) e as pessoas, lugares e coisas envolvidos. Dizer algo de novo conta como mais uma confirmação, não como cópia.
+- **Busca por palavras, significado, ligações e tempo.** "O que eu fiz no mês passado?" e "me fala da Ana" funcionam em português, inglês e cerca de 100 outras línguas. Os modelos de busca rodam no seu computador, então buscar não chama modelo nenhum.
+- **Quem manda é você.** Só as suas palavras viram preferência declarada; o resto fica marcado como palpite. Corrija uma memória e a versão antiga sai de cena; esqueça e ela some do índice, dos vetores e dos resumos, e não volta.
+- **Fora do app também.** Claude Code, Codex ou Cursor ligados ao MCP do OmniGet com os escopos de memória podem buscar e ensinar, e o plugin do Claude Code faz as duas coisas a cada prompt.
+- Inspirada no [Hindsight](https://github.com/vectorize-io/hindsight), sem o servidor nem o Postgres dele: um arquivo SQLite e dois modelos locais. Numa conversa do LoCoMo, com o mesmo modelo e o mesmo juiz para os dois e 20 memórias por resposta, o OmniGet acertou 67 a 68% das perguntas e o Hindsight 64,5%.
+
 ### Jobs e Loops
 
 <p align="center">

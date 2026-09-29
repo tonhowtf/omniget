@@ -4819,6 +4819,7 @@ dependencies = [
  "tracing",
  "trash",
  "unicode-normalization",
+ "unicode-segmentation",
  "url",
  "urlencoding",
  "uuid 1.21.0",

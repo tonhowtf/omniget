@@ -349,6 +349,14 @@ omniget-cli agent jobs               # 最近的 Job；传入 id 可以跟踪某
 
 在演示项目上测得（一个失败的测试，一个只差一个字符的 bug，release 构建，Apple Silicon）：Claude Code 通过 OmniGet 大约 15 秒修好；Ollama 上的 `qwen3:8b` 做同样的事大约要 3 分钟。
 
+### Memory that learns
+
+- **It learns from every conversation.** After a turn, one call to your model pulls out the facts worth keeping: what you stated, what happened and when (relative dates become real ones), and the people, places and things involved. Something you say again counts as one more confirmation, not a copy.
+- **Recall by words, meaning, links and time.** "What did I do last month?" and "tell me about Ana" work in Portuguese, English and about 100 other languages. The search models run on your computer, so recall calls no model at all.
+- **You stay in charge.** Only your own words can become a stated preference; everything else is marked as a guess. Correct a memory and the old version steps aside; forget it and it leaves the index, the vectors and the summaries, and does not come back.
+- **Outside the app too.** Claude Code, Codex or Cursor connected to OmniGet's MCP with the memory scopes can recall and teach it, and the Claude Code plugin can do both on every prompt.
+- Inspired by [Hindsight](https://github.com/vectorize-io/hindsight), without its server or Postgres: one SQLite file and two local models. On a LoCoMo conversation, with the same model and judge for both and 20 memories per answer, OmniGet answered 67 to 68% of the questions and Hindsight 64.5%.
+
 ### Jobs 和 Loops
 
 <p align="center">
