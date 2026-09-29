@@ -3398,7 +3398,8 @@
         "no_start": "已停止：智能体从未启动",
         "deadline": "已停止：达到时间上限",
         "limit": "已停止：达到预算上限",
-        "ask_expired": "有一个问题无人回答"
+        "ask_expired": "有一个问题无人回答",
+        "budget": "已停止：预算上限阻止了此范围"
       },
       "queue": {
         "title": "队列",
@@ -3447,7 +3448,8 @@
         "legacy_hint": "保留一个版本，让旧脚本继续可用。下一个版本将拒绝它。",
         "legacy_seen": "浏览器扩展的密钥于 {{when}} 在 {{route}} 上被使用。请把该脚本换成带权限范围的令牌。",
         "curl_hint": "将 OMNIGET_TOKEN 设为具有 jobs:operate 权限范围的令牌（见下方访问令牌）。",
-        "scope_audit_read": "读取审计日志（audit:read）"
+        "scope_audit_read": "读取审计日志（audit:read）",
+        "scope_budget_write": "设置和提高预算（budget:write）"
       },
       "isolation": {
         "label": "写入位置",
@@ -3539,14 +3541,22 @@
         "running": "Running",
         "done": "Done",
         "failed": "Failed",
-        "cancelled": "Cancelled"
+        "cancelled": "Cancelled",
+        "paused": "已暂停"
       },
       "check_passed": "Condition met",
       "summary": "Up to {{rounds}} rounds. Stops earlier when a configured condition or time limit is reached.",
       "no_check": "No check command: completion will be controlled by the round or time limit.",
       "review": "Review loop",
       "edit": "Edit configuration",
-      "run_mode_hint": "循环的每一轮都以此模式运行。选择“事事先询问”时，每一轮在任何编辑或命令之前都会停下来等你确认。"
+      "run_mode_hint": "循环的每一轮都以此模式运行。选择“事事先询问”时，每一轮在任何编辑或命令之前都会停下来等你确认。",
+      "max_cost": "预算（美元）",
+      "paused_budget": "已暂停：预算已用尽",
+      "paused_budget_hint": "在提高上限之前不会开始新一轮；提高后循环会继续。",
+      "open_incident": "打开事件",
+      "cost_estimated": "（估算）",
+      "cost_tokens": "{{tokens}} 加权 token",
+      "cost_unknown": "{{count}} 轮成本未知"
     },
     "limits": {
       "title": "Limits strip",
@@ -5864,7 +5874,8 @@
         "mission": "任务目标",
         "thread": "会话串",
         "run": "聊天",
-        "ask": "提问"
+        "ask": "提问",
+        "budget": "预算"
       },
       "asks_for": "请求使用 {{tool}}",
       "nothing_waits": "没有需要你处理的事。",
@@ -5878,6 +5889,64 @@
         "ready": "完成：{{title}}",
         "review": "待审阅：{{title}}",
         "more": "另有 {{count}} 项在“工作”中"
+      }
+    },
+    "budget": {
+      "title": "预算",
+      "refresh": "刷新",
+      "lede": "为你的代理设置上限：针对全部、某个代理、某个账户、循环、任务或使命，单位可以是美元、加权 token 或订阅 5 小时 / 7 天窗口的比例。超过硬上限后，该范围会暂停，其工作会停止，直到你提高上限。没有上限就不做任何限制。",
+      "read_error": "无法读取预算。",
+      "empty": "还没有上限：没有任何限制。",
+      "hard": "暂停",
+      "soft": "询问",
+      "paused": "已暂停",
+      "remove": "移除",
+      "no_reading": "还没有配额读数（来自 CLI 自己的输出流）",
+      "warn_at": "{{pct}}% 时提醒",
+      "estimate_note": "订阅的美元是价格表的估算",
+      "add": "添加上限",
+      "scope": "对象",
+      "scope_id": "ID",
+      "metric_label": "计量单位",
+      "window_label": "窗口",
+      "amount": "上限",
+      "warn_label": "提醒比例 (%)",
+      "soft_label": "询问而不是暂停",
+      "save": "保存",
+      "hard_hint": "超过上限后该范围暂停：正在运行和排队的工作会被取消，并有一个事件等你处理（提高并继续，或保持暂停）。",
+      "soft_hint": "超过上限后，下一轮会在每个窗口内询问一次“继续？”，和其他审批一样（也可在 CLI 和手机上回答）。选否会暂停该范围。",
+      "quota_hint": "配额上限只读取 CLI 在自己输出流中报告的数据。对账户（或全部）来说上限是窗口本身的百分比；对循环、任务、代理或使命来说是它开始以来消耗的点数。",
+      "warn_toast": "{{scope}} 的预算：已用 {{used}} / {{limit}}",
+      "metric": {
+        "usd": "美元",
+        "weighted_tokens": "加权 token",
+        "quota_pct": "配额窗口的比例"
+      },
+      "window": {
+        "turn": "每轮",
+        "day": "每天",
+        "week": "每周",
+        "5h": "5 小时窗口",
+        "7d": "7 天窗口",
+        "run": "整个运行"
+      },
+      "scope_kind": {
+        "global": "全部",
+        "agent": "代理",
+        "account": "账户",
+        "loop": "循环",
+        "job": "任务",
+        "mission": "使命"
+      },
+      "incident": {
+        "open": "预算已用尽",
+        "kept": "保持暂停",
+        "hard_line": "已用 {{used}} / {{limit}}。在你提高上限之前，这里不会启动任何工作。",
+        "checkpoint_line": "{{limit}} 的检查点被回答为否（已用 {{used}}）。在你提高之前，这里不会启动任何工作。",
+        "new_limit": "新上限",
+        "raise": "提高并继续",
+        "keep": "保持暂停",
+        "too_low": "新上限必须高于已用量。"
       }
     }
   },

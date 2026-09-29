@@ -30,6 +30,13 @@ turn and must stay the real one:
                        paths relative to the working folder
   FAKE_CLAUDE_TRACE    `perm`: one JSON line per permission question and a
                        last line with the totals
+  FAKE_CLAUDE_COST_USD `total_cost_usd` of the result (default 0); `none`
+                       leaves it out, like a CLI that reports no price (BN7)
+  FAKE_CLAUDE_INPUT_TOKENS  `input_tokens` of the result usage (default 4)
+  FAKE_CLAUDE_RATE_FILE     `ok`: a `rate_limit_event` before the result; the
+                       file keeps the 5 h utilization (0..1) between turns
+  FAKE_CLAUDE_RATE_STEP     what each turn adds to it (default 0.02)
+  FAKE_CLAUDE_RATE_RESETS   its `resetsAt` (epoch seconds, default 4102444800)
 
 Modes:
   ok                 init, a text reply, result; exit 0.
@@ -159,13 +166,37 @@ def tool_result(tool_id, content, is_error=False):
 
 
 def result(text, denials=None):
-    emit({"type": "result", "subtype": "success", "duration_ms": 10, "duration_api_ms": 5,
-          "is_error": False, "num_turns": 1, "result": text, "stop_reason": "end_turn",
-          # BN11 gives each arena column its own price to compare.
-          "total_cost_usd": float(os.environ.get("FAKE_CLAUDE_COST_USD", "0") or 0),
-          "permission_denials": denials or [],
-          "usage": {"input_tokens": 4, "output_tokens": 2, "cache_creation_input_tokens": 0,
-                    "cache_read_input_tokens": 12040}})
+    line = {"type": "result", "subtype": "success", "duration_ms": 10, "duration_api_ms": 5,
+            "is_error": False, "num_turns": 1, "result": text, "stop_reason": "end_turn",
+            "permission_denials": denials or [],
+            "usage": {"input_tokens": int(os.environ.get("FAKE_CLAUDE_INPUT_TOKENS", "4") or 4),
+                      "output_tokens": 2, "cache_creation_input_tokens": 0,
+                      "cache_read_input_tokens": 12040}}
+    # BN11 gives each arena column its own price to compare; BN7 `none` is a
+    # CLI that reports no price at all (a subscription account's Codex).
+    cost = os.environ.get("FAKE_CLAUDE_COST_USD", "0")
+    if cost != "none":
+        line["total_cost_usd"] = float(cost or 0)
+    emit(line)
+
+
+def rate_limit():
+    """BN7: the 5 h window moves by STEP each turn, as `rate_limit_event`
+    reports it on the stream (the shape observed on 2.1.275)."""
+    path = os.environ.get("FAKE_CLAUDE_RATE_FILE")
+    if not path:
+        return
+    try:
+        with open(path, encoding="utf-8") as fh:
+            used = float(fh.read().strip() or 0)
+    except OSError:
+        used = 0.0
+    used = min(1.0, used + float(os.environ.get("FAKE_CLAUDE_RATE_STEP", "0.02")))
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write(repr(used))
+    resets = int(os.environ.get("FAKE_CLAUDE_RATE_RESETS", "4102444800"))
+    emit({"type": "rate_limit_event", "rate_limit_info": {"status": "allowed", "unifiedWindows": {
+        "five_hour": {"utilization": used, "resetsAt": resets}}}})
 
 
 def arg(flag):
@@ -309,6 +340,7 @@ def main():
     init()
     if mode == "ok":
         text_reply("ok")
+        rate_limit()
         result("ok")
         return 0
     if mode == "stall-after-init":

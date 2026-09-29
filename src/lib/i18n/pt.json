@@ -3398,7 +3398,8 @@
         "no_start": "Parado: o agente nunca começou",
         "deadline": "Parado: limite de tempo atingido",
         "limit": "Parado: limite de orçamento atingido",
-        "ask_expired": "Uma pergunta ficou sem resposta"
+        "ask_expired": "Uma pergunta ficou sem resposta",
+        "budget": "Parado: um teto de orçamento segura este escopo"
       },
       "queue": {
         "title": "Fila",
@@ -3447,7 +3448,8 @@
         "legacy_hint": "Mantido por uma versão para scripts antigos continuarem funcionando. A próxima versão recusa.",
         "legacy_seen": "A chave da extensão do navegador foi usada em {{route}} às {{when}}. Troque esse script por um token com escopo.",
         "curl_hint": "Defina OMNIGET_TOKEN com um token de escopo jobs:operate (Tokens de acesso, abaixo).",
-        "scope_audit_read": "Ler o registro de auditoria (audit:read)"
+        "scope_audit_read": "Ler o registro de auditoria (audit:read)",
+        "scope_budget_write": "Definir e aumentar orçamentos (budget:write)"
       },
       "isolation": {
         "label": "Onde ele escreve",
@@ -3539,14 +3541,22 @@
         "running": "Executando",
         "done": "Concluído",
         "failed": "Falhou",
-        "cancelled": "Cancelado"
+        "cancelled": "Cancelado",
+        "paused": "Pausado"
       },
       "check_passed": "Critério atingido",
       "summary": "Até {{rounds}} rodadas. Para antes se atingir o critério configurado ou o limite de tempo.",
       "no_check": "Sem comando de verificação: o encerramento será controlado pelo limite de rodadas ou tempo.",
       "review": "Revisar loop",
       "edit": "Editar configuração",
-      "run_mode_hint": "Cada rodada do loop roda com este modo. Com “Perguntar antes de tudo”, cada rodada para e espera você antes de qualquer edição ou comando."
+      "run_mode_hint": "Cada rodada do loop roda com este modo. Com “Perguntar antes de tudo”, cada rodada para e espera você antes de qualquer edição ou comando.",
+      "max_cost": "Orçamento (US$)",
+      "paused_budget": "Pausado: orçamento atingido",
+      "paused_budget_hint": "Nenhuma rodada começa até o teto ser aumentado; aumentar retoma o loop.",
+      "open_incident": "Abrir o incidente",
+      "cost_estimated": "(estimado)",
+      "cost_tokens": "{{tokens}} tokens ponderados",
+      "cost_unknown": "{{count}} rodada(s) de custo desconhecido"
     },
     "limits": {
       "title": "Barra de limites",
@@ -5864,7 +5874,8 @@
         "mission": "Missão",
         "thread": "Thread",
         "run": "Conversa",
-        "ask": "Pergunta"
+        "ask": "Pergunta",
+        "budget": "Orçamento"
       },
       "asks_for": "pede para usar {{tool}}",
       "nothing_waits": "Nada está esperando por você.",
@@ -5878,6 +5889,64 @@
         "ready": "Feito: {{title}}",
         "review": "Pronto para revisar: {{title}}",
         "more": "E mais {{count}} em Trabalho"
+      }
+    },
+    "budget": {
+      "title": "Orçamentos",
+      "refresh": "Atualizar",
+      "lede": "Tetos para os seus agentes: para tudo, um agente, uma conta, um loop, uma tarefa ou uma missão, em dólares, tokens ponderados ou parte da janela de 5 h / 7 d de uma assinatura. Passou de um teto rígido, o escopo pausa e o trabalho dele para até você aumentar o teto. Sem teto, nada é limitado.",
+      "read_error": "Não foi possível ler os orçamentos.",
+      "empty": "Nenhum teto ainda: nada é limitado.",
+      "hard": "pausa",
+      "soft": "pergunta",
+      "paused": "Pausado",
+      "remove": "Remover",
+      "no_reading": "Ainda sem leitura de cota (ela vem do próprio stream da CLI)",
+      "warn_at": "avisa em {{pct}}%",
+      "estimate_note": "dólares de uma assinatura são a estimativa da tabela de preços",
+      "add": "Adicionar um teto",
+      "scope": "Para",
+      "scope_id": "Id",
+      "metric_label": "Medido em",
+      "window_label": "Janela",
+      "amount": "Teto",
+      "warn_label": "Avisar em (%)",
+      "soft_label": "Perguntar em vez de pausar",
+      "save": "Salvar",
+      "hard_hint": "Passou do teto, o escopo pausa: o trabalho em andamento e na fila é cancelado e um incidente espera por você (aumentar e retomar, ou manter pausado).",
+      "soft_hint": "Passou do teto, o próximo turno pergunta \"continuar?\" uma vez por janela, como qualquer aprovação (também pela CLI e pelo celular). Um não pausa o escopo.",
+      "quota_hint": "Tetos de cota leem só o que a CLI informou no próprio stream. Para uma conta (ou tudo) o teto é a porcentagem da própria janela; para um loop, tarefa, agente ou missão são os pontos que ele moveu desde que começou.",
+      "warn_toast": "Orçamento de {{scope}}: {{used}} de {{limit}} usados",
+      "metric": {
+        "usd": "Dólares",
+        "weighted_tokens": "Tokens ponderados",
+        "quota_pct": "Parte da janela de cota"
+      },
+      "window": {
+        "turn": "por turno",
+        "day": "por dia",
+        "week": "por semana",
+        "5h": "janela de 5 h",
+        "7d": "janela de 7 d",
+        "run": "execução inteira"
+      },
+      "scope_kind": {
+        "global": "Tudo",
+        "agent": "Agente",
+        "account": "Conta",
+        "loop": "Loop",
+        "job": "Tarefa",
+        "mission": "Missão"
+      },
+      "incident": {
+        "open": "Orçamento atingido",
+        "kept": "Mantido pausado",
+        "hard_line": "Usou {{used}} de {{limit}}. Nada começa aqui até você aumentar o teto.",
+        "checkpoint_line": "O checkpoint em {{limit}} foi respondido com não ({{used}} usados). Nada começa aqui até você aumentá-lo.",
+        "new_limit": "Novo teto",
+        "raise": "Aumentar e retomar",
+        "keep": "Manter pausado",
+        "too_low": "O novo teto precisa ser maior que o já usado."
       }
     }
   },

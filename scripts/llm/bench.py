@@ -80,6 +80,13 @@ BENCHES = {
         [],
         ["omniget-core", "omniget"],
     ),
+    "bn7": (
+        "budget_eval.py",
+        [CORE_LLM + "budget.rs", CORE_LLM + "budget/", CORE_LLM + "coordinator.rs", "src-tauri/src/llm_budget.rs",
+         "src-tauri/src/jobs.rs", "scripts/llm/fake_claude.py", "scripts/llm/budget_eval.py"],
+        [],
+        ["omniget-core"],
+    ),
     "bn11": (
         "arena_eval.py",
         ["src-tauri/src/commands/central/arena", "src-tauri/omniget-core/src/core/vcs/worktree.rs",
@@ -182,7 +189,7 @@ def main():
     ap.add_argument("--prepared", help="immutable prepared.json; execute without Cargo")
     ap.add_argument("--all", action="store_true", help="every fake bench, whatever changed")
     ap.add_argument("--quick", action="store_true", help="fewer repetitions (iteration, not a gate)")
-    ap.add_argument("--only", default="", help="comma-separated: bn1,bn2,bn3,bn4,bn5,bn11,bn12")
+    ap.add_argument("--only", default="", help="comma-separated: bn1,bn2,bn3,bn4,bn5,bn7,bn11,bn12")
     ap.add_argument("--real", action="store_true", help="also run B0 (real Claude turns; spends quota)")
     ap.add_argument("--real-if-needed", action="store_true",
                     help="run B0 only when the turn argv or the harness changed")

@@ -3398,7 +3398,8 @@
         "no_start": "Stopped: the agent never started",
         "deadline": "Stopped: time limit reached",
         "limit": "Stopped: budget limit reached",
-        "ask_expired": "A question went unanswered"
+        "ask_expired": "A question went unanswered",
+        "budget": "Stopped: a budget ceiling holds this scope"
       },
       "queue": {
         "title": "Queue",
@@ -3447,7 +3448,8 @@
         "legacy_hint": "Kept for one version so old scripts keep working. The next version refuses it.",
         "legacy_seen": "The browser extension's key was used on {{route}} at {{when}}. Switch that script to a scoped token.",
         "curl_hint": "Set OMNIGET_TOKEN to a token with the jobs:operate scope (Access tokens, below).",
-        "scope_audit_read": "Read the audit log (audit:read)"
+        "scope_audit_read": "Read the audit log (audit:read)",
+        "scope_budget_write": "Set and raise budgets (budget:write)"
       },
       "isolation": {
         "label": "Where it writes",
@@ -3539,14 +3541,22 @@
         "running": "Running",
         "done": "Done",
         "failed": "Failed",
-        "cancelled": "Cancelled"
+        "cancelled": "Cancelled",
+        "paused": "Paused"
       },
       "check_passed": "Condition met",
       "summary": "Up to {{rounds}} rounds. Stops earlier when a configured condition or time limit is reached.",
       "no_check": "No check command: completion will be controlled by the round or time limit.",
       "review": "Review loop",
       "edit": "Edit configuration",
-      "run_mode_hint": "Every round of the loop runs with this mode. With “Ask before anything”, each round stops and waits for you before any edit or command."
+      "run_mode_hint": "Every round of the loop runs with this mode. With “Ask before anything”, each round stops and waits for you before any edit or command.",
+      "max_cost": "Budget (US$)",
+      "paused_budget": "Paused: budget reached",
+      "paused_budget_hint": "No round starts until the ceiling is raised; raising it resumes the loop.",
+      "open_incident": "Open the incident",
+      "cost_estimated": "(estimated)",
+      "cost_tokens": "{{tokens}} weighted tokens",
+      "cost_unknown": "{{count}} round(s) of unknown cost"
     },
     "limits": {
       "title": "Limits strip",
@@ -5864,7 +5874,8 @@
         "mission": "Mission",
         "thread": "Thread",
         "run": "Chat",
-        "ask": "Question"
+        "ask": "Question",
+        "budget": "Budget"
       },
       "asks_for": "asks to use {{tool}}",
       "nothing_waits": "Nothing waits for you.",
@@ -5878,6 +5889,64 @@
         "ready": "Done: {{title}}",
         "review": "Ready for review: {{title}}",
         "more": "And {{count}} more in Work"
+      }
+    },
+    "budget": {
+      "title": "Budgets",
+      "refresh": "Refresh",
+      "lede": "Ceilings for your agents: for everything, one agent, one account, a loop, a job or a mission, in dollars, weighted tokens or a share of a subscription's 5 h / 7 d window. Past a hard ceiling the scope pauses and its work stops until you raise it. Without a ceiling nothing is limited.",
+      "read_error": "Could not read the budgets.",
+      "empty": "No ceilings yet: nothing is limited.",
+      "hard": "pauses",
+      "soft": "asks",
+      "paused": "Paused",
+      "remove": "Remove",
+      "no_reading": "No quota reading yet (it comes from the CLI's own stream)",
+      "warn_at": "warns at {{pct}}%",
+      "estimate_note": "dollars of a subscription are the price table's estimate",
+      "add": "Add a ceiling",
+      "scope": "For",
+      "scope_id": "Id",
+      "metric_label": "Measured in",
+      "window_label": "Window",
+      "amount": "Ceiling",
+      "warn_label": "Warn at (%)",
+      "soft_label": "Ask instead of pausing",
+      "save": "Save",
+      "hard_hint": "Past the ceiling the scope pauses: its running and queued work is cancelled and an incident waits for you (raise and resume, or keep paused).",
+      "soft_hint": "Past the ceiling the next turn asks \"continue?\" once per window, like any approval (also from the CLI and the phone). No pauses the scope.",
+      "quota_hint": "Quota ceilings read only what the CLI reported on its own stream. For an account (or everything) the ceiling is the window's own percentage; for a loop, job, agent or mission it is the points it moved since it began.",
+      "warn_toast": "Budget of {{scope}}: {{used}} of {{limit}} used",
+      "metric": {
+        "usd": "Dollars",
+        "weighted_tokens": "Weighted tokens",
+        "quota_pct": "Share of the quota window"
+      },
+      "window": {
+        "turn": "per turn",
+        "day": "per day",
+        "week": "per week",
+        "5h": "5 h window",
+        "7d": "7 d window",
+        "run": "whole run"
+      },
+      "scope_kind": {
+        "global": "Everything",
+        "agent": "Agent",
+        "account": "Account",
+        "loop": "Loop",
+        "job": "Task",
+        "mission": "Mission"
+      },
+      "incident": {
+        "open": "Budget reached",
+        "kept": "Kept paused",
+        "hard_line": "Used {{used}} of {{limit}}. Nothing starts here until you raise the ceiling.",
+        "checkpoint_line": "The checkpoint at {{limit}} was answered no ({{used}} used). Nothing starts here until you raise it.",
+        "new_limit": "New ceiling",
+        "raise": "Raise and resume",
+        "keep": "Keep paused",
+        "too_low": "The new ceiling must be above what is already used."
       }
     }
   },

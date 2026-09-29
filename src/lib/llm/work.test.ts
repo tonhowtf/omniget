@@ -255,6 +255,26 @@ describe("deriveWork", () => {
     expect(items).toEqual([]);
   });
 
+  it("lists an open budget incident as a decision and a loop it paused as waiting (3.3)", () => {
+    const items = deriveWork(
+      input({
+        loops: [loop("l1", "paused", { stop_reason: "budget:bi_1" })],
+        incidents: [
+          { id: "bi_1", scope: "loop:l1", state: "open", metric: "usd", opened_ms: NOW - 1000 },
+          { id: "bi_0", scope: "global", state: "paused", metric: "usd", opened_ms: NOW - 5000 },
+          { id: "bi_x", scope: "global", state: "resolved", metric: "usd", opened_ms: NOW - 9000 },
+        ],
+      }),
+    );
+    const inc = items.find((i) => i.key === "budget:bi_1");
+    expect(inc?.pill).toBe("decision");
+    expect(inc?.section).toBe("needs_you");
+    expect(inc?.href).toBe("/llm/usage?incident=bi_1#budgets");
+    expect(items.some((i) => i.key === "budget:bi_0" || i.key === "budget:bi_x")).toBe(false);
+    expect(items.find((i) => i.key === "loop:l1")?.pill).toBe("queued");
+    expect(summarize(items).needsYou).toBe(1);
+  });
+
   it("caps the done section", () => {
     const jobs = Array.from({ length: 30 }, (_, i) => job(`d${i}`, "done", { finished_ms: NOW - i * 1000 }));
     const items = deriveWork(input({ jobs, doneLimit: 5 }));

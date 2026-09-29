@@ -522,6 +522,7 @@ where
         )
         // Merged before the layer so the review routes get their scope too.
         .merge(review_routes(review))
+        .merge(budget_routes())
         .route_layer(axum::middleware::from_fn_with_state(
             guard,
             crate::bridge_tokens::guard,
@@ -546,6 +547,38 @@ fn review_status(e: &str) -> StatusCode {
     } else {
         StatusCode::BAD_REQUEST
     }
+}
+
+/// Budgets (3.3): `omniget agent budget list|set|raise`. Reading needs
+/// `jobs:read`; setting and raising need `budget:write` (the guard of
+/// `router`, merged before its `route_layer`).
+fn budget_routes<S>() -> Router<S>
+where
+    S: Clone + Send + Sync + 'static,
+{
+    Router::new()
+        .route(
+            "/v1/budget",
+            get(|| async { crate::llm_budget::http_state() }),
+        )
+        .route(
+            "/v1/budget/policies",
+            post(
+                |who: Caller, Json(b): Json<crate::llm_budget::PolicyBody>| async move {
+                    crate::llm_budget::http_save(b, caller(&who))
+                },
+            ),
+        )
+        .route(
+            "/v1/budget/incidents/{id}",
+            post(
+                |Path(id): Path<String>,
+                 who: Caller,
+                 Json(b): Json<crate::llm_budget::ResolveBody>| async move {
+                    crate::llm_budget::http_resolve(&id, b, caller(&who))
+                },
+            ),
+        )
 }
 
 fn answer(v: Result<Value, String>) -> Response {

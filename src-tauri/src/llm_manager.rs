@@ -861,6 +861,11 @@ impl LlmManager {
         // instead of the owner's real account book.
         let accounts = Arc::new(AccountStore::at(root.join("accounts.json")));
         let cli_capacity = Arc::new(CliCapacity::new());
+        // `quota_pct` budgets (3.3) read the same capacity the router does:
+        // what each CLI reported on its own stream, never an endpoint.
+        omniget_core::core::llm::budget::policy::set_quota_source(
+            omniget_core::core::llm::budget::policy::quota_from_capacity(cli_capacity.clone()),
+        );
         let router = Arc::new(Router::new(Arc::new(CompositeCapacity::new(
             capacity.clone(),
             CliCapacitySource::new(cli_capacity.clone(), accounts.clone()),

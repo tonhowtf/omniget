@@ -3398,7 +3398,8 @@
         "no_start": "已停止：代理從未啟動",
         "deadline": "已停止：達到時間上限",
         "limit": "已停止：達到預算上限",
-        "ask_expired": "有一個問題無人回答"
+        "ask_expired": "有一個問題無人回答",
+        "budget": "已停止：預算上限阻止了此範圍"
       },
       "queue": {
         "title": "佇列",
@@ -3447,7 +3448,8 @@
         "legacy_hint": "保留一個版本，讓舊指令碼繼續運作。下一個版本將拒絕它。",
         "legacy_seen": "瀏覽器擴充功能的金鑰於 {{when}} 在 {{route}} 上被使用。請將該指令碼改用具權限範圍的權杖。",
         "curl_hint": "將 OMNIGET_TOKEN 設為具有 jobs:operate 權限範圍的權杖（見下方存取權杖）。",
-        "scope_audit_read": "讀取稽核日誌（audit:read）"
+        "scope_audit_read": "讀取稽核日誌（audit:read）",
+        "scope_budget_write": "設定和提高預算（budget:write）"
       },
       "isolation": {
         "label": "寫入位置",
@@ -3539,14 +3541,22 @@
         "running": "Running",
         "done": "Done",
         "failed": "Failed",
-        "cancelled": "Cancelled"
+        "cancelled": "Cancelled",
+        "paused": "已暫停"
       },
       "check_passed": "Condition met",
       "summary": "Up to {{rounds}} rounds. Stops earlier when a configured condition or time limit is reached.",
       "no_check": "No check command: completion will be controlled by the round or time limit.",
       "review": "Review loop",
       "edit": "Edit configuration",
-      "run_mode_hint": "迴圈的每一輪都以此模式執行。選擇「事事先詢問」時，每一輪在任何編輯或指令之前都會停下來等你確認。"
+      "run_mode_hint": "迴圈的每一輪都以此模式執行。選擇「事事先詢問」時，每一輪在任何編輯或指令之前都會停下來等你確認。",
+      "max_cost": "預算（美元）",
+      "paused_budget": "已暫停：預算已用盡",
+      "paused_budget_hint": "在提高上限之前不會開始新一輪；提高後循環會繼續。",
+      "open_incident": "開啟事件",
+      "cost_estimated": "（估算）",
+      "cost_tokens": "{{tokens}} 加權 token",
+      "cost_unknown": "{{count}} 輪成本未知"
     },
     "limits": {
       "title": "Limits strip",
@@ -5864,7 +5874,8 @@
         "mission": "任務目標",
         "thread": "對話串",
         "run": "聊天",
-        "ask": "提問"
+        "ask": "提問",
+        "budget": "預算"
       },
       "asks_for": "請求使用 {{tool}}",
       "nothing_waits": "沒有需要你處理的事。",
@@ -5878,6 +5889,64 @@
         "ready": "完成：{{title}}",
         "review": "待審閱：{{title}}",
         "more": "另有 {{count}} 項在「工作」中"
+      }
+    },
+    "budget": {
+      "title": "預算",
+      "refresh": "重新整理",
+      "lede": "為你的代理設定上限：針對全部、某個代理、某個帳戶、循環、任務或使命，單位可以是美元、加權 token 或訂閱 5 小時 / 7 天視窗的比例。超過硬上限後，該範圍會暫停，其工作會停止，直到你提高上限。沒有上限就不做任何限制。",
+      "read_error": "無法讀取預算。",
+      "empty": "還沒有上限：沒有任何限制。",
+      "hard": "暫停",
+      "soft": "詢問",
+      "paused": "已暫停",
+      "remove": "移除",
+      "no_reading": "還沒有配額讀數（來自 CLI 自己的輸出串流）",
+      "warn_at": "{{pct}}% 時提醒",
+      "estimate_note": "訂閱的美元是價格表的估算",
+      "add": "新增上限",
+      "scope": "對象",
+      "scope_id": "ID",
+      "metric_label": "計量單位",
+      "window_label": "視窗",
+      "amount": "上限",
+      "warn_label": "提醒比例 (%)",
+      "soft_label": "詢問而不是暫停",
+      "save": "儲存",
+      "hard_hint": "超過上限後該範圍暫停：正在執行和排隊的工作會被取消，並有一個事件等你處理（提高並繼續，或保持暫停）。",
+      "soft_hint": "超過上限後，下一輪會在每個視窗內詢問一次「繼續？」，和其他審批一樣（也可在 CLI 和手機上回答）。選否會暫停該範圍。",
+      "quota_hint": "配額上限只讀取 CLI 在自己輸出串流中回報的資料。對帳戶（或全部）來說上限是視窗本身的百分比；對循環、任務、代理或使命來說是它開始以來消耗的點數。",
+      "warn_toast": "{{scope}} 的預算：已用 {{used}} / {{limit}}",
+      "metric": {
+        "usd": "美元",
+        "weighted_tokens": "加權 token",
+        "quota_pct": "配額視窗的比例"
+      },
+      "window": {
+        "turn": "每輪",
+        "day": "每天",
+        "week": "每週",
+        "5h": "5 小時視窗",
+        "7d": "7 天視窗",
+        "run": "整個執行"
+      },
+      "scope_kind": {
+        "global": "全部",
+        "agent": "代理",
+        "account": "帳戶",
+        "loop": "循環",
+        "job": "任務",
+        "mission": "使命"
+      },
+      "incident": {
+        "open": "預算已用盡",
+        "kept": "保持暫停",
+        "hard_line": "已用 {{used}} / {{limit}}。在你提高上限之前，這裡不會啟動任何工作。",
+        "checkpoint_line": "{{limit}} 的檢查點被回答為否（已用 {{used}}）。在你提高之前，這裡不會啟動任何工作。",
+        "new_limit": "新上限",
+        "raise": "提高並繼續",
+        "keep": "保持暫停",
+        "too_low": "新上限必須高於已用量。"
       }
     }
   },

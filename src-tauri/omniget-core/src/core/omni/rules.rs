@@ -176,6 +176,8 @@ mod tests {
             BusEvent::ToolCalled { .. } => "tool_called",
             BusEvent::TurnEnded { .. } => "turn_ended",
             BusEvent::BudgetHit { .. } => "budget_hit",
+            // Its `BudgetHit` (when hard) is the mascot's moment.
+            BusEvent::BudgetCrossed { .. } => "budget_crossed",
             BusEvent::Rerouted { .. } => "rerouted",
             BusEvent::DownloadQueued { .. } => "download_queued",
             BusEvent::DownloadFinished { .. } => "download_finished",

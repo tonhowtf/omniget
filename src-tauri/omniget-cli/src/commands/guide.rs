@@ -49,6 +49,13 @@ Permission questions
   omniget agent approvals --job <id>
   omniget agent approve <approval id> [--session | --deny | --cancel]
 
+Budgets
+  A job that fails with ERR_LLM_BUDGET hit a ceiling a person set; its scope
+  is paused. Do not work around it. Tell the person; only they raise it:
+  omniget agent budget list
+  omniget agent budget set loop:<id> 0.05 --window run
+  omniget agent budget raise <incident id> <new amount>
+
 End states
   done              ended well, reported its OUTCOME
   review            ended well and changed files: look at the diff

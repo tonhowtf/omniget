@@ -56,6 +56,23 @@ pub enum BusEvent {
     BudgetHit {
         agent: String,
     },
+    /// A budget policy was crossed when a turn settled (3.3): `kind` is
+    /// `hard` (the scope is paused: owners cancel its work, `incident`
+    /// holds the id) or `warn`. `scope` is `global`, `agent:<id>`,
+    /// `job:<id>`, `loop:<id>`, `mission:<id>` or `account:<id>`.
+    /// `request` is the turn that crossed it (it is ending by itself).
+    BudgetCrossed {
+        agent: String,
+        #[serde(default)]
+        request: String,
+        scope: String,
+        kind: String,
+        #[serde(default)]
+        incident: Option<String>,
+        observed: f64,
+        limit: f64,
+        metric: String,
+    },
     Rerouted {
         agent: String,
         from: String,

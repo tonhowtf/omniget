@@ -3398,7 +3398,8 @@
         "no_start": "Detenido: el agente nunca arrancó",
         "deadline": "Detenido: se alcanzó el límite de tiempo",
         "limit": "Detenido: se alcanzó el límite de presupuesto",
-        "ask_expired": "Una pregunta quedó sin respuesta"
+        "ask_expired": "Una pregunta quedó sin respuesta",
+        "budget": "Detenido: un límite de presupuesto retiene este ámbito"
       },
       "queue": {
         "title": "Cola",
@@ -3447,7 +3448,8 @@
         "legacy_hint": "Se mantiene una versión para que los scripts antiguos sigan funcionando. La próxima versión la rechaza.",
         "legacy_seen": "La clave de la extensión del navegador se usó en {{route}} a las {{when}}. Cambia ese script a un token con alcance.",
         "curl_hint": "Define OMNIGET_TOKEN con un token con el alcance jobs:operate (Tokens de acceso, abajo).",
-        "scope_audit_read": "Leer el registro de auditoría (audit:read)"
+        "scope_audit_read": "Leer el registro de auditoría (audit:read)",
+        "scope_budget_write": "Definir y subir presupuestos (budget:write)"
       },
       "isolation": {
         "label": "Dónde escribe",
@@ -3539,14 +3541,22 @@
         "running": "Running",
         "done": "Done",
         "failed": "Failed",
-        "cancelled": "Cancelled"
+        "cancelled": "Cancelled",
+        "paused": "En pausa"
       },
       "check_passed": "Condition met",
       "summary": "Up to {{rounds}} rounds. Stops earlier when a configured condition or time limit is reached.",
       "no_check": "No check command: completion will be controlled by the round or time limit.",
       "review": "Review loop",
       "edit": "Edit configuration",
-      "run_mode_hint": "Cada ronda del loop se ejecuta con este modo. Con «Preguntar antes de todo», cada ronda se detiene y te espera antes de cualquier edición o comando."
+      "run_mode_hint": "Cada ronda del loop se ejecuta con este modo. Con «Preguntar antes de todo», cada ronda se detiene y te espera antes de cualquier edición o comando.",
+      "max_cost": "Presupuesto (US$)",
+      "paused_budget": "En pausa: presupuesto alcanzado",
+      "paused_budget_hint": "Ninguna ronda empieza hasta subir el límite; subirlo reanuda el bucle.",
+      "open_incident": "Abrir el incidente",
+      "cost_estimated": "(estimado)",
+      "cost_tokens": "{{tokens}} tokens ponderados",
+      "cost_unknown": "{{count}} ronda(s) de coste desconocido"
     },
     "limits": {
       "title": "Limits strip",
@@ -5864,7 +5874,8 @@
         "mission": "Misión",
         "thread": "Hilo",
         "run": "Chat",
-        "ask": "Pregunta"
+        "ask": "Pregunta",
+        "budget": "Presupuesto"
       },
       "asks_for": "pide usar {{tool}}",
       "nothing_waits": "Nada te está esperando.",
@@ -5878,6 +5889,64 @@
         "ready": "Hecho: {{title}}",
         "review": "Listo para revisar: {{title}}",
         "more": "Y {{count}} más en Trabajo"
+      }
+    },
+    "budget": {
+      "title": "Presupuestos",
+      "refresh": "Actualizar",
+      "lede": "Límites para tus agentes: para todo, un agente, una cuenta, un bucle, una tarea o una misión, en dólares, tokens ponderados o una parte de la ventana de 5 h / 7 d de una suscripción. Al pasar un límite estricto el ámbito se pausa y su trabajo se detiene hasta que lo subas. Sin límite, nada se restringe.",
+      "read_error": "No se pudieron leer los presupuestos.",
+      "empty": "Aún no hay límites: nada está restringido.",
+      "hard": "pausa",
+      "soft": "pregunta",
+      "paused": "En pausa",
+      "remove": "Quitar",
+      "no_reading": "Aún sin lectura de cuota (viene del propio flujo de la CLI)",
+      "warn_at": "avisa al {{pct}}%",
+      "estimate_note": "los dólares de una suscripción son la estimación de la tabla de precios",
+      "add": "Añadir un límite",
+      "scope": "Para",
+      "scope_id": "Id",
+      "metric_label": "Medido en",
+      "window_label": "Ventana",
+      "amount": "Límite",
+      "warn_label": "Avisar al (%)",
+      "soft_label": "Preguntar en vez de pausar",
+      "save": "Guardar",
+      "hard_hint": "Al pasar el límite el ámbito se pausa: su trabajo en curso y en cola se cancela y un incidente te espera (subir y reanudar, o mantener en pausa).",
+      "soft_hint": "Al pasar el límite el siguiente turno pregunta \"¿continuar?\" una vez por ventana, como cualquier aprobación (también desde la CLI y el móvil). Un no pausa el ámbito.",
+      "quota_hint": "Los límites de cuota leen solo lo que la CLI informó en su propio flujo. Para una cuenta (o todo) el límite es el porcentaje de la ventana; para un bucle, tarea, agente o misión son los puntos que movió desde que empezó.",
+      "warn_toast": "Presupuesto de {{scope}}: {{used}} de {{limit}} usado",
+      "metric": {
+        "usd": "Dólares",
+        "weighted_tokens": "Tokens ponderados",
+        "quota_pct": "Parte de la ventana de cuota"
+      },
+      "window": {
+        "turn": "por turno",
+        "day": "por día",
+        "week": "por semana",
+        "5h": "ventana de 5 h",
+        "7d": "ventana de 7 d",
+        "run": "toda la ejecución"
+      },
+      "scope_kind": {
+        "global": "Todo",
+        "agent": "Agente",
+        "account": "Cuenta",
+        "loop": "Bucle",
+        "job": "Tarea",
+        "mission": "Misión"
+      },
+      "incident": {
+        "open": "Presupuesto alcanzado",
+        "kept": "Mantenido en pausa",
+        "hard_line": "Usado {{used}} de {{limit}}. Nada empieza aquí hasta que subas el límite.",
+        "checkpoint_line": "El punto de control de {{limit}} se respondió que no ({{used}} usado). Nada empieza aquí hasta que lo subas.",
+        "new_limit": "Nuevo límite",
+        "raise": "Subir y reanudar",
+        "keep": "Mantener en pausa",
+        "too_low": "El nuevo límite debe superar lo ya usado."
       }
     }
   },

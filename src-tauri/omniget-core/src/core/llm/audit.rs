@@ -102,6 +102,10 @@ impl Entity {
     pub fn loop_(id: &str) -> Self {
         Self::of("loop", id)
     }
+    /// A budget policy or incident (3.3).
+    pub fn budget(id: &str) -> Self {
+        Self::of("budget", id)
+    }
     pub fn setting(id: &str) -> Self {
         Self::of("setting", id)
     }

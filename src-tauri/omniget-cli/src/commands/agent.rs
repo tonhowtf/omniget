@@ -1,4 +1,4 @@
-//! `omniget agent run|loop|jobs|explain|status|diff|approvals|approve|integrate|discard|agents`: talks to the running desktop app
+//! `omniget agent run|loop|jobs|explain|status|diff|approvals|approve|integrate|discard|budget|agents`: talks to the running desktop app
 //! through the local bridge (`127.0.0.1:<port>` from `settings.json`) with a
 //! scoped token (2.1): `OMNIGET_TOKEN` if set, else the CLI token the app
 //! keeps in `<app_data>/llm/cli-token`. The browser extension's key in
@@ -816,10 +816,102 @@ pub enum AgentCommand {
     },
     /// Throw a worktree job's work away: its worktree and its branch
     Discard { id: String },
+    /// Budget ceilings (3.3): list them, set one, raise a paused one
+    Budget {
+        #[command(subcommand)]
+        cmd: BudgetCommand,
+    },
     /// List the running and finished Loops
     Loops,
     /// List the agents of the roster
     Agents,
+}
+
+#[derive(clap::Subcommand)]
+pub enum BudgetCommand {
+    /// Every ceiling with what it has used, and the open incidents
+    List,
+    /// Set a ceiling: `omniget agent budget set loop:<id> 0.05` (US$ for the
+    /// loop's whole run), `--metric quota_pct --window 5h`, `--metric
+    /// weighted_tokens --window day`; the same scope, metric and window again
+    /// replaces it
+    Set {
+        #[arg(help = "global, agent:<id>, job:<id>, loop:<id>, mission:<id>, account:<id>")]
+        scope: String,
+        #[arg(help = "US$, weighted tokens, or percentage points of the window")]
+        amount: f64,
+        #[arg(long, default_value = "usd", value_parser = ["usd", "weighted_tokens", "quota_pct"])]
+        metric: String,
+        #[arg(long, default_value = "day", value_parser = ["turn", "day", "week", "5h", "7d", "run"])]
+        window: String,
+        #[arg(
+            long,
+            value_name = "PCT",
+            help = "Warn when this share of the amount is used"
+        )]
+        warn: Option<f64>,
+        #[arg(
+            long,
+            help = "Ask \"continue?\" at the ceiling instead of pausing the scope"
+        )]
+        soft: bool,
+    },
+    /// Raise a paused scope's ceiling and resume its work (`bi_…` from `list`)
+    Raise {
+        incident: String,
+        #[arg(help = "The new ceiling, above what is already used")]
+        amount: f64,
+    },
+}
+
+/// `omniget agent budget list`: one line per ceiling, then the incidents
+/// that still hold a scope.
+fn budget_text(v: &Value) -> String {
+    let mut out = String::new();
+    let policies = v["policies"].as_array().cloned().unwrap_or_default();
+    if policies.is_empty() {
+        out.push_str("no budget ceilings: nothing is limited\n");
+    }
+    for p in &policies {
+        let observed = match p["observed"].as_f64() {
+            Some(o) => format!("{o:.4}"),
+            None => "no reading".into(),
+        };
+        out.push_str(&format!(
+            "{}  {:<22} {} {} {} of {}{}{}\n",
+            p["id"].as_str().unwrap_or("?"),
+            p["scope"].as_str().unwrap_or("?"),
+            p["metric"].as_str().unwrap_or("?"),
+            p["window"].as_str().unwrap_or("?"),
+            observed,
+            p["amount"],
+            if p["hard_stop"].as_bool() == Some(false) {
+                "  (asks)"
+            } else {
+                ""
+            },
+            if p["incident"].is_object() {
+                "  PAUSED"
+            } else {
+                ""
+            },
+        ));
+    }
+    for i in v["incidents"].as_array().into_iter().flatten() {
+        if !matches!(i["state"].as_str(), Some("open" | "paused")) {
+            continue;
+        }
+        out.push_str(&format!(
+            "incident {}  {}  {} {:.4} of {}  → omniget agent budget raise {} <amount>\n",
+            i["id"].as_str().unwrap_or("?"),
+            i["state"].as_str().unwrap_or("?"),
+            i["scope"].as_str().unwrap_or("?"),
+            i["observed"].as_f64().unwrap_or(0.0),
+            i["limit"],
+            i["id"].as_str().unwrap_or("?"),
+        ));
+    }
+    out
 }
 
 /// A command id no other run of this CLI will send: time, pid and a counter.
@@ -1179,6 +1271,58 @@ pub async fn execute(cmd: AgentCommand, json_out: bool) -> anyhow::Result<()> {
             }
             Ok(())
         }
+        AgentCommand::Budget { cmd } => {
+            let v = match cmd {
+                BudgetCommand::List => bridge.get("/v1/budget").await?,
+                BudgetCommand::Set {
+                    scope,
+                    amount,
+                    metric,
+                    window,
+                    warn,
+                    soft,
+                } => {
+                    bridge
+                        .post(
+                            "/v1/budget/policies",
+                            json!({ "scope": scope, "amount": amount, "metric": metric,
+                                    "window": window, "warn_pct": warn, "hard_stop": !soft }),
+                        )
+                        .await?
+                }
+                BudgetCommand::Raise { incident, amount } => {
+                    bridge
+                        .post(
+                            &format!("/v1/budget/incidents/{incident}"),
+                            json!({ "action": "raise", "amount": amount }),
+                        )
+                        .await?
+                }
+            };
+            if json_out {
+                println!("{}", serde_json::to_string_pretty(&v)?);
+            } else if v.get("policies").is_some() {
+                print!("{}", budget_text(&v));
+            } else if let Some(inc) = v.get("incident") {
+                let loops = v["resumed_loops"].as_array().map(|a| a.len()).unwrap_or(0);
+                println!(
+                    "{}: {} ({}); {loops} loop(s) resumed",
+                    inc["id"].as_str().unwrap_or("?"),
+                    inc["state"].as_str().unwrap_or("?"),
+                    inc["resolution"].as_str().unwrap_or("")
+                );
+            } else {
+                println!(
+                    "{}  {} {} {} = {}",
+                    v["id"].as_str().unwrap_or("?"),
+                    v["scope"].as_str().unwrap_or("?"),
+                    v["metric"].as_str().unwrap_or("?"),
+                    v["window"].as_str().unwrap_or("?"),
+                    v["amount"]
+                );
+            }
+            Ok(())
+        }
         AgentCommand::Agents => {
             let agents = bridge.get("/v1/agents").await?;
             for a in agents.as_array().into_iter().flatten() {
@@ -1216,6 +1360,39 @@ mod tests {
         }
         assert!(T::try_parse_from(["t", "approve", "apr_1", "--deny", "--always"]).is_err());
         assert!(T::try_parse_from(["t", "approve", "apr_1", "--session"]).is_ok());
+    }
+
+    #[test]
+    fn budget_list_says_what_is_paused_and_how_to_raise_it() {
+        let v = json!({
+            "policies": [{"id": "bp_1", "scope": "loop:l1", "metric": "usd", "window": "run",
+                          "amount": 0.05, "observed": 0.06, "hard_stop": true,
+                          "incident": {"id": "bi_1"}}],
+            "incidents": [{"id": "bi_1", "state": "open", "scope": "loop:l1", "observed": 0.06, "limit": 0.05},
+                          {"id": "bi_0", "state": "resolved", "scope": "global", "observed": 1.0, "limit": 1.0}]
+        });
+        let text = budget_text(&v);
+        assert!(text.contains("bp_1  loop:l1"), "{text}");
+        assert!(text.contains("PAUSED"));
+        assert!(text.contains("omniget agent budget raise bi_1 <amount>"));
+        assert!(!text.contains("bi_0"), "a settled incident holds nothing");
+        assert!(
+            budget_text(&json!({"policies": [], "incidents": []})).contains("nothing is limited")
+        );
+        use clap::Parser;
+        #[derive(Parser)]
+        struct T {
+            #[command(subcommand)]
+            c: AgentCommand,
+        }
+        assert!(
+            T::try_parse_from(["t", "budget", "set", "loop:l1", "0.05", "--window", "run"]).is_ok()
+        );
+        assert!(T::try_parse_from([
+            "t", "budget", "set", "global", "5", "--metric", "quota", "--window", "5h"
+        ])
+        .is_err());
+        assert!(T::try_parse_from(["t", "budget", "raise", "bi_1", "0.1"]).is_ok());
     }
 
     #[test]

@@ -55,11 +55,15 @@ pub const SCOPE_APPROVALS_RESPOND: &str = "approvals:respond";
 /// Reading the audit log (2.8): who did what with every token, so neither a
 /// job's token nor the extension key ever has it.
 pub const SCOPE_AUDIT_READ: &str = "audit:read";
+/// Setting and raising budget ceilings (3.3): raising one lets agents spend
+/// more, so neither a job's token nor the extension key ever has it.
+pub const SCOPE_BUDGET_WRITE: &str = "budget:write";
 pub const SCOPES: &[&str] = &[
     SCOPE_JOBS_READ,
     SCOPE_JOBS_OPERATE,
     SCOPE_APPROVALS_RESPOND,
     SCOPE_AUDIT_READ,
+    SCOPE_BUDGET_WRITE,
 ];
 
 /// What the child of a job finds its token in.
@@ -503,6 +507,14 @@ pub fn route_need(method: &Method, path: &str) -> Option<Need> {
             job: None,
             legacy_ok: false,
         }),
+        // Budgets (3.3): reading them is a read of the jobs; setting or
+        // raising one has its own scope, never the extension's.
+        ["v1", "budget"] if get => need(SCOPE_JOBS_READ, None),
+        ["v1", "budget", "policies"] | ["v1", "budget", "incidents", _] if post => Some(Need {
+            scope: SCOPE_BUDGET_WRITE,
+            job: None,
+            legacy_ok: false,
+        }),
         // Creating an agent (with any account) was never something the
         // extension did: its bearer is refused here right away (S2).
         ["v1", "agents", "cli"] if post => Some(Need {
@@ -889,6 +901,26 @@ mod tests {
         assert!(list(&db, 200).is_empty());
     }
 
+    /// 3.3: reading the budgets is a read of the jobs; setting or raising one
+    /// needs `budget:write`, which neither a job's token nor the extension
+    /// key ever has.
+    #[test]
+    fn budgets_are_written_only_with_their_own_scope() {
+        let read = route_need(&Method::GET, "/v1/budget").unwrap();
+        assert_eq!(read.scope, SCOPE_JOBS_READ);
+        for path in ["/v1/budget/policies", "/v1/budget/incidents/bi_1"] {
+            let need = route_need(&Method::POST, path).unwrap();
+            assert_eq!(need.scope, SCOPE_BUDGET_WRITE, "{path}");
+            assert!(!need.legacy_ok, "{path}: never the extension key");
+        }
+        assert!(!job_scopes().contains(&SCOPE_BUDGET_WRITE.to_string()));
+        assert!(!LEGACY_SCOPES.contains(&SCOPE_BUDGET_WRITE));
+        assert!(
+            SCOPES.contains(&SCOPE_BUDGET_WRITE),
+            "the CLI token gets it"
+        );
+    }
+
     #[test]
     fn every_agent_route_has_a_scope() {
         let src = include_str!("local_bridge_jobs.rs");
@@ -902,7 +934,7 @@ mod tests {
             let end = rest[q + 1..].find('"').unwrap();
             paths.push(rest[q + 1..q + 1 + end].to_string());
         }
-        assert_eq!(paths.len(), 29, "{paths:?}");
+        assert_eq!(paths.len(), 32, "{paths:?}");
         for p in &paths {
             let concrete = p.replace("{id}", "j1").replace("{note}", "n1");
             let ok = route_need(&Method::GET, &concrete).is_some()
