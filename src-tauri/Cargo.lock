@@ -4736,6 +4736,7 @@ dependencies = [
  "tauri-plugin-store",
  "tauri-plugin-updater",
  "tokio",
+ "tokio-rustls",
  "tokio-tungstenite 0.30.0",
  "tokio-util",
  "tower-http",

@@ -35,6 +35,8 @@ pub struct AppSettings {
     pub league: LeagueSettings,
     #[serde(default)]
     pub music: MusicSettings,
+    #[serde(default)]
+    pub video: VideoSettings,
     pub washmybelly: WashMyBellySettings,
     #[serde(default)]
     pub accessibility: AccessibilitySettings,
@@ -293,6 +295,26 @@ impl Default for MusicSettings {
     fn default() -> Self {
         Self {
             enabled: default_music_enabled(),
+        }
+    }
+}
+
+/// `/video` superpower (Watch). Player preferences live in `video.db`; only
+/// the on/off switch is here.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VideoSettings {
+    #[serde(default = "default_video_enabled")]
+    pub enabled: bool,
+}
+
+fn default_video_enabled() -> bool {
+    true
+}
+
+impl Default for VideoSettings {
+    fn default() -> Self {
+        Self {
+            enabled: default_video_enabled(),
         }
     }
 }
@@ -987,6 +1009,7 @@ impl Default for AppSettings {
             bridge: BridgeSettings::default(),
             league: LeagueSettings::default(),
             music: MusicSettings::default(),
+            video: VideoSettings::default(),
             washmybelly: WashMyBellySettings::default(),
             accessibility: AccessibilitySettings::default(),
             omnidisc: OmnidiscSettings::default(),
