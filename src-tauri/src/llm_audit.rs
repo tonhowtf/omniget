@@ -55,6 +55,7 @@ pub fn job_created(actor: Actor, job: &crate::jobs::Job) {
             "run_mode": job.run_mode.as_str(),
             "isolation": job.isolation.as_str(),
             "workspace": job.workspace,
+            "auto_resume": job.auto_resume,
         }),
     );
 }
@@ -96,6 +97,49 @@ pub fn job_ended(job: &crate::jobs::Job) {
             "files": job.diff_files.as_ref().map(Vec::len),
             "cost_usd": job.usage.as_ref().and_then(|u| u["cost_usd"].as_f64()),
         }),
+    );
+}
+
+/// A job the host started again by itself after an infrastructure failure
+/// (3.1): nobody clicked it, so the app is the actor. The reason, the
+/// attempt and whether it continues a CLI session; never the prompt.
+pub fn job_auto_resumed(job: &crate::jobs::Job, reason: &str) {
+    audit::log(
+        Actor::system("system"),
+        "job.auto_resumed",
+        Entity::job(&job.id),
+        json!({
+            "kind": job.kind,
+            "agent_id": job.agent_id,
+            "reason": reason,
+            "attempt": job.attempt,
+            "native_resume": job.session_id.is_some(),
+            "isolation": job.isolation.as_str(),
+            "side_effects": job.side_effects,
+        }),
+    );
+}
+
+/// A Loop the host set running again by itself (3.1), after a restart or a
+/// round the watchdog stopped; `round` is the job of the lost round, if any.
+pub fn loop_auto_resumed(loop_id: &str, reason: &str, restarts: u32, round: Option<&str>) {
+    audit::log(
+        Actor::system("system"),
+        "loop.auto_resumed",
+        Entity::loop_(loop_id),
+        json!({ "reason": reason, "restarts": restarts, "round_job": round }),
+    );
+}
+
+/// The app started with no window (3.2): `cli` when a CLI brought it up
+/// (`--background`), `login` for the login item with agents in the
+/// background, `tray` for "start in tray only".
+pub fn app_started_hidden(how: &str) {
+    audit::log(
+        Actor::system("system"),
+        "app.started_hidden",
+        Entity::app(&std::process::id().to_string()),
+        json!({ "how": how }),
     );
 }
 

@@ -291,7 +291,7 @@ where
                             caller(&who),
                             "loop.created",
                             omniget_core::core::llm::audit::Entity::loop_(&l.id),
-                            json!({ "agent_id": l.agent_id, "run_mode": l.run_mode, "max_rounds": l.max_rounds }),
+                            json!({ "agent_id": l.agent_id, "run_mode": l.run_mode, "max_rounds": l.max_rounds, "auto_resume": l.auto_resume }),
                         ))))
                 },
             ),

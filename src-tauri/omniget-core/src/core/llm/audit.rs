@@ -105,6 +105,10 @@ impl Entity {
     pub fn setting(id: &str) -> Self {
         Self::of("setting", id)
     }
+    /// The app process itself (3.2), by pid.
+    pub fn app(pid: &str) -> Self {
+        Self::of("app", pid)
+    }
 }
 
 /// One line as it is read back.

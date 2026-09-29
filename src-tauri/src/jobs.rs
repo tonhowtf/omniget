@@ -3148,6 +3148,12 @@ impl Jobs {
                             l.rounds_done = round - 1;
                             l.restarted = true;
                             self.save_loop(&l);
+                            crate::llm_audit::loop_auto_resumed(
+                                &l.id,
+                                reason.as_str(),
+                                l.auto_restarts,
+                                Some(&done.id),
+                            );
                             continue;
                         }
                     }
@@ -3624,8 +3630,10 @@ impl Jobs {
             let wanted = l.auto_resume.unwrap_or(setting);
             // Between two rounds nothing was in flight; a round that was
             // follows the rule of a job (worktree or no write, process gone).
+            let mut lost_round = None;
             let verdict = match rounds.remove(&l.id) {
                 Some((mut round, process)) => {
+                    lost_round = Some(round.id.clone());
                     let v = auto_resume_verdict(
                         &round,
                         wanted,
@@ -3663,6 +3671,12 @@ impl Jobs {
                 l.restarted = true;
                 l.auto_restarts += 1;
                 self.save_loop(&l);
+                crate::llm_audit::loop_auto_resumed(
+                    &l.id,
+                    FailureReason::AppRestart.as_str(),
+                    l.auto_restarts,
+                    lost_round.as_deref(),
+                );
                 let this = self.clone();
                 let lid = l.id.clone();
                 tauri::async_runtime::spawn(async move { this.run_loop(lid).await });
@@ -3789,6 +3803,7 @@ impl Jobs {
         job.finished_ms = None;
         job.failure_reason = Some(reason.as_str().into());
         self.save_job(job);
+        crate::llm_audit::job_auto_resumed(job, reason.as_str());
         let note = resume_note(reason, &job.prompt);
         let this = self.clone();
         let jid = job.id.clone();

@@ -884,6 +884,18 @@ pub fn run() {
                 if let Some(window) = app.get_webview_window("main") {
                     let _ = window.hide();
                 }
+                // Nobody saw this start: the audit log says who asked for it.
+                let args: Vec<String> = std::env::args().collect();
+                let has = |flag: &str| args.iter().any(|a| a == flag);
+                crate::llm_audit::app_started_hidden(
+                    if has(omniget_core::core::app_launch::BACKGROUND_FLAG) {
+                        "cli"
+                    } else if has(omniget_core::core::app_launch::AUTOSTART_FLAG) {
+                        "login"
+                    } else {
+                        "tray"
+                    },
+                );
             }
             // Where this app lives, for the CLI that starts it when it is not
             // running (3.2).
