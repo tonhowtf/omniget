@@ -991,8 +991,11 @@ impl Jobs {
         let (minter, revoker) = (self.clone(), self.clone());
         let (id_m, id_r) = (job.id.clone(), job.id.clone());
         let expires = crate::bridge_tokens::job_token_expiry(job.deadline_ms, now_ms());
-        crate::bridge_tokens::JobTokenLease::start(
+        let port = crate::storage::config::load_settings(&self.app).bridge.port;
+        let bridge = (port > 0).then(|| format!("http://127.0.0.1:{port}"));
+        let (lease, error) = crate::bridge_tokens::JobTokenLease::start_with(
             conversation,
+            crate::bridge_tokens::job_identity_env(&job.id, &job.agent_id, bridge.as_deref()),
             move || {
                 crate::bridge_tokens::mint(
                     &minter.db(),
@@ -1009,9 +1012,11 @@ impl Jobs {
                     tracing::warn!("[jobs] revoke the token of {id_r}: {e}");
                 }
             },
-        )
-        .map_err(|e| tracing::warn!("[jobs] token for {}: {e}", job.id))
-        .ok()
+        );
+        if let Some(e) = error {
+            tracing::warn!("[jobs] token for {}: {e}", job.id);
+        }
+        Some(lease)
     }
 
     // ── jobs ─────────────────────────────────────────────────────────
@@ -1776,6 +1781,13 @@ impl Jobs {
         if job.agent_id.starts_with(TOOL_PREFIX) {
             return Some(self.run_tool_job(job, input).await);
         }
+        // The agent ends with its own verdict (2.6); the host still decides
+        // the state from what it saw.
+        let input = if asks_outcome(&job.kind) {
+            format!("{input}{OUTCOME_SUFFIX}")
+        } else {
+            input
+        };
         // Held to the end of the job: however this returns, the token is
         // revoked and leaves the conversation's env (2.1).
         let _job_token = self.job_token_lease(&job, &conv);
@@ -1976,6 +1988,9 @@ impl Jobs {
         .into();
         job.result = Some(clip(&text, RESULT_MAX));
         job.error = limit_hit.or(error);
+        if asks_outcome(&job.kind) {
+            job.outcome = parse_outcome(&text);
+        }
         // What the job changed, from the snapshots its turns took: host-side
         // post-processing, not a token more (1.7). The Coordinator records
         // the tree after the turn before the stream says `Finished`.
@@ -1990,6 +2005,8 @@ impl Jobs {
         let ends = self.record_diff(&mut job, &requests).await;
         // A job that wrote waits for a person: `review`, not `done` (2.4).
         job.state = settle_state(&job.state, job.diff_files.as_deref()).into();
+        // A run that ended without its `OUTCOME:` line says so (2.6).
+        job.state = settle_outcome(&job.kind, &job.state, job.outcome.is_some()).into();
         job.failure_reason = (job.state == "failed")
             .then(|| {
                 limit_kind
@@ -4433,6 +4450,60 @@ pub fn is_terminal(state: &str) -> bool {
         state,
         "done" | "review" | "done_unreported" | "failed" | "cancelled" | "interrupted"
     )
+}
+
+/// What a background job's prompt ends with (2.6, 78#P7): the agent's own
+/// verdict in one line the host can read. Kept short, it is paid on every
+/// job; `scripts/llm/missions_eval.py` sends the same text (B0 measures it).
+pub const OUTCOME_SUFFIX: &str = "\n\nEnd your reply with one line: `OUTCOME: succeeded` or `OUTCOME: failed`, then ` — ` and up to 3 sentences on what you did.";
+
+/// Jobs whose prompt asks for the `OUTCOME:` line: a run (from the CLI,
+/// the window, the bridge or MCP) and a mission task. Routines keep their
+/// text as it is (its digest decides whether to notify); Loop rounds and
+/// chat turns have their own end.
+pub fn asks_outcome(kind: &str) -> bool {
+    matches!(kind, "run" | "mission")
+}
+
+/// The agent's `OUTCOME:` line, the last one of the text: `{status,
+/// summary}`, status `succeeded|failed`. Markdown around it (`**`, `` ` ``)
+/// and the dash between the two halves (`—`, `–`, `-`, `:`) are tolerated.
+pub fn parse_outcome(text: &str) -> Option<Value> {
+    text.lines().rev().find_map(|line| {
+        let l = line
+            .trim()
+            .trim_matches(|c| c == '*' || c == '`' || c == '_' || c == '>')
+            .trim();
+        let rest = l
+            .get(..8)
+            .filter(|p| p.eq_ignore_ascii_case("outcome:"))
+            .map(|_| l[8..].trim_start())?;
+        let rest = rest.trim_start_matches(['*', '`']);
+        let lower = rest.to_ascii_lowercase();
+        let status = ["succeeded", "failed"]
+            .into_iter()
+            .find(|s| lower.starts_with(s))?;
+        let summary = rest[status.len()..]
+            .trim_start_matches(['*', '`'])
+            .trim_start()
+            .trim_start_matches(['—', '–', '-', ':'])
+            .trim()
+            .trim_end_matches(['*', '`'])
+            .trim();
+        Some(json!({ "status": status, "summary": clip(summary, 1_000) }))
+    })
+}
+
+/// A `run` that ended `done` without its `OUTCOME:` line becomes
+/// `done_unreported` (2.6): the process ended well, the agent did not say
+/// how. `review` stays `review` (a person looks anyway), and missions keep
+/// `done` (their criteria decide).
+pub fn settle_outcome<'a>(kind: &str, state: &'a str, reported: bool) -> &'a str {
+    if kind == "run" && state == "done" && !reported {
+        "done_unreported"
+    } else {
+        state
+    }
 }
 
 /// Adds a `job.start` budget (US$) to the job's guard: the job stops

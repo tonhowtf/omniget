@@ -3318,6 +3318,12 @@
       "list_title": "Recent jobs",
       "empty": "No jobs yet. Start one above and it shows up here.",
       "result": "Result",
+      "outcome": {
+        "title": "代理程式的結論",
+        "succeeded": "成功",
+        "failed": "失敗",
+        "missing": "代理程式結束時沒有寫 OUTCOME 行：依賴結果之前請先閱讀。"
+      },
       "error": "Error",
       "log": "Log",
       "log_empty": "Nothing logged yet.",
@@ -3333,7 +3339,8 @@
         "failed": "Failed",
         "cancelled": "Cancelled",
         "waiting_workspace": "等待資料夾",
-        "review": "待審閱"
+        "review": "待審閱",
+        "done_unreported": "已完成，未回報"
       },
       "kind": {
         "run": "Run",

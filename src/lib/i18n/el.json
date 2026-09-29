@@ -3318,6 +3318,12 @@
       "list_title": "Recent jobs",
       "empty": "No jobs yet. Start one above and it shows up here.",
       "result": "Result",
+      "outcome": {
+        "title": "Ετυμηγορία του πράκτορα",
+        "succeeded": "Πέτυχε",
+        "failed": "Απέτυχε",
+        "missing": "Ο πράκτορας τελείωσε χωρίς τη γραμμή OUTCOME: διαβάστε το αποτέλεσμα πριν βασιστείτε σε αυτό."
+      },
       "error": "Error",
       "log": "Log",
       "log_empty": "Nothing logged yet.",
@@ -3333,7 +3339,8 @@
         "failed": "Failed",
         "cancelled": "Cancelled",
         "waiting_workspace": "Αναμονή για τον φάκελο",
-        "review": "Χρειάζεται έλεγχο"
+        "review": "Χρειάζεται έλεγχο",
+        "done_unreported": "Ολοκληρώθηκε, χωρίς αναφορά"
       },
       "kind": {
         "run": "Run",

@@ -56,6 +56,11 @@ enum Commands {
         #[command(subcommand)]
         command: commands::agent::AgentCommand,
     },
+    /// Short reference texts: `omniget guide agents` (delegating to your agents)
+    Guide {
+        /// Topic (none = the list)
+        topic: Option<String>,
+    },
     /// washmybelly: scan, plan and clean this computer through the running app (execute asks in the window)
     Wmb {
         #[command(subcommand)]
@@ -156,6 +161,9 @@ async fn main() -> anyhow::Result<()> {
         }
         Commands::Agent { command } => {
             commands::agent::execute(command, cli.json).await?;
+        }
+        Commands::Guide { topic } => {
+            commands::guide::execute(topic)?;
         }
         Commands::Wmb { command } => {
             commands::wmb::execute(command, cli.json).await?;

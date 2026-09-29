@@ -3318,6 +3318,12 @@
       "list_title": "Recent jobs",
       "empty": "No jobs yet. Start one above and it shows up here.",
       "result": "Result",
+      "outcome": {
+        "title": "ຄຳຕັດສິນຂອງຕົວແທນ",
+        "succeeded": "ສຳເລັດ",
+        "failed": "ລົ້ມເຫຼວ",
+        "missing": "ຕົວແທນຈົບໂດຍບໍ່ມີແຖວ OUTCOME: ອ່ານຜົນກ່ອນຈະເຊື່ອຖືມັນ."
+      },
       "error": "Error",
       "log": "Log",
       "log_empty": "Nothing logged yet.",
@@ -3333,7 +3339,8 @@
         "failed": "Failed",
         "cancelled": "Cancelled",
         "waiting_workspace": "ລໍຖ້າໂຟນເດີ",
-        "review": "ລໍຖ້າການກວດ"
+        "review": "ລໍຖ້າການກວດ",
+        "done_unreported": "ສຳເລັດ, ບໍ່ມີລາຍງານ"
       },
       "kind": {
         "run": "Run",

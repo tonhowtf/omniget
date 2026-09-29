@@ -3318,6 +3318,12 @@
       "list_title": "Recent jobs",
       "empty": "No jobs yet. Start one above and it shows up here.",
       "result": "Result",
+      "outcome": {
+        "title": "حکم عامل",
+        "succeeded": "موفق شد",
+        "failed": "ناموفق بود",
+        "missing": "عامل بدون خط OUTCOME تمام کرد: پیش از تکیه بر نتیجه، آن را بخوانید."
+      },
       "error": "Error",
       "log": "Log",
       "log_empty": "Nothing logged yet.",
@@ -3333,7 +3339,8 @@
         "failed": "Failed",
         "cancelled": "Cancelled",
         "waiting_workspace": "در انتظار پوشه",
-        "review": "نیازمند بازبینی"
+        "review": "نیازمند بازبینی",
+        "done_unreported": "انجام شد، بدون گزارش"
       },
       "kind": {
         "run": "Run",

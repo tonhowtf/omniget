@@ -3318,6 +3318,12 @@
       "list_title": "Recent jobs",
       "empty": "No jobs yet. Start one above and it shows up here.",
       "result": "Result",
+      "outcome": {
+        "title": "Verdetto dell'agente",
+        "succeeded": "Riuscita",
+        "failed": "Fallita",
+        "missing": "L'agente ha finito senza la riga OUTCOME: leggi il risultato prima di fidarti."
+      },
       "error": "Error",
       "log": "Log",
       "log_empty": "Nothing logged yet.",
@@ -3333,7 +3339,8 @@
         "failed": "Failed",
         "cancelled": "Cancelled",
         "waiting_workspace": "In attesa della cartella",
-        "review": "Da revisionare"
+        "review": "Da revisionare",
+        "done_unreported": "Completata, senza resoconto"
       },
       "kind": {
         "run": "Run",

@@ -3318,6 +3318,12 @@
       "list_title": "Recent jobs",
       "empty": "No jobs yet. Start one above and it shows up here.",
       "result": "Result",
+      "outcome": {
+        "title": "智能体的结论",
+        "succeeded": "成功",
+        "failed": "失败",
+        "missing": "智能体结束时没有写 OUTCOME 行：依赖结果之前请先阅读。"
+      },
       "error": "Error",
       "log": "Log",
       "log_empty": "Nothing logged yet.",
@@ -3333,7 +3339,8 @@
         "failed": "Failed",
         "cancelled": "Cancelled",
         "waiting_workspace": "等待文件夹",
-        "review": "待审阅"
+        "review": "待审阅",
+        "done_unreported": "已完成，未报告"
       },
       "kind": {
         "run": "Run",

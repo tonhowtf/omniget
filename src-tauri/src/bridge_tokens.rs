@@ -710,6 +710,54 @@ impl JobTokenLease {
             revoke: Some(Box::new(revoke)),
         })
     }
+
+    /// [`Self::start`] plus the job's identity in the child's env (2.6:
+    /// `OMNIGET_ENV`, `OMNIGET_JOB_ID`, `OMNIGET_AGENT_ID`,
+    /// `OMNIGET_BRIDGE_URL`), which the child gets even when the token
+    /// could not be minted (the error comes back beside the lease).
+    pub fn start_with(
+        conversation: &str,
+        identity: BTreeMap<String, String>,
+        mint: impl FnOnce() -> Result<Minted, String>,
+        revoke: impl FnOnce() + Send + 'static,
+    ) -> (Self, Option<String>) {
+        let mut env = identity;
+        let (revoke, error): (Option<Box<dyn FnOnce() + Send>>, _) = match mint() {
+            Ok(minted) => {
+                env.insert(JOB_TOKEN_ENV.to_string(), minted.token);
+                (Some(Box::new(revoke)), None)
+            }
+            Err(e) => (None, Some(e)),
+        };
+        omniget_core::core::llm::cli_runtime::set_conversation_env(conversation, env);
+        (
+            Self {
+                conversation: conversation.to_string(),
+                revoke,
+            },
+            error,
+        )
+    }
+}
+
+/// The job's identity a child sees (2.6). `OMNIGET_JOB_ID` is what the
+/// `omniget-agents` skill and `omniget agent run` read to refuse delegating
+/// from inside a job (depth 1); the bridge address lets the job token call
+/// back (2.1 left the child with a token and no port).
+pub fn job_identity_env(
+    job_id: &str,
+    agent_id: &str,
+    bridge_url: Option<&str>,
+) -> BTreeMap<String, String> {
+    let mut env = BTreeMap::from([
+        ("OMNIGET_ENV".to_string(), "1".to_string()),
+        ("OMNIGET_JOB_ID".to_string(), job_id.to_string()),
+        ("OMNIGET_AGENT_ID".to_string(), agent_id.to_string()),
+    ]);
+    if let Some(url) = bridge_url.filter(|u| !u.is_empty()) {
+        env.insert("OMNIGET_BRIDGE_URL".to_string(), url.to_string());
+    }
+    env
 }
 
 impl Drop for JobTokenLease {
@@ -857,6 +905,41 @@ mod tests {
         assert_eq!(p("/v1/agentkit/apply").scope, SCOPE_JOBS_OPERATE);
         assert!(route_need(&Method::POST, "/v1/jobs").is_none());
         assert!(route_need(&Method::GET, "/v1/nope").is_none());
+    }
+
+    /// 2.6: the child of a job knows it is one (and where the bridge is),
+    /// token or not; the lease takes it all away at the end.
+    #[test]
+    fn a_job_child_gets_its_identity_even_without_a_token() {
+        use omniget_core::core::llm::cli_runtime::conversation_env;
+        let id = job_identity_env("j7", "claude-code", Some("http://127.0.0.1:4242"));
+        assert_eq!(id["OMNIGET_ENV"], "1");
+        assert_eq!(id["OMNIGET_JOB_ID"], "j7");
+        assert_eq!(id["OMNIGET_AGENT_ID"], "claude-code");
+        assert_eq!(id["OMNIGET_BRIDGE_URL"], "http://127.0.0.1:4242");
+        assert!(!job_identity_env("j7", "a", None).contains_key("OMNIGET_BRIDGE_URL"));
+        let db = db();
+        let conv = format!("identity-{}", uuid::Uuid::new_v4().simple());
+        {
+            let (_lease, err) = JobTokenLease::start_with(
+                &conv,
+                id.clone(),
+                || mint(&db, Kind::Job, "job j7", &job_scopes(), Some("j7"), None, 1),
+                || {},
+            );
+            assert!(err.is_none());
+            let env = conversation_env(&conv);
+            assert_eq!(env.get("OMNIGET_JOB_ID").map(String::as_str), Some("j7"));
+            assert!(env
+                .get(JOB_TOKEN_ENV)
+                .is_some_and(|t| t.starts_with("ojt_")));
+        }
+        assert!(conversation_env(&conv).is_empty(), "gone with the lease");
+        let (_lease, err) = JobTokenLease::start_with(&conv, id, || Err("no db".into()), || {});
+        assert_eq!(err.as_deref(), Some("no db"));
+        let env = conversation_env(&conv);
+        assert_eq!(env.get("OMNIGET_JOB_ID").map(String::as_str), Some("j7"));
+        assert!(!env.contains_key(JOB_TOKEN_ENV));
     }
 
     #[test]

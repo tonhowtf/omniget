@@ -3318,6 +3318,12 @@
       "list_title": "Recent jobs",
       "empty": "No jobs yet. Start one above and it shows up here.",
       "result": "Result",
+      "outcome": {
+        "title": "エージェントの判定",
+        "succeeded": "成功",
+        "failed": "失敗",
+        "missing": "エージェントは OUTCOME 行を書かずに終了しました。頼る前に結果を読んでください。"
+      },
       "error": "Error",
       "log": "Log",
       "log_empty": "Nothing logged yet.",
@@ -3333,7 +3339,8 @@
         "failed": "Failed",
         "cancelled": "Cancelled",
         "waiting_workspace": "フォルダーの空き待ち",
-        "review": "レビュー待ち"
+        "review": "レビュー待ち",
+        "done_unreported": "完了（報告なし）"
       },
       "kind": {
         "run": "Run",

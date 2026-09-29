@@ -401,7 +401,7 @@
                 <span class="wait">{waitText(job)}</span>
               {/if}
               <span class="agent">{agentName(job.agent_id)}</span>
-              <span class="line">{promptTitle(job.prompt).title}</span>
+              <span class="line">{job.title || promptTitle(job.prompt).title}</span>
               <span class="time">
                 {shortTime(job.created_ms)}
                 {#if job.finished_ms}· {duration(job.started_ms ?? job.created_ms, job.finished_ms)}{/if}
@@ -434,6 +434,12 @@
                       <span class="hint">{$t("llm.jobs.worktree.gone")}</span>
                     {/if}
                   </div>
+                {/if}
+                {#if full.outcome}
+                  <div class="field-label">{$t("llm.jobs.outcome.title")}</div>
+                  <div class="text" class:err={full.outcome.status === "failed"}>{$t(`llm.jobs.outcome.${full.outcome.status}`)} — {full.outcome.summary}</div>
+                {:else if full.state === "done_unreported"}
+                  <p class="hint">{$t("llm.jobs.outcome.missing")}</p>
                 {/if}
                 {#if full.result}
                   <div class="field-label">{$t("llm.jobs.result")}</div>

@@ -171,9 +171,7 @@ impl Fake {
                 let text = "Added the test.\nOUTCOME: succeeded — ran npm test and wrote a.txt.";
                 self.set(&id, |j| {
                     j.result = Some(text.into());
-                    j.outcome = Some(
-                        json!({"status": "succeeded", "summary": "ran npm test and wrote a.txt."}),
-                    );
+                    j.outcome = jobs::parse_outcome(text);
                     j.diff_files = Some(vec![FileChange {
                         path: "a.txt".into(),
                         status: "A".into(),
@@ -531,6 +529,63 @@ async fn a_wait_wakes_on_the_change_and_a_timeout_is_an_error() {
         .await
         .unwrap_err();
     assert_eq!(e, "JOB_NOT_AUTHORIZED");
+}
+
+// ── outcome (2.6) ─────────────────────────────────────────────────────
+
+#[test]
+fn the_outcome_line_is_read_and_its_absence_is_a_state() {
+    let v =
+        jobs::parse_outcome("Done.\n\n**OUTCOME: succeeded** — fixed the parser. Tests pass.\n")
+            .unwrap();
+    assert_eq!(v["status"], "succeeded");
+    assert_eq!(v["summary"], "fixed the parser. Tests pass.");
+    let v = jobs::parse_outcome("OUTCOME: failed - the build is broken").unwrap();
+    assert_eq!(
+        (v["status"].as_str(), v["summary"].as_str()),
+        (Some("failed"), Some("the build is broken"))
+    );
+    let v = jobs::parse_outcome("`OUTCOME: succeeded`: ok").unwrap();
+    assert_eq!(v["summary"], "ok");
+    // The last line wins; anything else is no outcome.
+    assert_eq!(
+        jobs::parse_outcome("OUTCOME: failed — a\nOUTCOME: succeeded — b").unwrap()["summary"],
+        "b"
+    );
+    for none in [
+        "",
+        "all good",
+        "OUTCOME: maybe — hm",
+        "the outcome: succeeded",
+    ] {
+        assert!(jobs::parse_outcome(none).is_none(), "{none}");
+    }
+    assert_eq!(
+        jobs::settle_outcome("run", "done", false),
+        "done_unreported"
+    );
+    assert_eq!(jobs::settle_outcome("run", "done", true), "done");
+    assert_eq!(jobs::settle_outcome("run", "review", false), "review");
+    assert_eq!(
+        jobs::settle_outcome("mission", "done", false),
+        "done",
+        "criteria decide"
+    );
+    assert_eq!(jobs::settle_outcome("run", "failed", false), "failed");
+    assert!(jobs::is_success("done_unreported") && jobs::is_terminal("done_unreported"));
+    assert!(jobs::asks_outcome("run") && jobs::asks_outcome("mission"));
+    assert!(
+        !jobs::asks_outcome("trigger")
+            && !jobs::asks_outcome("loop")
+            && !jobs::asks_outcome("chat")
+    );
+    // B0 mirrors this text: keep scripts/llm/missions_eval.py in step.
+    let harness = include_str!("../../../scripts/llm/missions_eval.py");
+    let py = jobs::OUTCOME_SUFFIX.replace('\n', "\\n");
+    assert!(
+        harness.contains(&py),
+        "missions_eval.py must send the same OUTCOME suffix"
+    );
 }
 
 #[test]

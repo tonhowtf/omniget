@@ -742,7 +742,16 @@ fn fresh_command_id() -> String {
     )
 }
 
+/// Why a command that starts work refuses to run inside a job (2.6: the
+/// delegation depth is 1; the app refuses too).
+const INSIDE_A_JOB: &str = "OMNIGET_JOB_ID is set: this runs inside an OmniGet job, and a job never starts another job (delegation depth 1). Do the task yourself, in this turn.";
+
 pub async fn execute(cmd: AgentCommand, json_out: bool) -> anyhow::Result<()> {
+    if matches!(cmd, AgentCommand::Run { .. } | AgentCommand::Loop { .. })
+        && job_context().is_some()
+    {
+        bail!(INSIDE_A_JOB);
+    }
     let bridge = Bridge::open()?;
     match cmd {
         AgentCommand::Run {

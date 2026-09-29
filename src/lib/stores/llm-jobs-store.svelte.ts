@@ -15,6 +15,8 @@ export type JobState =
   | "done"
   /** It ended well and changed files: a person looks at them before it counts as done. */
   | "review"
+  /** It ended well but the agent wrote no `OUTCOME:` line (2.6). */
+  | "done_unreported"
   | "failed"
   | "cancelled"
   /** The app closed while it ran: its result is unknown, a person decides. */
@@ -102,6 +104,10 @@ export type Job = {
   head_oid?: string | null;
   /** Stamped by the host when the job ended; list rows and events leave it out. */
   proof?: JobProof | null;
+  /** A short name given by whoever started it (`job.start`, 2.5). */
+  title?: string | null;
+  /** The agent's own last word, from its `OUTCOME:` line (2.6). */
+  outcome?: { status: "succeeded" | "failed"; summary: string } | null;
   /** Summed over the model calls of the job; `cost_usd` is null for local models and CLI accounts. */
   usage?: {
     model: string;
@@ -967,6 +973,7 @@ export function pickState(state: string): string {
     case "unknown":
       return "orange";
     case "done":
+    case "done_unreported":
     case "completed":
       return "green";
     case "failed":
