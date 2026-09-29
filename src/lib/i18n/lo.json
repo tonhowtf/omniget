@@ -5413,7 +5413,6 @@
         "verify_hint": "Runs in every worktree; the exit code decides pass or fail.",
         "cleanup": "Clean up",
         "cleanup_lede": "Archives the threads (their worktrees go; the work stays in the arena's refs).",
-        "cleanup_losers": "Only the losers",
         "cleanup_all": "Every entry (discard the arena)",
         "delete": "Delete arena",
         "delete_lede": "Removes this arena from the history and its refs. The threads stay.",
@@ -5529,10 +5528,11 @@
           "verify_hint": "Optional; runs in each worktree when its turn ends. Timeout",
           "timeout": "Timeout in minutes",
           "minutes": "min",
-          "start": "Start in {{count}} tools"
+          "start": "Start in {{count}} tools",
+          "min_tools": "ເລືອກຢ່າງໜ້ອຍ {{count}} ເຄື່ອງມືເພື່ອປຽບທຽບ."
         },
         "apply": {
-          "title": "Apply the winner",
+          "title": "ເລືອກອັນນີ້",
           "lede": "{{name}}'s branch goes into the target branch. Nothing else is touched.",
           "target": "Target branch",
           "strategy": "How",
@@ -5543,22 +5543,49 @@
           "conflicts": "{{count}} files conflict; resolve in the thread first.",
           "checked_out": "The branch is checked out at {{path}}.",
           "dirty": "That checkout has uncommitted changes: commit or stash them first.",
-          "touch_checkout": "Update my checkout too (fast-forward only)",
+          "touch_checkout": "ລວມເຂົ້າ checkout ຂອງຂ້ອຍ (git merge ດ້ວຍຕົວຕົນ ແລະ hooks ຂອງຂ້ອຍ; ຍົກເລີກຖ້າມີຂໍ້ຂັດແຍ່ງ)",
           "ref_only": "Only the branch moves; no checkout is touched.",
-          "clean_losers": "Archive the losing threads and remove their worktrees",
+          "clean_losers": "ຈາກນັ້ນລຶບອັນອື່ນ (worktree; ວຽກຂອງມັນຍັງຢູ່ໃນ refs ຂອງອາຣີນາ)",
           "delete_branches": "Also delete their branches (only OmniGet's)",
           "confirm": "I want to change {{branch}}",
           "do": "Apply",
           "ok": "Applied to {{branch}}",
-          "updated_checkout": "your checkout moved forward",
-          "updated_ref": "only the branch ref moved",
-          "cleaned": "{{count}} threads archived"
+          "updated_checkout": "ລວມເຂົ້າ checkout ຂອງທ່ານແລ້ວ",
+          "updated_ref": "only the branch ref moved"
         },
         "plan": {
           "implement_n": "Implement in N tools",
           "hint": "Open the Arena with this plan as the prompt"
         },
-        "apply_winner": "Apply winner"
+        "apply_winner": "Apply winner",
+        "removed": "ລຶບ worktree ແລ້ວ {{count}} ອັນ",
+        "branches_kept": "ເກັບ branch ໄວ້ {{count}} ອັນ",
+        "remove_others": "ລຶບອັນອື່ນ",
+        "choose": "ເລືອກອັນນີ້",
+        "choose_hint": "ລວມວຽກຂອງຖັນນີ້ເຂົ້າ branch ຫຼັກ",
+        "estimate": {
+          "total": "ຄ່າໃຊ້ຈ່າຍໂດຍປະມານກ່ອນເລີ່ມ: {{total}} ສຳລັບ {{count}} ເຄື່ອງມື",
+          "unknown": "{{count}} ບໍ່ມີການປະມານ",
+          "rough": "ໂດຍປະມານ: ລາຄາຕາມລາຍການ × ໜຶ່ງຮອບປົກກະຕິ",
+          "source": {
+            "history": "ຄ່າສະເລ່ຍຈາກ {{runs}} ຄັ້ງທີ່ຜ່ານມາໃນອາຣີນາ",
+            "price": "ລາຄາຕາມລາຍການ × ໜຶ່ງຮອບຂຽນໂຄດປົກກະຕິ (ໂດຍປະມານ)",
+            "unknown": "ບໍ່ຮູ້ລາຄາ (ແບບສະໝັກສະມາຊິກ ຫຼື ໂມເດວບໍ່ຢູ່ໃນຕາຕະລາງລາຄາ)"
+          }
+        },
+        "compare": {
+          "title": "ຈຸດທີ່ແຕກຕ່າງກັນ",
+          "toggle": "ປຽບທຽບ",
+          "divergent": "{{count}} ໄຟລ໌ແຕກຕ່າງກັນ",
+          "agreed": "{{count}} ຄືກັນ",
+          "pending": "{{count}} ຍັງເຮັດວຽກຢູ່",
+          "show_agreed": "ສະແດງໄຟລ໌ທີ່ຄືກັນ",
+          "file": "ໄຟລ໌",
+          "untouched": "ຄືກັບຕົ້ນສະບັບ",
+          "none_divergent": "ທຸກຖັນຈົບດ້ວຍໄຟລ໌ດຽວກັນ.",
+          "column": "{{count}} ແຕກຕ່າງ",
+          "column_hint": "ໄຟລ໌ທີ່ຖັນນີ້ແຕກຕ່າງຈາກອັນອື່ນ"
+        }
       },
       "run": {
         "back": "Back",

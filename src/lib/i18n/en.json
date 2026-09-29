@@ -5413,7 +5413,6 @@
         "verify_hint": "Runs in every worktree; the exit code decides pass or fail.",
         "cleanup": "Clean up",
         "cleanup_lede": "Archives the threads (their worktrees go; the work stays in the arena's refs).",
-        "cleanup_losers": "Only the losers",
         "cleanup_all": "Every entry (discard the arena)",
         "delete": "Delete arena",
         "delete_lede": "Removes this arena from the history and its refs. The threads stay.",
@@ -5529,10 +5528,11 @@
           "verify_hint": "Optional; runs in each worktree when its turn ends. Timeout",
           "timeout": "Timeout in minutes",
           "minutes": "min",
-          "start": "Start in {{count}} tools"
+          "start": "Start in {{count}} tools",
+          "min_tools": "Pick at least {{count}} tools to compare."
         },
         "apply": {
-          "title": "Apply the winner",
+          "title": "Choose this one",
           "lede": "{{name}}'s branch goes into the target branch. Nothing else is touched.",
           "target": "Target branch",
           "strategy": "How",
@@ -5543,22 +5543,49 @@
           "conflicts": "{{count}} files conflict; resolve in the thread first.",
           "checked_out": "The branch is checked out at {{path}}.",
           "dirty": "That checkout has uncommitted changes: commit or stash them first.",
-          "touch_checkout": "Update my checkout too (fast-forward only)",
+          "touch_checkout": "Merge into my checkout (git merge with my identity and hooks; undone on a conflict)",
           "ref_only": "Only the branch moves; no checkout is touched.",
-          "clean_losers": "Archive the losing threads and remove their worktrees",
+          "clean_losers": "Then remove the others (worktrees; their work stays in the arena's refs)",
           "delete_branches": "Also delete their branches (only OmniGet's)",
           "confirm": "I want to change {{branch}}",
           "do": "Apply",
           "ok": "Applied to {{branch}}",
-          "updated_checkout": "your checkout moved forward",
-          "updated_ref": "only the branch ref moved",
-          "cleaned": "{{count}} threads archived"
+          "updated_checkout": "merged in your checkout",
+          "updated_ref": "only the branch ref moved"
         },
         "plan": {
           "implement_n": "Implement in N tools",
           "hint": "Open the Arena with this plan as the prompt"
         },
-        "apply_winner": "Apply winner"
+        "apply_winner": "Apply winner",
+        "removed": "{{count}} worktrees removed",
+        "branches_kept": "{{count}} branches kept",
+        "remove_others": "Remove the others",
+        "choose": "Choose this",
+        "choose_hint": "Merge this column's work into the base branch",
+        "estimate": {
+          "total": "Estimated cost before starting: {{total}} for {{count}} tools",
+          "unknown": "{{count}} without an estimate",
+          "rough": "rough: list price × a typical turn",
+          "source": {
+            "history": "Average of {{runs}} past runs in the arena",
+            "price": "List price × a typical coding turn (rough)",
+            "unknown": "No price known (subscription, or a model not in the price table)"
+          }
+        },
+        "compare": {
+          "title": "Where they split",
+          "toggle": "Compare",
+          "divergent": "{{count}} files differ",
+          "agreed": "{{count}} identical",
+          "pending": "{{count}} still running",
+          "show_agreed": "Show identical files",
+          "file": "File",
+          "untouched": "same as base",
+          "none_divergent": "Every column ended with the same files.",
+          "column": "{{count}} divergent",
+          "column_hint": "Files where this column differs from the others"
+        }
       },
       "run": {
         "back": "Back",

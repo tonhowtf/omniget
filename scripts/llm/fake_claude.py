@@ -144,7 +144,8 @@ def tool_result(tool_id, content):
 def result(text):
     emit({"type": "result", "subtype": "success", "duration_ms": 10, "duration_api_ms": 5,
           "is_error": False, "num_turns": 1, "result": text, "stop_reason": "end_turn",
-          "total_cost_usd": 0.0,
+          # BN11 gives each arena column its own price to compare.
+          "total_cost_usd": float(os.environ.get("FAKE_CLAUDE_COST_USD", "0") or 0),
           "usage": {"input_tokens": 4, "output_tokens": 2, "cache_creation_input_tokens": 0,
                     "cache_read_input_tokens": 12040}})
 

@@ -1315,6 +1315,8 @@ pub fn run() {
             commands::central::arena::arena_cleanup,
             commands::central::arena::arena_delete,
             commands::central::arena::arena_scoreboard,
+            commands::central::arena::arena_estimate,
+            commands::central::arena::arena_compare,
             commands::central::run::run_runners,
             commands::central::run::run_loop_prepare,
             commands::central::run::run_loop_start,

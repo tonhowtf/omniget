@@ -5413,7 +5413,6 @@
         "verify_hint": "Runs in every worktree; the exit code decides pass or fail.",
         "cleanup": "Clean up",
         "cleanup_lede": "Archives the threads (their worktrees go; the work stays in the arena's refs).",
-        "cleanup_losers": "Only the losers",
         "cleanup_all": "Every entry (discard the arena)",
         "delete": "Delete arena",
         "delete_lede": "Removes this arena from the history and its refs. The threads stay.",
@@ -5529,10 +5528,11 @@
           "verify_hint": "Optional; runs in each worktree when its turn ends. Timeout",
           "timeout": "Timeout in minutes",
           "minutes": "min",
-          "start": "Start in {{count}} tools"
+          "start": "Start in {{count}} tools",
+          "min_tools": "至少選 {{count}} 個工具來比較。"
         },
         "apply": {
-          "title": "Apply the winner",
+          "title": "選這個",
           "lede": "{{name}}'s branch goes into the target branch. Nothing else is touched.",
           "target": "Target branch",
           "strategy": "How",
@@ -5543,22 +5543,49 @@
           "conflicts": "{{count}} files conflict; resolve in the thread first.",
           "checked_out": "The branch is checked out at {{path}}.",
           "dirty": "That checkout has uncommitted changes: commit or stash them first.",
-          "touch_checkout": "Update my checkout too (fast-forward only)",
+          "touch_checkout": "合併到我的 checkout(用我的身分和 hook 執行 git merge;衝突時復原)",
           "ref_only": "Only the branch moves; no checkout is touched.",
-          "clean_losers": "Archive the losing threads and remove their worktrees",
+          "clean_losers": "然後移除其他(worktree;它們的成果保留在競技場的 ref 中)",
           "delete_branches": "Also delete their branches (only OmniGet's)",
           "confirm": "I want to change {{branch}}",
           "do": "Apply",
           "ok": "Applied to {{branch}}",
-          "updated_checkout": "your checkout moved forward",
-          "updated_ref": "only the branch ref moved",
-          "cleaned": "{{count}} threads archived"
+          "updated_checkout": "已合併到你的 checkout",
+          "updated_ref": "only the branch ref moved"
         },
         "plan": {
           "implement_n": "Implement in N tools",
           "hint": "Open the Arena with this plan as the prompt"
         },
-        "apply_winner": "Apply winner"
+        "apply_winner": "Apply winner",
+        "removed": "已移除 {{count}} 個 worktree",
+        "branches_kept": "保留了 {{count}} 個分支",
+        "remove_others": "移除其他",
+        "choose": "選這個",
+        "choose_hint": "把這一欄的成果合併到基礎分支",
+        "estimate": {
+          "total": "開始前的預估費用:{{count}} 個工具共 {{total}}",
+          "unknown": "{{count}} 個無法預估",
+          "rough": "粗略:標價 × 一次典型回合",
+          "source": {
+            "history": "競技場中過去 {{runs}} 次執行的平均值",
+            "price": "標價 × 一次典型程式回合(粗略)",
+            "unknown": "價格未知(訂閱,或模型不在價格表中)"
+          }
+        },
+        "compare": {
+          "title": "分歧之處",
+          "toggle": "比較",
+          "divergent": "{{count}} 個檔案不同",
+          "agreed": "{{count}} 個相同",
+          "pending": "{{count}} 個仍在執行",
+          "show_agreed": "顯示相同的檔案",
+          "file": "檔案",
+          "untouched": "與基礎相同",
+          "none_divergent": "所有欄最終的檔案都相同。",
+          "column": "{{count}} 處分歧",
+          "column_hint": "這一欄與其他欄不同的檔案"
+        }
       },
       "run": {
         "back": "Back",
