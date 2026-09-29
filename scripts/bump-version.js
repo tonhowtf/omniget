@@ -146,16 +146,6 @@ if (fs.existsSync(changelogStorePath)) {
   );
 }
 
-const aboutProjectPath = path.join(root, "src", "routes", "about", "project", "+page.svelte");
-if (fs.existsSync(aboutProjectPath)) {
-  writeText(aboutProjectPath, (content) =>
-    content.replace(
-      /(const\s+APP_VERSION\s*=\s*")[^"]+(";)/,
-      (_, a, c) => `${a}${version}${c}`
-    )
-  );
-}
-
 // MCP Registry entry: the release workflow fills in fileSha256 and uploads
 // the final server.json next to omniget-mcp.mcpb.
 const serverJsonPath = path.join(root, "server.json");
