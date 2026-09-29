@@ -3,6 +3,7 @@ pub mod agentkit;
 pub mod batch;
 pub mod claude;
 pub mod common;
+pub mod company;
 pub mod download;
 pub mod import_cookies;
 pub mod info;

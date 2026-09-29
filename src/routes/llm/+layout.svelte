@@ -2,7 +2,7 @@
   import type { Snippet } from 'svelte';
   import { page } from '$app/state';
   import { t } from '$lib/i18n';
-  import { LLM_DESTINATIONS, llmDestination } from '$lib/llm/workspace-navigation';
+  import { LLM_DESTINATIONS, llmDestination, llmDestinationLabel } from '$lib/llm/workspace-navigation';
   import UsageMonitor from '$components/llm/UsageMonitor.svelte';
   import UpdatesWatcher from '$components/central/tools/UpdatesWatcher.svelte';
   let { children }: { children: Snippet } = $props();
@@ -14,13 +14,13 @@
   <header class="workspace-header">
     <nav class="llm-tabs" aria-label={$t('llm.title')}>
       {#each LLM_DESTINATIONS as item (item.id)}
-        <a class="llm-tab" href={item.href} aria-current={destination.id === item.id ? 'page' : undefined}>{$t(`llm.workspace.${item.id}`)}</a>
+        <a class="llm-tab" href={item.href} aria-current={destination.id === item.id ? 'page' : undefined}>{$t(llmDestinationLabel(item))}</a>
       {/each}
     </nav>
     <UsageMonitor />
   </header>
   {#if destination.tools.length}
-    <nav class="workspace-tools" aria-label={$t(`llm.workspace.${destination.id}`)}>
+    <nav class="workspace-tools" aria-label={$t(llmDestinationLabel(destination))}>
       {#each destination.tools as tool (tool.href)}<a href={tool.href} aria-current={path === tool.href ? 'page' : undefined}>{$t(tool.key)}</a>{/each}
     </nav>
   {/if}

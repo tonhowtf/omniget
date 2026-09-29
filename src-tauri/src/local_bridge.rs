@@ -237,6 +237,7 @@ pub async fn spawn(app: AppHandle) {
         .merge(crate::local_bridge_llm::router(
             crate::local_bridge_llm::LlmBridgeState::from_bridge(&state),
         ))
+        .merge(crate::local_bridge_company::router(state.token.clone()))
         .merge(crate::local_bridge_jobs::router(
             crate::local_bridge_jobs::JobsBridgeState::from_bridge(&state),
         ))

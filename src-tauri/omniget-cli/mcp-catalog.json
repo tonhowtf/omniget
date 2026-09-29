@@ -4454,6 +4454,134 @@
         "openWorldHint": false,
         "readOnlyHint": true
       },
+      "description": "Read the companies of agents in OmniGet: company.list, company.dashboard, staff.chart, issue.list, issue.get, issue.search, approval.list, budget.status, cost.summary, run.list, routine.list, audit.list, inbox.list.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "args": {
+            "description": "Arguments of the method, e.g. {\"company\": \"<id>\", \"issue\": {\"title\": \"…\"}}",
+            "type": "object"
+          },
+          "method": {
+            "description": "area.verb, e.g. company.list, issue.list, issue.create, issue.comment, staff.wake",
+            "type": "string"
+          }
+        },
+        "required": [
+          "method"
+        ],
+        "type": "object"
+      },
+      "name": "company_query",
+      "outputSchema": {
+        "anyOf": [
+          {
+            "required": [
+              "method",
+              "result"
+            ]
+          },
+          {
+            "required": [
+              "error"
+            ]
+          }
+        ],
+        "properties": {
+          "error": {
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "type": "object"
+          },
+          "method": {
+            "type": "string"
+          },
+          "result": {}
+        },
+        "type": "object"
+      }
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "readOnlyHint": false
+      },
+      "description": "Act in a company of agents: issue.create, issue.update, issue.status, issue.comment, issue.doc_put, issue.relate, staff.wake, staff.hire, goal.create, project.create, routine.create, approval.request. Approvals, budgets and firing are decided by the owner in the OmniGet window.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "args": {
+            "description": "Arguments of the method, e.g. {\"company\": \"<id>\", \"issue\": {\"title\": \"…\"}}",
+            "type": "object"
+          },
+          "method": {
+            "description": "area.verb, e.g. company.list, issue.list, issue.create, issue.comment, staff.wake",
+            "type": "string"
+          }
+        },
+        "required": [
+          "method"
+        ],
+        "type": "object"
+      },
+      "name": "company_command",
+      "outputSchema": {
+        "anyOf": [
+          {
+            "required": [
+              "method",
+              "result"
+            ]
+          },
+          {
+            "required": [
+              "error"
+            ]
+          }
+        ],
+        "properties": {
+          "error": {
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "type": "object"
+          },
+          "method": {
+            "type": "string"
+          },
+          "result": {}
+        },
+        "type": "object"
+      }
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "readOnlyHint": true
+      },
       "description": "List only executor IDs selected in this client's current local execution grants; no private agent settings.",
       "inputSchema": {
         "additionalProperties": false,

@@ -118,6 +118,14 @@
   onMount(() => {
     initJobsStore();
     void loadRoster();
+    // `?job=<id>` (a company run links here) opens that job.
+    const wanted = new URLSearchParams(location.search).get("job");
+    if (wanted) {
+      openId = wanted;
+      void refreshDetail(wanted);
+      void refreshDiff(wanted);
+      void markJobSeen(wanted);
+    }
   });
 
   $effect(() => {

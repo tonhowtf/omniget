@@ -11,6 +11,7 @@ pub mod download_intents;
 pub mod downloads;
 pub mod gateway_grants;
 pub mod network_grants;
+pub mod company;
 pub mod orchestration;
 pub mod orchestration_config;
 pub mod output_schemas;

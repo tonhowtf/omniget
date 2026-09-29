@@ -7,6 +7,7 @@ pub mod binary_overrides;
 pub mod catalog;
 pub mod clipboard;
 pub mod clitools;
+pub mod company;
 pub mod cookie_parser;
 pub mod dependencies;
 pub mod direct_downloader;

@@ -467,6 +467,8 @@ fn own(name: &str) -> Option<Value> {
             }),
             &["missionId", "tasks"],
         ),
+        // The company dispatcher answers any JSON; it comes wrapped.
+        "company_query" | "company_command" => obj(json!({"method": ty("string"), "result": {}}), &["method", "result"]),
         "job_diff" => obj(
             json!({
                 "jobId": ty("string"),

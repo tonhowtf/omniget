@@ -7,6 +7,7 @@ pub mod bilibili_auth;
 pub mod browser_extension;
 pub mod central;
 pub mod channels;
+pub mod company;
 pub mod dedupe;
 pub mod diagnostics;
 pub mod downloads;

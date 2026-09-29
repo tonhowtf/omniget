@@ -50,6 +50,7 @@ pub fn toolsets() -> Vec<Arc<dyn AssistToolset>> {
         super::groups::toolset(),
         super::bots::toolset(),
         super::media_tools::toolset(),
+        crate::core::company::toolset::toolset(),
     ]
 }
 

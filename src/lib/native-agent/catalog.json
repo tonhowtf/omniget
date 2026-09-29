@@ -685,5 +685,193 @@
       "actions": "Only actions returned by inspect",
       "conditionalStates": "Inspect currently rendered state; hidden dialogs and tabs are not enumerated"
     }
+  },
+  {
+    "screenId": "/llm/company",
+    "route": "/llm/company",
+    "windowId": "main",
+    "sensitive": false,
+    "kind": "page",
+    "navigation": "main-route",
+    "preconditions": [],
+    "capabilities": {
+      "inspect": true,
+      "capture": true,
+      "actions": "Only actions returned by inspect",
+      "conditionalStates": "Inspect currently rendered state; hidden dialogs and tabs are not enumerated"
+    }
+  },
+  {
+    "screenId": "/llm/company/[id]",
+    "route": "/llm/company/[id]",
+    "windowId": "main",
+    "sensitive": false,
+    "kind": "page",
+    "navigation": "main-route",
+    "preconditions": [
+      "Needs a company id (open it from /llm/company)."
+    ],
+    "capabilities": {
+      "inspect": true,
+      "capture": true,
+      "actions": "Only actions returned by inspect",
+      "conditionalStates": "Inspect currently rendered state; hidden dialogs and tabs are not enumerated"
+    }
+  },
+  {
+    "screenId": "/llm/company/[id]/activity",
+    "route": "/llm/company/[id]/activity",
+    "windowId": "main",
+    "sensitive": false,
+    "kind": "page",
+    "navigation": "main-route",
+    "preconditions": [
+      "Needs a company id (open it from /llm/company)."
+    ],
+    "capabilities": {
+      "inspect": true,
+      "capture": true,
+      "actions": "Only actions returned by inspect",
+      "conditionalStates": "Inspect currently rendered state; hidden dialogs and tabs are not enumerated"
+    }
+  },
+  {
+    "screenId": "/llm/company/[id]/costs",
+    "route": "/llm/company/[id]/costs",
+    "windowId": "main",
+    "sensitive": false,
+    "kind": "page",
+    "navigation": "main-route",
+    "preconditions": [
+      "Needs a company id (open it from /llm/company)."
+    ],
+    "capabilities": {
+      "inspect": true,
+      "capture": true,
+      "actions": "Only actions returned by inspect",
+      "conditionalStates": "Inspect currently rendered state; hidden dialogs and tabs are not enumerated"
+    }
+  },
+  {
+    "screenId": "/llm/company/[id]/goals",
+    "route": "/llm/company/[id]/goals",
+    "windowId": "main",
+    "sensitive": false,
+    "kind": "page",
+    "navigation": "main-route",
+    "preconditions": [
+      "Needs a company id (open it from /llm/company)."
+    ],
+    "capabilities": {
+      "inspect": true,
+      "capture": true,
+      "actions": "Only actions returned by inspect",
+      "conditionalStates": "Inspect currently rendered state; hidden dialogs and tabs are not enumerated"
+    }
+  },
+  {
+    "screenId": "/llm/company/[id]/inbox",
+    "route": "/llm/company/[id]/inbox",
+    "windowId": "main",
+    "sensitive": false,
+    "kind": "page",
+    "navigation": "main-route",
+    "preconditions": [
+      "Needs a company id (open it from /llm/company)."
+    ],
+    "capabilities": {
+      "inspect": true,
+      "capture": true,
+      "actions": "Only actions returned by inspect",
+      "conditionalStates": "Inspect currently rendered state; hidden dialogs and tabs are not enumerated"
+    }
+  },
+  {
+    "screenId": "/llm/company/[id]/issues",
+    "route": "/llm/company/[id]/issues",
+    "windowId": "main",
+    "sensitive": false,
+    "kind": "page",
+    "navigation": "main-route",
+    "preconditions": [
+      "Needs a company id (open it from /llm/company)."
+    ],
+    "capabilities": {
+      "inspect": true,
+      "capture": true,
+      "actions": "Only actions returned by inspect",
+      "conditionalStates": "Inspect currently rendered state; hidden dialogs and tabs are not enumerated"
+    }
+  },
+  {
+    "screenId": "/llm/company/[id]/issues/[issue]",
+    "route": "/llm/company/[id]/issues/[issue]",
+    "windowId": "main",
+    "sensitive": false,
+    "kind": "page",
+    "navigation": "main-route",
+    "preconditions": [
+      "Needs a company id (open it from /llm/company).",
+      "Needs an issue id or identifier (open it from the issue list)."
+    ],
+    "capabilities": {
+      "inspect": true,
+      "capture": true,
+      "actions": "Only actions returned by inspect",
+      "conditionalStates": "Inspect currently rendered state; hidden dialogs and tabs are not enumerated"
+    }
+  },
+  {
+    "screenId": "/llm/company/[id]/routines",
+    "route": "/llm/company/[id]/routines",
+    "windowId": "main",
+    "sensitive": false,
+    "kind": "page",
+    "navigation": "main-route",
+    "preconditions": [
+      "Needs a company id (open it from /llm/company)."
+    ],
+    "capabilities": {
+      "inspect": true,
+      "capture": true,
+      "actions": "Only actions returned by inspect",
+      "conditionalStates": "Inspect currently rendered state; hidden dialogs and tabs are not enumerated"
+    }
+  },
+  {
+    "screenId": "/llm/company/[id]/settings",
+    "route": "/llm/company/[id]/settings",
+    "windowId": "main",
+    "sensitive": true,
+    "kind": "page",
+    "navigation": "main-route",
+    "preconditions": [
+      "Sensitive: pixels, inspection and UI actions blocked.",
+      "Needs a company id (open it from /llm/company)."
+    ],
+    "capabilities": {
+      "inspect": false,
+      "capture": false,
+      "actions": "Only actions returned by inspect",
+      "conditionalStates": "Inspect currently rendered state; hidden dialogs and tabs are not enumerated"
+    }
+  },
+  {
+    "screenId": "/llm/company/[id]/team",
+    "route": "/llm/company/[id]/team",
+    "windowId": "main",
+    "sensitive": true,
+    "kind": "page",
+    "navigation": "main-route",
+    "preconditions": [
+      "Sensitive: pixels, inspection and UI actions blocked.",
+      "Needs a company id (open it from /llm/company)."
+    ],
+    "capabilities": {
+      "inspect": false,
+      "capture": false,
+      "actions": "Only actions returned by inspect",
+      "conditionalStates": "Inspect currently rendered state; hidden dialogs and tabs are not enumerated"
+    }
   }
 ]

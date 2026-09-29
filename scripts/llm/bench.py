@@ -65,6 +65,13 @@ BENCHES = {
         ["--reps", "5"],
         ["omniget-core", "omniget"],
     ),
+    "bn13": (
+        "company_eval.py",
+        ["src-tauri/omniget-core/src/core/company/", "src-tauri/src/company.rs", "src-tauri/src/local_bridge_company.rs",
+         "scripts/llm/company_eval.py"],
+        ["--debug"],
+        ["omniget-core", "omniget"],
+    ),
 }
 # The argv of a real turn: if any of these moved, B0 no longer measures production.
 B0_PATHS = [CORE_LLM + "cli_runtime/claude.rs", CORE_LLM + "cli_runtime/mod.rs", "scripts/llm/missions_eval.py"]

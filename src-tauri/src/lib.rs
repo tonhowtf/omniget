@@ -21,6 +21,7 @@ pub mod extension_storage;
 pub mod external_url;
 pub mod hotkey;
 pub mod ipc_guard;
+pub mod company;
 pub mod jobs;
 pub mod limits_strip;
 pub mod llm_attention;
@@ -28,6 +29,7 @@ pub mod llm_manager;
 pub mod local_bridge;
 pub mod local_bridge_agentkit;
 pub mod local_bridge_debug;
+pub mod local_bridge_company;
 pub mod local_bridge_jobs;
 pub mod local_bridge_llm;
 pub mod local_bridge_observe;
@@ -786,6 +788,7 @@ pub fn run() {
                 tauri::async_runtime::spawn(async move {
                     local_bridge::spawn(app_handle.clone()).await;
                     jobs::boot(&app_handle);
+                    company::boot(&app_handle);
                 });
             }
             std::thread::Builder::new()
@@ -1362,6 +1365,11 @@ pub fn run() {
             commands::llm::jobs::llm_jobs_list,
             commands::llm::jobs::llm_job_get,
             commands::llm::jobs::llm_job_submit,
+            commands::company::company_rpc,
+            commands::company::company_run_stop,
+            commands::company::company_engine_status,
+            commands::company::company_runtime_templates,
+            commands::company::company_hire,
             commands::llm::jobs::llm_job_cancel,
             commands::llm::jobs::llm_job_delete,
             commands::llm::jobs::llm_loops_list,

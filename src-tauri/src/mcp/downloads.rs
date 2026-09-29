@@ -9,7 +9,7 @@ use tauri::{AppHandle, Manager};
 
 pub fn catalog(p: &Principal) -> Vec<Value> {
     tools(p).into_iter().map(|tool| {
-        let writes = matches!(policy::scope(tool.name), Some("enqueue" | "control" | "orchestration_control" | "orchestration_create" | "app_control" | "app_capture" | "system_change"))
+        let writes = matches!(policy::scope(tool.name), Some("enqueue" | "control" | "company_control" | "orchestration_control" | "orchestration_create" | "app_control" | "app_capture" | "system_change"))
             || matches!(tool.name, "auth_connection_request" | "diagnostic_bundle_create" | "catalog_install");
         let open_world = matches!(tool.name, "download_enqueue" | "downloads_batch_enqueue" | "download_retry" | "download_resume" | "media_inspect" | "media_collection_list");
         let mut value = serde_json::to_value(&tool).expect("static tool schema serializes");
@@ -45,6 +45,11 @@ pub fn tools(p: &Principal) -> Vec<ToolDef> {
     ]{
         if policy::allowed(p,name){list.push(ToolDef{name,description,input_schema:json!({"type":"object","properties":props,"required":required,"additionalProperties":false})});}
     }
+    list.extend(
+        super::company::tools()
+            .into_iter()
+            .filter(|t| policy::allowed(p, t.name)),
+    );
     list.extend(
         super::orchestration::tools()
             .into_iter()
@@ -192,6 +197,12 @@ pub async fn call(app: &AppHandle, p: &Principal, name: &str, a: Value) -> Resul
     if name.starts_with("omniget_app_") {
         validate(p, name, &a)?;
         return crate::native_agent::call(app, p, name, a).await;
+    }
+    if name == "company_query" || name == "company_command" {
+        if !policy::allowed(p, name) {
+            return Err("TOOL_NOT_AUTHORIZED".into());
+        }
+        return super::company::call(p, name, a).await;
     }
     if super::orchestration::tools().iter().any(|t| t.name == name) {
         if !policy::allowed(p, name) {

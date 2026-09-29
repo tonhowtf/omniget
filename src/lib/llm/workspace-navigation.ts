@@ -9,6 +9,7 @@ export const LLM_DESTINATIONS = [
     { href: '/llm/missions', key: 'mission.nav' }, { href: '/llm/jobs', key: 'llm.workspace.tasks' }, { href: '/llm/loops', key: 'llm.workspace.routines' }, { href: '/llm/observatory', key: 'llm.workspace.performance' },
     { href: '/llm/usage', key: 'llm.workspace.usage' }, { href: '/llm/sessions', key: 'llm.workspace.sessions' }, { href: '/llm/retro', key: 'llm.workspace.retro' },
   ] },
+  { id: 'company', href: '/llm/company', routes: ['/llm/company'], tools: [], label: 'company.nav' },
   { id: 'catalog', href: '/llm/catalog', routes: ['/llm/catalog', '/llm/installed', '/llm/catalog/wizard'], tools: [
     { href: '/llm/catalog', key: 'llm.workspace.catalog' }, { href: '/llm/installed', key: 'llm.workspace.installed' }, { href: '/llm/catalog/wizard', key: 'llm.workspace.wizard' },
   ] },
@@ -23,4 +24,8 @@ export function llmDestination(path: string) {
   if (exact) return exact;
   const nested = LLM_DESTINATIONS.find(d => (d.routes as readonly string[]).some(r => r !== '/llm' && normalized.startsWith(r + '/')));
   return nested ?? LLM_DESTINATIONS[1];
+}
+/** i18n key of a destination's tab: its own `label`, else `llm.workspace.<id>`. */
+export function llmDestinationLabel(d: (typeof LLM_DESTINATIONS)[number]): string {
+  return 'label' in d ? d.label : `llm.workspace.${d.id}`;
 }

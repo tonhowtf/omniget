@@ -56,6 +56,11 @@ enum Commands {
         #[command(subcommand)]
         command: commands::agent::AgentCommand,
     },
+    /// Companies of agents: org chart, issues, heartbeats, budgets and approvals of the running app
+    Company {
+        #[command(subcommand)]
+        command: commands::company::CompanyCommand,
+    },
     /// washmybelly: scan, plan and clean this computer through the running app (execute asks in the window)
     Wmb {
         #[command(subcommand)]
@@ -156,6 +161,9 @@ async fn main() -> anyhow::Result<()> {
         }
         Commands::Agent { command } => {
             commands::agent::execute(command, cli.json).await?;
+        }
+        Commands::Company { command } => {
+            commands::company::execute(command, cli.json).await?;
         }
         Commands::Wmb { command } => {
             commands::wmb::execute(command, cli.json).await?;
