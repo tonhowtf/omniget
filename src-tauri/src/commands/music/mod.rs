@@ -268,11 +268,6 @@ pub async fn music_set_liked(ids: Vec<i64>, liked: bool) -> Result<(), String> {
     .await
 }
 
-#[tauri::command]
-pub fn music_download_dir() -> String {
-    default_download_dir()
-}
-
 // ---------- tags ----------
 
 #[derive(Serialize)]

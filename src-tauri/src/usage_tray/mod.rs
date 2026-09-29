@@ -558,11 +558,11 @@ pub(crate) fn show_panel(app: &AppHandle, rect: Option<Rect>) {
     }
     let window = match app.get_webview_window(PANEL_LABEL) {
         Some(w) => w,
-        None => match WebviewWindowBuilder::new(
+        None => match crate::core::portable::with_dev_webview_dir(WebviewWindowBuilder::new(
             app,
             PANEL_LABEL,
             WebviewUrl::App("/usage-panel".into()),
-        )
+        ))
         .title("OmniGet")
         .inner_size(PANEL_W, PANEL_H)
         .resizable(false)
@@ -755,37 +755,6 @@ pub async fn usage_tray_toggle_account(app: AppHandle, id: String) -> Result<(),
     p.toggle_account(&id);
     commit(&app, p);
     Ok(())
-}
-
-/// `enabled`, `shows`, `percent_text`, `colored`, `warn`, `critical`.
-#[tauri::command]
-pub async fn usage_tray_set(app: AppHandle, patch: serde_json::Value) -> Result<TrayPrefs, String> {
-    let mut p = state().prefs.clone();
-    if let Some(v) = patch
-        .get("shows")
-        .and_then(|v| v.as_str())
-        .and_then(Shows::parse)
-    {
-        p.shows = v;
-    }
-    if let Some(v) = patch.get("percent_text").and_then(|v| v.as_bool()) {
-        p.percent_text = v;
-    }
-    if let Some(v) = patch.get("colored").and_then(|v| v.as_bool()) {
-        p.colored = v;
-    }
-    if let Some(v) = patch.get("warn").and_then(|v| v.as_u64()) {
-        p.warn = v.min(100) as u8;
-    }
-    if let Some(v) = patch.get("critical").and_then(|v| v.as_u64()) {
-        p.critical = v.min(100) as u8;
-    }
-    let enabled = patch.get("enabled").and_then(|v| v.as_bool());
-    commit(&app, p);
-    if let Some(on) = enabled {
-        set_enabled(&app, on);
-    }
-    Ok(state().prefs.clone())
 }
 
 #[tauri::command]

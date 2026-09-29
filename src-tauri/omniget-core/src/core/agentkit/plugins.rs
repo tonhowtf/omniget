@@ -1500,7 +1500,7 @@ mod tests {
 
     /// `cargo test -p omniget-core --lib agentkit::plugins::tests::live -- --ignored --nocapture`
     #[test]
-    #[ignore]
+    #[ignore = "reads the real agent setups of this machine"]
     fn live_inventory_on_this_machine() {
         let env = Env::system().unwrap();
         let all = list(&env, None);

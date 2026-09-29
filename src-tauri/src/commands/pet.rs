@@ -25,11 +25,12 @@
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::path::PathBuf;
-use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
 
 pub const WINDOW_LABEL: &str = "pet";
-/// Event the pet window listens on. Emitted by `pet_emit_intent`, whose
-/// payload is the `Intent` of `docs/agents/f5-omni-intent.md` §4.
+/// Event the pet window listens on. Emitted by the omni bus loop in
+/// `commands::llm` after `normalize_intent`; the payload is the `Intent` of
+/// `docs/agents/f5-omni-intent.md` §4.
 pub const EVENT_INTENT: &str = "omni://intent";
 
 pub const ERR_UNSUPPORTED: &str = "ERR_PET_UNSUPPORTED";
@@ -377,24 +378,28 @@ pub async fn pet_open(app: AppHandle) -> Result<serde_json::Value, String> {
         return Ok(state_value(true, &prefs));
     }
 
-    let window = WebviewWindowBuilder::new(&app, WINDOW_LABEL, WebviewUrl::App("/pet".into()))
-        .title("Omni")
-        .inner_size(PET_W, PET_H)
-        .resizable(false)
-        .decorations(false)
-        .transparent(true)
-        .shadow(false)
-        .always_on_top(true)
-        .skip_taskbar(true)
-        .visible_on_all_workspaces(true)
-        // Without this the first click on macOS only focuses the window, so
-        // dragging the pet would always take two gestures.
-        .accept_first_mouse(true)
-        .focused(false)
-        .build()
-        // A compositor with no ARGB visual is the common reason this fails, and
-        // it is exactly the case the in-app fallback exists for.
-        .map_err(|e| format!("{ERR_UNSUPPORTED}: {e}"))?;
+    let window = crate::core::portable::with_dev_webview_dir(WebviewWindowBuilder::new(
+        &app,
+        WINDOW_LABEL,
+        WebviewUrl::App("/pet".into()),
+    ))
+    .title("Omni")
+    .inner_size(PET_W, PET_H)
+    .resizable(false)
+    .decorations(false)
+    .transparent(true)
+    .shadow(false)
+    .always_on_top(true)
+    .skip_taskbar(true)
+    .visible_on_all_workspaces(true)
+    // Without this the first click on macOS only focuses the window, so
+    // dragging the pet would always take two gestures.
+    .accept_first_mouse(true)
+    .focused(false)
+    .build()
+    // A compositor with no ARGB visual is the common reason this fails, and
+    // it is exactly the case the in-app fallback exists for.
+    .map_err(|e| format!("{ERR_UNSUPPORTED}: {e}"))?;
 
     park(&window, prefs.corner)?;
     if prefs.click_through {
@@ -526,23 +531,6 @@ pub async fn pet_capabilities(app: AppHandle) -> Result<serde_json::Value, Strin
     let prefs = load_prefs();
     let open = app.get_webview_window(WINDOW_LABEL).is_some();
     Ok(capabilities_value(open, &prefs))
-}
-
-/// Push an `Intent` to the pet. The payload is the Phase 5 contract
-/// (`{ animation, mood, line? }`); the normalised copy that goes out adds the
-/// atlas clip so the window never has to know the mapping.
-///
-/// Emitted to every window, not only the pet: the rail avatar listens on the
-/// same event.
-#[tauri::command]
-pub async fn pet_emit_intent(
-    app: AppHandle,
-    intent: serde_json::Value,
-) -> Result<serde_json::Value, String> {
-    let payload = normalize_intent(&intent)?;
-    app.emit(EVENT_INTENT, payload.clone())
-        .map_err(|e| format!("{ERR_WINDOW}: {e}"))?;
-    Ok(payload)
 }
 
 #[cfg(test)]

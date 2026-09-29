@@ -77,9 +77,7 @@ echo '{{"type":"result","subtype":"success","is_error":false,"result":"ok","usag
 "#,
             calls = calls.display()
         );
-        std::fs::write(&fake, script).unwrap();
-        use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(&fake, std::fs::Permissions::from_mode(0o755)).unwrap();
+        crate::core::process::test_exec::script(&fake, &script);
         let db_path = root.join("assist.db");
         Self {
             root,
@@ -483,7 +481,14 @@ async fn a12_cancel_stops_our_tree_releases_the_reservation_and_never_completes(
     let mut stream =
         c.run_turn_with_id("run-x".into(), &conv, &agent(), "long work", cancel.clone());
     let _ = stream.next().await;
-    wait_for(|| lab.root.join("calls/grandchild.pid").exists()).await;
+    // The fake writes grandchild.pid, then child.pid, each with a shell
+    // redirect that creates the file before the pid lands in it: wait until
+    // both parse, not until the first one exists.
+    wait_for(|| {
+        read_pid(&lab.root.join("calls/grandchild.pid")).is_some()
+            && read_pid(&lab.root.join("calls/child.pid")).is_some()
+    })
+    .await;
     let grandchild = read_pid(&lab.root.join("calls/grandchild.pid")).unwrap();
     let child = read_pid(&lab.root.join("calls/child.pid")).unwrap();
     assert!(alive(grandchild) && alive(child));

@@ -1,0 +1,28 @@
+# cargo-deny, advisories only (RustSec): known vulnerabilities, unsound and
+# unmaintained crates, yanked versions. Licenses, bans and sources are not
+# checked here. Runs in .github/workflows/nightly.yml, not on pull requests:
+#
+#   cargo deny --manifest-path src-tauri/Cargo.toml check advisories
+#
+# To accept an advisory, add it to `ignore` with the reason, e.g.
+#   { id = "RUSTSEC-0000-0000", reason = "only reachable from X, which we do not call" },
+
+[graph]
+# Every target the app ships for, so Linux- and Windows-only dependencies are
+# checked from any host.
+targets = [
+  "x86_64-unknown-linux-gnu",
+  "aarch64-unknown-linux-gnu",
+  "x86_64-pc-windows-msvc",
+  "x86_64-apple-darwin",
+  "aarch64-apple-darwin",
+]
+all-features = true
+
+[advisories]
+db-urls = ["https://github.com/rustsec/advisory-db"]
+yanked = "warn"
+# Unmaintained crates fail only when we depend on them directly; deep in the
+# Tauri/GTK tree they are upstream's call and would keep the job red forever.
+unmaintained = "workspace"
+ignore = []

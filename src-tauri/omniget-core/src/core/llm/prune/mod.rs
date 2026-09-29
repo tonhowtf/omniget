@@ -406,17 +406,18 @@ mod tests {
     fn sem_chave_o_judge_for_do_jev_nao_devolve_juiz() {
         // The secret store is empty in the test process, so selecting Jev must
         // yield no judge at all — and therefore no socket.
+        let env = crate::core::test_env::exclusive();
         let dir =
             std::env::temp_dir().join(format!("omniget-prune-secrets-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
-        std::env::set_var(crate::core::secrets::SECRETS_DIR_ENV, &dir);
+        env.set(crate::core::secrets::SECRETS_DIR_ENV, Some(dir.as_os_str()));
         let config = PruneConfig {
             enabled: true,
             judge: PruneJudge::Jev,
             ..PruneConfig::default()
         };
         assert!(judge_for(&config).is_none());
-        std::env::remove_var(crate::core::secrets::SECRETS_DIR_ENV);
+        drop(env);
         let _ = std::fs::remove_dir_all(&dir);
     }
 

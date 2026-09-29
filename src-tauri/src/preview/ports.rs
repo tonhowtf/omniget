@@ -583,7 +583,7 @@ mod tests {
 
     /// Live: `PREVIEW_TEST_DIR=<dir with a server running> cargo test -p omniget --lib live_discover -- --ignored --nocapture`.
     #[tokio::test]
-    #[ignore]
+    #[ignore = "needs a dev server running in PREVIEW_TEST_DIR"]
     async fn live_discover() {
         let dir = std::env::var("PREVIEW_TEST_DIR").expect("PREVIEW_TEST_DIR");
         let list = discover(Some(Path::new(&dir)), false).await.unwrap();

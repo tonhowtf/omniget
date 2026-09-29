@@ -924,7 +924,7 @@ mod real {
     /// Varre as fontes do grupo b nos arquivos reais desta máquina (só
     /// leitura). `cargo test -p omniget-core real_group_b -- --ignored --nocapture`.
     #[test]
-    #[ignore]
+    #[ignore = "reads this machine's session files"]
     fn real_group_b() {
         for src in super::sources() {
             let t0 = std::time::Instant::now();

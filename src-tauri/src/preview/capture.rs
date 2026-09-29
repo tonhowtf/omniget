@@ -700,7 +700,7 @@ mod tests {
 
     /// Live: `cargo test -p omniget --lib live_list_windows -- --ignored --nocapture`.
     #[tokio::test]
-    #[ignore]
+    #[ignore = "lists the real windows of this machine"]
     async fn live_list_windows() {
         let list = list_windows().await.unwrap();
         println!(

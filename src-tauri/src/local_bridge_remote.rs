@@ -2295,7 +2295,7 @@ mod tests {
     /// renames the thread every 3 s (events for the socket) for
     /// `$OMNIGET_REMOTE_HARNESS_SECS` (default 90) seconds.
     #[tokio::test(flavor = "multi_thread")]
-    #[ignore]
+    #[ignore = "manual harness: serves curl for OMNIGET_REMOTE_HARNESS_SECS"]
     async fn remote_live_harness() {
         let dir = std::env::temp_dir().join(format!("omniget-remote-live-{}", random_hex(4)));
         std::fs::create_dir_all(&dir).unwrap();

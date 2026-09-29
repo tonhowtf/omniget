@@ -180,7 +180,7 @@ mod tests {
     /// `USAGE_TRAY_DUMP=<dir> cargo test -- --ignored dump_previews` writes the
     /// raw RGBA of each state, for a look at the icon outside the menu bar.
     #[test]
-    #[ignore]
+    #[ignore = "writes icon previews to USAGE_TRAY_DUMP for a person to look at"]
     fn dump_previews() {
         let Some(dir) = std::env::var_os("USAGE_TRAY_DUMP") else {
             return;

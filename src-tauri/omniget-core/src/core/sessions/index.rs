@@ -1560,7 +1560,7 @@ mod tests {
     /// linha `assistant` com `usage`) × índice com dedupe. Rode com
     /// `cargo test -p omniget-core real_claude_dedupe -- --ignored --nocapture`.
     #[test]
-    #[ignore]
+    #[ignore = "reads this machine's Claude logs"]
     fn real_claude_dedupe_by_day() {
         let src = claude::ClaudeSource::new();
         let files = src.files();

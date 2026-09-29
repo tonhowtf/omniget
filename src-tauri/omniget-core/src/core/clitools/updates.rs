@@ -309,7 +309,7 @@ mod tests {
 
     /// Rede + máquina real: `cargo test -p omniget-core --lib real_updates -- --ignored --nocapture`.
     #[test]
-    #[ignore]
+    #[ignore = "network and the CLIs installed on this machine"]
     fn real_updates() {
         let rt = tokio::runtime::Runtime::new().unwrap();
         let report = rt.block_on(async {

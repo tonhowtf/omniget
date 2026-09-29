@@ -1,0 +1,15 @@
+{
+  "$comment": "Exceptions for scripts/check-ipc.mjs. Every entry needs a reason. Sections: commands (invoked names that are not registered), events (listened names with no emitter), dynamic ({file, expr, kind?} for invoke/listen targets that cannot be resolved statically). Remove an entry as soon as its cause is gone: stale dynamic entries and allowlisted commands that became registered fail the check.",
+  "commands": [
+    {
+      "name": "tool_x_write_text",
+      "reason": "KNOWN BUG, to fix: the command was removed with the Tools section in #374 (20eb4ab5), but saveTextAs() in src/lib/central/sessions.ts still invokes it, so saving a transcript fails at run time."
+    },
+    {
+      "name": "tool_file_search",
+      "reason": "KNOWN BUG, to fix: removed with the Tools section in #374 (20eb4ab5); the @-mention file search in src/lib/central/threads-ui/api.ts still falls back to it when the thread glue returns nothing, so that fallback always throws."
+    }
+  ],
+  "events": [],
+  "dynamic": []
+}

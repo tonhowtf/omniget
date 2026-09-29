@@ -33,6 +33,9 @@
   },
   "type": "module",
   "packageManager": "pnpm@10.29.3",
+  "engines": {
+    "node": "^20.0.0 || ^22.0.0 || >=24.0.0"
+  },
   "scripts": {
     "dev": "vite dev",
     "build": "vite build",
@@ -47,8 +50,16 @@
     "check:clippy-baseline": "node scripts/clippy-baseline.mjs --check",
     "update:clippy-baseline": "node scripts/clippy-baseline.mjs --update",
     "extension:sync": "node browser-extension/sync.mjs",
+    "check:ipc": "node scripts/check-ipc.mjs",
+    "test:extension": "node scripts/test-extension.mjs",
+    "test:plugin": "python3 -m unittest discover -s claude-plugin/omniget/tests -p \"test_*.py\" && bash claude-plugin/omniget/tests/test_keys.sh && bash claude-plugin/omniget/tests/test_retry.sh",
+    "canary": "node scripts/canary.mjs",
     "test": "vitest run",
     "test:fast": "node scripts/test-fast.mjs",
+    "verify": "node scripts/verify.mjs",
+    "hooks:install": "node scripts/git-hooks/install.mjs",
+    "hooks:uninstall": "node scripts/git-hooks/install.mjs --uninstall",
+    "test:inventory": "node scripts/test-inventory.mjs",
     "test:watch": "vitest",
     "dev:app": "node scripts/dev/session.mjs start",
     "dev:status": "node scripts/dev/session.mjs status",

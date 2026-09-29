@@ -3798,9 +3798,6 @@
     "chat": {
       "details": "Подробности об агенте"
     },
-    "arena": {
-      "explanation": "Сравнивайте одну и ту же задачу на разных моделях. Эта функция пока недоступна; чтобы работать с настроенным агентом, откройте «Чат»."
-    },
     "surface": {
       "action_error": "Действие не подтвердилось. Проверьте подключение и попробуйте снова — текущий запрос остаётся на экране.",
       "help": "Как это работает",
@@ -4167,10 +4164,6 @@
         "acp_added": "{{name}} joined the roster",
         "acp_unverified_confirm": "The registry publishes no sha256 for {{name}} on this system. Download and install it without verification?"
       },
-      "nav": {
-        "tools": "Tools",
-        "remote": "Remote"
-      },
       "sessions": {
         "tips": {
           "low_cache": "Cache efficiency is below 20%: keep the system prompt and early context stable so the cache can be reused.",
@@ -4309,7 +4302,6 @@
           "cost_by_month": "Cost per month",
           "cost_note": "Recorded = the amount the tool wrote in its own log. Estimated = tokens priced with the public price table; real bills can differ (plans, discounts).",
           "empty": "No usage in this period.",
-          "model_filter_pending": "The session index does not filter by model yet: charts show every model. The table below still splits by model.",
           "by_model": "By model",
           "by_tool": "By tool",
           "heatmap": "Last 12 months",
@@ -4482,11 +4474,6 @@
           "components": "Agents, skills and commands",
           "calendar": "Calendar",
           "milestones": "Milestones"
-        },
-        "nav": {
-          "usage": "Usage",
-          "sessions": "Sessions",
-          "retro": "Retrospective"
         }
       },
       "guard": {
@@ -4944,8 +4931,7 @@
         "hero": {
           "title": "What should we build?",
           "body": "Pick a project and a driver — Claude Code, Codex, Gemini or OmniGet's own agent — and watch the work in one place."
-        },
-        "nav": "Threads"
+        }
       },
       "catalog": {
         "back": "Catalog",

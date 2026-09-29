@@ -593,7 +593,7 @@ mod tests {
         // window closes the first server while the second is still spawning.
         let reg = Arc::new(
             McpRegistry::in_memory()
-                .with_idle_timeout(Duration::from_millis(300))
+                .with_idle_timeout(Duration::from_millis(150))
                 .with_reap_interval(Duration::from_secs(60)),
         );
         reg.upsert(stdio_config("idle", &[], Some(10_000)))
@@ -607,8 +607,8 @@ mod tests {
         assert_eq!(reg.connected().await.len(), 2);
 
         // Keep one of them working while the other goes cold.
-        for _ in 0..8 {
-            tokio::time::sleep(Duration::from_millis(60)).await;
+        for _ in 0..6 {
+            tokio::time::sleep(Duration::from_millis(40)).await;
             busy.call("echo", serde_json::json!({ "text": "x" }), None)
                 .await
                 .unwrap();

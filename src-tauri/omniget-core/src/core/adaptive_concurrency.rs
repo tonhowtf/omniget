@@ -267,6 +267,16 @@ impl ConcurrencyTuner {
     }
 }
 
+#[cfg(test)]
+impl ConcurrencyTuner {
+    /// Esquece o que foi medido em `host`. Nos testes a porta de um servidor
+    /// local pode ser reusada por outro teste do mesmo processo, e um 429
+    /// antigo nessa porta cortaria os segmentos de quem veio depois.
+    pub fn forget(&mut self, host: &str) {
+        self.hosts.remove(host);
+    }
+}
+
 /// Um tuner por processo, compartilhado entre o downloader direto e o yt-dlp.
 ///
 /// O host é o mesmo nos dois caminhos (um 429 do `googlevideo.com` vale para

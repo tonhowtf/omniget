@@ -386,10 +386,21 @@ fn score_inputs() -> ScoreInputs {
         .unwrap_or_default()
 }
 
+/// How long CPU counters are sampled between two reads (sysinfo needs at
+/// least its minimum interval). Unit tests check shapes, not readings, so
+/// they wait a few milliseconds instead.
+fn cpu_window(ms: u64) -> Duration {
+    if cfg!(test) {
+        Duration::from_millis(20)
+    } else {
+        sysinfo::MINIMUM_CPU_UPDATE_INTERVAL.max(Duration::from_millis(ms))
+    }
+}
+
 fn status(inputs: ScoreInputs) -> Result<Value, String> {
     let mut sys = System::new();
     sys.refresh_cpu_usage();
-    std::thread::sleep(sysinfo::MINIMUM_CPU_UPDATE_INTERVAL.max(Duration::from_millis(200)));
+    std::thread::sleep(cpu_window(200));
     sys.refresh_cpu_specifics(CpuRefreshKind::everything());
     sys.refresh_memory_specifics(MemoryRefreshKind::everything());
 
@@ -502,7 +513,7 @@ fn list_processes(sort: &str, limit: usize, query: &str) -> Result<Value, String
         .with_cmd(UpdateKind::OnlyIfNotSet);
     sys.refresh_processes_specifics(ProcessesToUpdate::All, true, first);
     let t0 = Instant::now();
-    std::thread::sleep(sysinfo::MINIMUM_CPU_UPDATE_INTERVAL.max(Duration::from_millis(300)));
+    std::thread::sleep(cpu_window(300));
     sys.refresh_processes_specifics(
         ProcessesToUpdate::All,
         true,
@@ -755,7 +766,7 @@ pub fn live_snapshot() -> Result<Value, String> {
             stat: proc_stat(),
         });
         drop(guard);
-        std::thread::sleep(sysinfo::MINIMUM_CPU_UPDATE_INTERVAL.max(Duration::from_millis(250)));
+        std::thread::sleep(cpu_window(250));
         guard = LIVE.lock().map_err(|_| "monitor lock")?;
     }
     let live = guard.as_mut().ok_or("monitor state")?;

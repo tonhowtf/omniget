@@ -80,7 +80,7 @@ fn save(log: &[RuntimeEvent], name: &str) {
 }
 
 #[tokio::test]
-#[ignore]
+#[ignore = "needs a real opencode and OMNIGET_ACP_LIVE_HOME/_CWD"]
 async fn opencode_acp_turn_with_approvals() {
     let Some((home, cwd)) = setup() else {
         eprintln!("OMNIGET_ACP_LIVE_HOME / _CWD not set");
@@ -279,7 +279,7 @@ async fn opencode_acp_turn_with_approvals() {
 }
 
 #[tokio::test]
-#[ignore]
+#[ignore = "needs a real gemini CLI and OMNIGET_ACP_LIVE_HOME/_CWD"]
 async fn gemini_without_login_stops_at_authenticate() {
     let Some((home, cwd)) = setup() else {
         eprintln!("OMNIGET_ACP_LIVE_HOME / _CWD not set");

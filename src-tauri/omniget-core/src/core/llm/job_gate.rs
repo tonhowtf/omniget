@@ -30,9 +30,12 @@
 
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex, MutexGuard};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use tokio::sync::{oneshot, watch, OwnedSemaphorePermit, Semaphore};
+// The tokio clock is the system clock outside tests; a test with a paused
+// runtime drives the stagger in virtual time.
+use tokio::time::Instant;
 
 use super::folder_key::FolderKey;
 
@@ -1186,8 +1189,16 @@ mod bn2 {
             return eprintln!("git missing: skipped");
         }
         snapshot::undo_tests::test_root();
-        let reps: usize = env_num("BN2_REPS", 2);
-        let hold: f64 = env_num("BN2_WRITE_S", 0.3);
+        // `cargo test` runs one short rep; the benchmark script sets
+        // `OMNIGET_BENCH_OUT` and gets the production stagger.
+        let full = std::env::var_os("OMNIGET_BENCH_OUT").is_some();
+        let reps: usize = env_num("BN2_REPS", 1);
+        let hold: f64 = env_num("BN2_WRITE_S", 0.15);
+        let stagger = if full {
+            STAGGER
+        } else {
+            Duration::from_millis(50)
+        };
         let (mut lost_total, mut overlap_total) = (0usize, 0usize);
         let mut live_codes: Vec<String> = Vec::new();
         let mut last_ok = 0usize;
@@ -1203,7 +1214,7 @@ mod bn2 {
             let gate = Gate::new(Limits {
                 max_parallel: 4,
                 max_per_agent: None,
-                stagger: STAGGER,
+                stagger,
             });
             let t0 = Instant::now();
             let mut conv_of: HashMap<String, (PathBuf, String, PathBuf)> = HashMap::new();
@@ -1388,20 +1399,79 @@ mod bn2 {
         assert!((model_wall(8, 4, 1.0, 0.5) - 4.5).abs() < 1e-9);
     }
 
-    /// Scenario C: 8 read jobs (no folder) under caps 2, 4 and 8. The wall
-    /// time follows [`model_wall`], the gate never runs
-    /// more than the cap, and every queued job has a place and a reason
-    /// that holds when it is sampled.
+    /// Scenario C on the gate alone, in virtual time: 8 jobs of 10 s under
+    /// caps 2, 4 and 8 end exactly when [`model_wall`] says, and never more
+    /// than the cap run at once.
+    #[tokio::test(start_paused = true)]
+    async fn the_cap_scales_the_wall_time_on_a_paused_clock() {
+        let job_len = Duration::from_secs(10);
+        for cap in [2usize, 4, 8] {
+            let gate = Gate::new(Limits {
+                max_parallel: cap,
+                max_per_agent: None,
+                stagger: STAGGER,
+            });
+            let t0 = Instant::now();
+            let running = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+            let peak = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+            let handles: Vec<_> = (0..8)
+                .map(|i| {
+                    let (gate, running, peak) = (gate.clone(), running.clone(), peak.clone());
+                    tokio::spawn(async move {
+                        use std::sync::atomic::Ordering::SeqCst;
+                        let lease = gate
+                            .acquire(Ticket {
+                                job_id: format!("r{i}"),
+                                agent_id: format!("agent-{}", i % 3),
+                                class: Class::Manual,
+                                folder: None,
+                            })
+                            .await;
+                        tokio::time::sleep(lease.delay).await;
+                        let now = running.fetch_add(1, SeqCst) + 1;
+                        peak.fetch_max(now, SeqCst);
+                        tokio::time::sleep(job_len).await;
+                        running.fetch_sub(1, SeqCst);
+                        drop(lease);
+                    })
+                })
+                .collect();
+            for h in handles {
+                h.await.unwrap();
+            }
+            let wall = t0.elapsed().as_secs_f64();
+            let model = model_wall(8, cap, job_len.as_secs_f64(), STAGGER.as_secs_f64());
+            assert!(
+                (wall - model).abs() < 0.01,
+                "cap {cap}: wall {wall} s vs model {model} s"
+            );
+            assert_eq!(peak.load(std::sync::atomic::Ordering::SeqCst), cap);
+        }
+    }
+
+    /// Scenario C: 8 read jobs (no folder) through real processes. The wall
+    /// time follows [`model_wall`], the gate never runs more than the cap,
+    /// and every queued job has a place and a reason that holds when it is
+    /// sampled. `cargo test` runs a scaled-down copy (cap 4, 0.2 s jobs,
+    /// 0.1 s stagger; the exact scaling is checked on a paused clock above);
+    /// the benchmark script sets `OMNIGET_BENCH_OUT` and gets caps 2, 4 and
+    /// 8 with the production stagger.
     #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
     async fn bn2_c_the_cap_scales_the_wall_time() {
         let Some(fake) = fake() else {
             return eprintln!("python3 missing: skipped");
         };
-        let hold: f64 = env_num("BN2_READ_S", 1.0);
+        let full = std::env::var_os("OMNIGET_BENCH_OUT").is_some();
+        let hold: f64 = env_num("BN2_READ_S", 0.2);
+        let stagger = if full {
+            STAGGER
+        } else {
+            Duration::from_millis(100)
+        };
         let caps: Vec<usize> = std::env::var("BN2_CAPS")
             .ok()
             .map(|v| v.split(',').filter_map(|c| c.trim().parse().ok()).collect())
-            .unwrap_or_else(|| vec![2, 4, 8]);
+            .unwrap_or_else(|| if full { vec![2, 4, 8] } else { vec![4] });
         let trace = temp("c-trace");
         let mut unexplained = 0usize;
         let mut samples = 0usize;
@@ -1410,7 +1480,7 @@ mod bn2 {
             let gate = Gate::new(Limits {
                 max_parallel: cap,
                 max_per_agent: None,
-                stagger: STAGGER,
+                stagger,
             });
             let t0 = Instant::now();
             let handles: Vec<_> = (0..8)
@@ -1463,7 +1533,7 @@ mod bn2 {
             let mut d: Vec<f64> = runs.iter().map(|r| r.ended - r.started).collect();
             d.sort_by(f64::total_cmp);
             let median = (d[3] + d[4]) / 2.0;
-            let model = model_wall(8, cap, median, STAGGER.as_secs_f64());
+            let model = model_wall(8, cap, median, stagger.as_secs_f64());
             let concurrent = max_concurrent(&runs);
             bench(&format!("c_wall_s_cap{cap}"), serde_json::json!(wall));
             bench(

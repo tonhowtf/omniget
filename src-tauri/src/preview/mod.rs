@@ -304,42 +304,46 @@ fn build(
     let main = main_window(app)?;
     let app_load = app.clone();
     let app_title = app.clone();
-    let builder = tauri::WebviewWindowBuilder::new(app, label, WebviewUrl::External(url.clone()))
-        .title(window_title(label))
-        .decorations(false)
-        .resizable(false)
-        .skip_taskbar(true)
-        .shadow(false)
-        .focused(false)
-        .visible(false)
-        .accept_first_mouse(true)
-        .inner_size(1024.0, 720.0)
-        .initialization_script(script::INIT)
-        .on_navigation(|u| !matches!(u.scheme(), "javascript" | "file"))
-        .on_page_load(move |ww, payload| {
-            let label = ww.label().to_string();
-            let url = payload.url().to_string();
-            let m = manager();
-            match payload.event() {
-                tauri::webview::PageLoadEvent::Started => m.set(&label, |s| {
-                    s.loading = true;
+    let builder = crate::core::portable::with_dev_webview_dir(tauri::WebviewWindowBuilder::new(
+        app,
+        label,
+        WebviewUrl::External(url.clone()),
+    ))
+    .title(window_title(label))
+    .decorations(false)
+    .resizable(false)
+    .skip_taskbar(true)
+    .shadow(false)
+    .focused(false)
+    .visible(false)
+    .accept_first_mouse(true)
+    .inner_size(1024.0, 720.0)
+    .initialization_script(script::INIT)
+    .on_navigation(|u| !matches!(u.scheme(), "javascript" | "file"))
+    .on_page_load(move |ww, payload| {
+        let label = ww.label().to_string();
+        let url = payload.url().to_string();
+        let m = manager();
+        match payload.event() {
+            tauri::webview::PageLoadEvent::Started => m.set(&label, |s| {
+                s.loading = true;
+                s.url = url;
+            }),
+            tauri::webview::PageLoadEvent::Finished => {
+                m.set(&label, |s| {
+                    s.loading = false;
                     s.url = url;
-                }),
-                tauri::webview::PageLoadEvent::Finished => {
-                    m.set(&label, |s| {
-                        s.loading = false;
-                        s.url = url;
-                    });
-                    m.fire_loads(&label);
-                }
+                });
+                m.fire_loads(&label);
             }
-            m.emit(&app_load, &label);
-        })
-        .on_document_title_changed(move |ww, title| {
-            let label = ww.label().to_string();
-            manager().set(&label, |s| s.title = title);
-            manager().emit(&app_title, &label);
-        });
+        }
+        m.emit(&app_load, &label);
+    })
+    .on_document_title_changed(move |ww, title| {
+        let label = ww.label().to_string();
+        manager().set(&label, |s| s.title = title);
+        manager().emit(&app_title, &label);
+    });
     let builder = builder
         .parent(&main)
         .map_err(|e| format!("PREVIEW_OPEN: {e}"))?;

@@ -651,7 +651,7 @@ omniget-cli wmb execute <plan_id> --wait   # 在 OmniGet 窗口里请求你的�
 
 ## 从源码构建
 
-如果你只是想用 OmniGet，[直接下载发布版](#download-and-install)。构建需要 [Rust](https://rustup.rs/)（工具链版本固定在 `rust-toolchain.toml` 里）、[Node.js](https://nodejs.org/) 18+ 和 [pnpm](https://pnpm.io/)。
+如果你只是想用 OmniGet，[直接下载发布版](#download-and-install)。构建需要 [Rust](https://rustup.rs/)（工具链版本固定在 `rust-toolchain.toml` 里）、[Node.js](https://nodejs.org/) 20、22 或 24+（推荐版本写在 `.nvmrc` 里）和 [pnpm](https://pnpm.io/)。
 
 ```bash
 git clone https://github.com/tonhowtf/omniget.git
@@ -659,6 +659,8 @@ cd omniget
 pnpm install
 pnpm tauri dev
 ```
+
+`pnpm tauri dev` 使用独立的配置目录（数据文件夹里的 `omniget-dev`），所以不会动到你已安装的 OmniGet 的设置、密钥和历史记录。设置 `OMNIGET_DEV_REAL_PROFILE=1` 可改用真实的配置。
 
 <details>
 <summary>Linux 构建依赖</summary>
@@ -680,6 +682,8 @@ pnpm tauri build --config '{"bundle":{"createUpdaterArtifacts":false}}'
 
 技术栈：Tauri 2、Rust、SvelteKit（Svelte 5）、SQLite、yt-dlp、FFmpeg、gallery-dl、aria2，种子下载用 librqbit。
 
+想改点什么？[CONTRIBUTING.md](CONTRIBUTING.md) 里有开发流程、CI 会跑的检查和项目规则。
+
 ---
 
 <a id="notice-to-platform-owners"></a>
@@ -692,7 +696,7 @@ pnpm tauri build --config '{"bundle":{"createUpdaterArtifacts":false}}'
 
 ## 参与贡献与翻译
 
-Bug 报告和 Pull Request 请提到 [Issues](https://github.com/tonhowtf/omniget/issues) 和 [Pull requests](https://github.com/tonhowtf/omniget/pulls)。提问和快速求助在 [Discord](https://discord.gg/jgdxyPy7Vn)。翻译在 [Weblate](https://hosted.weblate.org/engage/omniget/) 上进行；新字符串合入 `main` 几个小时后就会出现在那里。
+Bug 报告和 Pull Request 请提到 [Issues](https://github.com/tonhowtf/omniget/issues) 和 [Pull requests](https://github.com/tonhowtf/omniget/pulls)；提交 Pull Request 前请先读 [CONTRIBUTING.md](CONTRIBUTING.md)。提问和快速求助在 [Discord](https://discord.gg/jgdxyPy7Vn)。翻译在 [Weblate](https://hosted.weblate.org/engage/omniget/) 上进行；新字符串合入 `main` 几个小时后就会出现在那里。
 
 要写关于 OmniGet 的文章，或者让 AI 来写？[MEDIA-KIT.md](MEDIA-KIT.md) 里有介绍文字、事实、不该宣称的内容和帖子模板。
 

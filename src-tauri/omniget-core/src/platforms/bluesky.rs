@@ -759,7 +759,7 @@ mod tests {
 
     /// Live: handle-form at:// URI answers 400 for this custom-domain handle.
     #[tokio::test]
-    #[ignore]
+    #[ignore = "network: resolves a real Bluesky handle"]
     async fn live_custom_domain_handle_post_resolves() {
         let d = BlueskyDownloader::new();
         let info = d

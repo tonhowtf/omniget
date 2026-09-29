@@ -1019,7 +1019,7 @@ mod tests {
     /// Live timing of the native steps (bench twitter-1), 3 requests:
     /// `cargo test --lib -p omniget-core twitter_live_step_timing -- --ignored --nocapture`.
     #[tokio::test]
-    #[ignore]
+    #[ignore = "network: times real X requests"]
     async fn twitter_live_step_timing() {
         let d = TwitterDownloader::new();
         let id = "1349794411333394432";

@@ -655,7 +655,7 @@ omniget-cli wmb execute <plan_id> --wait   # просит вашего одоб�
 
 ## Сборка из исходников
 
-Если вы хотите просто пользоваться OmniGet, [скачайте релиз](#download-and-install). Для сборки нужны [Rust](https://rustup.rs/) (версия тулчейна зафиксирована в `rust-toolchain.toml`), [Node.js](https://nodejs.org/) 18+ и [pnpm](https://pnpm.io/).
+Если вы хотите просто пользоваться OmniGet, [скачайте релиз](#download-and-install). Для сборки нужны [Rust](https://rustup.rs/) (версия тулчейна зафиксирована в `rust-toolchain.toml`), [Node.js](https://nodejs.org/) 20, 22 или 24+ (рекомендуемая версия указана в `.nvmrc`) и [pnpm](https://pnpm.io/).
 
 ```bash
 git clone https://github.com/tonhowtf/omniget.git
@@ -663,6 +663,8 @@ cd omniget
 pnpm install
 pnpm tauri dev
 ```
+
+`pnpm tauri dev` работает в отдельном профиле (`omniget-dev` в папке данных), поэтому не трогает настройки, ключи и историю установленного OmniGet. Чтобы использовать настоящий профиль, задайте `OMNIGET_DEV_REAL_PROFILE=1`.
 
 <details>
 <summary>Зависимости для сборки на Linux</summary>
@@ -684,6 +686,8 @@ pnpm tauri build --config '{"bundle":{"createUpdaterArtifacts":false}}'
 
 Стек: Tauri 2, Rust, SvelteKit со Svelte 5, SQLite, yt-dlp, FFmpeg, gallery-dl, aria2 и librqbit для торрентов.
 
+Собираетесь что-то изменить? В [CONTRIBUTING.md](CONTRIBUTING.md) описаны цикл разработки, проверки CI и правила проекта.
+
 ---
 
 <a id="notice-to-platform-owners"></a>
@@ -696,7 +700,7 @@ pnpm tauri build --config '{"bundle":{"createUpdaterArtifacts":false}}'
 
 ## Участие и переводы
 
-Сообщения об ошибках и пул-реквесты принимаются в [Issues](https://github.com/tonhowtf/omniget/issues) и [Pull requests](https://github.com/tonhowtf/omniget/pulls). Вопросы и быстрая помощь — в [Discord](https://discord.gg/jgdxyPy7Vn). Переводы делаются на [Weblate](https://hosted.weblate.org/engage/omniget/); новые строки появляются там через несколько часов после того, как попадают в `main`.
+Сообщения об ошибках и пул-реквесты принимаются в [Issues](https://github.com/tonhowtf/omniget/issues) и [Pull requests](https://github.com/tonhowtf/omniget/pulls); прежде чем открыть пул-реквест, прочитайте [CONTRIBUTING.md](CONTRIBUTING.md). Вопросы и быстрая помощь — в [Discord](https://discord.gg/jgdxyPy7Vn). Переводы делаются на [Weblate](https://hosted.weblate.org/engage/omniget/); новые строки появляются там через несколько часов после того, как попадают в `main`.
 
 Пишете об OmniGet или просите об этом ИИ? В [MEDIA-KIT.md](MEDIA-KIT.md) есть описание, факты, то, чего утверждать не стоит, и шаблоны постов.
 

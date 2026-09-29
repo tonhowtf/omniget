@@ -354,23 +354,25 @@ mod tests {
     #[cfg(unix)]
     #[tokio::test]
     async fn stop_closes_stdin_and_kills_the_grandchild() {
-        // A fake CLI that echoes stdin and keeps a grandchild alive.
+        // A fake CLI that echoes stdin and keeps a grandchild alive. The
+        // grandchild lets go of the pipes, or the exit report would wait out
+        // the stdout/stderr drain timeouts (3 s) for nothing.
         let dir = std::env::temp_dir().join(format!("omniget-claude-sup-{}", std::process::id()));
         let _ = std::fs::create_dir_all(&dir);
         let script = dir.join("fake.sh");
         std::fs::write(
             &script,
-            "#!/bin/sh\nsleep 300 &\necho started\nwhile read l; do echo \"$l\"; done\n",
+            "#!/bin/sh\nsleep 300 >/dev/null 2>&1 &\necho started\nwhile read l; do echo \"$l\"; done\n",
         )
         .unwrap();
-        use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
         let (line_tx, mut line_rx) = mpsc::unbounded_channel::<String>();
         let (exit_tx, exit_rx) = oneshot::channel::<Exit>();
+        // Through `sh`: the first exec of a fresh script costs ~0.3 s on
+        // macOS (see `process::test_exec`).
         let handle = spawn(
             SpawnSpec {
-                program: script.clone(),
-                args: vec![],
+                program: PathBuf::from("/bin/sh"),
+                args: vec![script.display().to_string()],
                 env: BTreeMap::new(),
                 scrub: vec![],
                 cwd: None,

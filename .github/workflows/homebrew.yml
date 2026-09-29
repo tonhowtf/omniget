@@ -29,7 +29,7 @@ jobs:
 
       - name: Checkout tap
         if: steps.gate.outputs.skip != 'true'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: tonhowtf/homebrew-tap
           token: ${{ secrets.HOMEBREW_TAP_TOKEN }}

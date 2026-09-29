@@ -36,6 +36,39 @@ fn check_portable_mode() {
     }
 }
 
+/// `pnpm tauri dev` builds the same identifier as the installed app, so without
+/// this a debug build would read and write the real profile: settings, keys,
+/// history, databases. Debug builds get `<data dir>/omniget-dev` instead, unless
+/// the profile is already chosen (`OMNIGET_DATA_DIR`, as `pnpm dev:app` and the
+/// smoke test do, or portable mode) or `OMNIGET_DEV_REAL_PROFILE=1` asks for the
+/// real one. `lib.rs` logs where it went. Setting `OMNIGET_DATA_DIR` also makes
+/// it a second profile there: own bridge port, no single-instance lock, so it
+/// runs next to the installed app.
+#[cfg(debug_assertions)]
+fn use_dev_profile() {
+    use omniget_lib::core::paths;
+    let Some(dir) = paths::dev_profile_dir(
+        std::env::var_os("OMNIGET_DATA_DIR").is_some(),
+        std::env::var("OMNIGET_PORTABLE").ok().as_deref() == Some("1"),
+        std::env::var(paths::DEV_REAL_PROFILE_ENV).ok().as_deref(),
+        dirs::data_dir().as_deref(),
+    ) else {
+        return;
+    };
+    let _ = std::fs::create_dir_all(&dir);
+    std::env::set_var("OMNIGET_DATA_DIR", &dir);
+    std::env::set_var("OMNIGET_DEV_PROFILE", "1");
+    // The keyring is keyed by service name, not by profile: on Linux (Secret
+    // Service is on by default) the dev build would share the installed app's
+    // profile seed and provider keys. The encrypted file store lives inside the
+    // profile, so it follows the dev dir. An explicit choice still wins.
+    if std::env::var_os("OMNIGET_KEYRING").is_none()
+        && std::env::var_os("OMNIGET_OMNIDISC_KEYRING").is_none()
+    {
+        std::env::set_var("OMNIGET_KEYRING", "0");
+    }
+}
+
 fn setup_environment() {
     std::env::remove_var("PYTHONHOME");
     std::env::remove_var("PYTHONPATH");
@@ -94,6 +127,8 @@ fn check_fixed_webview_runtime() {
 
 fn main() {
     check_portable_mode();
+    #[cfg(debug_assertions)]
+    use_dev_profile();
     #[cfg(windows)]
     check_fixed_webview_runtime();
     setup_environment();

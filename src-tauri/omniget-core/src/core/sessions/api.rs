@@ -704,7 +704,7 @@ mod tests {
 
     /// `cargo test --release -p omniget-core --lib real_load_costs -- --ignored --nocapture`
     #[test]
-    #[ignore]
+    #[ignore = "benchmark over this machine's session logs; run with --release"]
     fn real_load_costs() {
         let dir =
             std::env::temp_dir().join(format!("omniget-sessions-load-{}", std::process::id()));
@@ -757,7 +757,7 @@ mod tests {
     /// Desempenho contra os logs reais (só leitura, índice temporário).
     /// `cargo test --release -p omniget-core --lib real_perf -- --ignored --nocapture`.
     #[test]
-    #[ignore]
+    #[ignore = "benchmark over this machine's session logs; run with --release"]
     fn real_perf() {
         let dir =
             std::env::temp_dir().join(format!("omniget-sessions-perf-{}", std::process::id()));
@@ -856,7 +856,7 @@ mod tests {
     /// temporário (`OMNIGET_DATA_DIR`). Rode com
     /// `cargo test -p omniget-core --lib real_pipeline -- --ignored --nocapture`.
     #[test]
-    #[ignore]
+    #[ignore = "reads this machine's session logs"]
     fn real_pipeline() {
         let dir = std::env::temp_dir().join(format!("omniget-sessions-api-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();

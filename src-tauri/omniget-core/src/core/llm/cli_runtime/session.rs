@@ -836,10 +836,15 @@ mod tests {
         path
     }
 
+    /// Runs the fake through `/bin/sh` (the same process the shebang gives).
+    /// macOS assesses the first `exec` of every new executable file, about
+    /// 0.3 s each and one at a time across the machine; a script handed to
+    /// `sh` as an argument skips that.
     #[cfg(unix)]
-    fn spec(program: PathBuf) -> SpawnSpec {
+    fn spec(script: PathBuf) -> SpawnSpec {
         SpawnSpec {
-            program,
+            program: PathBuf::from("/bin/sh"),
+            args: vec![script.display().to_string()],
             ..SpawnSpec::default()
         }
     }
@@ -1206,7 +1211,9 @@ mod tests {
         let big = MAX_LINE_BYTES + 10;
         let cli = fake_cli(
             "bigline",
-            &format!("head -c {big} /dev/zero | tr '\\0' 'a'\necho\necho after\n"),
+            // NUL bytes, not text: the line is dropped whole either way, and
+            // `tr` on macOS takes half a second for 8 MiB.
+            &format!("head -c {big} /dev/zero\necho\necho after\n"),
         );
         let stream = spawn_turn(
             spec(cli.clone()),
@@ -1231,17 +1238,16 @@ mod tests {
 
     #[cfg(unix)]
     fn watched(
-        program: PathBuf,
+        script: PathBuf,
         idle_ms: u64,
         tool_ms: Option<u64>,
         start_ms: Option<u64>,
     ) -> SpawnSpec {
         SpawnSpec {
-            program,
             idle_timeout: Some(Duration::from_millis(idle_ms)),
             tool_idle_timeout: tool_ms.map(Duration::from_millis),
             start_timeout: start_ms.map(Duration::from_millis),
-            ..SpawnSpec::default()
+            ..spec(script)
         }
     }
 
@@ -1293,7 +1299,7 @@ mod tests {
     async fn a_silent_cli_is_killed_after_the_idle_window() {
         let cli = fake_cli("stall", "echo first\nsleep 30\necho never\n");
         let events = run_timed(
-            watched(cli.clone(), 1000, None, Some(5000)),
+            watched(cli.clone(), 200, None, Some(30_000)),
             TurnHooks::default(),
         )
         .await;
@@ -1301,8 +1307,8 @@ mod tests {
         assert_eq!(error.code, ERR_CLI_STALLED, "{}", error.message);
         assert!(!error.retryable, "a stall is never rerouted");
         assert!(
-            at >= Duration::from_millis(1000) && at <= Duration::from_millis(1000) + LATE,
-            "killed at {at:?}, the window is 1 s"
+            at >= Duration::from_millis(200) && at <= Duration::from_millis(200) + LATE,
+            "killed at {at:?}, the window is 200 ms"
         );
         assert!(matches!(
             events.last(),
@@ -1325,13 +1331,13 @@ mod tests {
     async fn a_cli_that_never_prints_fails_with_no_start() {
         let cli = fake_cli("nostart", "sleep 30\n");
         let events = run_timed(
-            watched(cli.clone(), 10_000, None, Some(1000)),
+            watched(cli.clone(), 10_000, None, Some(200)),
             TurnHooks::default(),
         )
         .await;
         let (at, error) = error_of(&events).expect("a no-start error");
         assert_eq!(error.code, ERR_CLI_NO_START, "{}", error.message);
-        assert!(at <= Duration::from_millis(1000) + LATE, "took {at:?}");
+        assert!(at <= Duration::from_millis(200) + LATE, "took {at:?}");
         let _ = std::fs::remove_file(cli);
     }
 
@@ -1350,7 +1356,7 @@ mod tests {
             ..Default::default()
         };
         let mut stream = spawn_turn_with(
-            watched(cli.clone(), 1000, None, Some(5000)),
+            watched(cli.clone(), 150, None, Some(30_000)),
             Arc::new(EchoParser),
             CancellationToken::new(),
             hooks,
@@ -1362,7 +1368,7 @@ mod tests {
         let since_line = Instant::now();
         let flag = asking.clone();
         tokio::spawn(async move {
-            tokio::time::sleep(Duration::from_millis(3000)).await;
+            tokio::time::sleep(Duration::from_millis(450)).await;
             flag.store(false, Ordering::SeqCst);
         });
         let rest: Vec<TurnEvent> = stream.collect().await;
@@ -1375,11 +1381,11 @@ mod tests {
             })
             .expect("stalls once the answer is in");
         assert_eq!(error.code, ERR_CLI_STALLED);
-        // Answered at 3 s; the clock restarts at the first look after it
-        // (poll = 250 ms), so the kill lands in [3.75 s, ~4.5 s]: never in
+        // Answered at 450 ms; the clock restarts at the first look after it
+        // (poll = 37 ms), so the kill lands in [~560 ms, ~700 ms]: never in
         // the paused stretch, and the whole window is there after it.
         assert!(
-            at >= Duration::from_millis(3700) && at <= Duration::from_millis(4000) + LATE,
+            at >= Duration::from_millis(555) && at <= Duration::from_millis(600) + LATE,
             "killed {at:?} after the last line"
         );
         let _ = std::fs::remove_file(cli);
@@ -1392,10 +1398,10 @@ mod tests {
     async fn a_tool_in_flight_uses_the_longer_window() {
         let cli = fake_cli(
             "toolwin",
-            "echo 'TOOL t1'\nsleep 2\necho 'RESULT t1'\nsleep 30\n",
+            "echo 'TOOL t1'\nsleep 0.5\necho 'RESULT t1'\nsleep 30\n",
         );
         let events = run_timed(
-            watched(cli.clone(), 1000, Some(5000), Some(5000)),
+            watched(cli.clone(), 200, Some(1500), Some(30_000)),
             TurnHooks::default(),
         )
         .await;
@@ -1403,7 +1409,7 @@ mod tests {
             events
                 .iter()
                 .any(|(_, e)| matches!(e, TurnEvent::ToolResult { .. })),
-            "2 s of silence with a tool in flight must not kill (window 5 s)"
+            "0.5 s of silence with a tool in flight must not kill (window 1.5 s)"
         );
         let (at, error) = error_of(&events).expect("stalls after the result");
         assert_eq!(error.code, ERR_CLI_STALLED);
@@ -1413,7 +1419,7 @@ mod tests {
             error.message
         );
         assert!(
-            at >= Duration::from_millis(1000) && at <= Duration::from_millis(1000) + LATE,
+            at >= Duration::from_millis(200) && at <= Duration::from_millis(200) + LATE,
             "killed {at:?} after the result"
         );
         let _ = std::fs::remove_file(cli);
@@ -1425,7 +1431,7 @@ mod tests {
     async fn a_tool_that_never_answers_is_a_tool_stall() {
         let cli = fake_cli("toolstall", "echo 'TOOL t1'\nsleep 30\n");
         let events = run_timed(
-            watched(cli.clone(), 500, Some(1500), Some(5000)),
+            watched(cli.clone(), 100, Some(300), Some(30_000)),
             TurnHooks::default(),
         )
         .await;
@@ -1433,24 +1439,24 @@ mod tests {
         assert_eq!(error.code, ERR_CLI_STALLED);
         assert!(error.message.contains("tool"), "{}", error.message);
         assert!(
-            at >= Duration::from_millis(1500) && at <= Duration::from_millis(1500) + LATE,
+            at >= Duration::from_millis(300) && at <= Duration::from_millis(300) + LATE,
             "killed {at:?} after the tool_use"
         );
         let _ = std::fs::remove_file(cli);
     }
 
-    /// Any line resets the clock: a CLI that talks every 0.5 s for 6 s
-    /// under a 3 s window finishes normally (the window is 6× the gap so a
-    /// loaded machine that runs a `sleep 0.5` late cannot fake a stall).
+    /// Any line resets the clock: a CLI that talks every 60 ms for 0.6 s
+    /// under a 400 ms window finishes normally (the window is over 6× the
+    /// gap so a loaded machine that runs a `sleep` late cannot fake a stall).
     #[cfg(unix)]
     #[tokio::test]
     async fn every_line_resets_the_clock() {
         let cli = fake_cli(
             "ticks",
-            "for i in 1 2 3 4 5 6 7 8 9 10 11 12; do echo tick; sleep 0.5; done\nexit 0\n",
+            "for i in 1 2 3 4 5 6 7 8 9 10; do echo tick; sleep 0.06; done\nexit 0\n",
         );
         let events = run_timed(
-            watched(cli.clone(), 3000, None, Some(5000)),
+            watched(cli.clone(), 400, None, Some(30_000)),
             TurnHooks::default(),
         )
         .await;
@@ -1482,7 +1488,7 @@ mod tests {
             ),
         );
         let events = run_timed(
-            watched(cli.clone(), 800, None, Some(5000)),
+            watched(cli.clone(), 200, None, Some(30_000)),
             TurnHooks::default(),
         )
         .await;
@@ -1605,7 +1611,7 @@ mod tests {
         let pidfile = dir.join("escapee.pid");
         let cli = escaping_cli("escstall", &dir, &pidfile, false);
         let events = run_timed(
-            watched(cli.clone(), 800, None, Some(5000)),
+            watched(cli.clone(), 200, None, Some(30_000)),
             TurnHooks::default(),
         )
         .await;
@@ -1671,7 +1677,7 @@ mod tests {
         let pidfile = dir.join("escapee.pid");
         let cli = escaping_cli("escdeep", &dir, &pidfile, true);
         let events = run_timed(
-            watched(cli.clone(), 800, None, Some(5000)),
+            watched(cli.clone(), 200, None, Some(30_000)),
             TurnHooks::default(),
         )
         .await;
@@ -1810,11 +1816,37 @@ mod tests {
     // End to end at the turn level: `scripts/llm/fake_claude.py` as the CLI,
     // the real `ClaudeParser`, real pipes, the real kill of the tree. The
     // windows are scaled (idle 600 s → 2 s, tool 1800 s → 12 s, start 90 s →
-    // 2 s); the goals are the roadmap's, in the same proportion.
+    // 2 s); the goals are the roadmap's, in the same proportion. A plain
+    // `cargo test` scales them down again (idle 500 ms, tool 3 s) so the
+    // suite does not wait on them, while a loaded machine's pauses between
+    // the fake's lines still fit, with a roomy start window (a loaded
+    // machine can take seconds to start `python3`) that only the no-start
+    // test shortens; the benchmark script sets `OMNIGET_BENCH_OUT` and gets
+    // the 2 s windows.
 
-    const BN1_IDLE_MS: u64 = 2_000;
-    const BN1_TOOL_MS: u64 = 12_000;
-    const BN1_START_MS: u64 = 2_000;
+    fn bench_run() -> bool {
+        std::env::var_os("OMNIGET_BENCH_OUT").is_some()
+    }
+
+    fn bn1_idle_ms() -> u64 {
+        if bench_run() {
+            2_000
+        } else {
+            500
+        }
+    }
+
+    fn bn1_tool_ms() -> u64 {
+        6 * bn1_idle_ms()
+    }
+
+    fn bn1_start_ms() -> u64 {
+        if bench_run() {
+            2_000
+        } else {
+            5_000
+        }
+    }
 
     /// One BN1 measurement to `$OMNIGET_BENCH_OUT`; nothing in a plain run.
     fn bench(metric: &str, value: serde_json::Value) {
@@ -1860,9 +1892,9 @@ mod tests {
                 ("FAKE_CLAUDE_HOLD_S".to_string(), hold_s.to_string()),
             ]),
             stdin: Some("User: run the tests".into()),
-            idle_timeout: Some(Duration::from_millis(BN1_IDLE_MS)),
-            tool_idle_timeout: Some(Duration::from_millis(BN1_TOOL_MS)),
-            start_timeout: Some(Duration::from_millis(BN1_START_MS)),
+            idle_timeout: Some(Duration::from_millis(bn1_idle_ms())),
+            tool_idle_timeout: Some(Duration::from_millis(bn1_tool_ms())),
+            start_timeout: Some(Duration::from_millis(bn1_start_ms())),
             ..SpawnSpec::default()
         }
     }
@@ -1924,14 +1956,14 @@ mod tests {
         .await;
         let (after_last, error) = bn1_error(&events).expect("the stall must end the turn");
         assert_eq!(error.code, ERR_CLI_STALLED);
-        let limit = Duration::from_millis(BN1_IDLE_MS + 2_000);
+        let limit = Duration::from_millis(bn1_idle_ms() + 2_000);
         bench(
             "stall_after_init_kill_s",
             serde_json::json!(after_last.as_secs_f64()),
         );
         bench(
             "stall_after_init_idle_s",
-            serde_json::json!(BN1_IDLE_MS as f64 / 1000.0),
+            serde_json::json!(bn1_idle_ms() as f64 / 1000.0),
         );
         bench("stall_after_init_code", serde_json::json!(error.code));
         // The stream ends right after the error: the job's runner returns
@@ -1968,16 +2000,15 @@ mod tests {
         let Some(fake) = fake_claude() else {
             return eprintln!("python3 missing: skipped");
         };
-        let events = bn1_run(
-            bn1_spec(&fake, "silent-start", 3600.0),
-            TurnHooks::default(),
-        )
-        .await;
+        let mut spec = bn1_spec(&fake, "silent-start", 3600.0);
+        let start_ms = if bench_run() { bn1_start_ms() } else { 300 };
+        spec.start_timeout = Some(Duration::from_millis(start_ms));
+        let events = bn1_run(spec, TurnHooks::default()).await;
         let (at, error) = bn1_error(&events).expect("no-start must end the turn");
         bench("silent_start_code", serde_json::json!(error.code));
         bench("silent_start_kill_s", serde_json::json!(at.as_secs_f64()));
         assert_eq!(error.code, ERR_CLI_NO_START);
-        assert!(at <= Duration::from_millis(BN1_START_MS + 2_000), "{at:?}");
+        assert!(at <= Duration::from_millis(start_ms + 2_000), "{at:?}");
     }
 
     /// A tool silent for 2x the idle window (≙ 20 min under 10 min) inside
@@ -1987,7 +2018,7 @@ mod tests {
         let Some(fake) = fake_claude() else {
             return eprintln!("python3 missing: skipped");
         };
-        let hold = 2.0 * BN1_IDLE_MS as f64 / 1000.0;
+        let hold = 2.0 * bn1_idle_ms() as f64 / 1000.0;
         let events = bn1_run(bn1_spec(&fake, "tool-long", hold), TurnHooks::default()).await;
         let ok = bn1_finished_ok(&events);
         bench("tool_long_survived", serde_json::json!(ok));
@@ -2019,7 +2050,7 @@ mod tests {
             ToolBroker::new(vec![], Arc::new(Nothing), Arc::new(Bus::new()))
                 .with_ask_timeout(Duration::from_secs(600)),
         );
-        let pending_for = Duration::from_millis(BN1_IDLE_MS * 5 / 2);
+        let pending_for = Duration::from_millis(bn1_idle_ms() * 5 / 2);
         // The question, as Claude's permission prompt tool raises it.
         let b = broker.clone();
         tokio::spawn(async move {
@@ -2032,13 +2063,6 @@ mod tests {
             )
             .await
         });
-        let b = broker.clone();
-        tokio::spawn(async move {
-            tokio::time::sleep(pending_for).await;
-            while !b.answer("toolu_fake_1", true) {
-                tokio::time::sleep(Duration::from_millis(5)).await;
-            }
-        });
         while !broker.has_pending("req-bn1") {
             tokio::time::sleep(Duration::from_millis(5)).await;
         }
@@ -2049,11 +2073,35 @@ mod tests {
         };
         // The fake stays silent a little longer than the question is open,
         // like a CLI that runs the tool once it is allowed.
-        let hold = pending_for.as_secs_f64() + 0.5;
+        let hold = pending_for.as_secs_f64() + bn1_idle_ms() as f64 / 4000.0;
         let mut spec = bn1_spec(&fake, "ask-pending", hold);
         // Only the plain window: the pause alone must carry the turn.
         spec.tool_idle_timeout = None;
-        let events = bn1_run(spec, hooks).await;
+        let started = Instant::now();
+        let mut stream = spawn_turn_with(
+            spec,
+            Arc::new(super::super::claude::ClaudeParser::new(true)),
+            CancellationToken::new(),
+            hooks,
+        )
+        .unwrap();
+        let mut events = Vec::new();
+        // The question stays open for `pending_for` from the fake's first
+        // line, right before its silence: a slow `python3` start on a loaded
+        // machine must not eat into the silence left after the answer.
+        if let Some(first) = stream.next().await {
+            events.push((started.elapsed(), first));
+        }
+        let b = broker.clone();
+        tokio::spawn(async move {
+            tokio::time::sleep(pending_for).await;
+            while !b.answer("toolu_fake_1", true) {
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        });
+        while let Some(event) = stream.next().await {
+            events.push((started.elapsed(), event));
+        }
         let ok = bn1_finished_ok(&events);
         bench("ask_pending_survived", serde_json::json!(ok));
         bench(
@@ -2125,7 +2173,13 @@ mod tests {
         let Some(fake) = fake_claude() else {
             return eprintln!("python3 missing: skipped");
         };
-        let events = bn1_run(bn1_spec(&fake, "ok", 0.0), TurnHooks::default()).await;
+        let mut spec = bn1_spec(&fake, "ok", 0.0);
+        if !bench_run() {
+            // Nothing here measures the kill, so a plain run keeps a roomy
+            // window: a loaded machine can pause python3 past the idle one.
+            spec.idle_timeout = Some(Duration::from_secs(5));
+        }
+        let events = bn1_run(spec, TurnHooks::default()).await;
         let ok = bn1_finished_ok(&events);
         bench("ok_survived", serde_json::json!(ok));
         assert!(ok);

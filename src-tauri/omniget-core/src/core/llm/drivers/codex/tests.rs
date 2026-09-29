@@ -1190,7 +1190,7 @@ async fn resume_of_a_thread_codex_lost_falls_back_to_a_new_one() {
 /// `thread/start` and a failing turn. Run with
 /// `OMNIGET_CODEX_BIN=/path/to/codex cargo test -p omniget-core codex_live -- --ignored`.
 #[tokio::test]
-#[ignore]
+#[ignore = "needs a real codex CLI in OMNIGET_CODEX_BIN"]
 async fn codex_live_handshake_without_login() {
     let Ok(bin) = std::env::var("OMNIGET_CODEX_BIN") else {
         return;

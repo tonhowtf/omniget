@@ -265,6 +265,17 @@ pub fn run() {
             core::paths::app_data_dir().as_deref(),
         )
     );
+    // Set by `main.rs` when a debug build moved itself off the real profile.
+    #[cfg(debug_assertions)]
+    if std::env::var("OMNIGET_DEV_PROFILE").ok().as_deref() == Some("1") {
+        tracing::info!(
+            "[dev] debug build: using the dev profile at {} instead of the installed app's; set {}=1 to use the real one",
+            core::paths::app_data_dir()
+                .map(|d| d.display().to_string())
+                .unwrap_or_default(),
+            core::paths::DEV_REAL_PROFILE_ENV
+        );
+    }
 
     let mut registry = core::registry::PlatformRegistry::new();
     // gallery-dl first: it claims bulk-listing URLs (profiles, subreddits)
@@ -311,8 +322,9 @@ pub fn run() {
         world: std::sync::OnceLock::new(),
     };
 
-    // A second profile (`OMNIGET_DATA_DIR` set by hand, not by portable mode)
-    // is its own app: own settings, own bridge port, no single-instance lock.
+    // A second profile (`OMNIGET_DATA_DIR` set by hand or by the debug-build dev
+    // profile in `main.rs`, not by portable mode) is its own app: own settings,
+    // own bridge port, no single-instance lock.
     let second_profile = std::env::var_os("OMNIGET_DATA_DIR").is_some()
         && std::env::var("OMNIGET_PORTABLE").ok().as_deref() != Some("1");
     let builder = tauri::Builder::default();
@@ -412,7 +424,16 @@ pub fn run() {
                 // WKWebView: incluir daria a impressao de cobrir um caso que
                 // nao esta coberto.
                 #[cfg(any(windows, target_os = "linux"))]
-                if let Some(webview_dir) = core::portable::portable_webview_dir_from_env() {
+                let webview_dir = core::portable::portable_webview_dir_from_env();
+                // The debug-build dev profile (`main.rs`) keeps the WebView's
+                // storage apart from the installed app's too; the other windows
+                // get it from `core::portable::with_dev_webview_dir`. macOS
+                // needs nothing: an unbundled dev binary already gets its own
+                // WebKit folder, named after the executable.
+                #[cfg(all(debug_assertions, any(windows, target_os = "linux")))]
+                let webview_dir = webview_dir.or_else(core::portable::dev_webview_dir_from_env);
+                #[cfg(any(windows, target_os = "linux"))]
+                if let Some(webview_dir) = webview_dir {
                     if let Err(e) = std::fs::create_dir_all(&webview_dir) {
                         tracing::warn!(
                             "[portable] nao foi possivel criar {}: {} — o WebView2 vai usar o diretorio padrao",
@@ -1045,7 +1066,6 @@ pub fn run() {
             commands::music::music_record_play,
             commands::music::music_set_rating,
             commands::music::music_set_liked,
-            commands::music::music_download_dir,
             commands::music::music_tags_read,
             commands::music::music_tags_write,
             commands::music::music_write_replaygain,
@@ -1316,7 +1336,6 @@ pub fn run() {
             commands::central::vcs::vcs_status,
             commands::central::vcs::vcs_branches,
             commands::central::vcs::vcs_log,
-            commands::central::vcs::vcs_project_config,
             commands::central::vcs::vcs_worktree_create,
             commands::central::vcs::vcs_worktree_cancel,
             commands::central::vcs::vcs_worktree_rename_branch,
@@ -1328,7 +1347,6 @@ pub fn run() {
             commands::central::vcs::vcs_checkpoint_delete,
             commands::central::vcs::vcs_diff_turn,
             commands::central::vcs::vcs_diff_full,
-            commands::central::vcs::vcs_diff_range,
             commands::central::vcs::vcs_restore_turn,
             commands::central::vcs::vcs_working_changes,
             commands::central::vcs::vcs_commit_suggest,
@@ -1346,7 +1364,6 @@ pub fn run() {
             commands::central::pty::pty_detach,
             commands::central::pty::pty_ack,
             commands::central::pty::pty_clear,
-            commands::central::pty::pty_foreground,
             commands::central::clitools::clitools_list,
             commands::central::clitools::clitools_detect,
             commands::central::clitools::clitools_latest,
@@ -1408,7 +1425,6 @@ pub fn run() {
             commands::central::agentkit::agentkit_compat,
             commands::central::agentkit::agentkit_profiles,
             commands::central::agentkit::agentkit_profile_plan,
-            commands::central::agentkit::agentkit_loop_plan,
             commands::central::threads::threads_checkpoints,
             commands::central::threads::threads_diff,
             commands::central::threads::threads_revert_to_turn,
@@ -1429,7 +1445,6 @@ pub fn run() {
             commands::central::threads::threads_resume_external,
             mcp::mcp_thread_get,
             mcp::mcp_thread_set,
-            mcp::mcp_call_log,
             commands::central::agentkit::agentkit_plugins_list,
             commands::central::agentkit::agentkit_plugin_set_enabled,
             commands::central::remote::remote_status,
@@ -1480,7 +1495,6 @@ pub fn run() {
             commands::central::run::run_loop_prepare,
             commands::central::run::run_loop_start,
             commands::central::run::run_agent_now,
-            commands::central::run::run_tools,
             commands::central::run::run_playbook_prepare,
             commands::central::run::run_playbook_start,
             commands::central::run::run_playbooks_list,
@@ -1494,7 +1508,6 @@ pub fn run() {
             commands::central::run::run_sandbox_diff,
             commands::central::run::run_sandbox_apply,
             commands::central::run::run_sandbox_discard,
-            commands::central::run::run_stack_detect,
             // central:end
             commands::llm::roster::llm_roster_list,
             commands::llm::roster::llm_roster_create,
@@ -1569,7 +1582,6 @@ pub fn run() {
             commands::pet::pet_set_corner,
             commands::pet::pet_set_click_through,
             commands::pet::pet_capabilities,
-            commands::pet::pet_emit_intent,
             commands::pet::pet_set_ask_pending,
             limits_strip::commands::limits_strip_get_prefs,
             limits_strip::commands::limits_strip_set_prefs,
@@ -1579,7 +1591,6 @@ pub fn run() {
             limits_strip::commands::limits_strip_set_expanded,
             usage_tray::usage_tray_view,
             usage_tray::usage_tray_toggle_account,
-            usage_tray::usage_tray_set,
             usage_tray::usage_tray_refresh,
             usage_tray::usage_tray_open_claude,
             usage_tray::usage_tray_open_app,
@@ -1707,7 +1718,6 @@ pub fn run() {
             commands::llm::jobs::llm_workflow_status,
             commands::llm::jobs::llm_workflow_trust,
             commands::llm::jobs::llm_jobs_limits_set,
-            commands::llm::jobs::llm_job_explain,
             commands::llm::jobs::llm_job_diff,
             commands::llm::jobs::llm_job_remove_worktree,
             commands::llm::jobs::llm_job_hunks,

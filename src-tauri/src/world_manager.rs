@@ -2039,13 +2039,13 @@ mod tests {
             })));
         }
         let before = m.tick();
-        std::thread::sleep(Duration::from_millis(1500));
+        std::thread::sleep(Duration::from_millis(700));
         let ticks = m.tick() - before;
         // A dozing house would manage one tick at most in this window. The
-        // bar is well under the nominal 15 so a loaded CI runner passes too.
+        // bar is well under the nominal 7 so a loaded CI runner passes too.
         assert!(
-            ticks >= 6,
-            "1.5 s of an active house is about 15 ticks, got {ticks}"
+            ticks >= 3,
+            "0.7 s of an active house is about 7 ticks, got {ticks}"
         );
         m.shutdown();
         let _ = std::fs::remove_dir_all(&root);
@@ -2065,7 +2065,10 @@ mod tests {
             ent: EntId(1),
             to: Tile::new(13, 5),
         })));
-        std::thread::sleep(Duration::from_millis(600));
+        let since = std::time::Instant::now();
+        while m.tick() < 3 && since.elapsed() < Duration::from_secs(10) {
+            std::thread::sleep(Duration::from_millis(10));
+        }
         let ticks = m.tick();
         assert!(ticks >= 3, "the thread advanced the world: {ticks}");
         assert!(
@@ -2074,7 +2077,8 @@ mod tests {
         );
         m.shutdown();
         let after = m.tick();
-        std::thread::sleep(Duration::from_millis(300));
+        // Two tick periods: a thread still running would have ticked.
+        std::thread::sleep(Duration::from_millis(200));
         assert_eq!(m.tick(), after, "a stopped thread stops the world");
         let _ = std::fs::remove_dir_all(&root);
     }

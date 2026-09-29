@@ -72,7 +72,7 @@ async fn run_fetcher(
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
-#[ignore]
+#[ignore = "benchmark against the server in BENCH_BASE"]
 async fn bench_engine() {
     let Ok(base) = std::env::var("BENCH_BASE") else {
         return;

@@ -748,12 +748,10 @@ mod tests {
         }
     }
     fn cli(dir: &Path, create: &str) -> Cli {
-        use std::os::unix::fs::PermissionsExt;
         let path = dir.join("fixture-cli");
         let count = dir.join("submissions");
         let script=format!("#!/bin/sh\ncase \"$1 $2\" in\n'model list') echo '[{{\"job_type\":\"gpt_image_2_5\",\"secret\":\"token\"}}]' ;;\n'model get') echo '{{\"job_type\":\"gpt_image_2_5\",\"params\":[{{\"name\":\"prompt\"}},{{\"name\":\"api_key\"}}]}}' ;;\n'generate cost') echo '{{\"credits\":0.25,\"token\":\"secret\"}}' ;;\n'generate create') echo x >> '{}'; {} ;;\n'generate get') echo '{{\"status\":\"completed\",\"results\":[{{\"url\":\"https://example.com/?token=secret\"}}],\"prompt\":\"secret\"}}' ;;\nesac\n",count.display(),create);
-        std::fs::write(&path, script).unwrap();
-        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o700)).unwrap();
+        crate::core::process::test_exec::script(&path, &script);
         Cli::installed(&path).unwrap()
     }
     #[tokio::test]
@@ -971,15 +969,12 @@ mod tests {
     }
     #[tokio::test]
     async fn oversized_output_is_rejected_without_unbounded_capture() {
-        use std::os::unix::fs::PermissionsExt;
         let dir = tempfile::tempdir().unwrap();
         let executable = dir.path().join("oversized-cli");
-        std::fs::write(
+        crate::core::process::test_exec::script(
             &executable,
-            "#!/bin/sh\n/usr/bin/head -c 1050000 /dev/zero\n",
-        )
-        .unwrap();
-        std::fs::set_permissions(&executable, std::fs::Permissions::from_mode(0o700)).unwrap();
+            "/usr/bin/head -c 1050000 /dev/zero\n",
+        );
         let cli = Cli::installed(&executable).unwrap();
         assert_eq!(cli.discover().await.unwrap_err(), "PROVIDER_OUTPUT_LIMIT");
     }

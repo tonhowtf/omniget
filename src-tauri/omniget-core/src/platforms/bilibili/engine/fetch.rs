@@ -66,6 +66,7 @@ pub async fn fetch_stream(
                 connect_timeout: Duration::from_secs(10),
                 read_timeout: Duration::from_secs(45),
                 max_retries_per_segment: 3,
+                retry_backoff: Duration::from_secs(1),
                 steal_threshold: Duration::from_secs(3),
                 steal_min_chunk_size: 512 * 1024,
                 use_sidecar_resume: true,

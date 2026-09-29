@@ -360,25 +360,6 @@ pub async fn agentkit_profile_plan(
     .await
 }
 
-/// Loop do catálogo → plano de Loop do OmniGet (prompt, intervalo, checagem de
-/// parada, orçamento) para o motor de Loops rodar com `runner`.
-#[tauri::command]
-pub async fn agentkit_loop_plan(
-    item_id: String,
-    runner: String,
-    workspace: Option<String>,
-) -> Result<Value, String> {
-    blocking(move || {
-        let c = resolve_any(&item_id)?;
-        to_value(ak::convert::loop_runbook::loop_plan(
-            &c,
-            &runner,
-            workspace.as_deref(),
-        )?)
-    })
-    .await
-}
-
 pub fn parse_policy(p: Option<&str>) -> ConflictPolicy {
     match p.unwrap_or("rename") {
         "skip" => ConflictPolicy::Skip,

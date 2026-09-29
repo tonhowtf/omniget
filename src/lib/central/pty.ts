@@ -62,7 +62,6 @@ export const ptyAttach = (id: string) => invoke<PtyAttached>("pty_attach", { id 
 export const ptyDetach = (id: string) => invoke<void>("pty_detach", { id });
 export const ptyAck = (id: string, seq: number) => invoke<void>("pty_ack", { id, seq });
 export const ptyClear = (id: string) => invoke<number>("pty_clear", { id });
-export const ptyForeground = (id: string) => invoke<PtyForeground>("pty_foreground", { id });
 
 export function decodeBase64(s: string): Uint8Array {
   const bin = atob(s);

@@ -1580,7 +1580,8 @@ mod tests {
 
     /// Chat and jobs wait differently: the resolver picks per request, and
     /// the default (the chat's) is settable on a broker already in an `Arc`.
-    #[tokio::test]
+    /// Paused clock: the 1.1 s wait runs in virtual time.
+    #[tokio::test(start_paused = true)]
     async fn a_resolver_sets_the_timeout_per_request() {
         let b = ToolBroker::new(
             vec![spec("dl_add")],
@@ -1647,8 +1648,9 @@ mod tests {
     /// 20 background jobs ask for `shell_exec` and nobody answers (window
     /// hidden). Every one must end as an expiry that says so — the tool
     /// error is `ERR_TOOL_TIMEOUT` and the bus carries `outcome: expired` —
-    /// never a plain denial. Silent = anything else.
-    #[tokio::test]
+    /// never a plain denial. Silent = anything else. Paused clock: the 1 s
+    /// floor runs in virtual time.
+    #[tokio::test(start_paused = true)]
     async fn bn3_no_silent_denials_with_job_timeouts() {
         let bus = Arc::new(Bus::new());
         let mut rx = bus.subscribe();

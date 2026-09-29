@@ -3,7 +3,7 @@
 
 use tauri::AppHandle;
 
-use crate::pty::{self, foreground::Foreground, Attached, OpenRequest, SessionInfo};
+use crate::pty::{self, Attached, OpenRequest, SessionInfo};
 
 #[tauri::command]
 pub async fn pty_open(app: AppHandle, req: OpenRequest) -> Result<SessionInfo, String> {
@@ -60,11 +60,4 @@ pub fn pty_ack(id: String, seq: u64) -> Result<(), String> {
 #[tauri::command]
 pub fn pty_clear(id: String) -> Result<u64, String> {
     pty::manager().clear(&id)
-}
-
-#[tauri::command]
-pub async fn pty_foreground(id: String) -> Result<Foreground, String> {
-    tauri::async_runtime::spawn_blocking(move || pty::manager().foreground(&id))
-        .await
-        .map_err(|e| format!("PTY_FOREGROUND: {e}"))?
 }

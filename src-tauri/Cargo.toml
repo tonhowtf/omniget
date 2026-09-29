@@ -14,9 +14,23 @@ keywords = ["downloader", "yt-dlp", "ai-agents", "mcp", "system-cleaner"]
 categories = ["multimedia", "development-tools", "gui"]
 edition = "2021"
 
+# Desktop only, so the lib is a plain rlib. The Tauri template's "staticlib"
+# and "cdylib" exist for iOS/Android; on desktop they wrote a ~650 MB archive
+# and linked an unused dylib on every build, and made the app crate wait for
+# omniget-core's full codegen instead of starting on its metadata.
+# The lib has no runnable doctests (every code block is `text` or `ignore`),
+# so `cargo test` skips the rustdoc pass over the whole crate.
 [lib]
 name = "omniget_lib"
-crate-type = ["staticlib", "cdylib", "rlib"]
+crate-type = ["rlib"]
+doctest = false
+
+# main.rs has no tests. Without this, `cargo test` also builds a non-test copy
+# of the whole lib just to link an empty test harness for the binary.
+[[bin]]
+name = "omniget"
+path = "src/main.rs"
+test = false
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
