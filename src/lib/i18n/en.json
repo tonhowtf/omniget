@@ -2181,7 +2181,8 @@
     "error": "Error",
     "loading": "Loading…",
     "unknown_error": "Unknown error",
-    "cookie_error_message": "Automatic cookie detection only works with Firefox. Chrome, Edge, and other Chromium-based browsers block cookie access. To use cookies: install Firefox and log in to your accounts there, or export a cookies.txt file from your browser and set it in Settings > Download > Cookie file."
+    "cookie_error_message": "Automatic cookie detection only works with Firefox. Chrome, Edge, and other Chromium-based browsers block cookie access. To use cookies: install Firefox and log in to your accounts there, or export a cookies.txt file from your browser and set it in Settings > Download > Cookie file.",
+    "retry": "Try again"
   },
   "platforms": {
     "bilibili": {
@@ -2840,7 +2841,12 @@
       "new_chat": "New chat",
       "empty": "No agents yet.",
       "no_profile": "No local profile",
-      "search": "Search agents"
+      "search": "Search agents",
+      "view_agents": "Agents",
+      "view_chats": "Chats",
+      "search_chats": "Search chats",
+      "no_chats": "No saved conversations.",
+      "no_chat_matches": "No conversations match this search."
     },
     "role": {
       "coordinator": "Coordinator",
@@ -2864,7 +2870,9 @@
       "allow": "Allow",
       "deny": "Deny",
       "always": "Always",
-      "always_hint": "Allow now and stop asking for this kind of call (for a command: the same program and subcommand)."
+      "always_hint": "Allow now and stop asking for this kind of call (for a command: the same program and subcommand).",
+      "other_chat_running": "{agent} is working in another conversation.",
+      "open_running": "Open chat"
     },
     "composer": {
       "placeholder": "Message the agent…",
@@ -3634,7 +3642,10 @@
       "search": "Find an agent",
       "no_matches": "No matching agents",
       "templates_impact": "Review the template and its effect on the existing team before applying it.",
-      "mcp_server_hint": "Let other AI apps use OmniGet: turn the server on, create a client with only the permissions it needs, then paste its snippet into that app."
+      "mcp_server_hint": "Let other AI apps use OmniGet: turn the server on, create a client with only the permissions it needs, then paste its snippet into that app.",
+      "roster_load_error": "Could not load agents. Try again to recover your saved agents.",
+      "history_list_error": "Could not load conversation history. Your current draft is still here.",
+      "history_load_error": "Could not load this conversation. Try again before continuing."
     },
     "prompts": {
       "omni": "You are Omni, the assistant inside OmniGet. Answer briefly and in the language the user writes in. Use a tool only when it is clearly needed.",

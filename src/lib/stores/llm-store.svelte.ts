@@ -46,6 +46,7 @@ import type {
 } from "$lib/llm/types";
 import { effectiveModelLabel, isRoomId, isRoomSession } from "$lib/llm/types";
 import { getJobs, reloadJobs } from "$lib/stores/llm-jobs-store.svelte";
+import { diagnoseConnectionError } from "$lib/llm/connection-setup";
 
 // ── Frame scheduler (seam: vitest runs in node, with no rAF) ────────────
 
@@ -89,6 +90,8 @@ let rosterAvailable = $state(true);
 let demoRoster = $state(false);
 let conversations = $state<Conversation[]>([]);
 let activeConversationId = $state<string | null>(null);
+/** Composer text stays in memory and is isolated by conversation identity. */
+let conversationDrafts = $state<Record<string, string>>({});
 let turn = $state<TurnState | null>(null);
 let toolAsk = $state<ToolAsk | null>(null);
 /**
@@ -105,6 +108,10 @@ let heldAsks = $state<(ToolAsk & { receivedMs: number })[]>([]);
  */
 const HELD_ASK_TTL_MS = 24 * 60 * 60 * 1000;
 let errorKey = $state<string | null>(null);
+let rosterLoadError = $state<string | null>(null);
+let conversationListLoadError = $state<string | null>(null);
+let historyLoadErrors = $state<Record<string, string | null>>({});
+let historyLoading = $state<Record<string, boolean>>({});
 /** How the last permission request of a conversation ended when it did not get an answer. */
 let lastAsk = $state<{ conversationId: string; tool: string; state: "expired" | "cancelled" } | null>(null);
 /** Messages sent while a turn was running: they wait, visible and cancelable. */
@@ -161,6 +168,12 @@ export function getErrorKey(): string | null {
   return errorKey;
 }
 
+export function getRosterLoadError(): string | null { return rosterLoadError; }
+export function getConversationListLoadError(): string | null { return conversationListLoadError; }
+export function getHistoryLoadError(id: string | null): string | null { return id ? historyLoadErrors[id] ?? null : null; }
+export function isHistoryLoading(id: string | null): boolean { return id ? historyLoading[id] ?? false : false; }
+export async function retryConversationHistory(id: string): Promise<void> { await loadHistory(id); }
+
 export function isUnavailable(err: unknown): boolean {
   return String(err ?? "").includes("ERR_STUB");
 }
@@ -170,7 +183,8 @@ export function llmErrorKey(err: unknown): string {
   const code = String(err ?? "");
   if (code.includes("ERR_STUB")) return "llm.err.unavailable";
   if (code.includes("ERR_LLM_BUDGET")) return "llm.err.budget";
-  if (code.includes("ERR_LLM")) return "llm.err.turn_failed";
+  const diagnosis = diagnoseConnectionError(err, "api");
+  if (diagnosis.problem !== "unknown") return diagnosis.titleKey;
   return "llm.err.turn_failed";
 }
 
@@ -179,6 +193,7 @@ export function loadRoster(force = false): Promise<void> {
   if (rosterInFlight) return rosterInFlight;
   if (rosterLoadedOnce && !force) return Promise.resolve();
   errorKey = null;
+  rosterLoadError = null;
   rosterInFlight = invoke<AgentDef[] | null>("llm_roster_list")
     .then((list) => {
       if (Array.isArray(list)) {
@@ -196,7 +211,10 @@ export function loadRoster(force = false): Promise<void> {
       if (isUnavailable(err)) { agents = DEMO_ROSTER; demoRoster = true; }
       else if (demoRoster) { agents = []; demoRoster = false; }
       rosterAvailable = false;
-      if (!isUnavailable(err)) errorKey = llmErrorKey(err);
+      if (!isUnavailable(err)) {
+        errorKey = llmErrorKey(err);
+        rosterLoadError = "llm.surface.roster_load_error";
+      }
     })
     .finally(() => {
       rosterLoadedOnce = true;
@@ -263,10 +281,8 @@ export async function deleteAgent(agentId: string): Promise<boolean> {
   try {
     await invoke("llm_roster_delete", { agentId });
     agents = agents.filter((a) => a.id !== agentId);
-    conversations = conversations.filter((c) => c.agentId !== agentId || c.kind === "group");
-    if (!conversations.some((c) => c.id === activeConversationId)) {
-      activeConversationId = conversations[0]?.id ?? null;
-    }
+    // Chat logs are independent records. Keep them visible and readable even
+    // when their agent is removed; the composer becomes unavailable without it.
     return true;
   } catch (err) {
     rosterAvailable = !isUnavailable(err);
@@ -299,6 +315,23 @@ export function getConversations(): Conversation[] {
 export function getActiveConversation(): Conversation | null {
   if (!activeConversationId) return null;
   return conversations.find((c) => c.id === activeConversationId) ?? null;
+}
+
+export function getConversationDraft(conversationId: string | null | undefined): string {
+  return conversationId ? (conversationDrafts[conversationId] ?? "") : "";
+}
+
+export function setConversationDraft(conversationId: string | null | undefined, text: string): void {
+  if (!conversationId) return;
+  if (!text) {
+    if (!(conversationId in conversationDrafts)) return;
+    const next = { ...conversationDrafts };
+    delete next[conversationId];
+    conversationDrafts = next;
+    return;
+  }
+  if (conversationDrafts[conversationId] === text) return;
+  conversationDrafts = { ...conversationDrafts, [conversationId]: text };
 }
 
 export function getActiveAgentId(): string | null {
@@ -371,6 +404,11 @@ export function rewindConversation(id: string, userMessagesKept: number): void {
 export function deleteConversation(id: string): void {
   conversations = conversations.filter((c) => c.id !== id);
   queue = queue.filter((q) => q.conversationId !== id);
+  if (id in conversationDrafts) {
+    const next = { ...conversationDrafts };
+    delete next[id];
+    conversationDrafts = next;
+  }
   if (activeConversationId === id) activeConversationId = conversations[0]?.id ?? null;
 }
 
@@ -391,8 +429,9 @@ export async function switchModel(model: ModelRef): Promise<boolean> {
 
 // ── Turn ────────────────────────────────────────────────────────────────
 
-export function getActiveTurn(): TurnState | null {
-  return turn;
+export function getActiveTurn(conversationId?: string | null): TurnState | null {
+  if (conversationId === undefined) return turn;
+  return turn?.conversationId === conversationId ? turn : null;
 }
 
 /**
@@ -400,10 +439,10 @@ export function getActiveTurn(): TurnState | null {
  * open conversation also shows a question raised by a job running in it (a
  * mission made from this chat).
  */
-export function getToolAsk(): ToolAsk | null {
-  if (toolAsk) return toolAsk;
-  if (turn || !activeConversationId) return null;
-  return conversationAsk(activeConversationId);
+export function getToolAsk(conversationId: string | null = activeConversationId): ToolAsk | null {
+  if (toolAsk) return turn?.conversationId === conversationId ? toolAsk : null;
+  if (turn || !conversationId) return null;
+  return conversationAsk(conversationId);
 }
 
 /** Questions kept for turns the chat does not drive (see `heldAsks`). */
@@ -784,6 +823,11 @@ export function resetLlmStore(): void {
   demoRoster = false;
   conversations = [];
   activeConversationId = null;
+  conversationDrafts = {};
+  rosterLoadError = null;
+  conversationListLoadError = null;
+  historyLoadErrors = {};
+  historyLoading = {};
   toolAsk = null;
   heldAsks = [];
   errorKey = null;
@@ -815,9 +859,11 @@ interface ConversationInfoWire {
 /** Chats the backend kept (one agent each): they reopen as direct chats, same ids. */
 export async function loadConversations(): Promise<void> {
   let list: ConversationInfoWire[] | null = null;
+  conversationListLoadError = null;
   try {
     list = await invoke<ConversationInfoWire[] | null>("llm_conversation_list");
-  } catch {
+  } catch (err) {
+    if (!isUnavailable(err)) conversationListLoadError = "llm.surface.history_list_error";
     return;
   }
   if (!Array.isArray(list)) return;
@@ -887,17 +933,22 @@ export function historyToChat(messages: Message[], prefix: string): ChatMessage[
 
 async function loadHistory(id: string): Promise<void> {
   const conversation = conversations.find((c) => c.id === id);
-  if (!conversation || conversation.loaded !== false) return;
+  if (!conversation || conversation.loaded !== false || historyLoading[id]) return;
+  historyLoading[id] = true;
+  historyLoadErrors[id] = null;
   try {
     const answer = await invoke<{ messages?: Message[] } | null>("llm_conversation_get", { conversationId: id });
     const target = conversations.find((c) => c.id === id);
     if (!target || target !== conversation || target.loaded !== false) return;
-    const history = Array.isArray(answer?.messages) ? historyToChat(answer.messages, id) : [];
+    if (!Array.isArray(answer?.messages)) throw new Error("Invalid conversation history");
+    const history = historyToChat(answer.messages, id);
     // Anything typed while the history loaded stays after it.
     target.messages = [...history, ...target.messages];
     target.loaded = true;
   } catch {
-    // Leave it unloaded: the next open tries again; nothing is invented.
+    historyLoadErrors[id] = "llm.surface.history_load_error";
+  } finally {
+    historyLoading[id] = false;
   }
 }
 

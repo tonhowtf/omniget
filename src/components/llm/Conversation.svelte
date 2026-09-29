@@ -27,11 +27,17 @@
     getActiveConversation,
     getActiveTurn,
     getMessages,
+    getConversationDraft,
+    setConversationDraft,
     getErrorKey,
+    getHistoryLoadError,
+    isHistoryLoading,
+    retryConversationHistory,
     getToolAsk,
     answerTool,
     sendMessage,
     switchModel,
+    selectConversation,
   } from "$lib/stores/llm-store.svelte";
   import Composer from "./Composer.svelte";
   import MessageBubble from "./MessageBubble.svelte";
@@ -44,6 +50,7 @@
   let scroller = $state<HTMLDivElement | null>(null);
   let pickerOpen = $state(false);
   let draft = $state("");
+  let draftConversationId = $state<string | null>(null);
   let sendFailed = $state(false);
   let actionFailed = $state(false);
   let answering = $state(false);
@@ -56,9 +63,14 @@
   let cancelledGeneration = 0;
 
   let conversation = $derived(getActiveConversation());
+  let historyError = $derived(getHistoryLoadError(conversation?.id ?? null));
+  let loadingHistory = $derived(isHistoryLoading(conversation?.id ?? null));
   let messages = $derived(getMessages());
-  let turn = $derived(getActiveTurn());
-  let ask = $derived(getToolAsk());
+  let activeTurn = $derived(getActiveTurn());
+  let turn = $derived(getActiveTurn(conversation?.id ?? null));
+  let turnElsewhere = $derived(activeTurn && activeTurn.conversationId !== conversation?.id ? activeTurn : null);
+  let turnAgent = $derived(turnElsewhere ? getAgents().find((item) => item.id === turnElsewhere.agentId) : null);
+  let ask = $derived(getToolAsk(conversation?.id ?? null));
   let modelText = $derived(effectiveModelLabel(conversation, agent));
   let room = $derived(getActiveRoom());
   let roomLive = $derived(getRoomLive(room?.id));
@@ -73,6 +85,20 @@
       : [],
   );
   let running = $derived(room ? roomLive.length > 0 : turn !== null);
+
+  $effect(() => {
+    const id = conversation?.id ?? null;
+    if (id === draftConversationId) return;
+    draftConversationId = id;
+    draft = getConversationDraft(id);
+    sendFailed = false;
+    actionFailed = false;
+  });
+
+  function updateDraft(value: string) {
+    draft = value;
+    setConversationDraft(draftConversationId, value);
+  }
 
   let streamingMessage = $derived<ChatMessage | null>(
     turn && !room && turn.conversationId === conversation?.id
@@ -91,7 +117,7 @@
   async function stickToBottom() {
     await tick();
     const el = scroller;
-    if (el) el.scrollTop = el.scrollHeight;
+    if (el) el.scrollTop = messages.length || turn || ask || roomLive.length ? el.scrollHeight : 0;
   }
 
   // A permission request must never be born below the fold, and a streaming
@@ -103,14 +129,16 @@
     void turn?.text;
     void turn?.toolCalls.length;
     const el = scroller;
-    if (el && el.scrollHeight - el.scrollTop - el.clientHeight < 160) void stickToBottom();
+    if (turn && el && el.scrollHeight - el.scrollTop - el.clientHeight < 160) void stickToBottom();
   });
 
   async function onSend(text: string): Promise<boolean> {
     const generation = ++sendGeneration;
+    const conversationId = conversation?.id;
     sendFailed = false;
     submittedText = text;
     const sent = await sendMessage(text);
+    if (conversationId !== conversation?.id) return false;
     sendFailed = !sent && generation !== cancelledGeneration;
     if (sent) void stickToBottom();
     return sent;
@@ -127,7 +155,7 @@
     actionFailed = false;
     try {
       await cancelTurn();
-      if (!draft.trim()) draft = interruptedText;
+      if (!draft.trim()) updateDraft(interruptedText);
     } catch { actionFailed = true; }
   }
 
@@ -156,12 +184,13 @@
   function onRemoveQueued(id: string) {
     const text = removeQueued(id);
     // A cancelled queued message goes back to the draft when that is empty.
-    if (text && !draft.trim()) draft = text;
+    if (text && !draft.trim()) updateDraft(text);
   }
 
-  // Follow the stream without a timer: the text length is the only trigger.
+  // Opening a saved history follows its last message; an empty chat starts at the top.
   $effect(() => {
     conversation?.id;
+    conversation?.loaded;
     void stickToBottom();
   });
 
@@ -206,6 +235,15 @@
     </div>
   </header>
 
+  {#if turnElsewhere}
+    <div class="turn-elsewhere" role="status">
+      <span>{$t("llm.conv.other_chat_running", { agent: turnAgent?.name ?? turnElsewhere.agentId })}</span>
+      <button type="button" class="button" onclick={() => selectConversation(turnElsewhere.conversationId)}>
+        {$t("llm.conv.open_running")}
+      </button>
+    </div>
+  {/if}
+
   {#if pickerOpen}
     <div class="conv-picker">
       <ModelPicker value={conversation?.model ?? (agent?.model.policy === "fixed" ? agent.model.model : null)} onchange={onSwitch} explicit busy={switching} />
@@ -215,7 +253,14 @@
 
   <div data-agent-actions="scroll" use:agentActions={["scroll"]} data-agent-region="conversation-messages" class="conv-scroll" bind:this={scroller}>
     <div class="reading-column">
-    {#if messages.length === 0 && !streamingMessage && roomLive.length === 0}
+    {#if loadingHistory}
+      <p role="status">{$t("common.loading")}</p>
+    {:else if historyError}
+      <div class="history-error" role="alert">
+        <p>{$t(historyError)}</p>
+        <button type="button" class="button" onclick={() => conversation && retryConversationHistory(conversation.id)}>{$t("common.retry")}</button>
+      </div>
+    {:else if messages.length === 0 && !streamingMessage && roomLive.length === 0}
       <div class="empty-state">
         <p class="empty-state-title">{room ? $t("assist.groups.empty_title") : $t("llm.conv.empty_title")}</p>
         <p class="empty-state-body">{room ? $t("assist.groups.empty_body") : $t("llm.conv.empty_body")}</p>
@@ -226,7 +271,7 @@
         {:else}
           <div class="task-suggestions">
             {#each [$t("llm.surface.suggestion_1"), $t("llm.surface.suggestion_2"), $t("llm.surface.suggestion_3")] as suggestion}
-              <button type="button" onclick={() => draft = suggestion}>{suggestion}</button>
+              <button type="button" onclick={() => updateDraft(suggestion)}>{suggestion}</button>
             {/each}
           </div>
         {/if}
@@ -296,12 +341,21 @@
     </div>
   </div>
   {#if actionFailed || (runtimeError && turn)}<p class="send-error" role="alert">{$t("llm.surface.action_error")}</p>{/if}
-  {#if sendFailed}<p class="send-error" role="alert">{$t("llm.surface.error")}</p>{/if}
+  {#if sendFailed}
+    <div class="send-error" role="alert">
+      <p>{$t(runtimeError ?? "llm.surface.error")}</p>
+      {#if runtimeError?.startsWith("assist.bots.connection.problem.")}
+        <p>{$t(runtimeError.replace(".problem.", ".action."))}</p>
+      {/if}
+      <a href="/llm/accounts">{$t("llm.surface.connect")}</a>
+    </div>
+  {/if}
 
   <MissionChatBar mode="action" conversationId={conversation?.id ?? null} botId={room ? null : (agent?.id ?? null)} roomId={room?.id ?? null} {draft} />
   <Composer
     bind:value={draft}
-    disabled={!agent && !room}
+    onvaluechange={updateDraft}
+    disabled={(!agent && !room) || conversation?.loaded === false}
     {running}
     {status}
     queue={queued}
@@ -319,6 +373,8 @@
 
 <style>
   .reading-column { width:100%; max-width:760px; margin:0 auto; }
+  .turn-elsewhere { display:flex; align-items:center; justify-content:space-between; gap:var(--space-3); padding:var(--space-2) var(--space-4); border-bottom:var(--hairline) solid var(--separator); color:var(--text-dim); font-size:var(--text-sm); }
+  .turn-elsewhere span { min-width:0; overflow-wrap:anywhere; }
   .task-suggestions { display:flex; flex-direction:column; align-items:center; gap:8px; margin-top:24px; }
   .task-suggestions button { border:1px solid var(--separator); border-radius:var(--radius-lg); padding:12px 16px; color:var(--text); background:var(--fill-1); text-align:left; font:inherit; cursor:pointer; max-width:100%; transition:background 150ms; }
   .task-suggestions button:hover { background:var(--accent-soft); }

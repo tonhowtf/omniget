@@ -21,6 +21,7 @@
     queue = [],
     members = [],
     onsend,
+    onvaluechange,
     onstop,
     onremovequeued,
     onretryqueued,
@@ -32,6 +33,7 @@
     queue?: QueuedMessage[];
     members?: MemberOption[];
     onsend: (text: string) => boolean | Promise<boolean>;
+    onvaluechange?: (text: string) => void;
     onstop: () => void;
     onremovequeued?: (id: string) => void;
     onretryqueued?: (id: string) => void;
@@ -80,6 +82,7 @@
     const handle = handleOf(option.name) || option.id;
     const caret = el.selectionStart ?? value.length;
     value = `${value.slice(0, mention.start)}@${handle} ${value.slice(caret)}`;
+    onvaluechange?.(value);
     const at = mention.start + handle.length + 2;
     mention = null;
     queueMicrotask(() => { el.focus(); el.setSelectionRange(at, at); });
@@ -92,7 +95,10 @@
     try {
       const accepted = await onsend(text);
       // Keep text typed during startup, and retain the entire draft on failure.
-      if (accepted && value.trim() === text) value = "";
+      if (accepted && value.trim() === text) {
+        value = "";
+        onvaluechange?.(value);
+      }
     } finally { sending = false; queueMicrotask(autosize); }
   }
 
@@ -140,7 +146,7 @@
       aria-expanded={members.length > 0 ? listOpen : undefined}
       aria-controls={members.length > 0 ? LIST_ID : undefined}
       aria-activedescendant={listOpen ? `${LIST_ID}-${activeIndex}` : undefined}
-      oninput={() => { autosize(); updateMention(); }}
+      oninput={(event) => { onvaluechange?.(event.currentTarget.value); autosize(); updateMention(); }}
       onclick={updateMention}
       onkeyup={(e) => { if (e.key === "ArrowLeft" || e.key === "ArrowRight" || e.key === "Home" || e.key === "End") updateMention(); }}
       onblur={() => setTimeout(() => (mention = null), 120)}

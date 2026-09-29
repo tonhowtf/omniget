@@ -2181,7 +2181,8 @@
     "error": "Erro",
     "loading": "Loading…",
     "unknown_error": "Erro desconhecido",
-    "cookie_error_message": "A detecção automática de cookies funciona apenas com Firefox. Chrome, Edge e outros navegadores baseados em Chromium bloqueiam o acesso. Para usar cookies: instale o Firefox e faça login nas suas contas, ou exporte um arquivo cookies.txt do seu navegador e configure em Configurações > Download > Arquivo de cookies."
+    "cookie_error_message": "A detecção automática de cookies funciona apenas com Firefox. Chrome, Edge e outros navegadores baseados em Chromium bloqueiam o acesso. Para usar cookies: instale o Firefox e faça login nas suas contas, ou exporte um arquivo cookies.txt do seu navegador e configure em Configurações > Download > Arquivo de cookies.",
+    "retry": "Tentar novamente"
   },
   "platforms": {
     "bilibili": {
@@ -2840,7 +2841,12 @@
       "new_chat": "Nova conversa",
       "empty": "Nenhum agente ainda.",
       "no_profile": "Sem perfil local",
-      "search": "Buscar agentes"
+      "search": "Buscar agentes",
+      "view_agents": "Agentes",
+      "view_chats": "Conversas",
+      "search_chats": "Buscar conversas",
+      "no_chats": "Nenhuma conversa salva.",
+      "no_chat_matches": "Nenhuma conversa corresponde a esta busca."
     },
     "role": {
       "coordinator": "Coordenador",
@@ -2864,7 +2870,9 @@
       "allow": "Permitir",
       "deny": "Negar",
       "always": "Sempre",
-      "always_hint": "Permite agora e para de perguntar para esse tipo de chamada (para um comando: o mesmo programa e subcomando)."
+      "always_hint": "Permite agora e para de perguntar para esse tipo de chamada (para um comando: o mesmo programa e subcomando).",
+      "other_chat_running": "{agent} está trabalhando em outra conversa.",
+      "open_running": "Abrir conversa"
     },
     "composer": {
       "placeholder": "Escreva para o agente…",
@@ -3634,7 +3642,10 @@
       "search": "Buscar agente",
       "no_matches": "Nenhum agente encontrado",
       "templates_impact": "Revise o modelo e seu efeito na equipe atual antes de aplicar.",
-      "mcp_server_hint": "Deixe outros apps de IA usarem o OmniGet: ligue o servidor, crie um cliente só com as permissões de que ele precisa e cole o trecho no app."
+      "mcp_server_hint": "Deixe outros apps de IA usarem o OmniGet: ligue o servidor, crie um cliente só com as permissões de que ele precisa e cole o trecho no app.",
+      "roster_load_error": "Não foi possível carregar os agentes. Tente novamente para recuperar seus agentes salvos.",
+      "history_list_error": "Não foi possível carregar o histórico. Seu rascunho atual continua aqui.",
+      "history_load_error": "Não foi possível carregar esta conversa. Tente novamente antes de continuar."
     },
     "prompts": {
       "omni": "You are Omni, the assistant inside OmniGet. Answer briefly and in the language the user writes in. Use a tool only when it is clearly needed.",

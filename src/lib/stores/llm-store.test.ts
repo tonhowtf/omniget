@@ -310,6 +310,49 @@ describe("conversations", () => {
     await store.switchModel({ provider: "openai", model: "gpt-5" });
     expect(store.getActiveConversation()!.model).toEqual({ provider: "openai", model: "gpt-5" });
   });
+
+  it("keeps composer drafts isolated by conversation across selection changes", async () => {
+    invoke.mockRejectedValue("ERR_STUB");
+    await store.loadRoster();
+    const [first, second] = store.getAgents();
+    const firstId = store.selectAgent(first.id);
+    store.setConversationDraft(firstId, "draft for first");
+    const secondId = store.selectAgent(second.id);
+    expect(store.getConversationDraft(secondId)).toBe("");
+    store.setConversationDraft(secondId, "draft for second");
+
+    store.selectConversation(firstId);
+    expect(store.getConversationDraft(firstId)).toBe("draft for first");
+    store.selectConversation(secondId);
+    expect(store.getConversationDraft(secondId)).toBe("draft for second");
+  });
+
+  it("keeps the running turn and its approval tied to the owning conversation", async () => {
+    const requestId = await startTurn();
+    const owner = store.getActiveConversation()!;
+    store.handleToolAsk({
+      agent: owner.agentId,
+      request_id: requestId,
+      tool_call_id: "owner-approval",
+      tool: "files.write",
+    });
+
+    const otherAgent = store.getAgents()[1];
+    const otherId = store.newConversation(otherAgent.id);
+    expect(store.getActiveTurn(otherId)).toBeNull();
+    expect(store.getToolAsk(otherId)).toBeNull();
+    expect(store.getToolAsk(owner.id)?.tool_call_id).toBe("owner-approval");
+  });
+
+  it("keeps saved conversations available in memory after their agent is deleted", async () => {
+    const agent = { id: "real", name: "Real", role: "worker", system_prompt: "", model: { policy: "fixed", model: { provider: "openai", model: "gpt-5" } }, runtime: { kind: "native" } };
+    invoke.mockImplementation((cmd: string) => cmd === "llm_roster_list" ? Promise.resolve([agent]) : Promise.resolve([]));
+    await store.loadRoster();
+    const conversationId = store.selectAgent(agent.id);
+    expect(await store.deleteAgent(agent.id)).toBe(true);
+    expect(store.getAgents()).toEqual([]);
+    expect(store.getConversations().some((conversation) => conversation.id === conversationId)).toBe(true);
+  });
 });
 
 describe("fake turn helpers", () => {
@@ -678,5 +721,53 @@ describe("mentions by the name shown in the room", () => {
     expect(types.mentionedMembers("@joao critico opine", members)).toEqual(["joao"]);
     expect(types.mentionedMembers("@Omnipresente", members)).toEqual([]);
     expect(types.mentionedMembers("mail a@omni.com", members)).toEqual([]);
+  });
+});
+
+describe("read failure recovery", () => {
+  it("distinguishes a failed roster read from a confirmed empty roster", async () => {
+    invoke.mockRejectedValueOnce("ERR_IO");
+    await store.loadRoster();
+    expect(store.getRosterLoadError()).toBeTruthy();
+    invoke.mockResolvedValueOnce([]);
+    await store.loadRoster(true);
+    expect(store.getRosterLoadError()).toBeNull();
+    expect(store.getAgents()).toEqual([]);
+  });
+
+  it("reports a failed conversation list without dropping existing drafts", async () => {
+    store.setConversationDraft("saved", "keep this");
+    invoke.mockRejectedValueOnce("ERR_IO");
+    await store.loadConversations();
+    expect(store.getConversationListLoadError()).toBeTruthy();
+    expect(store.getConversationDraft("saved")).toBe("keep this");
+    invoke.mockResolvedValueOnce([]);
+    await store.loadConversations();
+    expect(store.getConversationListLoadError()).toBeNull();
+  });
+
+  it("keeps failed history unloaded and retries without duplicating messages", async () => {
+    invoke.mockImplementation((cmd: string) => {
+      if (cmd === "llm_conversation_list") return Promise.resolve([{ id: "saved", title: "Saved", agent_id: "real", messages: 1, updated_ms: 5 }]);
+      if (cmd === "llm_conversation_get") return Promise.reject("ERR_IO");
+      return Promise.resolve(null);
+    });
+    await store.loadConversations();
+    store.selectConversation("saved");
+    await vi.waitFor(() => expect(store.getHistoryLoadError("saved")).toBeTruthy());
+    expect(store.getActiveConversation()?.loaded).toBe(false);
+    invoke.mockResolvedValue({ messages: [{ role: "user", parts: [{ type: "text", text: "Saved message" }] }] });
+    await store.retryConversationHistory("saved");
+    expect(store.getHistoryLoadError("saved")).toBeNull();
+    expect(store.getMessages().map(m => m.text)).toEqual(["Saved message"]);
+    await store.retryConversationHistory("saved");
+    expect(store.getMessages()).toHaveLength(1);
+  });
+
+  it("maps actionable launch errors without exposing raw credentials", () => {
+    expect(store.llmErrorKey("ERR_LLM_AUTH: sk-secret-not-for-ui")).toBe("assist.bots.connection.problem.credential_invalid");
+    expect(store.llmErrorKey("ERR_CLI_ACCOUNT")).toBe("assist.bots.connection.problem.login_expired");
+    expect(store.llmErrorKey("ERR_LLM_NET")).toBe("assist.bots.connection.problem.network");
+    expect(store.llmErrorKey("ERR_LLM_BUDGET")).toBe("llm.err.budget");
   });
 });

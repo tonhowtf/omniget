@@ -5,11 +5,13 @@
    * running turn.
    */
   import { setLlmFocus } from "$lib/llm/ui-focus.svelte";
-  import { onMount, untrack } from "svelte";
+  import { onMount, untrack, tick } from "svelte";
   import { page } from "$app/stores";
   import { t } from "$lib/i18n";
   import {
     getActiveTurn,
+    getRosterLoadError,
+    getConversationListLoadError,
     getAgent,
     getAgents,
     getActiveAgentId,
@@ -33,6 +35,40 @@
   let creatingRoom = $state(false);
   let rosterReady = $state(false);
   let rosterError = $state(false);
+  let reloading = $state(false);
+  let loadError = $derived(getRosterLoadError() ?? getConversationListLoadError());
+  let detailsTrigger = $state<HTMLButtonElement>();
+  let detailsClose = $state<HTMLButtonElement>();
+  let detailsPanel = $state<HTMLElement>();
+
+  async function toggleDetails() {
+    detailsOpen = !detailsOpen;
+    await tick();
+    if (detailsOpen) detailsClose?.focus();
+    else detailsTrigger?.focus();
+  }
+
+  function detailsKeydown(event: KeyboardEvent) {
+    if (!detailsOpen || event.defaultPrevented) return;
+    if (event.key === "Escape") {
+      event.preventDefault();
+      void toggleDetails();
+    } else if (detailsPanel && event.key === "Tab" && matchMedia("(max-width: 1100px)").matches) {
+      const controls = Array.from(detailsPanel.querySelectorAll<HTMLElement>('button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex="0"]')).filter(el => el.getClientRects().length > 0);
+      const first = controls[0], last = controls.at(-1);
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+    }
+  }
+
+  async function retryLoading() {
+    if (reloading) return;
+    reloading = true;
+    rosterError = false;
+    try { await Promise.all([loadRoster(true), loadConversations(), loadRooms()]); rosterReady = true; }
+    catch { rosterError = true; }
+    finally { reloading = false; }
+  }
   let agents = $derived(getAgents());
   let activeAgent = $derived(getAgent(getActiveAgentId()));
   let active = $derived(getActiveConversation());
@@ -75,6 +111,14 @@
 </script>
 
 <svelte:head><title>{$t("llm.title")}</title></svelte:head>
+<svelte:window onkeydown={detailsKeydown} />
+
+{#if loadError || rosterError}
+  <div class="load-error" role="alert">
+    <span>{$t(loadError ?? "llm.surface.roster_load_error")}</span>
+    <button type="button" class="button" disabled={reloading} onclick={retryLoading}>{$t("common.retry")}</button>
+  </div>
+{/if}
 
 <div class="chat-toolbar">
   <div class="compact-agents">
@@ -95,12 +139,12 @@
     <button class="button" type="button" onclick={onNew} disabled={!agents.length}>{$t("llm.rail.new_chat")}</button>
     <button class="button" type="button" onclick={() => (creatingRoom = true)} disabled={!agents.length}>{$t("assist.groups.new")}</button>
   </div>
-  <button type="button" class="button details-toggle" aria-expanded={detailsOpen} aria-controls="agent-details" onclick={() => detailsOpen = !detailsOpen}>{$t("llm.chat.details")}</button>
+  <button bind:this={detailsTrigger} type="button" class="button details-toggle" aria-expanded={detailsOpen} aria-controls="agent-details" onclick={toggleDetails}>{$t("llm.chat.details")}</button>
 </div>
 <div class="llm-chat" class:with-details={detailsOpen} data-agent-readiness={rosterError ? "error" : !rosterReady ? "loading" : turn ? "streaming" : "ready"}>
   <div class="agent-rail"><Rail {agents} speakingAgentId={turn?.agentId ?? null} onselect={selectAgent} onnew={onNew} /></div>
   <Conversation agent={activeAgent} />
-  {#if detailsOpen}<div id="agent-details" class="agent-details"><Inspector agent={activeAgent} /></div>{/if}
+  {#if detailsOpen}<aside bind:this={detailsPanel} id="agent-details" class="agent-details" aria-label={$t("llm.chat.details")}><button bind:this={detailsClose} type="button" class="button details-close" onclick={toggleDetails}>{$t("common.close")}</button><Inspector agent={activeAgent} /></aside>{/if}
 </div>
 
 {#if creatingRoom}<RoomEditor {agents} onclose={() => (creatingRoom = false)} />{/if}
@@ -112,7 +156,9 @@
   .compact-agents select { max-width: 220px; }
   .llm-chat { flex: 1; min-height: 0; min-width: 0; display: flex; position: relative; }
   .agent-rail, .agent-details { display: flex; min-height: 0; flex-shrink: 0; }
-  .agent-details { overflow: auto; }
+  .agent-details { overflow: auto; flex-direction: column; }
+  .details-close { align-self: flex-end; margin: var(--space-2); }
+  .load-error { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-3); background: var(--accent-soft); }
   @media (max-width: 1100px) {
     .agent-details { position: absolute; right: 0; top: 0; bottom: 0; z-index: 10; background: var(--surface); box-shadow: var(--shadow-lg); max-width: 100%; }
   }

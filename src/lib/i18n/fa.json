@@ -2181,7 +2181,8 @@
     "error": "خطا",
     "loading": "در حال بارگذاری…",
     "unknown_error": "خطای ناشناخته",
-    "cookie_error_message": "تشخیص خودکار کوکی فقط با فایرفاکس کار می‌کند. کروم، اج و دیگر مرورگرهای مبتنی بر کرومیوم دسترسی به کوکی را مسدود می‌کنند. برای استفاده از کوکی‌ها: فایرفاکس را نصب کنید و در حساب‌های خود وارد شوید، یا یک فایل cookies.txt از مرورگر خود خروجی بگیرید و آن را در تنظیمات > دانلود > فایل کوکی انتخاب کنید."
+    "cookie_error_message": "تشخیص خودکار کوکی فقط با فایرفاکس کار می‌کند. کروم، اج و دیگر مرورگرهای مبتنی بر کرومیوم دسترسی به کوکی را مسدود می‌کنند. برای استفاده از کوکی‌ها: فایرفاکس را نصب کنید و در حساب‌های خود وارد شوید، یا یک فایل cookies.txt از مرورگر خود خروجی بگیرید و آن را در تنظیمات > دانلود > فایل کوکی انتخاب کنید.",
+    "retry": "Try again"
   },
   "platforms": {
     "bilibili": {
@@ -2840,7 +2841,12 @@
       "new_chat": "New chat",
       "empty": "No agents yet.",
       "no_profile": "No local profile",
-      "search": "Search agents"
+      "search": "Search agents",
+      "view_agents": "Agents",
+      "view_chats": "Chats",
+      "search_chats": "Search chats",
+      "no_chats": "No saved conversations.",
+      "no_chat_matches": "No conversations match this search."
     },
     "role": {
       "coordinator": "Coordinator",
@@ -2864,7 +2870,9 @@
       "allow": "Allow",
       "deny": "Deny",
       "always": "Always",
-      "always_hint": "Allow now and stop asking for this kind of call (for a command: the same program and subcommand)."
+      "always_hint": "Allow now and stop asking for this kind of call (for a command: the same program and subcommand).",
+      "other_chat_running": "{agent} is working in another conversation.",
+      "open_running": "Open chat"
     },
     "composer": {
       "placeholder": "Message the agent…",
@@ -3634,7 +3642,10 @@
       "search": "Find an agent",
       "no_matches": "No matching agents",
       "templates_impact": "Review the template and its effect on the existing team before applying it.",
-      "mcp_server_hint": "بگذارید برنامه‌های هوش مصنوعی دیگر از OmniGet استفاده کنند: سرور را روشن کنید، کلاینتی فقط با مجوزهای لازم بسازید و قطعهٔ آن را در آن برنامه بچسبانید."
+      "mcp_server_hint": "بگذارید برنامه‌های هوش مصنوعی دیگر از OmniGet استفاده کنند: سرور را روشن کنید، کلاینتی فقط با مجوزهای لازم بسازید و قطعهٔ آن را در آن برنامه بچسبانید.",
+      "roster_load_error": "Could not load agents. Try again to recover your saved agents.",
+      "history_list_error": "Could not load conversation history. Your current draft is still here.",
+      "history_load_error": "Could not load this conversation. Try again before continuing."
     },
     "prompts": {
       "omni": "You are Omni, the assistant inside OmniGet. Answer briefly and in the language the user writes in. Use a tool only when it is clearly needed.",
