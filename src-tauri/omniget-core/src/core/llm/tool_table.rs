@@ -390,6 +390,7 @@ fn build() -> Vec<ToolEntry> {
     ];
     all.extend(crate::core::washmybelly::tools::entries());
     all.extend(crate::core::city3d::tools::entries());
+    all.extend(crate::core::global_dl::tools::entries());
     all
 }
 

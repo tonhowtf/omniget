@@ -705,6 +705,7 @@ pub fn run() {
             core::queue::start_scheduler(app.handle().clone());
             commands::league::start_background(app.handle().clone());
             commands::washmybelly::start_background(app.handle().clone());
+            commands::global_dl::start_background(app.handle().clone());
             {
                 let app_handle = app.handle().clone();
                 tauri::async_runtime::spawn(async move {
@@ -1108,6 +1109,39 @@ pub fn run() {
             commands::music::music_radio_remove,
             commands::music::music_radio_played,
             commands::music::music_radio_resolve,
+            commands::global_dl::gd_status,
+            commands::global_dl::gd_browser_start,
+            commands::global_dl::gd_browser_stop,
+            commands::global_dl::gd_browser_set_path,
+            commands::global_dl::gd_tab,
+            commands::global_dl::gd_sniffed,
+            commands::global_dl::gd_sniffed_clear,
+            commands::global_dl::gd_resolve,
+            commands::global_dl::gd_download,
+            commands::global_dl::gd_download_sniffed,
+            commands::global_dl::gd_job_cancel,
+            commands::global_dl::gd_jobs_clear,
+            commands::global_dl::gd_connector_install_dev,
+            commands::global_dl::gd_connector_remove,
+            commands::global_dl::gd_connector_options,
+            commands::global_dl::gd_connector_options_set,
+            commands::global_dl::gd_view,
+            commands::global_dl::gd_unview,
+            commands::global_dl::gd_mouse,
+            commands::global_dl::gd_key,
+            commands::global_dl::gd_insert_text,
+            commands::global_dl::gd_selection,
+            commands::global_dl::gd_history,
+            commands::global_dl::gd_nav_state,
+            commands::global_dl::gd_go,
+            commands::global_dl::gd_dialog,
+            commands::global_dl::gd_set_files,
+            commands::global_dl::gd_switch_mode,
+            commands::global_dl::gd_show_window,
+            commands::global_dl::gd_set_block_ads,
+            commands::global_dl::gd_clear_data,
+            commands::global_dl::gd_sources,
+            commands::global_dl::gd_import,
             commands::washmybelly::washmybelly_capabilities,
             commands::washmybelly::washmybelly_call,
             commands::washmybelly::washmybelly_ui,

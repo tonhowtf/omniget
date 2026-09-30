@@ -10,6 +10,7 @@ pub mod channels;
 pub mod city3d;
 pub mod company;
 pub mod dedupe;
+pub mod global_dl;
 pub mod diagnostics;
 pub mod downloads;
 pub mod integration;
