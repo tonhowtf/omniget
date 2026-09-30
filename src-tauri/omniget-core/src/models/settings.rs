@@ -44,6 +44,8 @@ pub struct AppSettings {
     pub music: MusicSettings,
     #[serde(default)]
     pub video: VideoSettings,
+    #[serde(default)]
+    pub tube: TubeSettings,
     pub washmybelly: WashMyBellySettings,
     #[serde(default)]
     pub accessibility: AccessibilitySettings,
@@ -344,6 +346,149 @@ impl Default for VideoSettings {
     fn default() -> Self {
         Self {
             enabled: default_video_enabled(),
+        }
+    }
+}
+
+/// OmniTube (`/youtube`): YouTube + YouTube Music client. Mirror of
+/// `TubeSettings` in `src/lib/tube/types.ts`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct TubeSettings {
+    pub enabled: bool,
+    /// "classic" (YouTube palette) or "app" (follow the OmniGet theme).
+    pub look: String,
+    /// "video" | "music"
+    pub start_face: String,
+    /// "home" | "subscriptions" | "library"
+    pub start_page: String,
+    /// Use the youtube.com account from the cookie vault when present.
+    pub use_account: bool,
+    pub default_quality: String,
+    pub prefer_codec: String,
+    pub audio_quality: String,
+    pub autoplay_next: bool,
+    pub autoplay_on_open: bool,
+    pub preview_on_hover: bool,
+    pub normalize_volume: bool,
+    /// Report plays to the account history (logged in only).
+    pub send_history: bool,
+    pub endless_radio: bool,
+    pub sponsorblock: bool,
+    /// Category -> "skip" | "ask" | "show" | "off".
+    pub sb_categories: std::collections::BTreeMap<String, String>,
+    pub sb_server: String,
+    /// Channel ids where SponsorBlock is off.
+    pub sb_whitelist: Vec<String>,
+    /// "off" | "mark" | "remove"
+    pub sb_download: String,
+    pub dearrow: bool,
+    pub dearrow_thumbs: bool,
+    pub ryd: bool,
+    pub hide_shorts: bool,
+    pub hide_live: bool,
+    pub hide_upcoming: bool,
+    pub hide_members: bool,
+    pub hide_mixes: bool,
+    pub hide_playables: bool,
+    pub hide_posts: bool,
+    pub hide_watched: bool,
+    pub watched_threshold: u8,
+    pub hide_home_feed: bool,
+    pub hide_related: bool,
+    pub hide_comments: bool,
+    pub hide_end_screen: bool,
+    pub hide_chips: bool,
+    pub hide_metrics: bool,
+    pub infinite_scroll: bool,
+    /// 0 = automatic by width.
+    pub grid_columns: u8,
+    pub blocked_channels: Vec<TubeBlockedChannel>,
+    pub blocked_words: Vec<String>,
+    pub whole_word: bool,
+    /// 0 = no limit.
+    pub min_duration_s: u32,
+    pub max_duration_s: u32,
+    /// "auto" | "youtube" | "lrclib" | "off"
+    pub lyrics_provider: String,
+    pub download_folder: Option<String>,
+    /// Cap for auto-downloads, in GB (0 = no cap).
+    pub storage_cap_gb: f64,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct TubeBlockedChannel {
+    pub id: String,
+    #[serde(default)]
+    pub name: String,
+}
+
+impl Default for TubeSettings {
+    fn default() -> Self {
+        let sb_categories = [
+            ("sponsor", "skip"),
+            ("selfpromo", "ask"),
+            ("interaction", "ask"),
+            ("intro", "show"),
+            ("outro", "show"),
+            ("preview", "show"),
+            ("hook", "show"),
+            ("music_offtopic", "skip"),
+            ("filler", "off"),
+            ("poi_highlight", "show"),
+            ("exclusive_access", "show"),
+        ]
+        .into_iter()
+        .map(|(k, v)| (k.to_string(), v.to_string()))
+        .collect();
+        Self {
+            enabled: true,
+            look: "classic".into(),
+            start_face: "video".into(),
+            start_page: "home".into(),
+            use_account: true,
+            default_quality: "auto".into(),
+            prefer_codec: "auto".into(),
+            audio_quality: "high".into(),
+            autoplay_next: true,
+            autoplay_on_open: true,
+            preview_on_hover: true,
+            normalize_volume: true,
+            send_history: true,
+            endless_radio: true,
+            sponsorblock: true,
+            sb_categories,
+            sb_server: "https://sponsor.ajay.app".into(),
+            sb_whitelist: Vec::new(),
+            sb_download: "off".into(),
+            dearrow: false,
+            dearrow_thumbs: false,
+            ryd: true,
+            hide_shorts: false,
+            hide_live: false,
+            hide_upcoming: false,
+            hide_members: true,
+            hide_mixes: true,
+            hide_playables: true,
+            hide_posts: false,
+            hide_watched: false,
+            watched_threshold: 85,
+            hide_home_feed: false,
+            hide_related: false,
+            hide_comments: false,
+            hide_end_screen: true,
+            hide_chips: false,
+            hide_metrics: false,
+            infinite_scroll: true,
+            grid_columns: 0,
+            blocked_channels: Vec::new(),
+            blocked_words: Vec::new(),
+            whole_word: true,
+            min_duration_s: 0,
+            max_duration_s: 0,
+            lyrics_provider: "auto".into(),
+            download_folder: None,
+            storage_cap_gb: 0.0,
         }
     }
 }
@@ -1060,6 +1205,7 @@ impl Default for AppSettings {
             league: LeagueSettings::default(),
             music: MusicSettings::default(),
             video: VideoSettings::default(),
+            tube: TubeSettings::default(),
             washmybelly: WashMyBellySettings::default(),
             accessibility: AccessibilitySettings::default(),
             omnidisc: OmnidiscSettings::default(),

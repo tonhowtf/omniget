@@ -1,0 +1,100 @@
+[
+  {
+    "name": "VISIONOS",
+    "id": 101,
+    "version": "1.02",
+    "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 15_7_3) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Safari/605.1.15",
+    "host": "www.youtube.com",
+    "context": {
+      "osName": "visionOS",
+      "osVersion": "26.5.23O471",
+      "deviceMake": "Apple",
+      "deviceModel": "RealityDevice17,1"
+    },
+    "supports_cookies": false
+  },
+  {
+    "name": "ANDROID_VR",
+    "id": 28,
+    "version": "1.61.48",
+    "user_agent": "com.google.android.apps.youtube.vr.oculus/1.61.48 (Linux; U; Android 12; en_US; Quest 3; Build/SQ3A.220605.009.A1; Cronet/132.0.6808.3)",
+    "host": "www.youtube.com",
+    "context": {
+      "osName": "Android",
+      "osVersion": "12",
+      "deviceMake": "Oculus",
+      "deviceModel": "Quest 3",
+      "androidSdkVersion": 32
+    },
+    "supports_cookies": false
+  },
+  {
+    "name": "WEB",
+    "id": 1,
+    "version": "2.20260928.03.00",
+    "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
+    "host": "www.youtube.com",
+    "context": {
+      "platform": "DESKTOP",
+      "clientFormFactor": "UNKNOWN_FORM_FACTOR",
+      "browserName": "Chrome",
+      "browserVersion": "140.0.0.0",
+      "osName": "Windows",
+      "osVersion": "10.0"
+    },
+    "supports_cookies": true
+  },
+  {
+    "name": "WEB_REMIX",
+    "id": 67,
+    "version": "1.20260927.17.00",
+    "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
+    "host": "music.youtube.com",
+    "context": {
+      "platform": "DESKTOP",
+      "clientFormFactor": "UNKNOWN_FORM_FACTOR",
+      "browserName": "Chrome",
+      "browserVersion": "140.0.0.0",
+      "osName": "Windows",
+      "osVersion": "10.0"
+    },
+    "supports_cookies": true
+  },
+  {
+    "name": "ANDROID_MUSIC",
+    "id": 21,
+    "version": "7.21.50",
+    "user_agent": "com.google.android.apps.youtube.music/7.21.50 (Linux; U; Android 14) gzip",
+    "host": "music.youtube.com",
+    "context": {
+      "osName": "Android",
+      "osVersion": "14",
+      "androidSdkVersion": 34
+    },
+    "supports_cookies": false
+  },
+  {
+    "name": "IOS_MUSIC",
+    "id": 26,
+    "version": "7.01.05",
+    "user_agent": "com.google.ios.youtubemusic/7.01.05 (iPhone16,2; U; CPU iOS 18_2 like Mac OS X;)",
+    "host": "music.youtube.com",
+    "context": {
+      "osName": "iOS",
+      "osVersion": "18.2.22C152",
+      "deviceMake": "Apple",
+      "deviceModel": "iPhone16,2"
+    },
+    "supports_cookies": false
+  },
+  {
+    "name": "TVHTML5_SIMPLY_EMBEDDED_PLAYER",
+    "id": 85,
+    "version": "2.0",
+    "user_agent": "Mozilla/5.0 (PlayStation; PlayStation 4/12.02) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.4 Safari/605.1.15",
+    "host": "www.youtube.com",
+    "context": {},
+    "supports_cookies": false,
+    "embed": true
+  }
+]

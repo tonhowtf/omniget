@@ -59,6 +59,7 @@ pub mod telegram;
 pub mod test_env;
 pub mod threads;
 pub mod tools;
+pub mod tube;
 pub mod vcs;
 pub mod video;
 pub mod washmybelly;

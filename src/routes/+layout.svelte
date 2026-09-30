@@ -50,6 +50,7 @@
   import CommandPalette from "$components/shell/CommandPalette.svelte";
   import DownloadStatusBar from "$components/download/DownloadStatusBar.svelte";
   import MusicHost from "$components/music/MusicHost.svelte";
+  import TubeHost from "$components/tube/TubeHost.svelte";
   import { shellLayout } from "$lib/stores/shell-layout.svelte";
   import { setCommandPaletteItems } from "$lib/stores/command-palette-store.svelte";
   import { accountPaletteItems, activateAccount, getAccounts } from "$lib/stores/llm-accounts-store.svelte";
@@ -149,6 +150,7 @@
     page.url.pathname.startsWith("/league") ||
     page.url.pathname.startsWith("/music") ||
     page.url.pathname.startsWith("/video") ||
+    page.url.pathname.startsWith("/youtube") ||
     page.url.pathname.startsWith("/washmybelly") ||
     page.url.pathname.startsWith("/city") ||
     page.url.pathname.startsWith("/meetings") ||
@@ -160,6 +162,7 @@
     page.url.pathname.startsWith("/city") ||
     page.url.pathname.startsWith("/music") ||
     page.url.pathname.startsWith("/video") ||
+    page.url.pathname.startsWith("/youtube") ||
     page.url.pathname.startsWith("/downloads") ||
     page.url.pathname.startsWith("/washmybelly") ||
     page.url.pathname.startsWith("/settings"),
@@ -346,6 +349,13 @@
         action: () => goto("/meetings"),
       },
       {
+        id: "nav-tube",
+        label: get(t)("tube.title"),
+        group: get(t)("command_palette.group_nav"),
+        keywords: "youtube omnitube yt music ytmusic videos vídeos inscrições subscriptions shorts sponsorblock dearrow playlist músicas songs",
+        action: () => goto("/youtube"),
+      },
+      {
         id: "nav-washmybelly",
         label: get(t)("washmybelly.nav"),
         group: get(t)("command_palette.group_nav"),
@@ -496,6 +506,7 @@
 {#if !bareWindow}
 <Toast />
 {#if settings?.music?.enabled ?? true}<MusicHost />{/if}
+{#if settings?.tube?.enabled ?? true}<TubeHost />{/if}
 <McpAuthPrompt />
 <NativeAgentActivity />
 <CommandPalette />

@@ -705,6 +705,13 @@ pub fn run() {
             std::thread::spawn(omniget_core::core::meetings::recover_interrupted);
             core::channels::init_from_disk();
             core::channel_poller::start(app.handle().clone());
+            if let Some(dir) = crate::core::paths::app_data_dir() {
+                omniget_core::core::tube::innertube::set_clients_override(
+                    dir.join("tube").join("clients.json"),
+                );
+            }
+            commands::tube::account::spawn_session_refresh(app.handle().clone());
+            commands::tube::autodl::spawn_poller(app.handle().clone());
             core::queue::start_scheduler(app.handle().clone());
             commands::league::start_background(app.handle().clone());
             commands::telegram::install(app.handle());
@@ -1081,6 +1088,59 @@ pub fn run() {
             commands::telegram::telegram_net_mihomo_set,
             commands::telegram::telegram_net_mihomo_restart,
             commands::telegram::telegram_net_mihomo_remove_node,
+            commands::tube::account::tube_status,
+            commands::tube::account::tube_account,
+            commands::tube::account::tube_login,
+            commands::tube::account::tube_logout,
+            commands::tube::streams::tube_streams,
+            commands::tube::streams::tube_streams_fallback,
+            commands::tube::browse::tube_home,
+            commands::tube::browse::tube_search,
+            commands::tube::browse::tube_suggest,
+            commands::tube::browse::tube_continuation,
+            commands::tube::browse::tube_watch,
+            commands::tube::browse::tube_comments,
+            commands::tube::browse::tube_channel,
+            commands::tube::browse::tube_playlist,
+            commands::tube::browse::tube_subscriptions_feed,
+            commands::tube::browse::tube_library,
+            commands::tube::browse::tube_history,
+            commands::tube::browse::tube_shorts,
+            commands::tube::browse::tube_action,
+            commands::tube::browse::tube_save_playlists,
+            commands::tube::browse::tube_playlist_create,
+            commands::tube::music::tube_music_home,
+            commands::tube::music::tube_music_explore,
+            commands::tube::music::tube_music_browse,
+            commands::tube::music::tube_music_search,
+            commands::tube::music::tube_music_album,
+            commands::tube::music::tube_music_artist,
+            commands::tube::music::tube_music_playlist,
+            commands::tube::music::tube_music_next,
+            commands::tube::music::tube_music_lyrics,
+            commands::tube::music::tube_music_related,
+            commands::tube::music::tube_music_library,
+            commands::tube::local::tube_subs_list,
+            commands::tube::local::tube_subs_add,
+            commands::tube::local::tube_subs_remove,
+            commands::tube::local::tube_subs_update,
+            commands::tube::local::tube_local_history,
+            commands::tube::local::tube_local_history_clear,
+            commands::tube::local::tube_local_history_remove,
+            commands::tube::local::tube_progress,
+            commands::tube::local::tube_resume_for,
+            commands::tube::local::tube_import,
+            commands::tube::local::tube_export_subs,
+            commands::tube::extras::tube_sponsorblock,
+            commands::tube::extras::tube_dearrow,
+            commands::tube::extras::tube_ryd,
+            commands::tube::download::tube_download,
+            commands::tube::autodl::tube_rules_list,
+            commands::tube::autodl::tube_rules_save,
+            commands::tube::autodl::tube_rules_remove,
+            commands::tube::autodl::tube_rules_preview,
+            commands::tube::autodl::tube_storage_stats,
+            commands::tube::autodl::tube_auto_check_now,
             commands::music::music_status,
             commands::music::music_roots_add,
             commands::music::music_roots_remove,

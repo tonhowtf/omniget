@@ -50,6 +50,7 @@ pub mod trim_preview;
 pub mod tv_library;
 pub mod teams;
 pub mod telegram;
+pub mod tube;
 pub mod video;
 pub mod video_ops;
 pub mod washmybelly;

@@ -36,7 +36,7 @@ test = false
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-zip = { version = "4.6", default-features = false }
+zip = { version = "4.6", default-features = false, features = ["deflate"] }
 image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
 tauri = { version = "2", features = ["tray-icon", "macos-private-api"] }
 tauri-plugin-shell = "2"

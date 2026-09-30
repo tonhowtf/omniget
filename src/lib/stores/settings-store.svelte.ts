@@ -118,6 +118,7 @@ export type AppSettings = {
   video?: {
     enabled?: boolean;
   };
+  tube?: Partial<import("$lib/tube/types").TubeSettings>;
   washmybelly?: {
     enabled?: boolean;
     quarantine_days?: number;

@@ -17,7 +17,7 @@
     section?: string;
   } = $props();
 
-  type AdvancedDrill = "performance" | "torrent" | "expert" | "league" | "music" | "telegram" | "video" | "washmybelly" | "debug";
+  type AdvancedDrill = "performance" | "torrent" | "expert" | "league" | "music" | "telegram" | "video" | "tube" | "washmybelly" | "debug";
 
   let settings = $derived(getSettings());
 
@@ -29,6 +29,7 @@
     { id: "music", titleKey: "music.settings_title", hintKey: "music.settings_desc" },
     { id: "telegram", titleKey: "telegram.settings_title", hintKey: "telegram.settings_desc" },
     { id: "video", titleKey: "video.settings_title", hintKey: "video.settings_desc" },
+    { id: "tube", titleKey: "tube.settings_title", hintKey: "tube.settings_desc" },
     { id: "washmybelly", titleKey: "washmybelly.settings_title", hintKey: "washmybelly.settings_desc" },
     { id: "debug", titleKey: "settings.advanced.section_debug", hintKey: "settings.advanced.section_debug_desc" },
   ];
@@ -211,6 +212,16 @@
             <span class="setting-path">{$t('video.settings_enable_desc')}</span>
           </div>
           <button class="toggle" class:on={settings.video?.enabled ?? true} onclick={() => updateSettings({ video: { enabled: !(settings.video?.enabled ?? true) } })} role="switch" aria-checked={settings.video?.enabled ?? true} aria-label={$t('video.settings_enable') as string}><span class="toggle-knob"></span></button>
+        </div>
+      </div>
+    {:else if subView === "tube"}
+      <div class="card">
+        <div class="setting-row" data-setting-key="tube.settings_enable">
+          <div class="setting-col">
+            <span class="setting-label">{$t('tube.settings_enable')}</span>
+            <span class="setting-path">{$t('tube.settings_enable_desc')}</span>
+          </div>
+          <button class="toggle" class:on={settings.tube?.enabled ?? true} onclick={() => updateSettings({ tube: { ...(settings.tube ?? {}), enabled: !(settings.tube?.enabled ?? true) } })} role="switch" aria-checked={settings.tube?.enabled ?? true} aria-label={$t('tube.settings_enable') as string}><span class="toggle-knob"></span></button>
         </div>
       </div>
     {:else if subView === "washmybelly"}

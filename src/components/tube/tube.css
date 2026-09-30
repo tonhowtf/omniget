@@ -1,0 +1,355 @@
+/*
+ * OmniTube design tokens. Values from youtube.com / music.youtube.com
+ * production CSS (Sep 2026), see estudos/102-youtube/ui/00-spec-youtube-atual.md.
+ *
+ * `.omnitube` is the root of /youtube. Two looks:
+ *   data-look="classic"  YouTube's neutral palette (default), dark or light by data-scheme
+ *   data-look="app"      derived from the OmniGet theme tokens
+ * The Music face (`data-face="music"`) is always dark-leaning, like YT Music.
+ */
+
+.omnitube {
+  container-type: inline-size;
+  container-name: omnitube;
+
+  /* sizes */
+  --yt-masthead-h: 56px;
+  --yt-guide-w: 240px;
+  --yt-mini-guide-w: 72px;
+  --yt-chip-h: 32px;
+  --yt-search-h: 40px;
+  --yt-search-max-w: 640px;
+  --yt-btn-h-s: 32px;
+  --yt-btn-h-m: 36px;
+  --yt-btn-h-l: 48px;
+  --yt-radius-thumb-lg: 12px;
+  --yt-radius-thumb-md: 8px;
+  --yt-radius-thumb-sm: 4px;
+  --yt-radius-menu: 12px;
+  --yt-avatar-card: 36px;
+  --yt-avatar-owner: 40px;
+  --yt-grid-gap-x: 16px;
+  --yt-grid-gap-y: 32px;
+  --yt-grid-gutter: 24px;
+  --yt-card-min-w: 290px;
+  --yt-related-w: 402px;
+  --yt-related-thumb-w: 168px;
+  --ytm-nav-h: 64px;
+  --ytm-player-h: 72px;
+  --ytm-card-w: 180px;
+  --ytm-card-gap: 16px;
+  --ytm-card-radius: 8px;
+  --ytm-row-h: 56px;
+  --ytm-list-row-h: 48px;
+  --ytm-quickpick-col-w: 420px;
+  --ytm-header-art: 264px;
+
+  /* type (YouTube scale, app fonts) */
+  --yt-font: var(--font-body);
+  --yt-font-display: var(--font-display);
+  --yt-type-caption: 400 12px/18px var(--yt-font);
+  --yt-type-meta: 400 14px/20px var(--yt-font);
+  --yt-type-body-strong: 500 14px/20px var(--yt-font);
+  --yt-type-card-title: 500 16px/22px var(--yt-font);
+  --yt-type-watch-title: 700 20px/28px var(--yt-font-display);
+  --yt-type-headline-s: 700 20px/28px var(--yt-font-display);
+  --yt-type-headline-m: 700 24px/32px var(--yt-font-display);
+  --yt-type-display: 700 36px/44px var(--yt-font-display);
+  --yt-type-mini-guide: 400 10px/14px var(--yt-font);
+
+  /* motion */
+  --yt-ease-standard: cubic-bezier(.05, 0, 0, 1);
+  --yt-ease-exit: cubic-bezier(.4, 0, 1, 1);
+  --yt-ease-enter: cubic-bezier(0, 0, .2, 1);
+  --ytm-ease: cubic-bezier(.2, 0, .6, 1);
+  --yt-dur-fast: 100ms;
+  --yt-dur-base: 200ms;
+  --yt-dur-preview: 250ms;
+  --ytm-dur-page: 300ms;
+
+  /* overlay on video (same in every look) */
+  --yt-ov-text: #fff;
+  --yt-ov-text-2: rgba(255, 255, 255, .7);
+  --yt-ov-pill: rgba(0, 0, 0, .3);
+  --yt-ov-pill-hover: rgba(255, 255, 255, .1);
+  --yt-ov-pill-press: rgba(255, 255, 255, .2);
+  --yt-ov-popup: rgba(28, 28, 28, .82);
+  --yt-ov-badge: rgba(0, 0, 0, .6);
+  --yt-ov-track: rgba(255, 255, 255, .2);
+  --yt-ov-buffer: rgba(255, 255, 255, .4);
+  --yt-ov-heavy: rgba(0, 0, 0, .8);
+
+  /* semantic, same in every look */
+  --yt-live-red: #e1002d;
+  --yt-green: #2ba640;
+
+  /* SponsorBlock category colors (the extension's defaults) */
+  --sb-sponsor: #00d400;
+  --sb-selfpromo: #ffff00;
+  --sb-interaction: #cc00ff;
+  --sb-intro: #00ffff;
+  --sb-outro: #0202ed;
+  --sb-preview: #008fd6;
+  --sb-hook: #395699;
+  --sb-music_offtopic: #ff9900;
+  --sb-filler: #7300ff;
+  --sb-poi_highlight: #ff1684;
+  --sb-exclusive_access: #008a5c;
+
+  font: var(--yt-type-meta);
+  color: var(--yt-text);
+  background: var(--yt-bg);
+}
+
+/* ---------- classic look, dark ---------- */
+.omnitube[data-look="classic"],
+.omnitube[data-look="classic"][data-scheme="dark"] {
+  --yt-bg: #0f0f0f;
+  --yt-bg-raised: #212121;
+  --yt-bg-menu: #282828;
+  --yt-bg-inverted: #f1f1f1;
+  --yt-bg-inverted-hover: #d9d9d9;
+  --yt-on-inverted: #0f0f0f;
+  --yt-tonal: rgba(255, 255, 255, .1);
+  --yt-tonal-hover: rgba(255, 255, 255, .2);
+  --yt-hover: rgba(255, 255, 255, .05);
+  --yt-press: rgba(255, 255, 255, .1);
+  --yt-outline: rgba(255, 255, 255, .2);
+  --yt-divider: #3f3f3f;
+  --yt-text: #f1f1f1;
+  --yt-text-strong: #fff;
+  --yt-text-2: #aaa;
+  --yt-text-disabled: #717171;
+  --yt-link: #3ea6ff;
+  --yt-cta-tonal: #263850;
+  --yt-accent: #ff0033;
+  --yt-on-accent: #fff;
+  --yt-error: #ff5577;
+  --yt-frosted: rgba(15, 15, 15, .8);
+  --yt-scrim: rgba(0, 0, 0, .8);
+  --yt-shadow: rgba(0, 0, 0, .25);
+  --yt-skeleton: #292929;
+  --yt-bg-b: #181818;
+  --yt-search-bg: #121212;
+  --yt-search-border: #303030;
+  --yt-search-btn: #222;
+}
+
+/* ---------- classic look, light ---------- */
+.omnitube[data-look="classic"][data-scheme="light"] {
+  --yt-bg: #fff;
+  --yt-bg-raised: #fff;
+  --yt-bg-menu: #fff;
+  --yt-bg-inverted: #0f0f0f;
+  --yt-bg-inverted-hover: #272727;
+  --yt-on-inverted: #fff;
+  --yt-tonal: rgba(0, 0, 0, .05);
+  --yt-tonal-hover: rgba(0, 0, 0, .1);
+  --yt-hover: rgba(0, 0, 0, .05);
+  --yt-press: rgba(0, 0, 0, .1);
+  --yt-outline: rgba(0, 0, 0, .1);
+  --yt-divider: #e5e5e5;
+  --yt-text: #0f0f0f;
+  --yt-text-strong: #030303;
+  --yt-text-2: #606060;
+  --yt-text-disabled: #909090;
+  --yt-link: #065fd4;
+  --yt-cta-tonal: #def1ff;
+  --yt-accent: #ff0033;
+  --yt-on-accent: #fff;
+  --yt-error: #c30027;
+  --yt-frosted: rgba(255, 255, 255, .9);
+  --yt-scrim: rgba(255, 255, 255, .7);
+  --yt-shadow: rgba(0, 0, 0, .25);
+  --yt-skeleton: #e3e3e3;
+  --yt-bg-b: #f9f9f9;
+  --yt-search-bg: #fff;
+  --yt-search-border: #ccc;
+  --yt-search-btn: #f8f8f8;
+}
+
+/* ---------- app look: follow the OmniGet theme ---------- */
+.omnitube[data-look="app"] {
+  --yt-bg: var(--primary);
+  --yt-bg-raised: var(--surface, var(--surface-src));
+  --yt-bg-menu: var(--popup-bg);
+  --yt-bg-inverted: var(--secondary);
+  --yt-bg-inverted-hover: color-mix(in srgb, var(--secondary) 85%, var(--primary));
+  --yt-on-inverted: var(--primary);
+  --yt-tonal: color-mix(in srgb, var(--secondary) 10%, transparent);
+  --yt-tonal-hover: color-mix(in srgb, var(--secondary) 18%, transparent);
+  --yt-hover: color-mix(in srgb, var(--secondary) 5%, transparent);
+  --yt-press: color-mix(in srgb, var(--secondary) 10%, transparent);
+  --yt-outline: color-mix(in srgb, var(--secondary) 20%, transparent);
+  --yt-divider: var(--content-border);
+  --yt-text: var(--secondary);
+  --yt-text-strong: var(--secondary);
+  --yt-text-2: var(--tertiary);
+  --yt-text-disabled: color-mix(in srgb, var(--tertiary) 60%, transparent);
+  --yt-link: var(--blue);
+  --yt-cta-tonal: color-mix(in srgb, var(--blue) 18%, transparent);
+  --yt-accent: var(--accent);
+  --yt-on-accent: var(--on-accent, #000);
+  --yt-error: var(--error);
+  --yt-frosted: color-mix(in srgb, var(--primary) 85%, transparent);
+  --yt-scrim: color-mix(in srgb, var(--primary) 80%, transparent);
+  --yt-shadow: rgba(0, 0, 0, .25);
+  --yt-skeleton: color-mix(in srgb, var(--secondary) 9%, var(--primary));
+  --yt-bg-b: var(--pane, var(--primary));
+  --yt-search-bg: color-mix(in srgb, var(--primary) 70%, black);
+  --yt-search-border: var(--content-border);
+  --yt-search-btn: color-mix(in srgb, var(--secondary) 8%, var(--primary));
+}
+
+/* ---------- Music face ---------- */
+.omnitube[data-face="music"] {
+  --ytm-bg: #030303;
+  --ytm-bg-a: #181818;
+  --ytm-bg-raised: #212121;
+  --ytm-text: #fff;
+  --ytm-text-2: #aaa;
+  --ytm-text-3: #909090;
+  --ytm-divider: rgba(255, 255, 255, .15);
+  --ytm-chip: rgba(255, 255, 255, .1);
+  --ytm-chip-hover: rgba(255, 255, 255, .2);
+  --ytm-row-hover: rgba(255, 255, 255, .05);
+  --ytm-row-playing: rgba(255, 255, 255, .1);
+  --ytm-progress-track: rgba(255, 255, 255, .3);
+  --ytm-progress: var(--yt-accent);
+  --ytm-link: #3ea6ff;
+}
+
+.omnitube[data-face="music"][data-look="app"] {
+  --ytm-bg: color-mix(in srgb, var(--primary) 60%, black);
+  --ytm-bg-a: var(--primary);
+  --ytm-bg-raised: var(--popup-bg);
+  --ytm-text: var(--secondary);
+  --ytm-text-2: var(--tertiary);
+  --ytm-text-3: color-mix(in srgb, var(--tertiary) 80%, transparent);
+  --ytm-divider: var(--content-border);
+  --ytm-chip: color-mix(in srgb, var(--secondary) 10%, transparent);
+  --ytm-chip-hover: color-mix(in srgb, var(--secondary) 18%, transparent);
+  --ytm-row-hover: color-mix(in srgb, var(--secondary) 5%, transparent);
+  --ytm-row-playing: color-mix(in srgb, var(--secondary) 10%, transparent);
+  --ytm-progress-track: color-mix(in srgb, var(--secondary) 30%, transparent);
+  --ytm-link: var(--blue);
+}
+
+/* Headings take OmniTube's text color, not the app theme's (the Music face is
+   always dark, even when the app runs a light theme). */
+.omnitube :is(h1, h2, h3, h4, h5, h6) {
+  color: inherit;
+}
+.omnitube[data-face="music"] {
+  color: var(--ytm-text);
+}
+
+/* ---------- shared primitives (use these classes, don't restyle) ---------- */
+
+/* Pill button. Variants: .yt-btn--tonal (default), --inverted, --accent, --ghost, --outline. Sizes: --s, --l */
+.omnitube .yt-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: var(--yt-btn-h-m);
+  padding: 0 16px;
+  border: 0;
+  border-radius: 999px;
+  font: var(--yt-type-body-strong);
+  color: var(--yt-text);
+  background: var(--yt-tonal);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--yt-dur-base) var(--yt-ease-standard), transform var(--yt-dur-fast);
+}
+.omnitube .yt-btn:hover { background: var(--yt-tonal-hover); }
+.omnitube .yt-btn:active { transform: scale(.97); }
+.omnitube .yt-btn:focus-visible { outline: 2px solid var(--yt-link); outline-offset: 2px; }
+.omnitube .yt-btn:disabled { opacity: .5; cursor: default; }
+.omnitube .yt-btn--inverted { background: var(--yt-bg-inverted); color: var(--yt-on-inverted); }
+.omnitube .yt-btn--inverted:hover { background: var(--yt-bg-inverted-hover); }
+.omnitube .yt-btn--accent { background: var(--yt-accent); color: var(--yt-on-accent); }
+.omnitube .yt-btn--accent:hover { filter: brightness(1.08); background: var(--yt-accent); }
+.omnitube .yt-btn--ghost { background: transparent; }
+.omnitube .yt-btn--ghost:hover { background: var(--yt-hover); }
+.omnitube .yt-btn--outline { background: transparent; box-shadow: inset 0 0 0 1px var(--yt-outline); color: var(--yt-link); }
+.omnitube .yt-btn--outline:hover { background: var(--yt-cta-tonal); }
+.omnitube .yt-btn--s { height: var(--yt-btn-h-s); padding: 0 12px; font-size: 12px; }
+.omnitube .yt-btn--l { height: var(--yt-btn-h-l); padding: 0 24px; font-size: 16px; }
+.omnitube .yt-btn--icon { width: 40px; height: 40px; padding: 0; background: transparent; }
+.omnitube .yt-btn--icon:hover { background: var(--yt-hover); }
+
+/* Segmented pill (like | dislike) */
+.omnitube .yt-seg { display: inline-flex; border-radius: 999px; background: var(--yt-tonal); overflow: hidden; }
+.omnitube .yt-seg > .yt-btn { background: transparent; border-radius: 0; }
+.omnitube .yt-seg > .yt-btn:hover { background: var(--yt-tonal); }
+.omnitube .yt-seg > .yt-btn + .yt-btn { box-shadow: inset 1px 0 0 var(--yt-outline); }
+
+/* Chip */
+.omnitube .yt-chip {
+  display: inline-flex;
+  align-items: center;
+  height: var(--yt-chip-h);
+  padding: 0 12px;
+  border: 0;
+  border-radius: 8px;
+  font: var(--yt-type-body-strong);
+  color: var(--yt-text);
+  background: var(--yt-tonal);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--yt-dur-base) var(--yt-ease-standard);
+}
+.omnitube .yt-chip:hover { background: var(--yt-tonal-hover); }
+.omnitube .yt-chip[aria-pressed="true"],
+.omnitube .yt-chip.is-selected { background: var(--yt-bg-inverted); color: var(--yt-on-inverted); }
+
+/* Thumbnail frame with duration badge */
+.omnitube .yt-thumb { position: relative; overflow: hidden; border-radius: var(--yt-radius-thumb-lg); background: var(--yt-skeleton); aspect-ratio: 16 / 9; }
+.omnitube .yt-thumb > img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.omnitube .yt-duration {
+  position: absolute; right: 8px; bottom: 8px;
+  padding: 1px 4px; border-radius: 4px;
+  font: 500 12px/18px var(--yt-font); color: #fff; background: var(--yt-ov-badge);
+}
+.omnitube .yt-duration.is-live { background: var(--yt-live-red); }
+.omnitube .yt-resume { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: rgba(255, 255, 255, .4); }
+.omnitube .yt-resume > i { display: block; height: 100%; background: var(--yt-accent); }
+
+/* Two-line clamp */
+.omnitube .yt-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.omnitube .yt-clamp-1 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Avatar */
+.omnitube .yt-avatar { border-radius: 50%; object-fit: cover; background: var(--yt-skeleton); flex: none; }
+
+/* Skeleton shimmer */
+.omnitube .yt-skel { background: var(--yt-skeleton); border-radius: 8px; position: relative; overflow: hidden; }
+.omnitube .yt-skel::after {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--yt-text) 6%, transparent), transparent);
+  transform: translateX(-100%); animation: yt-shimmer 1.4s infinite;
+}
+@keyframes yt-shimmer { to { transform: translateX(100%); } }
+@media (prefers-reduced-motion: reduce) { .omnitube .yt-skel::after { animation: none; } }
+
+/* Popup menu */
+.omnitube .yt-menu {
+  min-width: 220px; padding: 8px 0; border-radius: var(--yt-radius-menu);
+  background: var(--yt-bg-menu); color: var(--yt-text);
+  box-shadow: 0 4px 32px rgba(0, 0, 0, .1), 0 16px 24px var(--yt-shadow);
+}
+.omnitube .yt-menu-item {
+  display: flex; align-items: center; gap: 16px; width: 100%;
+  height: 36px; padding: 0 16px; border: 0; background: transparent;
+  font: 400 14px/20px var(--yt-font); color: inherit; text-align: left; cursor: pointer;
+}
+.omnitube .yt-menu-item:hover, .omnitube .yt-menu-item:focus-visible { background: var(--yt-tonal); outline: none; }
+.omnitube .yt-menu-sep { height: 1px; margin: 8px 0; background: var(--yt-divider); }
+
+/* Section title */
+.omnitube .yt-shelf-title { font: var(--yt-type-headline-s); color: var(--yt-text); margin: 0; }
+
+/* Scrollbar */
+.omnitube .yt-scroll { overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--yt-tonal-hover) transparent; }
