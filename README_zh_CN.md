@@ -107,16 +107,17 @@ What are my OmniGet agents working on, and is any of them waiting for my approva
 
 ### 一分钟设置好
 
-1. 在 OmniGet 里打开 **LLM → MCP → 你的端点**，把服务器打开。
-2. 为你的客户端创建一个连接，勾选它能做什么：只读取队列，还是也能添加、暂停和取消下载，读取已完成的文件，或者给你的智能体派活。每个连接都有自己的令牌。
-3. 复制页面为你的客户端生成的配置片段。对 Claude Code 来说就是一条命令，地址用页面上显示的那个：
+打开 OmniGet，然后直接让你的工具去连。把这句话粘贴到 Claude Code、Codex、Gemini CLI、Cursor 或其他智能体里：
 
-```bash
-read -rs OMNIGET_MCP_TOKEN && export OMNIGET_MCP_TOKEN
-claude mcp add --transport http --scope project omniget <address from the page> --header 'Authorization: Bearer ${OMNIGET_MCP_TOKEN}'
+```text
+Connect to OmniGet: run curl -s "http://127.0.0.1:47720/connect" and follow the steps.
 ```
 
-令牌从不出现在命令行里，所以不会留在你的 shell 历史中。Cursor、VS Code、Codex 和 Goose 拿到的是一段配置；Claude Desktop 使用每个版本都附带的 `omniget-mcp` 适配器。
+OmniGet 会切到前台，显示工具名称和一个短码。确认工具里显示的是同一个码，选择是否允许它在发起请求的文件夹里运行你的 AI 智能体，然后点 **允许**。OmniGet 会把 `omniget` 服务器写进该工具自己的配置，令牌不会经过对话。重启工具后，OmniGet 的工具就可以用了。
+
+- Claude Code 插件的 `/omniget:connect` 做的是同一件事。
+- **LLM → MCP → 你的端点 → 在工具内连接** 会给找到的每个 AI 工具加上 `omniget-connect` 技能，之后说一句“连接到 OmniGet”就行。
+- 更想点按钮？同一页面列出本机已安装的 AI 工具，每个都有 **连接** 按钮。手动连接（每个客户端一个令牌、你勾选的权限，以及 Cursor、VS Code、Codex、Goose 和 Claude Desktop 的配置片段）仍然保留。
 
 ### 智能体能做什么
 

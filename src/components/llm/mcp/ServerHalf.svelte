@@ -7,6 +7,7 @@
    * same way.
    */
   import ServerConnections from "./ServerConnections.svelte";
+  import ConnectTools from "./ConnectTools.svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { onMount } from "svelte";
   import { t } from "$lib/i18n";
@@ -81,6 +82,8 @@
 </script>
 
 <section class="half">
+  <ConnectTools onchange={refresh} />
+
   <div class="group">
     <div class="group-row">
       <div class="group-row-content">

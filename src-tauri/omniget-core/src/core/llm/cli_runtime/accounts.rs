@@ -463,7 +463,12 @@ impl AccountStore {
                 format!("account {} already exists", account.id),
             ));
         }
-        if let Some(other) = all.iter().find(|a| a.config_dir == account.config_dir) {
+        // An empty dir is "that CLI's default profile" (its terminal login):
+        // one per CLI, so Claude's and Codex's terminal accounts coexist.
+        let default_profile = account.config_dir.as_os_str().is_empty();
+        if let Some(other) = all.iter().find(|a| {
+            a.config_dir == account.config_dir && (!default_profile || a.cli == account.cli)
+        }) {
             return Err(AccountError::new(
                 ERR_CLI_ACCOUNT,
                 format!("{} already uses that config dir", other.id),
@@ -636,6 +641,29 @@ mod tests {
                 .code,
             ERR_CLI_NOT_FOUND
         );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn each_cli_gets_its_own_terminal_login_account() {
+        let root = tmp("terminal");
+        let store = AccountStore::at(&root.join("accounts.json"));
+        let terminal = |id: &str, cli: CliKind| CliAccount {
+            id: id.into(),
+            cli,
+            config_dir: PathBuf::new(),
+            label: "Terminal login".into(),
+            disabled: false,
+            sandbox: SandboxMode::Write,
+        };
+        store
+            .create(terminal("claude-terminal", CliKind::Claude))
+            .unwrap();
+        store
+            .create(terminal("codex-terminal", CliKind::Codex))
+            .unwrap();
+        // Two accounts on the same CLI's default profile are still one too many.
+        assert!(store.create(terminal("claude-2", CliKind::Claude)).is_err());
         let _ = std::fs::remove_dir_all(&root);
     }
 

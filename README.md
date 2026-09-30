@@ -107,16 +107,17 @@ What are my OmniGet agents working on, and is any of them waiting for my approva
 
 ### Set it up in a minute
 
-1. In OmniGet, open **LLM → MCP → Your endpoint** and turn the server on.
-2. Create a connection for your client and tick what it may do: only read the queue, or also add, pause and cancel downloads, read finished files, or start work for your agents. Each connection gets its own token.
-3. Copy the snippet the page prints for your client. For Claude Code it is one command, with the address the page shows:
+With OmniGet open, ask your tool. Paste this into Claude Code, Codex, Gemini CLI, Cursor or another agent:
 
-```bash
-read -rs OMNIGET_MCP_TOKEN && export OMNIGET_MCP_TOKEN
-claude mcp add --transport http --scope project omniget <address from the page> --header 'Authorization: Bearer ${OMNIGET_MCP_TOKEN}'
+```text
+Connect to OmniGet: run curl -s "http://127.0.0.1:47720/connect" and follow the steps.
 ```
 
-The token never goes on the command line, so it stays out of your shell history. Cursor, VS Code, Codex and Goose get a config block; Claude Desktop uses the `omniget-mcp` adapter that ships with each release.
+OmniGet comes to the front with the tool's name and a short code. Check that the tool shows the same code, choose whether it may run your AI agents in the folder it asked from, and click **Allow**. OmniGet writes the `omniget` server into that tool's own config, so the token never passes through the chat. Restart the tool and OmniGet's tools are there.
+
+- The Claude Code plugin does the same with `/omniget:connect`.
+- **LLM → MCP → Your endpoint → Connect from inside the tool** adds an `omniget-connect` skill to every AI tool it finds, so "connect to OmniGet" is enough.
+- Prefer clicking? The same page lists the AI tools installed on this computer, each with a **Connect** button. Manual connections, with a token per client, the permissions you tick and config snippets for Cursor, VS Code, Codex, Goose and Claude Desktop, are still there.
 
 ### What an agent can do
 

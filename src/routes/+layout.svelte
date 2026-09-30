@@ -169,6 +169,7 @@
   let ChangelogDialog = $state<any>(null);
   let ConfirmCloseDialog = $state<any>(null);
   let WmbApprovalPrompt = $state<any>(null);
+  let ConnectPrompt = $state<any>(null);
   let ShortcutsDialog = $state<any>(null);
   let LegalDialog = $state<any>(null);
   let RecoveryDialog = $state<any>(null);
@@ -222,6 +223,9 @@
     });
     import("$components/washmybelly/ApprovalPrompt.svelte").then((m) => {
       WmbApprovalPrompt = m.default;
+    });
+    import("$components/llm/mcp/ConnectPrompt.svelte").then((m) => {
+      ConnectPrompt = m.default;
     });
     import("$components/dialog/ConfirmCloseDialog.svelte").then((m) => {
       ConfirmCloseDialog = m.default;
@@ -498,6 +502,9 @@
 
 {#if WmbApprovalPrompt && (getSettings()?.washmybelly?.enabled ?? true)}
   <WmbApprovalPrompt />
+{/if}
+{#if ConnectPrompt}
+  <ConnectPrompt />
 {/if}
 {#if ConfirmCloseDialog}
   <ConfirmCloseDialog />
