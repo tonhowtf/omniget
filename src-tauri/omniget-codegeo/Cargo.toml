@@ -1,0 +1,20 @@
+[package]
+name = "omniget-codegeo"
+version = "0.1.0"
+edition = "2021"
+publish = false
+license = "GPL-3.0"
+description = "Geometry by code for the OmniGet 3D city: a sandboxed Rhai kit over Manifold CSG, canonical GLB output and the code-generated modular kit"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "1"
+omniget-citygen = { path = "../omniget-citygen" }
+# Pure Rust port of Manifold (Apache-2.0): no CMake, no C++ toolchain.
+manifold-rust = "=0.13.1"
+rhai = { version = "1.26", features = ["no_time"] }
+sha2 = "0.10"
+png = "0.17"
+# meshoptimizer 1.3 bindings, for the far (`#lod1`) variants of the kit.
+omniget-asset3d = { path = "../omniget-asset3d" }

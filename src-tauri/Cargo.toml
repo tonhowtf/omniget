@@ -1,5 +1,5 @@
 [workspace]
-members = [".", "omniget-core", "omniget-cli", "omniget-world-tools", "omniget-world", "omniworld-server"]
+members = [".", "omniget-core", "omniget-cli", "omniget-world-tools", "omniget-world", "omniworld-server", "omniget-citygen", "omniget-avatar", "omniget-codegeo", "omniget-asset3d"]
 resolver = "2"
 
 [package]
@@ -81,6 +81,10 @@ qrcode = { version = "0.14", default-features = false, features = ["svg"] }
 portable-pty = "0.9"
 omniget-core = { path = "omniget-core" }
 omniget-world = { path = "omniget-world" }
+omniget-citygen = { path = "omniget-citygen" }
+omniget-avatar = { path = "omniget-avatar" }
+omniget-codegeo = { path = "omniget-codegeo" }
+omniget-asset3d = { path = "omniget-asset3d" }
 which = "7"
 # /music: walking the library folders
 walkdir = "2"
@@ -117,6 +121,11 @@ webkit2gtk = { version = "=2.0.2", features = ["v2_38"] }
 # Secret Service over zbus (pure Rust, no libdbus at build time). Plan §9.4.
 # Falls back to the encrypted file store on PlatformFailure/NoStorageAccess.
 keyring = { version = "3", features = ["async-secret-service", "crypto-rust", "tokio"] }
+# City 3D live expression, native camera path (commands/city3d/live.rs): V4L2
+# capture without mozjpeg (MJPEG frames are decoded by `image`), and the same
+# `ort` as omniget-core so the pose model runs on the managed ONNX Runtime.
+nokhwa = { version = "0.10.11", default-features = false, features = ["input-v4l"] }
+ort = { version = "2.0.0-rc.13", default-features = false, features = ["std", "ndarray", "tracing", "load-dynamic", "api-27"] }
 
 [target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]
 tauri-plugin-process = "2.3.1"

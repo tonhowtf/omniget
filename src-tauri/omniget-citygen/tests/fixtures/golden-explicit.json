@@ -1,0 +1,2300 @@
+{
+ "schema": "omni.city.program/v1",
+ "city_id": "cidade-piloto",
+ "region": [
+  0,
+  0
+ ],
+ "catalog": "kit-vila-v1",
+ "zones": [
+  {
+   "id": "vila",
+   "kind": "residencial",
+   "rect": [
+    0,
+    0,
+    64,
+    64
+   ],
+   "style": "vila-colonial",
+   "floors": [
+    1,
+    2
+   ],
+   "density": 0
+  }
+ ],
+ "streets": [
+  {
+   "id": "t0",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     0,
+     0
+    ],
+    [
+     63,
+     0
+    ]
+   ]
+  },
+  {
+   "id": "t1",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     0,
+     1
+    ],
+    [
+     63,
+     1
+    ]
+   ]
+  },
+  {
+   "id": "t2",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ]
+  },
+  {
+   "id": "t3",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     31,
+     2
+    ],
+    [
+     32,
+     2
+    ]
+   ]
+  },
+  {
+   "id": "t4",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     0,
+     3
+    ],
+    [
+     1,
+     3
+    ]
+   ]
+  },
+  {
+   "id": "t5",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     31,
+     3
+    ],
+    [
+     32,
+     3
+    ]
+   ]
+  },
+  {
+   "id": "t6",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     0,
+     4
+    ],
+    [
+     1,
+     4
+    ]
+   ]
+  },
+  {
+   "id": "t7",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     31,
+     4
+    ],
+    [
+     32,
+     4
+    ]
+   ]
+  },
+  {
+   "id": "t8",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     0,
+     5
+    ],
+    [
+     1,
+     5
+    ]
+   ]
+  },
+  {
+   "id": "t9",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     31,
+     5
+    ],
+    [
+     32,
+     5
+    ]
+   ]
+  },
+  {
+   "id": "t10",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     0,
+     6
+    ],
+    [
+     1,
+     6
+    ]
+   ]
+  },
+  {
+   "id": "t11",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     31,
+     6
+    ],
+    [
+     32,
+     6
+    ]
+   ]
+  },
+  {
+   "id": "t12",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     0,
+     7
+    ],
+    [
+     1,
+     7
+    ]
+   ]
+  },
+  {
+   "id": "t13",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     31,
+     7
+    ],
+    [
+     32,
+     7
+    ]
+   ]
+  },
+  {
+   "id": "t14",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     0,
+     8
+    ],
+    [
+     1,
+     8
+    ]
+   ]
+  },
+  {
+   "id": "t15",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     31,
+     8
+    ],
+    [
+     32,
+     8
+    ]
+   ]
+  },
+  {
+   "id": "t16",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     0,
+     9
+    ],
+    [
+     1,
+     9
+    ]
+   ]
+  },
+  {
+   "id": "t17",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     31,
+     9
+    ],
+    [
+     32,
+     9
+    ]
+   ]
+  },
+  {
+   "id": "t18",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     0,
+     10
+    ],
+    [
+     1,
+     10
+    ]
+   ]
+  },
+  {
+   "id": "t19",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     31,
+     10
+    ],
+    [
+     32,
+     10
+    ]
+   ]
+  },
+  {
+   "id": "t20",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     0,
+     11
+    ],
+    [
+     1,
+     11
+    ]
+   ]
+  },
+  {
+   "id": "t21",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     31,
+     11
+    ],
+    [
+     32,
+     11
+    ]
+   ]
+  },
+  {
+   "id": "t22",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     0,
+     12
+    ],
+    [
+     1,
+     12
+    ]
+   ]
+  },
+  {
+   "id": "t23",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     31,
+     12
+    ],
+    [
+     32,
+     12
+    ]
+   ]
+  },
+  {
+   "id": "t24",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     0,
+     13
+    ],
+    [
+     1,
+     13
+    ]
+   ]
+  },
+  {
+   "id": "t25",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     31,
+     13
+    ],
+    [
+     32,
+     13
+    ]
+   ]
+  },
+  {
+   "id": "t26",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     0,
+     14
+    ],
+    [
+     1,
+     14
+    ]
+   ]
+  },
+  {
+   "id": "t27",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     31,
+     14
+    ],
+    [
+     32,
+     14
+    ]
+   ]
+  },
+  {
+   "id": "t28",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     0,
+     15
+    ],
+    [
+     1,
+     15
+    ]
+   ]
+  },
+  {
+   "id": "t29",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     31,
+     15
+    ],
+    [
+     32,
+     15
+    ]
+   ]
+  },
+  {
+   "id": "t30",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     0,
+     16
+    ],
+    [
+     1,
+     16
+    ]
+   ]
+  },
+  {
+   "id": "t31",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     31,
+     16
+    ],
+    [
+     32,
+     16
+    ]
+   ]
+  },
+  {
+   "id": "t32",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     0,
+     17
+    ],
+    [
+     1,
+     17
+    ]
+   ]
+  },
+  {
+   "id": "t33",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     31,
+     17
+    ],
+    [
+     32,
+     17
+    ]
+   ]
+  },
+  {
+   "id": "t34",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     0,
+     18
+    ],
+    [
+     1,
+     18
+    ]
+   ]
+  },
+  {
+   "id": "t35",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     31,
+     18
+    ],
+    [
+     32,
+     18
+    ]
+   ]
+  },
+  {
+   "id": "t36",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     0,
+     19
+    ],
+    [
+     1,
+     19
+    ]
+   ]
+  },
+  {
+   "id": "t37",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     31,
+     19
+    ],
+    [
+     32,
+     19
+    ]
+   ]
+  },
+  {
+   "id": "t38",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     0,
+     20
+    ],
+    [
+     1,
+     20
+    ]
+   ]
+  },
+  {
+   "id": "t39",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     31,
+     20
+    ],
+    [
+     32,
+     20
+    ]
+   ]
+  },
+  {
+   "id": "t40",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     0,
+     21
+    ],
+    [
+     1,
+     21
+    ]
+   ]
+  },
+  {
+   "id": "t41",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     31,
+     21
+    ],
+    [
+     32,
+     21
+    ]
+   ]
+  },
+  {
+   "id": "t42",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     0,
+     22
+    ],
+    [
+     1,
+     22
+    ]
+   ]
+  },
+  {
+   "id": "t43",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     31,
+     22
+    ],
+    [
+     32,
+     22
+    ]
+   ]
+  },
+  {
+   "id": "t44",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     0,
+     23
+    ],
+    [
+     1,
+     23
+    ]
+   ]
+  },
+  {
+   "id": "t45",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     31,
+     23
+    ],
+    [
+     32,
+     23
+    ]
+   ]
+  },
+  {
+   "id": "t46",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     0,
+     24
+    ],
+    [
+     1,
+     24
+    ]
+   ]
+  },
+  {
+   "id": "t47",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     31,
+     24
+    ],
+    [
+     32,
+     24
+    ]
+   ]
+  },
+  {
+   "id": "t48",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     0,
+     25
+    ],
+    [
+     1,
+     25
+    ]
+   ]
+  },
+  {
+   "id": "t49",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     31,
+     25
+    ],
+    [
+     32,
+     25
+    ]
+   ]
+  },
+  {
+   "id": "t50",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     0,
+     26
+    ],
+    [
+     1,
+     26
+    ]
+   ]
+  },
+  {
+   "id": "t51",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     31,
+     26
+    ],
+    [
+     32,
+     26
+    ]
+   ]
+  },
+  {
+   "id": "t52",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     0,
+     27
+    ],
+    [
+     1,
+     27
+    ]
+   ]
+  },
+  {
+   "id": "t53",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     31,
+     27
+    ],
+    [
+     32,
+     27
+    ]
+   ]
+  },
+  {
+   "id": "t54",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     0,
+     28
+    ],
+    [
+     1,
+     28
+    ]
+   ]
+  },
+  {
+   "id": "t55",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     31,
+     28
+    ],
+    [
+     32,
+     28
+    ]
+   ]
+  },
+  {
+   "id": "t56",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     0,
+     29
+    ],
+    [
+     1,
+     29
+    ]
+   ]
+  },
+  {
+   "id": "t57",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     31,
+     29
+    ],
+    [
+     32,
+     29
+    ]
+   ]
+  },
+  {
+   "id": "t58",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     0,
+     30
+    ],
+    [
+     1,
+     30
+    ]
+   ]
+  },
+  {
+   "id": "t59",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     31,
+     30
+    ],
+    [
+     32,
+     30
+    ]
+   ]
+  },
+  {
+   "id": "t60",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     0,
+     31
+    ],
+    [
+     63,
+     31
+    ]
+   ]
+  },
+  {
+   "id": "t61",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     0,
+     32
+    ],
+    [
+     63,
+     32
+    ]
+   ]
+  },
+  {
+   "id": "t62",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     0,
+     33
+    ],
+    [
+     1,
+     33
+    ]
+   ]
+  },
+  {
+   "id": "t63",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     31,
+     33
+    ],
+    [
+     32,
+     33
+    ]
+   ]
+  },
+  {
+   "id": "t64",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     0,
+     34
+    ],
+    [
+     1,
+     34
+    ]
+   ]
+  },
+  {
+   "id": "t65",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     31,
+     34
+    ],
+    [
+     32,
+     34
+    ]
+   ]
+  },
+  {
+   "id": "t66",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     0,
+     35
+    ],
+    [
+     1,
+     35
+    ]
+   ]
+  },
+  {
+   "id": "t67",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     31,
+     35
+    ],
+    [
+     32,
+     35
+    ]
+   ]
+  },
+  {
+   "id": "t68",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     0,
+     36
+    ],
+    [
+     1,
+     36
+    ]
+   ]
+  },
+  {
+   "id": "t69",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     31,
+     36
+    ],
+    [
+     32,
+     36
+    ]
+   ]
+  },
+  {
+   "id": "t70",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     0,
+     37
+    ],
+    [
+     1,
+     37
+    ]
+   ]
+  },
+  {
+   "id": "t71",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     31,
+     37
+    ],
+    [
+     32,
+     37
+    ]
+   ]
+  },
+  {
+   "id": "t72",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     0,
+     38
+    ],
+    [
+     1,
+     38
+    ]
+   ]
+  },
+  {
+   "id": "t73",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     31,
+     38
+    ],
+    [
+     32,
+     38
+    ]
+   ]
+  },
+  {
+   "id": "t74",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     0,
+     39
+    ],
+    [
+     1,
+     39
+    ]
+   ]
+  },
+  {
+   "id": "t75",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     31,
+     39
+    ],
+    [
+     32,
+     39
+    ]
+   ]
+  },
+  {
+   "id": "t76",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     0,
+     40
+    ],
+    [
+     1,
+     40
+    ]
+   ]
+  },
+  {
+   "id": "t77",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     31,
+     40
+    ],
+    [
+     32,
+     40
+    ]
+   ]
+  },
+  {
+   "id": "t78",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     0,
+     41
+    ],
+    [
+     1,
+     41
+    ]
+   ]
+  },
+  {
+   "id": "t79",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     31,
+     41
+    ],
+    [
+     32,
+     41
+    ]
+   ]
+  },
+  {
+   "id": "t80",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     0,
+     42
+    ],
+    [
+     1,
+     42
+    ]
+   ]
+  },
+  {
+   "id": "t81",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     31,
+     42
+    ],
+    [
+     32,
+     42
+    ]
+   ]
+  },
+  {
+   "id": "t82",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     0,
+     43
+    ],
+    [
+     1,
+     43
+    ]
+   ]
+  },
+  {
+   "id": "t83",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     31,
+     43
+    ],
+    [
+     32,
+     43
+    ]
+   ]
+  },
+  {
+   "id": "t84",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     0,
+     44
+    ],
+    [
+     1,
+     44
+    ]
+   ]
+  },
+  {
+   "id": "t85",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     31,
+     44
+    ],
+    [
+     32,
+     44
+    ]
+   ]
+  },
+  {
+   "id": "t86",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     0,
+     45
+    ],
+    [
+     1,
+     45
+    ]
+   ]
+  },
+  {
+   "id": "t87",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     31,
+     45
+    ],
+    [
+     32,
+     45
+    ]
+   ]
+  },
+  {
+   "id": "t88",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     0,
+     46
+    ],
+    [
+     1,
+     46
+    ]
+   ]
+  },
+  {
+   "id": "t89",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     31,
+     46
+    ],
+    [
+     32,
+     46
+    ]
+   ]
+  },
+  {
+   "id": "t90",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     0,
+     47
+    ],
+    [
+     1,
+     47
+    ]
+   ]
+  },
+  {
+   "id": "t91",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     31,
+     47
+    ],
+    [
+     32,
+     47
+    ]
+   ]
+  },
+  {
+   "id": "t92",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     0,
+     48
+    ],
+    [
+     1,
+     48
+    ]
+   ]
+  },
+  {
+   "id": "t93",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     31,
+     48
+    ],
+    [
+     32,
+     48
+    ]
+   ]
+  },
+  {
+   "id": "t94",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     0,
+     49
+    ],
+    [
+     1,
+     49
+    ]
+   ]
+  },
+  {
+   "id": "t95",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     31,
+     49
+    ],
+    [
+     32,
+     49
+    ]
+   ]
+  },
+  {
+   "id": "t96",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     0,
+     50
+    ],
+    [
+     1,
+     50
+    ]
+   ]
+  },
+  {
+   "id": "t97",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     31,
+     50
+    ],
+    [
+     32,
+     50
+    ]
+   ]
+  },
+  {
+   "id": "t98",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     0,
+     51
+    ],
+    [
+     1,
+     51
+    ]
+   ]
+  },
+  {
+   "id": "t99",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     31,
+     51
+    ],
+    [
+     32,
+     51
+    ]
+   ]
+  },
+  {
+   "id": "t100",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     0,
+     52
+    ],
+    [
+     1,
+     52
+    ]
+   ]
+  },
+  {
+   "id": "t101",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     31,
+     52
+    ],
+    [
+     32,
+     52
+    ]
+   ]
+  },
+  {
+   "id": "t102",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     0,
+     53
+    ],
+    [
+     1,
+     53
+    ]
+   ]
+  },
+  {
+   "id": "t103",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     31,
+     53
+    ],
+    [
+     32,
+     53
+    ]
+   ]
+  },
+  {
+   "id": "t104",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     0,
+     54
+    ],
+    [
+     1,
+     54
+    ]
+   ]
+  },
+  {
+   "id": "t105",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     31,
+     54
+    ],
+    [
+     32,
+     54
+    ]
+   ]
+  },
+  {
+   "id": "t106",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     0,
+     55
+    ],
+    [
+     1,
+     55
+    ]
+   ]
+  },
+  {
+   "id": "t107",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     31,
+     55
+    ],
+    [
+     32,
+     55
+    ]
+   ]
+  },
+  {
+   "id": "t108",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     0,
+     56
+    ],
+    [
+     1,
+     56
+    ]
+   ]
+  },
+  {
+   "id": "t109",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     31,
+     56
+    ],
+    [
+     32,
+     56
+    ]
+   ]
+  },
+  {
+   "id": "t110",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     0,
+     57
+    ],
+    [
+     1,
+     57
+    ]
+   ]
+  },
+  {
+   "id": "t111",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     31,
+     57
+    ],
+    [
+     32,
+     57
+    ]
+   ]
+  },
+  {
+   "id": "t112",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     0,
+     58
+    ],
+    [
+     1,
+     58
+    ]
+   ]
+  },
+  {
+   "id": "t113",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     31,
+     58
+    ],
+    [
+     32,
+     58
+    ]
+   ]
+  },
+  {
+   "id": "t114",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     0,
+     59
+    ],
+    [
+     1,
+     59
+    ]
+   ]
+  },
+  {
+   "id": "t115",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     31,
+     59
+    ],
+    [
+     32,
+     59
+    ]
+   ]
+  },
+  {
+   "id": "t116",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     0,
+     60
+    ],
+    [
+     1,
+     60
+    ]
+   ]
+  },
+  {
+   "id": "t117",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     31,
+     60
+    ],
+    [
+     32,
+     60
+    ]
+   ]
+  },
+  {
+   "id": "t118",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     0,
+     61
+    ],
+    [
+     1,
+     61
+    ]
+   ]
+  },
+  {
+   "id": "t119",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     31,
+     61
+    ],
+    [
+     32,
+     61
+    ]
+   ]
+  },
+  {
+   "id": "t120",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     0,
+     62
+    ],
+    [
+     1,
+     62
+    ]
+   ]
+  },
+  {
+   "id": "t121",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     31,
+     62
+    ],
+    [
+     32,
+     62
+    ]
+   ]
+  },
+  {
+   "id": "t122",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     0,
+     63
+    ],
+    [
+     63,
+     63
+    ]
+   ]
+  },
+  {
+   "id": "t123",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     9,
+     16
+    ],
+    [
+     9,
+     30
+    ]
+   ]
+  },
+  {
+   "id": "t124",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     9,
+     48
+    ],
+    [
+     9,
+     62
+    ]
+   ]
+  },
+  {
+   "id": "t125",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     17,
+     27
+    ],
+    [
+     17,
+     30
+    ]
+   ]
+  },
+  {
+   "id": "t126",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     25,
+     16
+    ],
+    [
+     25,
+     30
+    ]
+   ]
+  },
+  {
+   "id": "t127",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     25,
+     48
+    ],
+    [
+     25,
+     62
+    ]
+   ]
+  },
+  {
+   "id": "t128",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     41,
+     16
+    ],
+    [
+     41,
+     30
+    ]
+   ]
+  },
+  {
+   "id": "t129",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     41,
+     48
+    ],
+    [
+     41,
+     62
+    ]
+   ]
+  },
+  {
+   "id": "t130",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     57,
+     16
+    ],
+    [
+     57,
+     30
+    ]
+   ]
+  },
+  {
+   "id": "t131",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     57,
+     48
+    ],
+    [
+     57,
+     62
+    ]
+   ]
+  },
+  {
+   "id": "t132",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     63,
+     2
+    ],
+    [
+     63,
+     30
+    ]
+   ]
+  },
+  {
+   "id": "t133",
+   "class": "trilha",
+   "width": 1,
+   "path": [
+    [
+     63,
+     33
+    ],
+    [
+     63,
+     62
+    ]
+   ]
+  }
+ ],
+ "water": [
+  {
+   "id": "rio",
+   "rect": [
+    0,
+    2,
+    64,
+    3
+   ],
+   "bridges": [
+    "t2",
+    "t3",
+    "t4",
+    "t5",
+    "t6",
+    "t7",
+    "t132"
+   ]
+  }
+ ],
+ "landmarks": [
+  {
+   "id": "central-plaza",
+   "kind": "praca",
+   "rect": [
+    14,
+    20,
+    7,
+    7
+   ]
+  }
+ ],
+ "lots": {
+  "auto": false,
+  "min_front": 4,
+  "min_depth": 5,
+  "max_area": 60,
+  "min_buildable": 5,
+  "explicit": [
+   {
+    "id": "plot:0:0:0",
+    "rect": [
+     5,
+     8,
+     8,
+     8
+    ],
+    "front": "s",
+    "zone": "vila",
+    "owner_ref": "home:000000",
+    "door": [
+     9,
+     16
+    ]
+   },
+   {
+    "id": "plot:0:0:1",
+    "rect": [
+     21,
+     8,
+     8,
+     8
+    ],
+    "front": "s",
+    "zone": "vila",
+    "owner_ref": "home:000001",
+    "door": [
+     25,
+     16
+    ]
+   },
+   {
+    "id": "plot:0:0:2",
+    "rect": [
+     37,
+     8,
+     8,
+     8
+    ],
+    "front": "s",
+    "zone": "vila",
+    "owner_ref": "home:000002",
+    "door": [
+     41,
+     16
+    ]
+   },
+   {
+    "id": "plot:0:0:3",
+    "rect": [
+     53,
+     8,
+     8,
+     8
+    ],
+    "front": "s",
+    "zone": "vila",
+    "owner_ref": "home:000003",
+    "door": [
+     57,
+     16
+    ]
+   },
+   {
+    "id": "plot:0:0:4",
+    "rect": [
+     5,
+     40,
+     8,
+     8
+    ],
+    "front": "s",
+    "zone": "vila",
+    "owner_ref": "home:000004",
+    "door": [
+     9,
+     48
+    ]
+   },
+   {
+    "id": "plot:0:0:5",
+    "rect": [
+     21,
+     40,
+     8,
+     8
+    ],
+    "front": "s",
+    "zone": "vila",
+    "owner_ref": "home:000005",
+    "door": [
+     25,
+     48
+    ]
+   },
+   {
+    "id": "plot:0:0:6",
+    "rect": [
+     37,
+     40,
+     8,
+     8
+    ],
+    "front": "s",
+    "zone": "vila",
+    "owner_ref": "home:000006",
+    "door": [
+     41,
+     48
+    ]
+   },
+   {
+    "id": "plot:0:0:7",
+    "rect": [
+     53,
+     40,
+     8,
+     8
+    ],
+    "front": "s",
+    "zone": "vila",
+    "owner_ref": "home:000007",
+    "door": [
+     57,
+     48
+    ]
+   }
+  ]
+ },
+ "buildings": [
+  {
+   "id": "home:000000",
+   "lot": "plot:0:0:0",
+   "owner_ref": "home:000000",
+   "intent": {
+    "use": "casa",
+    "floors": 1,
+    "shape": "rect",
+    "roof": "duas-aguas"
+   }
+  },
+  {
+   "id": "home:000001",
+   "lot": "plot:0:0:1",
+   "owner_ref": "home:000001",
+   "intent": {
+    "use": "casa",
+    "floors": 1,
+    "shape": "rect",
+    "roof": "duas-aguas"
+   }
+  },
+  {
+   "id": "home:000002",
+   "lot": "plot:0:0:2",
+   "owner_ref": "home:000002",
+   "intent": {
+    "use": "casa",
+    "floors": 1,
+    "shape": "rect",
+    "roof": "duas-aguas"
+   }
+  },
+  {
+   "id": "home:000003",
+   "lot": "plot:0:0:3",
+   "owner_ref": "home:000003",
+   "intent": {
+    "use": "casa",
+    "floors": 1,
+    "shape": "rect",
+    "roof": "duas-aguas"
+   }
+  },
+  {
+   "id": "home:000004",
+   "lot": "plot:0:0:4",
+   "owner_ref": "home:000004",
+   "intent": {
+    "use": "casa",
+    "floors": 1,
+    "shape": "rect",
+    "roof": "duas-aguas"
+   }
+  },
+  {
+   "id": "home:000005",
+   "lot": "plot:0:0:5",
+   "owner_ref": "home:000005",
+   "intent": {
+    "use": "casa",
+    "floors": 1,
+    "shape": "rect",
+    "roof": "duas-aguas"
+   }
+  },
+  {
+   "id": "home:000006",
+   "lot": "plot:0:0:6",
+   "owner_ref": "home:000006",
+   "intent": {
+    "use": "casa",
+    "floors": 1,
+    "shape": "rect",
+    "roof": "duas-aguas"
+   }
+  },
+  {
+   "id": "home:000007",
+   "lot": "plot:0:0:7",
+   "owner_ref": "home:000007",
+   "intent": {
+    "use": "casa",
+    "floors": 1,
+    "shape": "rect",
+    "roof": "duas-aguas"
+   }
+  }
+ ],
+ "fill": [],
+ "props": []
+}

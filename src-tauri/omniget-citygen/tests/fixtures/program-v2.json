@@ -1,0 +1,214 @@
+{
+ "schema": "omni.city.program/v1",
+ "city_id": "omni",
+ "region": [
+  0,
+  0
+ ],
+ "catalog": "kit-vila-v1",
+ "zones": [
+  {
+   "id": "centro",
+   "kind": "civico",
+   "rect": [
+    0,
+    0,
+    64,
+    32
+   ],
+   "style": "vila-colonial",
+   "floors": [
+    1,
+    3
+   ],
+   "density": 800,
+   "setback": {
+    "front": 0,
+    "side": 0,
+    "back": 1
+   }
+  },
+  {
+   "id": "beira-rio",
+   "kind": "residencial",
+   "rect": [
+    0,
+    32,
+    64,
+    32
+   ],
+   "style": "vila-praiana",
+   "floors": [
+    1,
+    2
+   ],
+   "density": 600,
+   "setback": {
+    "front": 1,
+    "side": 1,
+    "back": 1
+   }
+  }
+ ],
+ "streets": [
+  {
+   "id": "av-central",
+   "class": "avenida",
+   "width": 3,
+   "path": [
+    [
+     0,
+     30
+    ],
+    [
+     63,
+     30
+    ]
+   ]
+  },
+  {
+   "id": "rua-do-porto",
+   "class": "rua",
+   "width": 2,
+   "path": [
+    [
+     20,
+     0
+    ],
+    [
+     20,
+     63
+    ]
+   ]
+  },
+  {
+   "id": "rua-das-flores",
+   "class": "rua",
+   "width": 2,
+   "path": [
+    [
+     44,
+     0
+    ],
+    [
+     44,
+     63
+    ]
+   ]
+  },
+  {
+   "id": "beco-norte",
+   "class": "beco",
+   "width": 1,
+   "path": [
+    [
+     0,
+     12
+    ],
+    [
+     20,
+     12
+    ]
+   ]
+  }
+ ],
+ "water": [
+  {
+   "id": "rio",
+   "rect": [
+    0,
+    56,
+    64,
+    4
+   ],
+   "bridges": [
+    "rua-do-porto",
+    "rua-das-flores"
+   ]
+  }
+ ],
+ "landmarks": [
+  {
+   "id": "praca-matriz",
+   "kind": "praca",
+   "rect": [
+    24,
+    18,
+    14,
+    11
+   ]
+  }
+ ],
+ "lots": {
+  "auto": true,
+  "min_front": 4,
+  "min_depth": 5,
+  "max_area": 60,
+  "min_buildable": 5,
+  "explicit": []
+ },
+ "buildings": [
+  {
+   "id": "prefeitura",
+   "lot": "auto:near:praca-matriz",
+   "intent": {
+    "use": "civico",
+    "floors": 3,
+    "shape": "U",
+    "roof": "quatro-aguas",
+    "tower": true,
+    "palette": "cal-e-terracota"
+   }
+  },
+  {
+   "id": "casa-do-tonho",
+   "lot": "auto:zone:beira-rio",
+   "owner_ref": "home:1",
+   "intent": {
+    "use": "casa",
+    "floors": 2,
+    "shape": "L",
+    "roof": "duas-aguas",
+    "balcony": true,
+    "palette": "azul-anil"
+   }
+  }
+ ],
+ "fill": [
+  {
+   "zone": "centro",
+   "use": "loja-sobrado",
+   "shape": [
+    "rect",
+    "L"
+   ],
+   "roof": [
+    "duas-aguas",
+    "quatro-aguas"
+   ]
+  },
+  {
+   "zone": "beira-rio",
+   "use": "casa",
+   "shape": [
+    "rect",
+    "rect",
+    "L"
+   ],
+   "roof": [
+    "duas-aguas"
+   ]
+  }
+ ],
+ "props": [
+  {
+   "kind": "arvore",
+   "preset": "oak-estilizada",
+   "scatter": {
+    "zone": "beira-rio",
+    "on": "ground",
+    "spacing": 5
+   }
+  }
+ ]
+}
