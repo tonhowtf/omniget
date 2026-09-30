@@ -647,7 +647,7 @@ mod tests {
     #[test]
     fn each_cli_gets_its_own_terminal_login_account() {
         let root = tmp("terminal");
-        let store = AccountStore::at(&root.join("accounts.json"));
+        let store = AccountStore::at(root.join("accounts.json"));
         let terminal = |id: &str, cli: CliKind| CliAccount {
             id: id.into(),
             cli,

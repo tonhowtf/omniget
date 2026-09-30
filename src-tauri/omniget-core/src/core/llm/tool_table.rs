@@ -455,15 +455,18 @@ mod tests {
         let legacy = t
             .iter()
             .filter(|e| {
-                !e.name.starts_with("wmb_") && !e.name.starts_with("city_") && !e.name.starts_with("tg_")
+                !e.name.starts_with("wmb_")
+                    && !e.name.starts_with("city_")
+                    && !e.name.starts_with("tg_")
+                    && !e.name.starts_with("gd_")
             })
             .count();
         assert_eq!(legacy, 45, "the table lost or gained a tool");
         let tg = crate::core::telegram::tools::all_names().len();
         assert_eq!(
             t.len(),
-            legacy + 34 + 7 + tg,
-            "washmybelly has 34 tools, the city 7"
+            legacy + 34 + 7 + tg + 25,
+            "washmybelly has 34 tools, the city 7, the Global Downloader 25"
         );
         let names: std::collections::HashSet<_> = t.iter().map(|e| e.name).collect();
         assert_eq!(names.len(), t.len(), "duplicate tool name");

@@ -237,16 +237,16 @@ pub async fn ui_timeout(
         .unwrap_or_else(|e| e.into_inner())
         .insert(id.clone(), tx);
     let script = String::from("(async()=>{const id=")
-        + &js_literal(&json!(id))
+        + js_literal(&json!(id)).as_str()
         + ";let r;try{r=await ("
         + RUNNER
         + ")("
-        + &js_literal(&json!(op))
+        + js_literal(&json!(op)).as_str()
         + ","
-        + &js_literal(&args)
+        + js_literal(&args).as_str()
         + ");}catch(e){r={error:'UI_FAILED: '+String(e&&e.message||e)};}if(r===undefined)r=null;\
            window.__TAURI_INTERNALS__.invoke('plugin:event|emit',{event:"
-        + &js_literal(&json!(EVENT_REPLY))
+        + js_literal(&json!(EVENT_REPLY)).as_str()
         + ",payload:{id,value:r}});})()";
     if let Err(e) = window.eval(&script) {
         pending()

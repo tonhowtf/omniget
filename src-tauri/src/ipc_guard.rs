@@ -22,7 +22,9 @@ pub fn allowed(label: &str, command: &str) -> bool {
         "main" | "pet" | "limits-strip" | "usage-panel" | "omni" => true,
         l if l.starts_with("preview-") => PREVIEW_COMMANDS.contains(&command),
         // Canvas portals: the injected automation script only reports back.
-        l if l.starts_with("portal-") => command == "canvas_portal_report" || command == "debug_report",
+        l if l.starts_with("portal-") => {
+            command == "canvas_portal_report" || command == "debug_report"
+        }
         // Login windows load third-party sites; the app reads their cookies
         // and navigation from Rust, it never needs a call from the page.
         l if l.starts_with("auth-") => command == "debug_report",

@@ -111,7 +111,7 @@ async fn version_of(path: &Path, id: &str) -> Option<String> {
         .await
         .ok()?;
     let text =
-        String::from_utf8_lossy(&out.stdout).to_string() + &String::from_utf8_lossy(&out.stderr);
+        String::from_utf8_lossy(&out.stdout).to_string() + &*String::from_utf8_lossy(&out.stderr);
     text.lines()
         .find(|l| !l.trim().is_empty())
         .map(|l| l.trim().chars().take(80).collect())
@@ -859,7 +859,7 @@ pub async fn read_webnovel(
     let out = cmd.output().await.map_err(|e| e.to_string())?;
     if !out.status.success() {
         let err = String::from_utf8_lossy(&out.stderr).to_string()
-            + &String::from_utf8_lossy(&out.stdout);
+            + &*String::from_utf8_lossy(&out.stdout);
         j.state = "failed".into();
         j.message = err
             .lines()

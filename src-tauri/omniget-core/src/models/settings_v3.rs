@@ -7,9 +7,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
 use super::{
-    AccessibilitySettings, AppSettings, DownloadSettings, LastDownloadOptions, LeagueSettings,
-    LlmSettings, MusicSettings, OmnidiscSettings, RpcSettings, TelegramSettings,
-    TypographySettings, WorldSettings,
+    AccessibilitySettings, AppSettings, CanvasSettings, DownloadSettings, LastDownloadOptions,
+    LeagueSettings, LlmSettings, MusicSettings, OmnidiscSettings, ReadSettings, RpcSettings,
+    TelegramSettings, TubeSettings, TypographySettings, VideoSettings, WashMyBellySettings,
+    WorldSettings,
 };
 
 /// Current `schema_version` of `AppSettings`.
@@ -184,6 +185,7 @@ pub struct BridgePublic {
     pub enabled: bool,
     pub port: u16,
     pub has_token: bool,
+    pub legacy_agent_routes: bool,
 }
 
 /// What the UI may see of the settings: every known field except the proxy
@@ -201,6 +203,7 @@ pub struct SettingsPublicV3 {
     pub start_with_system: bool,
     pub start_minimized: bool,
     pub exit_on_close: bool,
+    pub run_in_background: bool,
     pub portable_mode: bool,
     pub legal_acknowledged: bool,
     pub last_download_options: LastDownloadOptions,
@@ -209,9 +212,14 @@ pub struct SettingsPublicV3 {
     pub bridge: BridgePublic,
     pub league: LeagueSettings,
     pub music: MusicSettings,
+    pub video: VideoSettings,
+    pub tube: TubeSettings,
+    pub washmybelly: WashMyBellySettings,
+    pub read: ReadSettings,
     pub accessibility: AccessibilitySettings,
     pub omnidisc: OmnidiscSettings,
     pub world: WorldSettings,
+    pub canvas: CanvasSettings,
     pub llm: LlmSettings,
 }
 
@@ -278,6 +286,7 @@ impl AppSettings {
             start_with_system: self.start_with_system,
             start_minimized: self.start_minimized,
             exit_on_close: self.exit_on_close,
+            run_in_background: self.run_in_background,
             portable_mode: self.portable_mode,
             legal_acknowledged: self.legal_acknowledged,
             last_download_options: self.last_download_options.clone(),
@@ -287,12 +296,18 @@ impl AppSettings {
                 enabled: self.bridge.enabled,
                 port: self.bridge.port,
                 has_token: !self.bridge.token.is_empty(),
+                legacy_agent_routes: self.bridge.legacy_agent_routes,
             },
             league: self.league.clone(),
             music: self.music.clone(),
+            video: self.video.clone(),
+            tube: self.tube.clone(),
+            washmybelly: self.washmybelly.clone(),
+            read: self.read.clone(),
             accessibility: self.accessibility.clone(),
             omnidisc: self.omnidisc.clone(),
             world: self.world.clone(),
+            canvas: self.canvas.clone(),
             llm: self.llm.clone(),
         }
     }
@@ -1268,11 +1283,9 @@ mod tests {
     fn old_valid_values_outside_the_ui_ranges_survive_other_edits() {
         let mut s = imported();
         s.llm.ask_timeout_chat_s = 30;
-        s.world.think_interval_s = 5_000;
         s.advanced.max_concurrent_segments = 0;
         let next = apply_patch(&s, &json!({ "download": { "video_quality": "1080p" } })).unwrap();
         assert_eq!(next.llm.ask_timeout_chat_s, 30);
-        assert_eq!(next.world.think_interval_s, 5_000);
         assert_eq!(next.advanced.max_concurrent_segments, 0);
         // And a zero the type allows is not turned into a default.
         let next = apply_patch(&s, &json!({ "llm": { "approval_notify_delay_s": 0 } })).unwrap();

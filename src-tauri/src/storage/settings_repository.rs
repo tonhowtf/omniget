@@ -421,7 +421,7 @@ impl SettingsRepository {
 
     fn load(&self) -> Inner {
         match fs::read(self.path()) {
-            Ok(bytes) => self.from_bytes(bytes),
+            Ok(bytes) => self.inner_from_bytes(bytes),
             Err(e) if e.kind() == io::ErrorKind::NotFound => Inner {
                 doc: Map::new(),
                 settings: AppSettings::fresh_install(),
@@ -434,7 +434,7 @@ impl SettingsRepository {
         }
     }
 
-    fn from_bytes(&self, bytes: Vec<u8>) -> Inner {
+    fn inner_from_bytes(&self, bytes: Vec<u8>) -> Inner {
         let doc = match serde_json::from_slice::<Value>(&bytes) {
             Ok(Value::Object(doc)) => doc,
             _ => return failed(LoadFailure::InvalidDocument, None, Some(bytes)),
@@ -503,7 +503,7 @@ impl SettingsRepository {
             return;
         }
         *inner = match current {
-            Some(bytes) => self.from_bytes(bytes),
+            Some(bytes) => self.inner_from_bytes(bytes),
             None => self.load(),
         };
     }
@@ -692,7 +692,7 @@ impl SettingsRepository {
                     return None;
                 };
                 let before = inner.settings.clone();
-                let adopted = self.from_bytes(bytes);
+                let adopted = self.inner_from_bytes(bytes);
                 if !matches!(adopted.gate, Gate::Open) {
                     return None;
                 }

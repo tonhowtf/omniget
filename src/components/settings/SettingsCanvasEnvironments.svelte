@@ -317,7 +317,7 @@
       <div class="setting-row">
         <div class="setting-col">
           <span class="setting-label mono">{report.shownPath}</span>
-          <span class="setting-path">{tr("canvas.envSettings.reportFiles", "{{n}} files, {{lines}} log lines", { n: report.files.length, lines: report.logLines })}</span>
+          <span class="setting-path">{tr("canvas.envSettings.reportFiles", "{{count}} files, {{lines}} log lines", { count: report.files.length, lines: report.logLines })}</span>
         </div>
       </div>
       <div class="pair end">

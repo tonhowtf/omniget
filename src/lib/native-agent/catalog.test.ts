@@ -14,7 +14,7 @@ describe('native surface coverage', () => {
   it('classifies every native window constructor', () => {
     const root=join(process.cwd(),'src-tauri/src');
     function scan(dir:string):string[] {return readdirSync(dir,{withFileTypes:true}).flatMap(e=>e.isDirectory()?scan(join(dir,e.name)):e.name.endsWith('.rs')&&/WebviewWindowBuilder::(?:new|from_config)/.test(readFileSync(join(dir,e.name),'utf8'))?[relative(root,join(dir,e.name))]:[]);}
-    expect(scan(root).sort()).toEqual(['commands/auth_webview.rs','commands/pet.rs','lib.rs','limits_strip/commands.rs','preview/mod.rs','usage_tray/mod.rs']);
+    expect(scan(root).sort()).toEqual(['canvas/companion.rs','commands/auth_webview.rs','commands/pet.rs','lib.rs','limits_strip/commands.rs','portal/mod.rs','preview/mod.rs','usage_tray/mod.rs']);
   });
   it('reads canvas state on demand and removes unmounted adapters', () => {
     let calls=0;const dispose=registerSemantic('test',()=>({tick:++calls}));

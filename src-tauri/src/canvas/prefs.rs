@@ -18,9 +18,9 @@ pub fn get(app: &AppHandle) -> CanvasSettings {
 /// Replaces the whole section.
 pub fn replace(app: &AppHandle, mut canvas: CanvasSettings) -> Result<CanvasSettings, String> {
     canvas.normalize();
-    let mut all = crate::storage::config::load_settings(app);
-    all.canvas = canvas.clone();
-    crate::storage::config::save_settings(app, &all).map_err(|e| format!("Save: {e}"))?;
+    let next = canvas.clone();
+    crate::storage::config::update_settings(app, |all| all.canvas = next)
+        .map_err(|e| format!("Save: {e}"))?;
     let _ = app.emit(EVENT, &canvas);
     super::power::refresh(app);
     Ok(canvas)

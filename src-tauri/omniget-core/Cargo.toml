@@ -46,7 +46,7 @@ zip = { version = "2", default-features = false, features = ["deflate"] }
 shell-words = "1"
 tar = "0.4"
 flate2 = "1"
-quick-xml = "0.37"
+quick-xml = "0.38"
 encoding_rs = "0.8"
 xz2 = { version = "0.1", features = ["static"] }
 walkdir = "2"
@@ -102,13 +102,11 @@ dashmap = "6"
 cipher = "0.4"
 filetime = "0.2"
 axum = { version = "0.8", default-features = false, features = ["http1", "json", "tokio", "query"] }
-# core/read: EPUB/OPF/NCX, ComicInfo.xml and OPDS feeds.
-quick-xml = "0.38"
+# core/read uses quick-xml (above) for EPUB/OPF/NCX, ComicInfo.xml and OPDS feeds.
 # core/read: CSS selectors for declarative sources the user adds.
 scraper = "0.27"
 # core/read: TXT/Markdown to EPUB (charset detection, CommonMark).
 pulldown-cmark = { version = "0.13", default-features = false, features = ["html"] }
-encoding_rs = "0.8"
 chardetng = "0.1"
 alacritty_terminal = "0.26.0"
 

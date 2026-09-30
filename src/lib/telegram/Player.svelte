@@ -435,7 +435,7 @@
         <span class="pl-sub">
           {chat.title}
           {#if item} · {formatBytes(item.file_size)} · {formatDate(item.date)}{/if}
-          {#if queue.length > 1} · {$t("telegram.player.position", { n: index + 1, total: queue.length })}{/if}
+          {#if queue.length > 1} · {$t("telegram.player.position", { count: index + 1, total: queue.length })}{/if}
         </span>
       </div>
       <div class="pl-actions">

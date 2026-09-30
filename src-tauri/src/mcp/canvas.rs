@@ -1230,7 +1230,8 @@ async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
             if let Some(d) = input.as_object_mut().and_then(|o| o.remove("dir")) {
                 input["workingDirectory"] = d;
             }
-            let ws = cmd::doc::canvas_workspace_create(app.clone(), de(input, "workspace")?).await?;
+            let ws =
+                cmd::doc::canvas_workspace_create(app.clone(), de(input, "workspace")?).await?;
             // Like the Maestri, the new workspace opens (when the canvas is on screen).
             let activated = if a.get("activate").and_then(Value::as_bool) != Some(false) {
                 let r = super::canvas_ui::ui(
@@ -1264,14 +1265,22 @@ async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
                     patch.insert(to.into(), v.clone());
                 }
             }
-            for k in ["instructions", "syncAgentFiles", "confirm", "ide", "jumpNumber"] {
+            for k in [
+                "instructions",
+                "syncAgentFiles",
+                "confirm",
+                "ide",
+                "jumpNumber",
+            ] {
                 if let Some(v) = a.get(k) {
                     patch.insert(k.into(), v.clone());
                 }
             }
             // The environment goes through its own save (it refuses to make a
             // workspace with isolated floors remote), never as a bare mirror.
-            let env = patch.remove("environment").or_else(|| a.get("environment").cloned());
+            let env = patch
+                .remove("environment")
+                .or_else(|| a.get("environment").cloned());
             // Same checks as the app (no remote workspace with isolated
             // floors, the kind switched on) and environment.json; "docker:x",
             // a record or null (local).
@@ -1282,7 +1291,9 @@ async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
             if patch.is_empty() {
                 if let Some(e) = env_saved {
                     let ws = s.workspace(&ws_of(&a))?;
-                    return Ok(json!({ "workspace": to_value(ws)?, "environment": e["environment"] }));
+                    return Ok(
+                        json!({ "workspace": to_value(ws)?, "environment": e["environment"] }),
+                    );
                 }
                 return Err("INVALID_ARGUMENTS: nothing to change".into());
             }
@@ -1529,7 +1540,12 @@ async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
                 let _ = blocking(move || {
                     let c = notes::read(&s2, &w2, &f2, &id2)?;
                     let t = notes::derive_name(&c.text);
-                    apply(&s2, &w2, &f2, vec![Op::update_node(&id2, json!({ "title": t }))])
+                    apply(
+                        &s2,
+                        &w2,
+                        &f2,
+                        vec![Op::update_node(&id2, json!({ "title": t }))],
+                    )
                 })
                 .await;
             }
@@ -3552,7 +3568,10 @@ fn text_fit(data: &Value, w: f64, h: f64) -> (f64, f64) {
         .and_then(Value::as_f64)
         .unwrap_or(20.0)
         .clamp(8.0, 200.0);
-    let family = data.get("fontFamily").and_then(Value::as_str).unwrap_or("sans");
+    let family = data
+        .get("fontFamily")
+        .and_then(Value::as_str)
+        .unwrap_or("sans");
     let bold = data.get("fontWeight").and_then(Value::as_str) == Some("bold");
     let advance = match family {
         "mono" => 0.62,
@@ -3844,8 +3863,7 @@ async fn note_stack(s: &Arc<CanvasStore>, a: &Value) -> Result<Value, String> {
     let (ws, floor, n) = note_node(s, a)?;
     let mut ops = Vec::new();
     // An empty stackId is a mistake, not a request for a new stack.
-    if a
-        .get("stackId")
+    if a.get("stackId")
         .and_then(Value::as_str)
         .is_some_and(|k| k.trim().is_empty())
     {

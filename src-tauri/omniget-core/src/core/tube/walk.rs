@@ -33,10 +33,9 @@ pub fn text(v: &Value) -> Option<String> {
                 s.to_string()
             } else if let Some(t) = o.get("dynamicTextViewModel") {
                 return t.get("text").and_then(text);
-            } else if let Some(t) = o.get("text") {
-                return text(t);
             } else {
-                return None;
+                let t = o.get("text")?;
+                return text(t);
             }
         }
         _ => return None,
@@ -1735,8 +1734,7 @@ fn music_list_item(r: &Value) -> Option<Item> {
                 count_text: sub_runs
                     .iter()
                     .filter_map(|r| r.get("text").and_then(Value::as_str))
-                    .filter(|t| t.chars().any(|c| c.is_ascii_digit()))
-                    .next_back()
+                    .rfind(|t| t.chars().any(|c| c.is_ascii_digit()))
                     .map(str::to_string),
                 first_video_id: None,
                 is_music: true,

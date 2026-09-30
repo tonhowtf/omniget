@@ -963,5 +963,54 @@
       "actions": "Only actions returned by inspect",
       "conditionalStates": "Inspect currently rendered state; hidden dialogs and tabs are not enumerated"
     }
+  },
+  {
+    "screenId": "/global",
+    "route": "/global",
+    "windowId": "main",
+    "sensitive": true,
+    "kind": "page",
+    "navigation": "main-route",
+    "preconditions": [
+      "The built-in browser keeps the person's own site sessions; inspect only what is on screen."
+    ],
+    "capabilities": {
+      "inspect": true,
+      "capture": true,
+      "actions": "Only actions returned by inspect",
+      "conditionalStates": "Inspect currently rendered state; hidden dialogs and tabs are not enumerated"
+    }
+  },
+  {
+    "screenId": "/telegram",
+    "route": "/telegram",
+    "windowId": "main",
+    "sensitive": true,
+    "kind": "page",
+    "navigation": "main-route",
+    "preconditions": [
+      "Chats and media belong to the signed-in Telegram account."
+    ],
+    "capabilities": {
+      "inspect": true,
+      "capture": true,
+      "actions": "Only actions returned by inspect",
+      "conditionalStates": "Inspect currently rendered state; hidden dialogs and tabs are not enumerated"
+    }
+  },
+  {
+    "screenId": "/omni",
+    "route": "/omni",
+    "windowId": "omni",
+    "sensitive": false,
+    "kind": "page",
+    "navigation": "open-existing-product-window",
+    "preconditions": [],
+    "capabilities": {
+      "inspect": true,
+      "capture": true,
+      "actions": "Only actions returned by inspect",
+      "conditionalStates": "Inspect currently rendered state; hidden dialogs and tabs are not enumerated"
+    }
   }
 ]

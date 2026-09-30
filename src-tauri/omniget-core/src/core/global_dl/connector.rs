@@ -130,7 +130,11 @@ pub fn list() -> Vec<Connector> {
     let mut out = Vec::new();
     for d in dev_dirs() {
         if let Ok(m) = load(&d) {
-            out.push(Connector { manifest: m, dir: d, dev: true });
+            out.push(Connector {
+                manifest: m,
+                dir: d,
+                dev: true,
+            });
         }
     }
     if let Ok(rd) = std::fs::read_dir(installed_dir()) {
@@ -138,7 +142,11 @@ pub fn list() -> Vec<Connector> {
             let d = e.path();
             if let Ok(m) = load(&d) {
                 if !out.iter().any(|c| c.manifest.id == m.id) {
-                    out.push(Connector { manifest: m, dir: d, dev: false });
+                    out.push(Connector {
+                        manifest: m,
+                        dir: d,
+                        dev: false,
+                    });
                 }
             }
         }
@@ -208,7 +216,12 @@ pub fn get_options(id: &str) -> Result<Value, String> {
 
 pub fn set_options(id: &str, values: &Value) -> Result<Value, String> {
     let c = find_by_id(id).ok_or_else(|| format!("no connector {id}"))?;
-    let known: Vec<&str> = c.manifest.options.iter().filter_map(|o| o["id"].as_str()).collect();
+    let known: Vec<&str> = c
+        .manifest
+        .options
+        .iter()
+        .filter_map(|o| o["id"].as_str())
+        .collect();
     let mut keep = serde_json::Map::new();
     for (k, v) in values.as_object().ok_or("options must be an object")? {
         if known.contains(&k.as_str()) {
@@ -246,7 +259,13 @@ pub fn find_for(url: &str) -> Option<Connector> {
     })
 }
 
-pub fn scaffold(dir: &Path, id: &str, name: &str, domains: &[String], matches: &[String]) -> Result<(), String> {
+pub fn scaffold(
+    dir: &Path,
+    id: &str,
+    name: &str,
+    domains: &[String],
+    matches: &[String],
+) -> Result<(), String> {
     std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
     let m = Manifest {
         id: id.into(),
@@ -276,7 +295,10 @@ pub fn scaffold(dir: &Path, id: &str, name: &str, domains: &[String], matches: &
         serde_json::to_string_pretty(&m).map_err(|e| e.to_string())?,
     )?;
     write("connector.js", TEMPLATE.to_string())?;
-    write("GUIDE.md", format!("# {name}\n\nWhat it downloads, what needs a login, known limits.\n"))?;
+    write(
+        "GUIDE.md",
+        format!("# {name}\n\nWhat it downloads, what needs a login, known limits.\n"),
+    )?;
     Ok(())
 }
 
@@ -359,7 +381,11 @@ pub async fn resolve(
     crate::core::platform_optout::ensure_allowed(url)?;
     let started = Instant::now();
     let conn = match dir {
-        Some(d) => Some(Connector { manifest: load(&d)?, dir: d, dev: true }),
+        Some(d) => Some(Connector {
+            manifest: load(&d)?,
+            dir: d,
+            dev: true,
+        }),
         None => find_for(url),
     };
     let tab_id = tab_id.or_else(|| {
@@ -486,18 +512,34 @@ pub async fn resolve_item(
     key: &str,
 ) -> Result<Node, String> {
     let c = match connector_dir.map(PathBuf::from).filter(|d| d.is_dir()) {
-        Some(d) => Connector { manifest: load(&d)?, dir: d, dev: true },
-        None => find_by_id(connector_id).ok_or_else(|| format!("connector {connector_id} is not installed"))?,
+        Some(d) => Connector {
+            manifest: load(&d)?,
+            dir: d,
+            dev: true,
+        },
+        None => find_by_id(connector_id)
+            .ok_or_else(|| format!("connector {connector_id} is not installed"))?,
     };
-    let tab_id = browser::current().and_then(|b| b.tab_for_origin(origin)).map(|t| t.id);
+    let tab_id = browser::current()
+        .and_then(|b| b.tab_for_origin(origin))
+        .map(|t| t.id);
     let opts = option_values(&c.manifest, None);
-    let (out, _) = run_script(c, origin.to_string(), tab_id, Call::Item(key.to_string()), opts).await?;
+    let (out, _) = run_script(
+        c,
+        origin.to_string(),
+        tab_id,
+        Call::Item(key.to_string()),
+        opts,
+    )
+    .await?;
     let v: Value = serde_json::from_str(&out).map_err(|e| format!("resolveItem: {e}"))?;
     let node = if v.get("source").is_some() || v.get("drm").is_some() {
         serde_json::from_value::<Node>(v).map_err(|e| format!("resolveItem: {e}"))?
     } else {
         Node {
-            source: Some(serde_json::from_value::<Source>(v).map_err(|e| format!("resolveItem: {e}"))?),
+            source: Some(
+                serde_json::from_value::<Source>(v).map_err(|e| format!("resolveItem: {e}"))?,
+            ),
             ..Default::default()
         }
     };
@@ -511,15 +553,18 @@ async fn run_script(
     call: Call,
     options: Value,
 ) -> Result<(String, Vec<String>), String> {
-    let source = std::fs::read_to_string(c.dir.join(&c.manifest.entry)).map_err(|e| e.to_string())?;
+    let source =
+        std::fs::read_to_string(c.dir.join(&c.manifest.entry)).map_err(|e| e.to_string())?;
     let source = source
         .replace("export async function", "async function")
         .replace("export function", "function")
         .replace("export default ", "");
     let handle = tokio::runtime::Handle::current();
-    tokio::task::spawn_blocking(move || run_blocking(handle, c.manifest, source, url, tab_id, call, options))
-        .await
-        .map_err(|e| e.to_string())?
+    tokio::task::spawn_blocking(move || {
+        run_blocking(handle, c.manifest, source, url, tab_id, call, options)
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 fn run_blocking(
@@ -547,7 +592,8 @@ fn run_blocking(
         let g = ctx.globals();
         let js_err = |e: rquickjs::Error| e.to_string();
         g.set("__target_url", url.clone()).map_err(js_err)?;
-        g.set("__tab_id", tab_id.clone().unwrap_or_default()).map_err(js_err)?;
+        g.set("__tab_id", tab_id.clone().unwrap_or_default())
+            .map_err(js_err)?;
         g.set("__options", options.to_string()).map_err(js_err)?;
 
         let (h, d) = (handle.clone(), domains.clone());
@@ -577,7 +623,9 @@ fn run_blocking(
                 if !d.iter().any(|x| host_matches(&host, x)) {
                     return "{}".into();
                 }
-                let Some(b) = browser::current() else { return "{}".into() };
+                let Some(b) = browser::current() else {
+                    return "{}".into();
+                };
                 let cookies = h.block_on(b.cookies_for(&host)).unwrap_or_default();
                 let mut o = serde_json::Map::new();
                 for c in cookies {
@@ -595,7 +643,8 @@ fn run_blocking(
         g.set(
             "__host_sniffed",
             Function::new(ctx.clone(), move || -> String {
-                serde_json::to_string(&sniffer::sniffed(tab.as_deref())).unwrap_or_else(|_| "[]".into())
+                serde_json::to_string(&sniffer::sniffed(tab.as_deref()))
+                    .unwrap_or_else(|_| "[]".into())
             })
             .map_err(js_err)?,
         )
@@ -607,7 +656,10 @@ fn run_blocking(
             Function::new(ctx.clone(), move |js: String| -> String {
                 let out = (|| -> Result<Value, String> {
                     let b = browser::require()?;
-                    let t = tab.as_deref().and_then(|t| b.tab(t)).ok_or("no tab is open for this page")?;
+                    let t = tab
+                        .as_deref()
+                        .and_then(|t| b.tab(t))
+                        .ok_or("no tab is open for this page")?;
                     domain_allowed(&d, &t.url)?;
                     h.block_on(b.eval(&t.id, &js, Duration::from_secs(60)))
                 })();

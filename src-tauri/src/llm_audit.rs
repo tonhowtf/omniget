@@ -268,9 +268,8 @@ pub async fn llm_audit_list(
 #[tauri::command]
 pub async fn llm_audit_retention_set(app: tauri::AppHandle, days: u32) -> Result<Value, String> {
     let days = days.clamp(1, 3650);
-    let mut settings = crate::storage::config::load_settings(&app);
-    settings.llm.audit_retention_days = days;
-    crate::storage::config::save_settings(&app, &settings).map_err(|e| e.to_string())?;
+    crate::storage::config::update_settings(&app, |s| s.llm.audit_retention_days = days)
+        .map_err(|e| e.to_string())?;
     if let Some(a) = audit::global() {
         a.set_retention_days(days);
     }

@@ -1684,7 +1684,10 @@ mod tests {
         let legacy = list
             .iter()
             .filter(|t| {
-                !t.name.starts_with("wmb_") && !t.name.starts_with("city_") && !t.name.starts_with("tg_")
+                !t.name.starts_with("wmb_")
+                    && !t.name.starts_with("city_")
+                    && !t.name.starts_with("tg_")
+                    && !t.name.starts_with("gd_")
             })
             .count();
         assert_eq!(legacy, 45, "a tabela mudou de tamanho");

@@ -12989,7 +12989,7 @@
       "reportTitle": "Report a problem",
       "reportIntro": "Saves a diagnostics file on this computer: versions, counts, recent app log lines and crash reports. No code, notes, prompts or terminal output; tokens, e-mails and your home folder are masked. Nothing is sent: attach it yourself.",
       "reportMake": "Create diagnostics file",
-      "reportFiles": "{{n}} files, {{lines}} log lines",
+      "reportFiles": "{{count}} files, {{lines}} log lines",
       "reportMail": "Write an e-mail",
       "reportIssue": "Open a GitHub issue"
     }
@@ -14065,7 +14065,7 @@
     "settings_enable_desc": "Shows Telegram in Superpowers. Nothing connects until you open the screen.",
     "player": {
       "continue": "Continue watching",
-      "position": "{{n}} of {{total}}",
+      "position": "{{count}} of {{total}}",
       "download_this": "Download",
       "open_in": "Open in…",
       "players": {
@@ -14155,8 +14155,8 @@
       "last_result": "{{found}} found, {{queued}} queued",
       "never": "never",
       "just_now": "just now",
-      "minutes_ago": "{{n}} min ago",
-      "hours_ago": "{{n}} h ago",
+      "minutes_ago": "{{count}} min ago",
+      "hours_ago": "{{count}} h ago",
       "edit": "Edit rule",
       "remove": "Remove rule",
       "confirm_remove": "Remove",
@@ -14171,7 +14171,7 @@
       "created": "New media from {{chat}} will be saved",
       "updated": "Rule for {{chat}} updated",
       "every": "Check every",
-      "minutes": "{{n}} min",
+      "minutes": "{{count}} min",
       "realtime": "Real time",
       "realtime_on_hint": "New messages are saved the moment they arrive.",
       "realtime_off_hint": "Rules only run on the timer below.",
@@ -14358,7 +14358,7 @@
         "tg_forward": "Forward messages",
         "tg_delete_messages": "Delete messages"
       },
-      "queue": "{{n}} of {{total}}",
+      "queue": "{{count}} of {{total}}",
       "hint": "Nothing happens until you approve. If you do not answer, it is refused.",
       "expires": "Refused automatically in {{time}}",
       "approve": "Approve",

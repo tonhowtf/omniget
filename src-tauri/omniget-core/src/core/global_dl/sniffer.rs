@@ -80,7 +80,9 @@ fn headers_of(v: &Value) -> BTreeMap<String, String> {
 }
 
 pub fn on_request(session: &str, p: &Value) {
-    let Some(rid) = p.get("requestId").and_then(Value::as_str) else { return };
+    let Some(rid) = p.get("requestId").and_then(Value::as_str) else {
+        return;
+    };
     let req = &p["request"];
     let mut st = state().lock().unwrap_or_else(|e| e.into_inner());
     let entry = st
@@ -102,7 +104,9 @@ pub fn on_request(session: &str, p: &Value) {
 /// `requestWillBeSentExtraInfo` carries the headers Chrome really sent,
 /// Cookie included.
 pub fn on_request_extra(session: &str, p: &Value) {
-    let Some(rid) = p.get("requestId").and_then(Value::as_str) else { return };
+    let Some(rid) = p.get("requestId").and_then(Value::as_str) else {
+        return;
+    };
     let mut st = state().lock().unwrap_or_else(|e| e.into_inner());
     let entry = st
         .requests
@@ -122,7 +126,10 @@ pub fn on_response(session: &str, tab_id: &str, page: (&str, &str), p: &Value) -
     if url.starts_with("data:") || url.starts_with("blob:") || url.starts_with("chrome") {
         return None;
     }
-    let mime = resp["mimeType"].as_str().unwrap_or_default().to_ascii_lowercase();
+    let mime = resp["mimeType"]
+        .as_str()
+        .unwrap_or_default()
+        .to_ascii_lowercase();
     let status = resp["status"].as_u64().unwrap_or(0) as u16;
     let rtype = p["type"].as_str().unwrap_or_default().to_string();
     let resp_headers = headers_of(&resp["headers"]);
@@ -143,7 +150,11 @@ pub fn on_response(session: &str, tab_id: &str, page: (&str, &str), p: &Value) -
         session: session.to_string(),
         tab_id: tab_id.to_string(),
         url: url.clone(),
-        method: if pending.method.is_empty() { "GET".into() } else { pending.method.clone() },
+        method: if pending.method.is_empty() {
+            "GET".into()
+        } else {
+            pending.method.clone()
+        },
         status,
         mime: mime.clone(),
         resource_type: rtype.clone(),
@@ -172,8 +183,10 @@ pub fn on_response(session: &str, tab_id: &str, page: (&str, &str), p: &Value) -
     let mut headers = BTreeMap::new();
     for (k, v) in &pending.headers {
         let lk = k.to_ascii_lowercase();
-        if matches!(lk.as_str(), "referer" | "origin" | "authorization" | "cookie" | "user-agent")
-            || lk.starts_with("x-")
+        if matches!(
+            lk.as_str(),
+            "referer" | "origin" | "authorization" | "cookie" | "user-agent"
+        ) || lk.starts_with("x-")
         {
             headers.insert(k.clone(), v.clone());
         }
@@ -216,8 +229,10 @@ pub fn classify(url: &str, mime: &str, rtype: &str) -> Option<&'static str> {
     if mime.contains("dash+xml") || ext == "mpd" {
         return Some("dash");
     }
-    if matches!(ext.as_str(), "ts" | "m4s" | "cmfv" | "cmfa" | "m4f" | "m4v_seg")
-        || mime == "video/mp2t"
+    if matches!(
+        ext.as_str(),
+        "ts" | "m4s" | "cmfv" | "cmfa" | "m4f" | "m4v_seg"
+    ) || mime == "video/mp2t"
         || mime == "video/iso.segment"
     {
         return None;
@@ -226,12 +241,18 @@ pub fn classify(url: &str, mime: &str, rtype: &str) -> Option<&'static str> {
         return Some("subtitle");
     }
     if mime.starts_with("video/")
-        || matches!(ext.as_str(), "mp4" | "webm" | "mov" | "mkv" | "m4v" | "avi" | "flv")
+        || matches!(
+            ext.as_str(),
+            "mp4" | "webm" | "mov" | "mkv" | "m4v" | "avi" | "flv"
+        )
     {
         return Some("video");
     }
     if mime.starts_with("audio/")
-        || matches!(ext.as_str(), "mp3" | "m4a" | "aac" | "ogg" | "opus" | "wav" | "flac")
+        || matches!(
+            ext.as_str(),
+            "mp3" | "m4a" | "aac" | "ogg" | "opus" | "wav" | "flac"
+        )
     {
         return Some("audio");
     }
@@ -239,7 +260,17 @@ pub fn classify(url: &str, mime: &str, rtype: &str) -> Option<&'static str> {
         || mime == "application/epub+zip"
         || matches!(
             ext.as_str(),
-            "pdf" | "epub" | "zip" | "rar" | "7z" | "docx" | "pptx" | "xlsx" | "doc" | "ppt" | "xls"
+            "pdf"
+                | "epub"
+                | "zip"
+                | "rar"
+                | "7z"
+                | "docx"
+                | "pptx"
+                | "xlsx"
+                | "doc"
+                | "ppt"
+                | "xls"
         ) && rtype != "Script"
     {
         return Some("document");
@@ -301,7 +332,12 @@ pub fn clear(tab_id: Option<&str>) {
 }
 
 /// The request log, newest last, filtered for the connector tools.
-pub fn log(tab_id: Option<&str>, contains: Option<&str>, types: &[String], limit: usize) -> Vec<NetEntry> {
+pub fn log(
+    tab_id: Option<&str>,
+    contains: Option<&str>,
+    types: &[String],
+    limit: usize,
+) -> Vec<NetEntry> {
     let st = state().lock().unwrap_or_else(|e| e.into_inner());
     let needle = contains.map(|c| c.to_ascii_lowercase());
     let mut out: Vec<NetEntry> = st
@@ -313,7 +349,12 @@ pub fn log(tab_id: Option<&str>, contains: Option<&str>, types: &[String], limit
                 .as_deref()
                 .is_none_or(|n| e.url.to_ascii_lowercase().contains(n))
         })
-        .filter(|e| types.is_empty() || types.iter().any(|t| t.eq_ignore_ascii_case(&e.resource_type)))
+        .filter(|e| {
+            types.is_empty()
+                || types
+                    .iter()
+                    .any(|t| t.eq_ignore_ascii_case(&e.resource_type))
+        })
         .cloned()
         .collect();
     if out.len() > limit {
@@ -324,7 +365,11 @@ pub fn log(tab_id: Option<&str>, contains: Option<&str>, types: &[String], limit
 
 pub fn log_entry(request_id: &str) -> Option<NetEntry> {
     let st = state().lock().unwrap_or_else(|e| e.into_inner());
-    st.log.iter().rev().find(|e| e.request_id == request_id).cloned()
+    st.log
+        .iter()
+        .rev()
+        .find(|e| e.request_id == request_id)
+        .cloned()
 }
 
 pub fn summary() -> Value {
@@ -338,11 +383,26 @@ mod tests {
 
     #[test]
     fn classifies_media_and_skips_segments() {
-        assert_eq!(classify("https://a/x/master.m3u8?t=1", "", "XHR"), Some("hls"));
+        assert_eq!(
+            classify("https://a/x/master.m3u8?t=1", "", "XHR"),
+            Some("hls")
+        );
         assert_eq!(classify("https://a/seg-1.ts", "video/mp2t", "Media"), None);
-        assert_eq!(classify("https://a/v.mp4", "video/mp4", "Media"), Some("video"));
-        assert_eq!(classify("https://a/s.vtt", "text/vtt", "Other"), Some("subtitle"));
-        assert_eq!(classify("https://a/app.js", "application/javascript", "Script"), None);
-        assert_eq!(classify("https://a/f.pdf", "application/pdf", "Document"), Some("document"));
+        assert_eq!(
+            classify("https://a/v.mp4", "video/mp4", "Media"),
+            Some("video")
+        );
+        assert_eq!(
+            classify("https://a/s.vtt", "text/vtt", "Other"),
+            Some("subtitle")
+        );
+        assert_eq!(
+            classify("https://a/app.js", "application/javascript", "Script"),
+            None
+        );
+        assert_eq!(
+            classify("https://a/f.pdf", "application/pdf", "Document"),
+            Some("document")
+        );
     }
 }

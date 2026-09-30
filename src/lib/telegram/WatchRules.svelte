@@ -134,8 +134,8 @@
     if (!unix) return $t("telegram.watch.never") as string;
     const s = Math.max(0, Math.floor(Date.now() / 1000 - unix));
     if (s < 60) return $t("telegram.watch.just_now") as string;
-    if (s < 3600) return $t("telegram.watch.minutes_ago", { n: Math.floor(s / 60) }) as string;
-    if (s < 86400) return $t("telegram.watch.hours_ago", { n: Math.floor(s / 3600) }) as string;
+    if (s < 3600) return $t("telegram.watch.minutes_ago", { count: Math.floor(s / 60) }) as string;
+    if (s < 86400) return $t("telegram.watch.hours_ago", { count: Math.floor(s / 3600) }) as string;
     return new Date(unix * 1000).toLocaleDateString();
   }
 
@@ -270,7 +270,7 @@
           </div>
           <select class="input every" value={interval} aria-label={$t("telegram.watch.every")} onchange={(e) => setEvery(Number((e.currentTarget as HTMLSelectElement).value))}>
             {#each INTERVALS.includes(interval) ? INTERVALS : [...INTERVALS, interval].sort((a, b) => a - b) as m (m)}
-              <option value={m}>{$t("telegram.watch.minutes", { n: m })}</option>
+              <option value={m}>{$t("telegram.watch.minutes", { count: m })}</option>
             {/each}
           </select>
         </div>

@@ -113,7 +113,8 @@ pub struct Source {
 
 impl Node {
     pub fn is_folder(&self) -> bool {
-        self.kind == "folder" || (self.source.is_none() && self.key.is_none() && !self.children.is_empty())
+        self.kind == "folder"
+            || (self.source.is_none() && self.key.is_none() && !self.children.is_empty())
     }
 
     /// Resolved only when it downloads.

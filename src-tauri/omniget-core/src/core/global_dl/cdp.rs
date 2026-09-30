@@ -31,7 +31,9 @@ pub struct Event {
 }
 
 impl Cdp {
-    pub async fn connect(ws_url: &str) -> Result<(Arc<Cdp>, mpsc::UnboundedReceiver<Event>), String> {
+    pub async fn connect(
+        ws_url: &str,
+    ) -> Result<(Arc<Cdp>, mpsc::UnboundedReceiver<Event>), String> {
         let (ws, _) = tokio::time::timeout(
             Duration::from_secs(10),
             tokio_tungstenite::connect_async(ws_url),
@@ -112,8 +114,14 @@ impl Cdp {
         self.closed.load(Ordering::SeqCst)
     }
 
-    pub async fn call(&self, method: &str, params: Value, session: Option<&str>) -> Result<Value, String> {
-        self.call_timeout(method, params, session, Duration::from_secs(30)).await
+    pub async fn call(
+        &self,
+        method: &str,
+        params: Value,
+        session: Option<&str>,
+    ) -> Result<Value, String> {
+        self.call_timeout(method, params, session, Duration::from_secs(30))
+            .await
     }
 
     pub async fn call_timeout(

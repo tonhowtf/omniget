@@ -140,3 +140,8 @@ export function createFakeSession(blobs: Uint8Array[]): FakeSessionControls {
   };
   return session;
 }
+
+/** True inside the Tauri webview; outside it the route says so instead of throwing. */
+export function inTauri(): boolean {
+  return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+}

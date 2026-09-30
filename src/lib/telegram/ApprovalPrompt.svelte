@@ -177,7 +177,7 @@
         </h3>
         <span class="tg-ap-tool">{toolLabel(current.tool)}</span>
       </div>
-      {#if queue.length > 1}<span class="tg-ap-count">{$t("telegram.approval.queue", { n: 1, total: queue.length })}</span>{/if}
+      {#if queue.length > 1}<span class="tg-ap-count">{$t("telegram.approval.queue", { count: 1, total: queue.length })}</span>{/if}
     </header>
 
     {#if current.summary}<p class="tg-ap-sum" id="tg-ap-sum">{current.summary}</p>{/if}

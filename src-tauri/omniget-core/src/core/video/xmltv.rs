@@ -228,9 +228,20 @@ fn parse_plain<R: BufRead>(input: R, mut sink: impl FnMut(XmlEvent)) -> XmltvSta
             }
             Event::Text(t) => {
                 if field != Field::None {
-                    match t.unescape() {
+                    let raw = String::from_utf8_lossy(&t);
+                    match quick_xml::escape::unescape(&raw) {
                         Ok(s) => text.push_str(&s),
-                        Err(_) => text.push_str(&String::from_utf8_lossy(&t)),
+                        Err(_) => text.push_str(&raw),
+                    }
+                }
+            }
+            // quick-xml 0.38 reports `&amp;`, `&#233;`… as their own events.
+            Event::GeneralRef(r) => {
+                if field != Field::None {
+                    let entity = format!("&{};", String::from_utf8_lossy(&r));
+                    match quick_xml::escape::unescape(&entity) {
+                        Ok(s) => text.push_str(&s),
+                        Err(_) => text.push_str(&entity),
                     }
                 }
             }

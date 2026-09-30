@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import navigationMap from "../../docs/settings-rebrand/navigation-map.json";
+import navigationMap from "./settings-navigation.fixture.json";
 import {
   SETTINGS_SECTIONS,
   SETTING_ALIASES,

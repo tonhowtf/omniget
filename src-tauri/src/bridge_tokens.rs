@@ -209,7 +209,9 @@ pub fn mint(
     // A canvas token has exactly the canvas scope, and only it has it.
     let canvas_ok = kind == Kind::Canvas && scopes.len() == 1 && scopes[0] == SCOPE_CANVAS_NODE;
     if kind == Kind::Canvas && !canvas_ok {
-        return Err(format!("ERR_TOKEN_SCOPE: a canvas token has only {SCOPE_CANVAS_NODE}"));
+        return Err(format!(
+            "ERR_TOKEN_SCOPE: a canvas token has only {SCOPE_CANVAS_NODE}"
+        ));
     }
     if !canvas_ok && (scopes.is_empty() || scopes.iter().any(|s| !SCOPES.contains(&s.as_str()))) {
         return Err(format!(
@@ -1277,7 +1279,16 @@ mod tests {
     fn a_canvas_token_reaches_only_the_canvas_routes_of_its_node() {
         let db = db();
         // Nobody else can hold the canvas scope.
-        assert!(mint(&db, Kind::User, "x", &s(&[SCOPE_CANVAS_NODE]), None, None, 1).is_err());
+        assert!(mint(
+            &db,
+            Kind::User,
+            "x",
+            &s(&[SCOPE_CANVAS_NODE]),
+            None,
+            None,
+            1
+        )
+        .is_err());
         let first = mint_canvas(&db, "n1", "Planner", 1).unwrap();
         let t = mint_canvas(&db, "n1", "Planner", 2).unwrap();
         assert!(t.token.starts_with("oct_"));
@@ -1295,8 +1306,14 @@ mod tests {
         assert_eq!(p.id, "canvas:n1");
         // Not a jobs route, and not the extension key on a canvas route.
         let jobs = route_need(&Method::GET, "/v1/jobs").unwrap();
-        assert!(matches!(check_scoped(&headers(&t.token), &jobs, &ctx), Err(Denied::Forbidden(_))));
-        assert!(matches!(check_scoped(&headers("ext"), &need, &ctx), Err(Denied::Forbidden(_))));
+        assert!(matches!(
+            check_scoped(&headers(&t.token), &jobs, &ctx),
+            Err(Denied::Forbidden(_))
+        ));
+        assert!(matches!(
+            check_scoped(&headers("ext"), &need, &ctx),
+            Err(Denied::Forbidden(_))
+        ));
         assert!(route_need(&Method::POST, "/v1/canvas/asks").is_some());
         assert!(route_need(&Method::GET, "/v1/canvas/asks/ask_1/wait").is_some());
         assert_eq!(revoke_canvas_node(&db, "n1", 4).unwrap(), 1);

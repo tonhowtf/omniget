@@ -191,6 +191,11 @@ mod settings_rebrand_audit {
     }
 
     fn synthetic_values(value: &mut Value, path: &str) {
+        // The canvas section is made of closed enums and sizes that
+        // `CanvasSettings::normalize` owns; its own tests cover the codec.
+        if path == "canvas" {
+            return;
+        }
         match value {
             Value::Object(fields) => {
                 for (key, slot) in fields {
@@ -215,6 +220,8 @@ mod settings_rebrand_audit {
             Value::Array(_) => {
                 *value = if matches!(path, "league.pick_champions" | "league.ban_champions") {
                     json!([1, 2])
+                } else if path == "tube.blocked_channels" {
+                    json!([{ "id": "audit-fixture-only", "name": "audit-fixture-only" }])
                 } else {
                     json!(["audit-fixture-only"])
                 };
@@ -230,6 +237,8 @@ mod settings_rebrand_audit {
                     | "omnidisc.voice.input_device"
                     | "omnidisc.voice.output_device"
                     | "world.backend_override"
+                    | "world.city_backend"
+                    | "tube.download_folder"
                     | "world.measured_app_version" => json!("audit-fixture-only"),
                     _ => panic!("audit inventory needs the type of nullable field {path}"),
                 };
@@ -238,7 +247,7 @@ mod settings_rebrand_audit {
     }
 
     #[test]
-    fn actual_rust_defaults_match_the_155_leaf_harness_fixture() {
+    fn actual_rust_defaults_match_the_254_leaf_harness_fixture() {
         let mut actual = serde_json::to_value(AppSettings::default()).unwrap();
         // The sole machine-dependent default is not compared to a personal path.
         actual["download"]["default_output_dir"] =
@@ -247,8 +256,8 @@ mod settings_rebrand_audit {
             "../../tests/fixtures/settings-audit-defaults.json"
         ))
         .unwrap();
-        assert_eq!(leaf_count(&actual), 155);
-        assert_eq!(leaf_count(&expected), 155);
+        assert_eq!(leaf_count(&actual), 254);
+        assert_eq!(leaf_count(&expected), 254);
         // Read the fixture through its actual Rust types: f32 defaults such as
         // 1.55 otherwise differ from JSON's f64 representation by rounding.
         let typed_fixture: AppSettings = serde_json::from_value(expected).unwrap();
@@ -256,10 +265,10 @@ mod settings_rebrand_audit {
     }
 
     #[test]
-    fn all_155_settings_keep_nondefault_values_through_the_real_codec() {
+    fn all_254_settings_keep_nondefault_values_through_the_real_codec() {
         let mut expected = serde_json::to_value(AppSettings::default()).unwrap();
         synthetic_values(&mut expected, "");
-        assert_eq!(leaf_count(&expected), 155);
+        assert_eq!(leaf_count(&expected), 254);
         let decoded: AppSettings = serde_json::from_value(expected.clone()).unwrap();
         assert_eq!(serde_json::to_value(decoded).unwrap(), expected);
         assert_eq!(

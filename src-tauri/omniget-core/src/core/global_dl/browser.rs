@@ -95,7 +95,10 @@ fn config() -> Value {
 }
 
 pub fn set_browser_path(path: Option<String>) -> Result<(), String> {
-    set_config("browser_path", path.map(Value::String).unwrap_or(Value::Null))
+    set_config(
+        "browser_path",
+        path.map(Value::String).unwrap_or(Value::Null),
+    )
 }
 
 pub fn set_config(key: &str, value: Value) -> Result<(), String> {
@@ -133,7 +136,10 @@ pub fn downloads_dir() -> PathBuf {
 
 /// Search for text typed in the address bar.
 pub fn search_url(q: &str) -> String {
-    let engine = config()["search"].as_str().unwrap_or("duckduckgo").to_string();
+    let engine = config()["search"]
+        .as_str()
+        .unwrap_or("duckduckgo")
+        .to_string();
     let q = urlencoding::encode(q);
     match engine.as_str() {
         "google" => format!("https://www.google.com/search?q={q}"),
@@ -177,20 +183,45 @@ pub fn installed_browsers() -> Vec<(String, PathBuf)> {
     if cfg!(target_os = "macos") {
         let home = dirs::home_dir().unwrap_or_default();
         for base in [PathBuf::from("/Applications"), home.join("Applications")] {
-            push("Google Chrome", base.join("Google Chrome.app/Contents/MacOS/Google Chrome"));
-            push("Chromium", base.join("Chromium.app/Contents/MacOS/Chromium"));
-            push("Microsoft Edge", base.join("Microsoft Edge.app/Contents/MacOS/Microsoft Edge"));
-            push("Brave", base.join("Brave Browser.app/Contents/MacOS/Brave Browser"));
+            push(
+                "Google Chrome",
+                base.join("Google Chrome.app/Contents/MacOS/Google Chrome"),
+            );
+            push(
+                "Chromium",
+                base.join("Chromium.app/Contents/MacOS/Chromium"),
+            );
+            push(
+                "Microsoft Edge",
+                base.join("Microsoft Edge.app/Contents/MacOS/Microsoft Edge"),
+            );
+            push(
+                "Brave",
+                base.join("Brave Browser.app/Contents/MacOS/Brave Browser"),
+            );
         }
     } else if cfg!(windows) {
         let env = |k: &str| std::env::var(k).ok().map(PathBuf::from);
-        for base in [env("ProgramFiles"), env("ProgramFiles(x86)"), env("LOCALAPPDATA")]
-            .into_iter()
-            .flatten()
+        for base in [
+            env("ProgramFiles"),
+            env("ProgramFiles(x86)"),
+            env("LOCALAPPDATA"),
+        ]
+        .into_iter()
+        .flatten()
         {
-            push("Google Chrome", base.join("Google\\Chrome\\Application\\chrome.exe"));
-            push("Microsoft Edge", base.join("Microsoft\\Edge\\Application\\msedge.exe"));
-            push("Brave", base.join("BraveSoftware\\Brave-Browser\\Application\\brave.exe"));
+            push(
+                "Google Chrome",
+                base.join("Google\\Chrome\\Application\\chrome.exe"),
+            );
+            push(
+                "Microsoft Edge",
+                base.join("Microsoft\\Edge\\Application\\msedge.exe"),
+            );
+            push(
+                "Brave",
+                base.join("BraveSoftware\\Brave-Browser\\Application\\brave.exe"),
+            );
             push("Chromium", base.join("Chromium\\Application\\chrome.exe"));
         }
     } else {
@@ -240,9 +271,9 @@ fn cft_exe() -> Option<PathBuf> {
     let plat = cft_platform()?;
     let root = cft_dir().join(format!("chrome-{plat}"));
     Some(match std::env::consts::OS {
-        "macos" => root.join(
-            "Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing",
-        ),
+        "macos" => {
+            root.join("Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing")
+        }
         "windows" => root.join("chrome.exe"),
         _ => root.join("chrome"),
     })
@@ -415,7 +446,9 @@ pub async fn start(url: Option<String>, allow_download: bool) -> Result<Arc<Brow
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null());
-    let mut child = cmd.spawn().map_err(|e| format!("could not start {}: {e}", exe.display()))?;
+    let mut child = cmd
+        .spawn()
+        .map_err(|e| format!("could not start {}: {e}", exe.display()))?;
     let pid = child.id();
 
     let mut ws = None;
@@ -447,7 +480,12 @@ pub async fn start(url: Option<String>, allow_download: bool) -> Result<Arc<Brow
     Ok(b)
 }
 
-async fn attach(ws: &str, exe: String, pid: Option<u32>, headless: bool) -> Result<Arc<Browser>, String> {
+async fn attach(
+    ws: &str,
+    exe: String,
+    pid: Option<u32>,
+    headless: bool,
+) -> Result<Arc<Browser>, String> {
     let (cdp, events) = Cdp::connect(ws).await?;
     let b = Arc::new(Browser {
         cdp: cdp.clone(),
@@ -477,10 +515,18 @@ async fn attach(ws: &str, exe: String, pid: Option<u32>, headless: bool) -> Resu
         *s = Some(b.clone());
     }
     tokio::spawn(event_loop(b.clone(), events));
-    cdp.call("Target.setDiscoverTargets", json!({ "discover": true }), None)
-        .await?;
+    cdp.call(
+        "Target.setDiscoverTargets",
+        json!({ "discover": true }),
+        None,
+    )
+    .await?;
     let targets = cdp.call("Target.getTargets", json!({}), None).await?;
-    for t in targets["targetInfos"].as_array().cloned().unwrap_or_default() {
+    for t in targets["targetInfos"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default()
+    {
         b.on_target(&t);
     }
     emit(json!({ "kind": "browser", "state": "open" }));
@@ -536,7 +582,9 @@ async fn real_user_agent(exe: &Path) -> Option<String> {
         if let Some(ws) = read_active_port(&tmp) {
             if let Ok((cdp, _rx)) = Cdp::connect(&ws).await {
                 if let Ok(v) = cdp.call("Browser.getVersion", json!({}), None).await {
-                    ua = v["userAgent"].as_str().map(|u| u.replace("HeadlessChrome", "Chrome"));
+                    ua = v["userAgent"]
+                        .as_str()
+                        .map(|u| u.replace("HeadlessChrome", "Chrome"));
                 }
                 let _ = cdp.call("Browser.close", json!({}), None).await;
             }
@@ -554,7 +602,10 @@ async fn real_user_agent(exe: &Path) -> Option<String> {
 
 /// UA without "Headless" and client hints that match it.
 fn ua_override_for(version: &Value) -> Value {
-    let ua = version["userAgent"].as_str().unwrap_or_default().replace("HeadlessChrome", "Chrome");
+    let ua = version["userAgent"]
+        .as_str()
+        .unwrap_or_default()
+        .replace("HeadlessChrome", "Chrome");
     let product = version["product"].as_str().unwrap_or_default();
     let full = product.rsplit('/').next().unwrap_or("").to_string();
     let major = full.split('.').next().unwrap_or("").to_string();
@@ -564,7 +615,11 @@ fn ua_override_for(version: &Value) -> Value {
         ("windows", _) => ("Windows", "x86"),
         _ => ("Linux", "x86"),
     };
-    let brand = if product.contains("Edg") { "Microsoft Edge" } else { "Google Chrome" };
+    let brand = if product.contains("Edg") {
+        "Microsoft Edge"
+    } else {
+        "Google Chrome"
+    };
     json!({
         "userAgent": ua,
         "userAgentMetadata": {
@@ -598,7 +653,9 @@ pub async fn switch_mode(new_mode: &str) -> Result<Arc<Browser>, String> {
         .map(|b| {
             b.tabs()
                 .into_iter()
-                .filter(|t| !t.private && !t.url.starts_with("about:") && !t.url.starts_with("chrome"))
+                .filter(|t| {
+                    !t.private && !t.url.starts_with("about:") && !t.url.starts_with("chrome")
+                })
                 .map(|t| t.url)
                 .collect()
         })
@@ -662,7 +719,9 @@ impl Browser {
         if info["type"] != "page" {
             return;
         }
-        let Some(id) = info["targetId"].as_str() else { return };
+        let Some(id) = info["targetId"].as_str() else {
+            return;
+        };
         let url = info["url"].as_str().unwrap_or_default().to_string();
         let title = info["title"].as_str().unwrap_or_default().to_string();
         let is_new = {
@@ -675,9 +734,12 @@ impl Browser {
             tab.url = url;
             tab.title = title;
             let ctx = info["browserContextId"].as_str().map(String::from);
-            tab.private = ctx
-                .as_ref()
-                .is_some_and(|c| self.private_contexts.lock().map(|p| p.contains(c)).unwrap_or(false));
+            tab.private = ctx.as_ref().is_some_and(|c| {
+                self.private_contexts
+                    .lock()
+                    .map(|p| p.contains(c))
+                    .unwrap_or(false)
+            });
             tab.context = ctx;
             new
         };
@@ -707,7 +769,10 @@ impl Browser {
             "Target.targetCreated" | "Target.targetInfoChanged" => self.on_target(&p["targetInfo"]),
             "Target.targetDestroyed" => {
                 if let Some(id) = p["targetId"].as_str() {
-                    self.tabs.lock().unwrap_or_else(|e| e.into_inner()).remove(id);
+                    self.tabs
+                        .lock()
+                        .unwrap_or_else(|e| e.into_inner())
+                        .remove(id);
                     if let Ok(mut o) = self.order.lock() {
                         o.retain(|x| x != id);
                     }
@@ -728,9 +793,9 @@ impl Browser {
                         .session
                         .as_deref()
                         .and_then(|ps| {
-                            self.tab_by_session(ps).map(|t| t.id).or_else(|| {
-                                self.child_sessions.lock().ok()?.get(ps).cloned()
-                            })
+                            self.tab_by_session(ps)
+                                .map(|t| t.id)
+                                .or_else(|| self.child_sessions.lock().ok()?.get(ps).cloned())
                         })
                         .unwrap_or_default();
                     if let Ok(mut c) = self.child_sessions.lock() {
@@ -741,7 +806,12 @@ impl Browser {
                     tokio::spawn(async move { me.setup_child(&sid).await });
                     return;
                 }
-                if let Some(tab) = self.tabs.lock().unwrap_or_else(|e| e.into_inner()).get_mut(tid) {
+                if let Some(tab) = self
+                    .tabs
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .get_mut(tid)
+                {
                     tab.session = Some(sid.to_string());
                 }
                 let me = self.clone();
@@ -750,7 +820,12 @@ impl Browser {
             }
             "Target.detachedFromTarget" => {
                 if let Some(sid) = p["sessionId"].as_str() {
-                    for tab in self.tabs.lock().unwrap_or_else(|e| e.into_inner()).values_mut() {
+                    for tab in self
+                        .tabs
+                        .lock()
+                        .unwrap_or_else(|e| e.into_inner())
+                        .values_mut()
+                    {
                         if tab.session.as_deref() == Some(sid) {
                             tab.session = None;
                         }
@@ -773,7 +848,11 @@ impl Browser {
                 let (sid, ack) = (s.clone(), p["sessionId"].clone());
                 tokio::spawn(async move {
                     let _ = cdp
-                        .call("Page.screencastFrameAck", json!({ "sessionId": ack }), Some(&sid))
+                        .call(
+                            "Page.screencastFrameAck",
+                            json!({ "sessionId": ack }),
+                            Some(&sid),
+                        )
                         .await;
                 });
                 let tab = self.tab_by_session(s).map(|t| t.id).unwrap_or_default();
@@ -786,7 +865,11 @@ impl Browser {
                 }));
             }
             "Page.javascriptDialogOpening" => {
-                let tab = ev.session.as_deref().and_then(|s| self.tab_by_session(s)).map(|t| t.id);
+                let tab = ev
+                    .session
+                    .as_deref()
+                    .and_then(|s| self.tab_by_session(s))
+                    .map(|t| t.id);
                 emit(json!({
                     "kind": "dialog",
                     "tab": tab,
@@ -797,7 +880,11 @@ impl Browser {
                 }));
             }
             "Page.fileChooserOpened" => {
-                let tab = ev.session.as_deref().and_then(|s| self.tab_by_session(s)).map(|t| t.id);
+                let tab = ev
+                    .session
+                    .as_deref()
+                    .and_then(|s| self.tab_by_session(s))
+                    .map(|t| t.id);
                 emit(json!({
                     "kind": "file_chooser",
                     "tab": tab,
@@ -811,7 +898,10 @@ impl Browser {
                 let fid = p["frameId"].as_str().unwrap_or_default();
                 let changed = {
                     let mut tabs = self.tabs.lock().unwrap_or_else(|e| e.into_inner());
-                    match tabs.values_mut().find(|t| t.session.as_deref() == Some(s) && t.id == fid) {
+                    match tabs
+                        .values_mut()
+                        .find(|t| t.session.as_deref() == Some(s) && t.id == fid)
+                    {
                         Some(t) if t.loading != loading => {
                             t.loading = loading;
                             true
@@ -873,7 +963,10 @@ impl Browser {
                 s,
             )
             .await;
-        let _ = self.cdp.call("Runtime.runIfWaitingForDebugger", json!({}), s).await;
+        let _ = self
+            .cdp
+            .call("Runtime.runIfWaitingForDebugger", json!({}), s)
+            .await;
     }
 
     async fn setup_session(&self, sid: &str) {
@@ -902,7 +995,11 @@ impl Browser {
         if block_ads() {
             let _ = self
                 .cdp
-                .call("Network.setBlockedURLs", json!({ "urls": super::blocklist::patterns() }), s)
+                .call(
+                    "Network.setBlockedURLs",
+                    json!({ "urls": super::blocklist::patterns() }),
+                    s,
+                )
                 .await;
         }
         // Page events: dialogs, loading state, screencast frames.
@@ -911,15 +1008,26 @@ impl Browser {
             // No native file picker without a window: OmniGet shows its own.
             let _ = self
                 .cdp
-                .call("Page.setInterceptFileChooserDialog", json!({ "enabled": true }), s)
+                .call(
+                    "Page.setInterceptFileChooserDialog",
+                    json!({ "enabled": true }),
+                    s,
+                )
                 .await;
         }
-        let _ = self.cdp.call("Runtime.runIfWaitingForDebugger", json!({}), s).await;
+        let _ = self
+            .cdp
+            .call("Runtime.runIfWaitingForDebugger", json!({}), s)
+            .await;
     }
 
     /// Applies the blocking switch to every open tab.
     pub async fn apply_blocking(&self, on: bool) {
-        let urls = if on { super::blocklist::patterns() } else { Vec::new() };
+        let urls = if on {
+            super::blocklist::patterns()
+        } else {
+            Vec::new()
+        };
         for t in self.tabs() {
             if let Some(s) = t.session {
                 let _ = self
@@ -932,14 +1040,27 @@ impl Browser {
 
     /// Shows `tab_id` inside OmniGet: the page is laid out at `width`×`height`
     /// CSS pixels and its frames stream as `frame` events.
-    pub async fn view(&self, tab_id: &str, width: u32, height: u32, dpr: f64) -> Result<(), String> {
+    pub async fn view(
+        &self,
+        tab_id: &str,
+        width: u32,
+        height: u32,
+        dpr: f64,
+    ) -> Result<(), String> {
         let (width, height) = (width.clamp(200, 4000), height.clamp(150, 4000));
-        let dpr = if dpr.is_finite() && dpr > 0.0 { dpr.min(3.0) } else { 1.0 };
+        let dpr = if dpr.is_finite() && dpr > 0.0 {
+            dpr.min(3.0)
+        } else {
+            1.0
+        };
         let prev = self.view.lock().ok().and_then(|v| v.clone());
         if let Some(p) = &prev {
             if p.tab != tab_id {
                 if let Some(s) = self.tab(&p.tab).and_then(|t| t.session) {
-                    let _ = self.cdp.call("Page.stopScreencast", json!({}), Some(&s)).await;
+                    let _ = self
+                        .cdp
+                        .call("Page.stopScreencast", json!({}), Some(&s))
+                        .await;
                 }
             }
         }
@@ -955,7 +1076,10 @@ impl Browser {
                 Some(&s),
             )
             .await?;
-        let _ = self.cdp.call("Page.stopScreencast", json!({}), Some(&s)).await;
+        let _ = self
+            .cdp
+            .call("Page.stopScreencast", json!({}), Some(&s))
+            .await;
         self.cdp
             .call(
                 "Page.startScreencast",
@@ -970,7 +1094,12 @@ impl Browser {
             )
             .await?;
         if let Ok(mut v) = self.view.lock() {
-            *v = Some(View { tab: tab_id.to_string(), width, height, dpr });
+            *v = Some(View {
+                tab: tab_id.to_string(),
+                width,
+                height,
+                dpr,
+            });
         }
         Ok(())
     }
@@ -980,7 +1109,10 @@ impl Browser {
         let prev = self.view.lock().ok().and_then(|mut v| v.take());
         if let Some(p) = prev {
             if let Some(s) = self.tab(&p.tab).and_then(|t| t.session) {
-                let _ = self.cdp.call("Page.stopScreencast", json!({}), Some(&s)).await;
+                let _ = self
+                    .cdp
+                    .call("Page.stopScreencast", json!({}), Some(&s))
+                    .await;
                 let _ = self
                     .cdp
                     .call("Emulation.clearDeviceMetricsOverride", json!({}), Some(&s))
@@ -993,7 +1125,12 @@ impl Browser {
     pub async fn mouse(&self, tab_id: &str, params: Value) -> Result<(), String> {
         let s = self.session_for(tab_id).await?;
         self.cdp
-            .call_timeout("Input.dispatchMouseEvent", params, Some(&s), Duration::from_secs(5))
+            .call_timeout(
+                "Input.dispatchMouseEvent",
+                params,
+                Some(&s),
+                Duration::from_secs(5),
+            )
             .await
             .map(|_| ())
     }
@@ -1002,7 +1139,12 @@ impl Browser {
     pub async fn key(&self, tab_id: &str, params: Value) -> Result<(), String> {
         let s = self.session_for(tab_id).await?;
         self.cdp
-            .call_timeout("Input.dispatchKeyEvent", params, Some(&s), Duration::from_secs(5))
+            .call_timeout(
+                "Input.dispatchKeyEvent",
+                params,
+                Some(&s),
+                Duration::from_secs(5),
+            )
             .await
             .map(|_| ())
     }
@@ -1021,7 +1163,11 @@ impl Browser {
     /// bitmask (Alt 1, Ctrl 2, Meta 4, Shift 8).
     pub async fn press(&self, tab_id: &str, key: &str, modifiers: u32) -> Result<(), String> {
         let (code, vk, text) = key_info(key);
-        let text = if modifiers & (2 | 4) != 0 { String::new() } else { text };
+        let text = if modifiers & (2 | 4) != 0 {
+            String::new()
+        } else {
+            text
+        };
         let down = json!({
             "type": if text.is_empty() { "rawKeyDown" } else { "keyDown" },
             // No nativeVirtualKeyCode: macOS reads it as a native key code,
@@ -1041,20 +1187,38 @@ impl Browser {
     pub async fn history(&self, tab_id: &str, action: &str) -> Result<(), String> {
         let s = self.session_for(tab_id).await?;
         match action {
-            "reload" => self.cdp.call("Page.reload", json!({}), Some(&s)).await.map(|_| ()),
-            "stop" => self.cdp.call("Page.stopLoading", json!({}), Some(&s)).await.map(|_| ()),
+            "reload" => self
+                .cdp
+                .call("Page.reload", json!({}), Some(&s))
+                .await
+                .map(|_| ()),
+            "stop" => self
+                .cdp
+                .call("Page.stopLoading", json!({}), Some(&s))
+                .await
+                .map(|_| ()),
             "back" | "forward" => {
-                let h = self.cdp.call("Page.getNavigationHistory", json!({}), Some(&s)).await?;
+                let h = self
+                    .cdp
+                    .call("Page.getNavigationHistory", json!({}), Some(&s))
+                    .await?;
                 let cur = h["currentIndex"].as_i64().unwrap_or(0);
                 let idx = if action == "back" { cur - 1 } else { cur + 1 };
-                let Some(entry) = h["entries"].as_array().and_then(|e| e.get(idx.max(0) as usize)) else {
+                let Some(entry) = h["entries"]
+                    .as_array()
+                    .and_then(|e| e.get(idx.max(0) as usize))
+                else {
                     return Ok(());
                 };
                 if idx < 0 {
                     return Ok(());
                 }
                 self.cdp
-                    .call("Page.navigateToHistoryEntry", json!({ "entryId": entry["id"] }), Some(&s))
+                    .call(
+                        "Page.navigateToHistoryEntry",
+                        json!({ "entryId": entry["id"] }),
+                        Some(&s),
+                    )
                     .await
                     .map(|_| ())
             }
@@ -1063,8 +1227,14 @@ impl Browser {
     }
 
     pub async fn can_go(&self, tab_id: &str) -> (bool, bool) {
-        let Ok(s) = self.session_for(tab_id).await else { return (false, false) };
-        let Ok(h) = self.cdp.call("Page.getNavigationHistory", json!({}), Some(&s)).await else {
+        let Ok(s) = self.session_for(tab_id).await else {
+            return (false, false);
+        };
+        let Ok(h) = self
+            .cdp
+            .call("Page.getNavigationHistory", json!({}), Some(&s))
+            .await
+        else {
             return (false, false);
         };
         let cur = h["currentIndex"].as_i64().unwrap_or(0);
@@ -1073,7 +1243,12 @@ impl Browser {
     }
 
     /// Answers an alert/confirm/prompt the page opened.
-    pub async fn answer_dialog(&self, tab_id: &str, accept: bool, text: Option<String>) -> Result<(), String> {
+    pub async fn answer_dialog(
+        &self,
+        tab_id: &str,
+        accept: bool,
+        text: Option<String>,
+    ) -> Result<(), String> {
         let s = self.session_for(tab_id).await?;
         let mut p = json!({ "accept": accept });
         if let Some(t) = text {
@@ -1086,7 +1261,12 @@ impl Browser {
     }
 
     /// Gives a file input the files the person picked in OmniGet.
-    pub async fn set_files(&self, tab_id: &str, backend_node_id: i64, files: Vec<String>) -> Result<(), String> {
+    pub async fn set_files(
+        &self,
+        tab_id: &str,
+        backend_node_id: i64,
+        files: Vec<String>,
+    ) -> Result<(), String> {
         let s = self.session_for(tab_id).await?;
         self.cdp
             .call(
@@ -1104,7 +1284,12 @@ impl Browser {
         let s = self.session_for(tab_id).await?;
         let r = self
             .cdp
-            .call_timeout("Page.captureScreenshot", json!({ "format": "png" }), Some(&s), Duration::from_secs(20))
+            .call_timeout(
+                "Page.captureScreenshot",
+                json!({ "format": "png" }),
+                Some(&s),
+                Duration::from_secs(20),
+            )
             .await?;
         base64::engine::general_purpose::STANDARD
             .decode(r["data"].as_str().unwrap_or_default())
@@ -1116,15 +1301,26 @@ impl Browser {
     pub async fn open_private_tab(&self, url: &str) -> Result<String, String> {
         let c = self
             .cdp
-            .call("Target.createBrowserContext", json!({ "disposeOnDetach": false }), None)
+            .call(
+                "Target.createBrowserContext",
+                json!({ "disposeOnDetach": false }),
+                None,
+            )
             .await?;
-        let ctx = c["browserContextId"].as_str().unwrap_or_default().to_string();
+        let ctx = c["browserContextId"]
+            .as_str()
+            .unwrap_or_default()
+            .to_string();
         if let Ok(mut p) = self.private_contexts.lock() {
             p.insert(ctx.clone());
         }
         let r = self
             .cdp
-            .call("Target.createTarget", json!({ "url": url, "browserContextId": ctx }), None)
+            .call(
+                "Target.createTarget",
+                json!({ "url": url, "browserContextId": ctx }),
+                None,
+            )
             .await?;
         Ok(r["targetId"].as_str().unwrap_or_default().to_string())
     }
@@ -1137,8 +1333,12 @@ impl Browser {
             .find(|t| !t.private && t.session.is_some())
             .and_then(|t| t.session)
             .ok_or("open a tab first")?;
-        self.cdp.call("Network.clearBrowserCookies", json!({}), Some(&s)).await?;
-        self.cdp.call("Network.clearBrowserCache", json!({}), Some(&s)).await?;
+        self.cdp
+            .call("Network.clearBrowserCookies", json!({}), Some(&s))
+            .await?;
+        self.cdp
+            .call("Network.clearBrowserCache", json!({}), Some(&s))
+            .await?;
         Ok(())
     }
 
@@ -1146,16 +1346,28 @@ impl Browser {
     pub async fn show_window(&self, tab_id: &str) -> Result<(), String> {
         let w = self
             .cdp
-            .call("Browser.getWindowForTarget", json!({ "targetId": tab_id }), None)
+            .call(
+                "Browser.getWindowForTarget",
+                json!({ "targetId": tab_id }),
+                None,
+            )
             .await?;
         let id = w["windowId"].clone();
         let _ = self
             .cdp
-            .call("Browser.setWindowBounds", json!({ "windowId": id, "bounds": { "windowState": "normal" } }), None)
+            .call(
+                "Browser.setWindowBounds",
+                json!({ "windowId": id, "bounds": { "windowState": "normal" } }),
+                None,
+            )
             .await;
         let _ = self
             .cdp
-            .call("Browser.setWindowBounds", json!({ "windowId": id, "bounds": { "left": 40, "top": 40 } }), None)
+            .call(
+                "Browser.setWindowBounds",
+                json!({ "windowId": id, "bounds": { "left": 40, "top": 40 } }),
+                None,
+            )
             .await;
         self.activate_tab(tab_id).await
     }
@@ -1181,7 +1393,10 @@ impl Browser {
     pub fn tabs(&self) -> Vec<Tab> {
         let tabs = self.tabs.lock().unwrap_or_else(|e| e.into_inner());
         let order = self.order.lock().unwrap_or_else(|e| e.into_inner());
-        order.iter().filter_map(|id| tabs.get(id).cloned()).collect()
+        order
+            .iter()
+            .filter_map(|id| tabs.get(id).cloned())
+            .collect()
     }
 
     fn emit_tabs(&self) {
@@ -1203,16 +1418,24 @@ impl Browser {
 
     pub async fn close_tab(&self, id: &str) -> Result<(), String> {
         let ctx = self.tab(id).filter(|t| t.private).and_then(|t| t.context);
-        let r = self.cdp
+        let r = self
+            .cdp
             .call("Target.closeTarget", json!({ "targetId": id }), None)
             .await
             .map(|_| ());
         if let Some(c) = ctx {
-            let still_used = self.tabs().iter().any(|t| t.id != id && t.context.as_deref() == Some(&c));
+            let still_used = self
+                .tabs()
+                .iter()
+                .any(|t| t.id != id && t.context.as_deref() == Some(&c));
             if !still_used {
                 let _ = self
                     .cdp
-                    .call("Target.disposeBrowserContext", json!({ "browserContextId": c }), None)
+                    .call(
+                        "Target.disposeBrowserContext",
+                        json!({ "browserContextId": c }),
+                        None,
+                    )
                     .await;
                 if let Ok(mut p) = self.private_contexts.lock() {
                     p.remove(&c);
@@ -1249,7 +1472,12 @@ impl Browser {
 
     /// Evaluates `expression` in the tab, awaiting a promise, and returns the
     /// value as JSON.
-    pub async fn eval(&self, tab_id: &str, expression: &str, timeout: Duration) -> Result<Value, String> {
+    pub async fn eval(
+        &self,
+        tab_id: &str,
+        expression: &str,
+        timeout: Duration,
+    ) -> Result<Value, String> {
         let s = self.session_for(tab_id).await?;
         let r = self
             .cdp
@@ -1284,14 +1512,21 @@ impl Browser {
             .unwrap_or_default()
             .into_iter()
             .filter(|c| {
-                let d = c["domain"].as_str().unwrap_or_default().trim_start_matches('.');
+                let d = c["domain"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .trim_start_matches('.');
                 host == d || host.ends_with(&format!(".{d}"))
             })
             .collect())
     }
 
     pub async fn user_agent(&self) -> Option<String> {
-        let r = self.cdp.call("Browser.getVersion", json!({}), None).await.ok()?;
+        let r = self
+            .cdp
+            .call("Browser.getVersion", json!({}), None)
+            .await
+            .ok()?;
         r["userAgent"].as_str().map(String::from)
     }
 
@@ -1442,7 +1677,12 @@ pub async fn fetch(
     let hdrs: serde_json::Map<String, Value> = resp
         .headers()
         .iter()
-        .map(|(k, v)| (k.to_string(), Value::String(v.to_str().unwrap_or("").to_string())))
+        .map(|(k, v)| {
+            (
+                k.to_string(),
+                Value::String(v.to_str().unwrap_or("").to_string()),
+            )
+        })
         .collect();
     let text = resp.text().await.map_err(|e| e.to_string())?;
     Ok(json!({ "status": status, "url": final_url, "headers": hdrs, "body": text }))
@@ -1451,15 +1691,37 @@ pub async fn fetch(
 /// (code, Windows virtual key code, text) for a DOM key name.
 pub fn key_info(key: &str) -> (String, i64, String) {
     let named: &[(&str, &str, i64)] = &[
-        ("Enter", "Enter", 13), ("Tab", "Tab", 9), ("Backspace", "Backspace", 8),
-        ("Escape", "Escape", 27), ("Delete", "Delete", 46), ("Space", "Space", 32),
-        ("ArrowLeft", "ArrowLeft", 37), ("ArrowUp", "ArrowUp", 38), ("ArrowRight", "ArrowRight", 39),
-        ("ArrowDown", "ArrowDown", 40), ("Home", "Home", 36), ("End", "End", 35),
-        ("PageUp", "PageUp", 33), ("PageDown", "PageDown", 34), ("Insert", "Insert", 45),
-        ("F1", "F1", 112), ("F2", "F2", 113), ("F3", "F3", 114), ("F4", "F4", 115), ("F5", "F5", 116),
-        ("F6", "F6", 117), ("F7", "F7", 118), ("F8", "F8", 119), ("F9", "F9", 120), ("F10", "F10", 121),
-        ("F11", "F11", 122), ("F12", "F12", 123),
-        ("Shift", "ShiftLeft", 16), ("Control", "ControlLeft", 17), ("Alt", "AltLeft", 18), ("Meta", "MetaLeft", 91),
+        ("Enter", "Enter", 13),
+        ("Tab", "Tab", 9),
+        ("Backspace", "Backspace", 8),
+        ("Escape", "Escape", 27),
+        ("Delete", "Delete", 46),
+        ("Space", "Space", 32),
+        ("ArrowLeft", "ArrowLeft", 37),
+        ("ArrowUp", "ArrowUp", 38),
+        ("ArrowRight", "ArrowRight", 39),
+        ("ArrowDown", "ArrowDown", 40),
+        ("Home", "Home", 36),
+        ("End", "End", 35),
+        ("PageUp", "PageUp", 33),
+        ("PageDown", "PageDown", 34),
+        ("Insert", "Insert", 45),
+        ("F1", "F1", 112),
+        ("F2", "F2", 113),
+        ("F3", "F3", 114),
+        ("F4", "F4", 115),
+        ("F5", "F5", 116),
+        ("F6", "F6", 117),
+        ("F7", "F7", 118),
+        ("F8", "F8", 119),
+        ("F9", "F9", 120),
+        ("F10", "F10", 121),
+        ("F11", "F11", 122),
+        ("F12", "F12", 123),
+        ("Shift", "ShiftLeft", 16),
+        ("Control", "ControlLeft", 17),
+        ("Alt", "AltLeft", 18),
+        ("Meta", "MetaLeft", 91),
     ];
     if let Some((_, code, vk)) = named.iter().find(|(k, _, _)| *k == key) {
         let text = match key {

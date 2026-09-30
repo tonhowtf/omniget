@@ -12989,7 +12989,7 @@
       "reportTitle": "Relatar um problema",
       "reportIntro": "Salva um arquivo de diagnóstico neste computador: versões, contagens, linhas recentes do log do app e relatórios de travamento. Sem código, notas, prompts nem saída de terminal; tokens, e-mails e sua pasta pessoal ficam mascarados. Nada é enviado: você anexa o arquivo.",
       "reportMake": "Criar arquivo de diagnóstico",
-      "reportFiles": "{{n}} arquivos, {{lines}} linhas de log",
+      "reportFiles": "{{count}} arquivos, {{lines}} linhas de log",
       "reportMail": "Escrever um e-mail",
       "reportIssue": "Abrir uma issue no GitHub"
     }
@@ -14065,7 +14065,7 @@
     "settings_enable_desc": "Mostra o Telegram em Superpoderes. Nada conecta até você abrir a tela.",
     "player": {
       "continue": "Continuar assistindo",
-      "position": "{{n}} de {{total}}",
+      "position": "{{count}} de {{total}}",
       "download_this": "Baixar",
       "open_in": "Abrir em…",
       "players": {
@@ -14155,8 +14155,8 @@
       "last_result": "{{found}} encontrados, {{queued}} na fila",
       "never": "nunca",
       "just_now": "agora há pouco",
-      "minutes_ago": "há {{n}} min",
-      "hours_ago": "há {{n}} h",
+      "minutes_ago": "há {{count}} min",
+      "hours_ago": "há {{count}} h",
       "edit": "Editar regra",
       "remove": "Remover regra",
       "confirm_remove": "Remover",
@@ -14171,7 +14171,7 @@
       "created": "As mídias novas de {{chat}} serão salvas",
       "updated": "Regra de {{chat}} atualizada",
       "every": "Verificar a cada",
-      "minutes": "{{n}} min",
+      "minutes": "{{count}} min",
       "realtime": "Tempo real",
       "realtime_on_hint": "Mensagens novas são salvas assim que chegam.",
       "realtime_off_hint": "As regras só rodam no intervalo abaixo.",
@@ -14358,7 +14358,7 @@
         "tg_forward": "Encaminhar mensagens",
         "tg_delete_messages": "Apagar mensagens"
       },
-      "queue": "{{n}} de {{total}}",
+      "queue": "{{count}} de {{total}}",
       "hint": "Nada acontece até você aprovar. Se você não responder, o pedido é recusado.",
       "expires": "Recusado sozinho em {{time}}",
       "approve": "Aprovar",

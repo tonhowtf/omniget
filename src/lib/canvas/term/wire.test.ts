@@ -1,4 +1,12 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+
+// The wire pulls in the canvas prefs, which read the settings store: its
+// module-level runes need a stand-in outside the Svelte compiler.
+vi.hoisted(() => {
+  const g = globalThis as Record<string, unknown>;
+  g.$state = <T>(value: T) => value;
+  g.$derived = <T>(value: T) => value;
+});
 import {
   KIND_AGENT,
   KIND_CURSOR,
@@ -192,7 +200,9 @@ describe('key routing', () => {
     expect(routeKey(ev('œ', { altKey: true }), true, false, true)).toBe('terminal');
   });
   it('reserves app shortcuts', () => {
-    expect(routeKey(ev('k', { metaKey: true }), true, false)).toBe('app');
+    // ⌘K clears the terminal, as in Terminal.app; other ⌘ keys stay with the app.
+    expect(routeKey(ev('k', { metaKey: true }), true, false)).toBe('clear');
+    expect(routeKey(ev('t', { metaKey: true }), true, false)).toBe('app');
     expect(routeKey(ev('c', { metaKey: true }), true, true)).toBe('copy');
     expect(routeKey(ev('c', { metaKey: true }), true, false)).toBe('app');
     expect(routeKey(ev('v', { metaKey: true }), true, false)).toBe('paste');

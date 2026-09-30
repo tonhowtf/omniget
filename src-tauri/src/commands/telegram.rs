@@ -56,21 +56,21 @@ impl TelegramHost for AppHost {
     }
 
     fn save_settings(&self, settings: Value) {
-        let mut all = crate::storage::config::load_settings(&self.app);
-        if let Some(n) = settings
-            .get("concurrent_downloads")
-            .and_then(|v| v.as_u64())
-        {
-            all.telegram.concurrent_downloads = n as u32;
-        }
-        if let Some(b) = settings
-            .get("fix_file_extensions")
-            .and_then(|v| v.as_bool())
-        {
-            all.telegram.fix_file_extensions = b;
-        }
-        all.telegram.prefs = settings;
-        let _ = crate::storage::config::save_settings(&self.app, &all);
+        let _ = crate::storage::config::update_settings(&self.app, |all| {
+            if let Some(n) = settings
+                .get("concurrent_downloads")
+                .and_then(|v| v.as_u64())
+            {
+                all.telegram.concurrent_downloads = n as u32;
+            }
+            if let Some(b) = settings
+                .get("fix_file_extensions")
+                .and_then(|v| v.as_bool())
+            {
+                all.telegram.fix_file_extensions = b;
+            }
+            all.telegram.prefs = settings;
+        });
     }
 
     fn default_output_dir(&self) -> PathBuf {

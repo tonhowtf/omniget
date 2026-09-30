@@ -312,9 +312,8 @@ pub async fn llm_bridge_token_revoke(app: AppHandle, id: String) -> Result<Value
 /// Turns the extension key's grace period on the agent routes on or off.
 #[tauri::command]
 pub async fn llm_bridge_legacy_set(app: AppHandle, allowed: bool) -> Result<Value, String> {
-    let mut settings = crate::storage::config::load_settings(&app);
-    settings.bridge.legacy_agent_routes = allowed;
-    crate::storage::config::save_settings(&app, &settings).map_err(|e| e.to_string())?;
+    crate::storage::config::update_settings(&app, |s| s.bridge.legacy_agent_routes = allowed)
+        .map_err(|e| e.to_string())?;
     crate::bridge_tokens::legacy_flag().store(allowed, std::sync::atomic::Ordering::Relaxed);
     Ok(json!({ "allowed": allowed }))
 }

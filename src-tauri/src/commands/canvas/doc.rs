@@ -162,10 +162,8 @@ pub async fn canvas_note_move(
     dest: String,
 ) -> Result<NoteContent, String> {
     let s = store(&app);
-    blocking(move || {
-        notes::move_to(&s, &workspace_id, &floor_id, &node_id, &dest, ORIGIN_USER)
-    })
-    .await
+    blocking(move || notes::move_to(&s, &workspace_id, &floor_id, &node_id, &dest, ORIGIN_USER))
+        .await
 }
 
 #[tauri::command]

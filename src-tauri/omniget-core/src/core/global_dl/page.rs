@@ -141,7 +141,8 @@ fn wrap(body: &str, args: &Value) -> String {
 }
 
 async fn run(b: &Browser, tab: &str, body: &str, args: Value) -> Result<Value, String> {
-    b.eval(tab, &wrap(body, &args), Duration::from_secs(30)).await
+    b.eval(tab, &wrap(body, &args), Duration::from_secs(30))
+        .await
 }
 
 /// The tab an agent means: the one given, else the one shown in OmniGet,
@@ -161,20 +162,35 @@ pub fn pick_tab(b: &Browser, tab: Option<String>) -> Result<String, String> {
         .ok_or_else(|| "no tab is open".to_string())
 }
 
-pub async fn snapshot(b: &Browser, tab: &str, max_nodes: Option<u64>, max_chars: Option<u64>) -> Result<Value, String> {
-    run(b, tab, SNAPSHOT, json!({ "maxNodes": max_nodes, "maxChars": max_chars })).await
+pub async fn snapshot(
+    b: &Browser,
+    tab: &str,
+    max_nodes: Option<u64>,
+    max_chars: Option<u64>,
+) -> Result<Value, String> {
+    run(
+        b,
+        tab,
+        SNAPSHOT,
+        json!({ "maxNodes": max_nodes, "maxChars": max_chars }),
+    )
+    .await
 }
 
 /// Clicks with the real mouse at the element's center.
 pub async fn click(b: &Browser, tab: &str, selector: &str, double: bool) -> Result<Value, String> {
     let at = run(b, tab, LOCATE, json!({ "selector": selector })).await?;
-    let (x, y) = (at["x"].as_f64().unwrap_or(0.0), at["y"].as_f64().unwrap_or(0.0));
+    let (x, y) = (
+        at["x"].as_f64().unwrap_or(0.0),
+        at["y"].as_f64().unwrap_or(0.0),
+    );
     click_at(b, tab, x, y, if double { 2 } else { 1 }).await?;
     Ok(json!({ "clicked": at["what"], "x": x, "y": y }))
 }
 
 pub async fn click_at(b: &Browser, tab: &str, x: f64, y: f64, count: u32) -> Result<(), String> {
-    b.mouse(tab, json!({ "type": "mouseMoved", "x": x, "y": y })).await?;
+    b.mouse(tab, json!({ "type": "mouseMoved", "x": x, "y": y }))
+        .await?;
     for n in 1..=count {
         b.mouse(tab, json!({ "type": "mousePressed", "x": x, "y": y, "button": "left", "buttons": 1, "clickCount": n }))
             .await?;
@@ -185,9 +201,19 @@ pub async fn click_at(b: &Browser, tab: &str, x: f64, y: f64, count: u32) -> Res
 }
 
 /// Focuses the field with a click and types as keyboard input.
-pub async fn type_text(b: &Browser, tab: &str, selector: &str, text: &str, clear: bool, submit: bool) -> Result<Value, String> {
+pub async fn type_text(
+    b: &Browser,
+    tab: &str,
+    selector: &str,
+    text: &str,
+    clear: bool,
+    submit: bool,
+) -> Result<Value, String> {
     let at = run(b, tab, LOCATE, json!({ "selector": selector })).await?;
-    let (x, y) = (at["x"].as_f64().unwrap_or(0.0), at["y"].as_f64().unwrap_or(0.0));
+    let (x, y) = (
+        at["x"].as_f64().unwrap_or(0.0),
+        at["y"].as_f64().unwrap_or(0.0),
+    );
     click_at(b, tab, x, y, 1).await?;
     if clear {
         run(b, tab, SELECT_ALL, json!({})).await?;
@@ -222,17 +248,37 @@ pub async fn press_combo(b: &Browser, tab: &str, combo: &str) -> Result<(), Stri
 }
 
 pub async fn scroll(b: &Browser, tab: &str, dy: f64, dx: f64) -> Result<Value, String> {
-    let vp = run(b, tab, "return { w: innerWidth, h: innerHeight };", json!({})).await?;
-    let (x, y) = (vp["w"].as_f64().unwrap_or(800.0) / 2.0, vp["h"].as_f64().unwrap_or(600.0) / 2.0);
-    b.mouse(tab, json!({ "type": "mouseWheel", "x": x, "y": y, "deltaX": dx, "deltaY": dy })).await?;
+    let vp = run(
+        b,
+        tab,
+        "return { w: innerWidth, h: innerHeight };",
+        json!({}),
+    )
+    .await?;
+    let (x, y) = (
+        vp["w"].as_f64().unwrap_or(800.0) / 2.0,
+        vp["h"].as_f64().unwrap_or(600.0) / 2.0,
+    );
+    b.mouse(
+        tab,
+        json!({ "type": "mouseWheel", "x": x, "y": y, "deltaX": dx, "deltaY": dy }),
+    )
+    .await?;
     tokio::time::sleep(Duration::from_millis(300)).await;
     run(b, tab, "return { scrollY: Math.round(scrollY), scrollHeight: document.documentElement.scrollHeight };", json!({})).await
 }
 
 /// Waits until `text` shows on the page or `selector` matches, up to
 /// `timeout_ms`.
-pub async fn wait_for(b: &Browser, tab: &str, text: Option<&str>, selector: Option<&str>, timeout_ms: u64) -> Result<Value, String> {
-    let deadline = std::time::Instant::now() + Duration::from_millis(timeout_ms.clamp(100, 120_000));
+pub async fn wait_for(
+    b: &Browser,
+    tab: &str,
+    text: Option<&str>,
+    selector: Option<&str>,
+    timeout_ms: u64,
+) -> Result<Value, String> {
+    let deadline =
+        std::time::Instant::now() + Duration::from_millis(timeout_ms.clamp(100, 120_000));
     loop {
         let found = run(
             b,

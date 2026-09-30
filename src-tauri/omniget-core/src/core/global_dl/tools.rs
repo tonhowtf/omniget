@@ -7,13 +7,21 @@ use std::path::PathBuf;
 use serde_json::{json, Value};
 
 use super::{browser, connector, jobs, page, profiles, sniffer, Node, Source};
-use crate::core::llm::tool_table::{list, need_str, num, s, to_json, BoxFut, CostHint, ToolEntry, ToolImpl};
+use crate::core::llm::tool_table::{
+    list, need_str, num, s, to_json, BoxFut, CostHint, ToolEntry, ToolImpl,
+};
 
 fn obj(props: Value, required: &[&str]) -> Value {
     json!({ "type": "object", "properties": props, "required": required })
 }
 
-fn e(name: &'static str, description: &'static str, schema: Value, call: fn(Value) -> BoxFut, cost: CostHint) -> ToolEntry {
+fn e(
+    name: &'static str,
+    description: &'static str,
+    schema: Value,
+    call: fn(Value) -> BoxFut,
+    cost: CostHint,
+) -> ToolEntry {
     ToolEntry {
         name,
         description,
@@ -295,7 +303,11 @@ pub fn tree_for_sniffed(id: u64) -> Result<Node, String> {
         .and_then(|p| p.rsplit('/').next())
         .unwrap_or("media")
         .to_string();
-    let title = if m.page_title.is_empty() { file } else { m.page_title.clone() };
+    let title = if m.page_title.is_empty() {
+        file
+    } else {
+        m.page_title.clone()
+    };
     let mut tree = Node {
         title: "Sniffed".into(),
         kind: "folder".into(),
@@ -330,10 +342,15 @@ async fn syntax_check(src: String) -> Result<(), String> {
             .replace("export function", "function");
         ctx.with(|ctx| {
             let f: rquickjs::Function = ctx
-                .eval(format!("(function(){{ return function(){{ {src}\n; return typeof resolve; }}; }})()"))
+                .eval(format!(
+                    "(function(){{ return function(){{ {src}\n; return typeof resolve; }}; }})()"
+                ))
                 .catch(&ctx)
                 .map_err(|e| format!("syntax: {e}"))?;
-            let kind: String = f.call(()).catch(&ctx).map_err(|e| format!("top level: {e}"))?;
+            let kind: String = f
+                .call(())
+                .catch(&ctx)
+                .map_err(|e| format!("top level: {e}"))?;
             if kind != "function" {
                 return Err("the script defines no resolve(url, ctx)".to_string());
             }

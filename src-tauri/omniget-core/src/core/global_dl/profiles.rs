@@ -53,13 +53,76 @@ struct Known {
 }
 
 const CHROMIUMS: &[Known] = &[
-    Known { id: "chrome", name: "Google Chrome", mac_data: "Google/Chrome", mac_app: "Google Chrome.app/Contents/MacOS/Google Chrome", win_data: "Google\\Chrome\\User Data", win_exe: "Google\\Chrome\\Application\\chrome.exe", linux_data: "google-chrome", linux_bin: "google-chrome" },
-    Known { id: "edge", name: "Microsoft Edge", mac_data: "Microsoft Edge", mac_app: "Microsoft Edge.app/Contents/MacOS/Microsoft Edge", win_data: "Microsoft\\Edge\\User Data", win_exe: "Microsoft\\Edge\\Application\\msedge.exe", linux_data: "microsoft-edge", linux_bin: "microsoft-edge" },
-    Known { id: "brave", name: "Brave", mac_data: "BraveSoftware/Brave-Browser", mac_app: "Brave Browser.app/Contents/MacOS/Brave Browser", win_data: "BraveSoftware\\Brave-Browser\\User Data", win_exe: "BraveSoftware\\Brave-Browser\\Application\\brave.exe", linux_data: "BraveSoftware/Brave-Browser", linux_bin: "brave-browser" },
-    Known { id: "chromium", name: "Chromium", mac_data: "Chromium", mac_app: "Chromium.app/Contents/MacOS/Chromium", win_data: "Chromium\\User Data", win_exe: "Chromium\\Application\\chrome.exe", linux_data: "chromium", linux_bin: "chromium" },
-    Known { id: "vivaldi", name: "Vivaldi", mac_data: "Vivaldi", mac_app: "Vivaldi.app/Contents/MacOS/Vivaldi", win_data: "Vivaldi\\User Data", win_exe: "Vivaldi\\Application\\vivaldi.exe", linux_data: "vivaldi", linux_bin: "vivaldi" },
-    Known { id: "opera", name: "Opera", mac_data: "com.operasoftware.Opera", mac_app: "Opera.app/Contents/MacOS/Opera", win_data: "Opera Software\\Opera Stable", win_exe: "Programs\\Opera\\opera.exe", linux_data: "opera", linux_bin: "opera" },
-    Known { id: "arc", name: "Arc", mac_data: "Arc/User Data", mac_app: "Arc.app/Contents/MacOS/Arc", win_data: "", win_exe: "", linux_data: "", linux_bin: "" },
+    Known {
+        id: "chrome",
+        name: "Google Chrome",
+        mac_data: "Google/Chrome",
+        mac_app: "Google Chrome.app/Contents/MacOS/Google Chrome",
+        win_data: "Google\\Chrome\\User Data",
+        win_exe: "Google\\Chrome\\Application\\chrome.exe",
+        linux_data: "google-chrome",
+        linux_bin: "google-chrome",
+    },
+    Known {
+        id: "edge",
+        name: "Microsoft Edge",
+        mac_data: "Microsoft Edge",
+        mac_app: "Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+        win_data: "Microsoft\\Edge\\User Data",
+        win_exe: "Microsoft\\Edge\\Application\\msedge.exe",
+        linux_data: "microsoft-edge",
+        linux_bin: "microsoft-edge",
+    },
+    Known {
+        id: "brave",
+        name: "Brave",
+        mac_data: "BraveSoftware/Brave-Browser",
+        mac_app: "Brave Browser.app/Contents/MacOS/Brave Browser",
+        win_data: "BraveSoftware\\Brave-Browser\\User Data",
+        win_exe: "BraveSoftware\\Brave-Browser\\Application\\brave.exe",
+        linux_data: "BraveSoftware/Brave-Browser",
+        linux_bin: "brave-browser",
+    },
+    Known {
+        id: "chromium",
+        name: "Chromium",
+        mac_data: "Chromium",
+        mac_app: "Chromium.app/Contents/MacOS/Chromium",
+        win_data: "Chromium\\User Data",
+        win_exe: "Chromium\\Application\\chrome.exe",
+        linux_data: "chromium",
+        linux_bin: "chromium",
+    },
+    Known {
+        id: "vivaldi",
+        name: "Vivaldi",
+        mac_data: "Vivaldi",
+        mac_app: "Vivaldi.app/Contents/MacOS/Vivaldi",
+        win_data: "Vivaldi\\User Data",
+        win_exe: "Vivaldi\\Application\\vivaldi.exe",
+        linux_data: "vivaldi",
+        linux_bin: "vivaldi",
+    },
+    Known {
+        id: "opera",
+        name: "Opera",
+        mac_data: "com.operasoftware.Opera",
+        mac_app: "Opera.app/Contents/MacOS/Opera",
+        win_data: "Opera Software\\Opera Stable",
+        win_exe: "Programs\\Opera\\opera.exe",
+        linux_data: "opera",
+        linux_bin: "opera",
+    },
+    Known {
+        id: "arc",
+        name: "Arc",
+        mac_data: "Arc/User Data",
+        mac_app: "Arc.app/Contents/MacOS/Arc",
+        win_data: "",
+        win_exe: "",
+        linux_data: "",
+        linux_bin: "",
+    },
 ];
 
 fn find_exe(k: &Known) -> Option<PathBuf> {
@@ -102,7 +165,11 @@ fn data_of(k: &Known) -> Option<PathBuf> {
     }
     let base = if cfg!(windows) {
         // Opera keeps its profile in Roaming; the rest in Local.
-        if k.id == "opera" { dirs::data_dir()? } else { dirs::data_local_dir()? }
+        if k.id == "opera" {
+            dirs::data_dir()?
+        } else {
+            dirs::data_local_dir()?
+        }
     } else if cfg!(target_os = "macos") {
         dirs::data_dir()?
     } else {
@@ -124,19 +191,37 @@ fn chromium_profiles(data: &Path, id: &str) -> Vec<Profile> {
                 .map(|(dir, v)| Profile {
                     dir: dir.clone(),
                     name: v["name"].as_str().unwrap_or(dir).to_string(),
-                    email: v["user_name"].as_str().filter(|s| !s.is_empty()).map(String::from),
+                    email: v["user_name"]
+                        .as_str()
+                        .filter(|s| !s.is_empty())
+                        .map(String::from),
                 })
                 .collect()
         })
         .unwrap_or_default();
     // Opera keeps a single profile in the data dir itself.
-    if out.is_empty() && id == "opera" && (data.join("Cookies").exists() || data.join("Network").is_dir()) {
-        out.push(Profile { dir: ".".into(), name: "Default".into(), email: None });
+    if out.is_empty()
+        && id == "opera"
+        && (data.join("Cookies").exists() || data.join("Network").is_dir())
+    {
+        out.push(Profile {
+            dir: ".".into(),
+            name: "Default".into(),
+            email: None,
+        });
     }
     if out.is_empty() && data.join("Default").is_dir() {
-        out.push(Profile { dir: "Default".into(), name: "Default".into(), email: None });
+        out.push(Profile {
+            dir: "Default".into(),
+            name: "Default".into(),
+            email: None,
+        });
     }
-    out.sort_by(|a, b| (a.dir != "Default").cmp(&(b.dir != "Default")).then(a.dir.cmp(&b.dir)));
+    out.sort_by(|a, b| {
+        (a.dir != "Default")
+            .cmp(&(b.dir != "Default"))
+            .then(a.dir.cmp(&b.dir))
+    });
     out
 }
 
@@ -157,11 +242,19 @@ fn firefox_profiles(root: &Path) -> Vec<Profile> {
     let (mut name, mut path, mut rel) = (String::new(), String::new(), true);
     let flush = |name: &mut String, path: &mut String, rel: bool, out: &mut Vec<Profile>| {
         if !path.is_empty() {
-            let full = if rel { root.join(&*path) } else { PathBuf::from(&*path) };
+            let full = if rel {
+                root.join(&*path)
+            } else {
+                PathBuf::from(&*path)
+            };
             if full.join("cookies.sqlite").is_file() {
                 out.push(Profile {
                     dir: full.display().to_string(),
-                    name: if name.is_empty() { path.clone() } else { name.clone() },
+                    name: if name.is_empty() {
+                        path.clone()
+                    } else {
+                        name.clone()
+                    },
                     email: None,
                 });
             }
@@ -187,17 +280,26 @@ fn firefox_profiles(root: &Path) -> Vec<Profile> {
 }
 
 fn is_running(exe: &Path) -> bool {
-    let name = exe.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+    let name = exe
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_default();
     if name.is_empty() {
         return false;
     }
     let out = if cfg!(windows) {
-        std::process::Command::new("tasklist").args(["/FI", &format!("IMAGENAME eq {name}")]).output()
+        std::process::Command::new("tasklist")
+            .args(["/FI", &format!("IMAGENAME eq {name}")])
+            .output()
     } else {
-        std::process::Command::new("pgrep").args(["-x", &name]).output()
+        std::process::Command::new("pgrep")
+            .args(["-x", &name])
+            .output()
     };
-    out.map(|o| String::from_utf8_lossy(&o.stdout).contains(&name) || (!cfg!(windows) && o.status.success()))
-        .unwrap_or(false)
+    out.map(|o| {
+        String::from_utf8_lossy(&o.stdout).contains(&name) || (!cfg!(windows) && o.status.success())
+    })
+    .unwrap_or(false)
 }
 
 /// Browsers on this computer that OmniGet can take logins from.
@@ -239,11 +341,30 @@ pub fn sources() -> Vec<Source> {
 
 /// Caches and other folders a copy does not need.
 const SKIP: &[&str] = &[
-    "Cache", "Code Cache", "GPUCache", "DawnCache", "DawnGraphiteCache", "DawnWebGPUCache",
-    "GrShaderCache", "ShaderCache", "GraphiteDawnCache", "Media Cache", "CacheStorage",
-    "ScriptCache", "blob_storage", "optimization_guide_model_store", "optimization_guide_hint_cache_store",
-    "Crashpad", "BrowserMetrics", "component_crx_cache", "Safe Browsing", "SingletonLock",
-    "SingletonCookie", "SingletonSocket", "LOCK", "lockfile",
+    "Cache",
+    "Code Cache",
+    "GPUCache",
+    "DawnCache",
+    "DawnGraphiteCache",
+    "DawnWebGPUCache",
+    "GrShaderCache",
+    "ShaderCache",
+    "GraphiteDawnCache",
+    "Media Cache",
+    "CacheStorage",
+    "ScriptCache",
+    "blob_storage",
+    "optimization_guide_model_store",
+    "optimization_guide_hint_cache_store",
+    "Crashpad",
+    "BrowserMetrics",
+    "component_crx_cache",
+    "Safe Browsing",
+    "SingletonLock",
+    "SingletonCookie",
+    "SingletonSocket",
+    "LOCK",
+    "lockfile",
 ];
 
 fn copy_tree(from: &Path, to: &Path, bytes: &mut u64) -> std::io::Result<()> {
@@ -301,14 +422,21 @@ async fn import_chromium(src: &Source, prof: &Profile) -> Result<Value, String> 
         .clone()
         .ok_or_else(|| format!("{} is not installed, only its data is", src.name))?;
     if cfg!(windows) && src.running {
-        return Err(format!("close {} first: Windows locks its files while it runs", src.name));
+        return Err(format!(
+            "close {} first: Windows locks its files while it runs",
+            src.name
+        ));
     }
     let was_open = browser::current().is_some();
     browser::stop().await?;
     tokio::time::sleep(std::time::Duration::from_millis(800)).await;
 
     let target = data_dir().join("browser-profile");
-    let from = if prof.dir == "." { src.data_dir.clone() } else { src.data_dir.join(&prof.dir) };
+    let from = if prof.dir == "." {
+        src.data_dir.clone()
+    } else {
+        src.data_dir.join(&prof.dir)
+    };
     let started = std::time::Instant::now();
     let (src_dir, dst_root) = (from.clone(), target.clone());
     let data = src.data_dir.clone();
@@ -338,7 +466,12 @@ async fn import_chromium(src: &Source, prof: &Profile) -> Result<Value, String> 
                 let _ = std::fs::write(&prefs, p.to_string());
             }
         }
-        for f in ["Current Session", "Current Tabs", "Last Session", "Last Tabs"] {
+        for f in [
+            "Current Session",
+            "Current Tabs",
+            "Last Session",
+            "Last Tabs",
+        ] {
             let _ = std::fs::remove_file(dst_root.join("Default").join(f));
         }
         let _ = std::fs::remove_dir_all(dst_root.join("Default").join("Sessions"));
@@ -440,7 +573,11 @@ async fn import_firefox(src: &Source, prof: &Profile) -> Result<Value, String> {
             set += chunk.len();
         } else {
             for c in chunk {
-                if b.cdp.call("Storage.setCookies", json!({ "cookies": [c] }), None).await.is_ok() {
+                if b.cdp
+                    .call("Storage.setCookies", json!({ "cookies": [c] }), None)
+                    .await
+                    .is_ok()
+                {
                     set += 1;
                 }
             }

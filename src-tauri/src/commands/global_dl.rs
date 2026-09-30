@@ -58,7 +58,11 @@ pub fn gd_browser_set_path(path: Option<String>) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub async fn gd_tab(action: String, tab_id: Option<String>, url: Option<String>) -> Result<Value, String> {
+pub async fn gd_tab(
+    action: String,
+    tab_id: Option<String>,
+    url: Option<String>,
+) -> Result<Value, String> {
     let b = browser::require()?;
     let need_tab = || tab_id.clone().ok_or("tab_id is required".to_string());
     match action.as_str() {
@@ -68,7 +72,10 @@ pub async fn gd_tab(action: String, tab_id: Option<String>, url: Option<String>)
         }
         "close" => b.close_tab(&need_tab()?).await?,
         "focus" => b.activate_tab(&need_tab()?).await?,
-        "navigate" => b.navigate(&need_tab()?, url.as_deref().unwrap_or("about:blank")).await?,
+        "navigate" => {
+            b.navigate(&need_tab()?, url.as_deref().unwrap_or("about:blank"))
+                .await?
+        }
         other => return Err(format!("unknown tab action {other}")),
     }
     Ok(json!({ "tabs": b.tabs() }))
@@ -199,7 +206,12 @@ pub async fn gd_nav_state(tab_id: String) -> Result<Value, String> {
 /// Address bar: a URL, a bare host or search words, in `tab_id` or a new
 /// (optionally private) tab.
 #[tauri::command]
-pub async fn gd_go(input: String, tab_id: Option<String>, new_tab: Option<bool>, private: Option<bool>) -> Result<Value, String> {
+pub async fn gd_go(
+    input: String,
+    tab_id: Option<String>,
+    new_tab: Option<bool>,
+    private: Option<bool>,
+) -> Result<Value, String> {
     let b = browser::start(None, true).await?;
     let url = browser::address_to_url(&input);
     let id = match (tab_id, new_tab.unwrap_or(false), private.unwrap_or(false)) {
@@ -215,12 +227,20 @@ pub async fn gd_go(input: String, tab_id: Option<String>, new_tab: Option<bool>,
 
 #[tauri::command]
 pub async fn gd_dialog(tab_id: String, accept: bool, text: Option<String>) -> Result<(), String> {
-    browser::require()?.answer_dialog(&tab_id, accept, text).await
+    browser::require()?
+        .answer_dialog(&tab_id, accept, text)
+        .await
 }
 
 #[tauri::command]
-pub async fn gd_set_files(tab_id: String, backend_node_id: i64, files: Vec<String>) -> Result<(), String> {
-    browser::require()?.set_files(&tab_id, backend_node_id, files).await
+pub async fn gd_set_files(
+    tab_id: String,
+    backend_node_id: i64,
+    files: Vec<String>,
+) -> Result<(), String> {
+    browser::require()?
+        .set_files(&tab_id, backend_node_id, files)
+        .await
 }
 
 #[tauri::command]

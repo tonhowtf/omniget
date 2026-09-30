@@ -24,7 +24,12 @@ async fn main() -> Result<(), String> {
             let b = browser::start(None, false).await?;
             let host = args.get(1).cloned().unwrap_or_default();
             for c in b.cookies_for(&host).await? {
-                println!("{} ({} bytes) domain={}", c["name"], c["value"].as_str().unwrap_or("").len(), c["domain"]);
+                println!(
+                    "{} ({} bytes) domain={}",
+                    c["name"],
+                    c["value"].as_str().unwrap_or("").len(),
+                    c["domain"]
+                );
             }
         }
         "tool" => {
@@ -35,7 +40,10 @@ async fn main() -> Result<(), String> {
                 .map(|j| serde_json::from_str(j).map_err(|e| e.to_string()))
                 .transpose()?
                 .unwrap_or_else(|| serde_json::json!({}));
-            if name != "gd_browser_open" && name != "gd_browser_sources" && name != "gd_browser_import" {
+            if name != "gd_browser_open"
+                && name != "gd_browser_sources"
+                && name != "gd_browser_import"
+            {
                 let _ = browser::start(None, false).await?;
                 tokio::time::sleep(std::time::Duration::from_millis(800)).await;
             }
@@ -43,7 +51,9 @@ async fn main() -> Result<(), String> {
                 .into_iter()
                 .find(|e| e.name == name.as_str())
                 .ok_or("unknown tool")?;
-            let omniget_core::core::llm::tool_table::ToolImpl::Core(f) = e.call else { return Err("host tool".into()) };
+            let omniget_core::core::llm::tool_table::ToolImpl::Core(f) = e.call else {
+                return Err("host tool".into());
+            };
             let v = f(a).await?;
             let text = serde_json::to_string_pretty(&v).unwrap();
             println!("{}", text.chars().take(6000).collect::<String>());
@@ -52,19 +62,38 @@ async fn main() -> Result<(), String> {
             // Frames and input through the embedded view: view <url>
             let b = browser::start(None, false).await?;
             let mut rx = omniget_core::core::global_dl::events().subscribe();
-            let tab = b.open_tab(args.get(1).map(String::as_str).unwrap_or("https://duckduckgo.com/")).await?;
-            omniget_core::core::global_dl::page::wait_loaded(&b, &tab, std::time::Duration::from_secs(15)).await;
-            let dpr: f64 = std::env::var("GD_DPR").ok().and_then(|v| v.parse().ok()).unwrap_or(2.0);
+            let tab = b
+                .open_tab(
+                    args.get(1)
+                        .map(String::as_str)
+                        .unwrap_or("https://duckduckgo.com/"),
+                )
+                .await?;
+            omniget_core::core::global_dl::page::wait_loaded(
+                &b,
+                &tab,
+                std::time::Duration::from_secs(15),
+            )
+            .await;
+            let dpr: f64 = std::env::var("GD_DPR")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(2.0);
             b.view(&tab, 1000, 700, dpr).await?;
             let counter = tokio::spawn(async move {
                 let (mut n, mut bytes, mut size) = (0, 0, (0, 0));
                 let end = std::time::Instant::now() + std::time::Duration::from_secs(6);
                 while std::time::Instant::now() < end {
-                    if let Ok(Ok(ev)) = tokio::time::timeout(std::time::Duration::from_millis(500), rx.recv()).await {
+                    if let Ok(Ok(ev)) =
+                        tokio::time::timeout(std::time::Duration::from_millis(500), rx.recv()).await
+                    {
                         if ev["kind"] == "frame" {
                             n += 1;
                             bytes += ev["data"].as_str().map(|d| d.len()).unwrap_or(0);
-                            size = (ev["width"].as_u64().unwrap_or(0), ev["height"].as_u64().unwrap_or(0));
+                            size = (
+                                ev["width"].as_u64().unwrap_or(0),
+                                ev["height"].as_u64().unwrap_or(0),
+                            );
                         }
                     }
                 }
@@ -80,7 +109,13 @@ async fn main() -> Result<(), String> {
                 tokio::time::sleep(std::time::Duration::from_millis(300)).await;
             }
             let (n, bytes, size) = counter.await.map_err(|e| e.to_string())?;
-            let typed = b.eval(&tab, "document.activeElement && document.activeElement.value", std::time::Duration::from_secs(5)).await?;
+            let typed = b
+                .eval(
+                    &tab,
+                    "document.activeElement && document.activeElement.value",
+                    std::time::Duration::from_secs(5),
+                )
+                .await?;
             println!("frames in 6s: {n}, avg frame {} KB, frame size {:?}, typed into focused field: {typed}", bytes / n.max(1) / 1024, size);
             b.unview().await;
             b.close_tab(&tab).await?;
@@ -88,7 +123,10 @@ async fn main() -> Result<(), String> {
         "options" => {
             let id = args.get(1).ok_or("id")?;
             let v = match args.get(2) {
-                Some(j) => connector::set_options(id, &serde_json::from_str(j).map_err(|e| e.to_string())?)?,
+                Some(j) => connector::set_options(
+                    id,
+                    &serde_json::from_str(j).map_err(|e| e.to_string())?,
+                )?,
                 None => connector::get_options(id)?,
             };
             println!("{}", serde_json::to_string_pretty(&v).unwrap());
@@ -102,7 +140,11 @@ async fn main() -> Result<(), String> {
             tokio::time::sleep(std::time::Duration::from_millis(800)).await;
             let tab = b.tabs().last().cloned().ok_or("no tab")?;
             let v = b
-                .eval(&tab.id, args.get(1).ok_or("expr")?, std::time::Duration::from_secs(30))
+                .eval(
+                    &tab.id,
+                    args.get(1).ok_or("expr")?,
+                    std::time::Duration::from_secs(30),
+                )
                 .await?;
             println!("{}", serde_json::to_string_pretty(&v).unwrap());
         }
@@ -111,9 +153,19 @@ async fn main() -> Result<(), String> {
             browser::start(None, false).await?;
             let secs: u64 = args.get(1).and_then(|x| x.parse().ok()).unwrap_or(60);
             tokio::time::sleep(std::time::Duration::from_secs(secs)).await;
-            let types = ["XHR".to_string(), "Fetch".to_string(), "Document".to_string()];
+            let types = [
+                "XHR".to_string(),
+                "Fetch".to_string(),
+                "Document".to_string(),
+            ];
             for e in omniget_core::core::global_dl::sniffer::log(None, None, &types, 400) {
-                println!("{} {} {} {}", e.status, e.method, e.resource_type, e.url.chars().take(160).collect::<String>());
+                println!(
+                    "{} {} {} {}",
+                    e.status,
+                    e.method,
+                    e.resource_type,
+                    e.url.chars().take(160).collect::<String>()
+                );
             }
         }
         "sniffed" => {
@@ -161,7 +213,9 @@ async fn main() -> Result<(), String> {
                     if n.key.is_some() {
                         if let Some(s) = n.source.as_mut() {
                             s.format = "direct".into();
-                            s.url = Some("https://www.udemy.com/assets/0/files/expired.vtt?token=old".into());
+                            s.url = Some(
+                                "https://www.udemy.com/assets/0/files/expired.vtt?token=old".into(),
+                            );
                         }
                     }
                 }
