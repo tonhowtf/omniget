@@ -630,9 +630,11 @@ impl DownloadQueue {
     }
 
     pub fn active_count(&self) -> u32 {
+        // Telegram jobs are only mirrored here (the /telegram engine runs
+        // them with its own limits): they must not take yt-dlp's slots.
         self.items
             .iter()
-            .filter(|i| i.status == QueueStatus::Active)
+            .filter(|i| i.status == QueueStatus::Active && i.platform != "telegram")
             .count() as u32
     }
 

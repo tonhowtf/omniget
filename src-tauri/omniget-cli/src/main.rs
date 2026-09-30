@@ -133,6 +133,18 @@ enum Commands {
         #[command(subcommand)]
         command: HookCommand,
     },
+    /// Telegram: chats, media, downloads from links or whole chats, auto-save rules, export
+    Tg {
+        #[arg(
+            long,
+            global = true,
+            help = "Use the session from this process even when the app is running"
+        )]
+        local: bool,
+
+        #[command(subcommand)]
+        command: commands::tg::TgCommand,
+    },
     /// Import a cookies.txt file (Netscape format)
     ImportCookies {
         file: String,
@@ -249,6 +261,9 @@ async fn main() -> anyhow::Result<()> {
         }
         Commands::Agentkit { command } => {
             commands::agentkit::execute(command, cli.json).await?;
+        }
+        Commands::Tg { local, command } => {
+            commands::tg::execute(command, local, cli.json).await?;
         }
         Commands::ImportCookies {
             file,

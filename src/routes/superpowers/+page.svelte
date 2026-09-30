@@ -40,6 +40,14 @@
       enabled: getSettings()?.league?.enabled ?? true,
     },
     {
+      id: "telegram",
+      icon: "telegram",
+      title: "Telegram",
+      descKey: "superpowers.telegram_desc",
+      href: "/telegram",
+      enabled: getSettings()?.telegram?.enabled ?? true,
+    },
+    {
       id: "washmybelly",
       icon: "washmybelly",
       title: "washmybelly",

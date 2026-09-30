@@ -389,6 +389,7 @@ fn build() -> Vec<ToolEntry> {
         entry("preview_screenshot", "PNG screenshot of the preview page; returns {path, width, height}. Shows the preview for a moment when it is hidden.", obj(json!({"threadId":{"type":"string"}}), &[]), ToolImpl::Host, "code", Local),
     ];
     all.extend(crate::core::washmybelly::tools::entries());
+    all.extend(crate::core::telegram::tools::entries());
     all
 }
 
@@ -449,9 +450,13 @@ mod tests {
     #[test]
     fn the_table_has_every_tool_once_with_an_object_schema() {
         let t = table();
-        let legacy = t.iter().filter(|e| !e.name.starts_with("wmb_")).count();
+        let legacy = t
+            .iter()
+            .filter(|e| !e.name.starts_with("wmb_") && !e.name.starts_with("tg_"))
+            .count();
         assert_eq!(legacy, 45, "the table lost or gained a tool");
-        assert_eq!(t.len(), legacy + 34, "washmybelly has 34 tools");
+        let tg = crate::core::telegram::tools::all_names().len();
+        assert_eq!(t.len(), legacy + 34 + tg, "washmybelly has 34 tools");
         let names: std::collections::HashSet<_> = t.iter().map(|e| e.name).collect();
         assert_eq!(names.len(), t.len(), "duplicate tool name");
         for e in t {

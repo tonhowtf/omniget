@@ -17,6 +17,7 @@ pub mod orchestration;
 pub mod orchestration_config;
 pub mod output_schemas;
 pub mod policy;
+pub mod telegram;
 pub mod washmybelly;
 pub mod worker;
 
@@ -1673,7 +1674,10 @@ mod tests {
     fn a_lista_do_servidor_e_a_tabela_do_core() {
         let table: Vec<_> = omniget_core::core::llm::tool_table::available().collect();
         let list = tools();
-        let legacy = list.iter().filter(|t| !t.name.starts_with("wmb_")).count();
+        let legacy = list
+            .iter()
+            .filter(|t| !t.name.starts_with("wmb_") && !t.name.starts_with("tg_"))
+            .count();
         assert_eq!(legacy, 45, "a tabela mudou de tamanho");
         assert_eq!(list.len(), table.len());
         for (def, entry) in list.iter().zip(table.iter().copied()) {

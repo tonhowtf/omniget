@@ -2368,6 +2368,1618 @@
         "openWorldHint": false,
         "readOnlyHint": true
       },
+      "description": "Telegram status in OmniGet: whether an account is logged in (and which), the connection phase and the active network route. Call it first; every other tg_* tool needs a logged-in account.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "required": [],
+        "type": "object"
+      },
+      "name": "tg_status",
+      "outputSchema": {
+        "anyOf": [
+          {
+            "required": []
+          },
+          {
+            "required": [
+              "error"
+            ]
+          }
+        ],
+        "properties": {
+          "account": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "connection": {
+            "type": "object"
+          },
+          "error": {
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "type": "object"
+          },
+          "logged_in": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "readOnlyHint": true
+      },
+      "description": "The person's Telegram chats (private, groups, channels), most recent first, with id, title, type, unread count and the last message. query filters by title.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "limit": {
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "query": {
+            "type": "string"
+          }
+        },
+        "required": [],
+        "type": "object"
+      },
+      "name": "tg_list_chats",
+      "outputSchema": {
+        "anyOf": [
+          {
+            "required": []
+          },
+          {
+            "required": [
+              "error"
+            ]
+          }
+        ],
+        "properties": {
+          "chats": {
+            "type": "array"
+          },
+          "error": {
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "type": "object"
+          },
+          "total": {
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "readOnlyHint": true
+      },
+      "description": "Read messages of one chat, oldest to newest in the returned page: id, date, author, text, a short media summary and the links in the text. Pages go back in time: pass nextOffsetId as offsetId for the older page. fromDate/toDate bound the page.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "chat": {
+            "description": "Chat: numeric id (Bot API -100... ids work too), @username, a t.me link, or the exact chat title.",
+            "type": [
+              "string",
+              "integer"
+            ]
+          },
+          "fromDate": {
+            "description": "Oldest message date, unix seconds",
+            "type": "integer"
+          },
+          "limit": {
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "offsetId": {
+            "description": "Return messages older than this id",
+            "type": "integer"
+          },
+          "toDate": {
+            "description": "Newest message date, unix seconds",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "chat"
+        ],
+        "type": "object"
+      },
+      "name": "tg_read_messages",
+      "outputSchema": {
+        "anyOf": [
+          {
+            "required": []
+          },
+          {
+            "required": [
+              "error"
+            ]
+          }
+        ],
+        "properties": {
+          "chat": {
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "title": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "count": {
+            "type": "integer"
+          },
+          "error": {
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "type": "object"
+          },
+          "messages": {
+            "type": "array"
+          },
+          "next_offset_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "readOnlyHint": true
+      },
+      "description": "Search message text. With chat, inside that chat; without it, across every chat of the account. Each hit has the chat, the message id, date, author and text.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "chat": {
+            "description": "Chat: numeric id (Bot API -100... ids work too), @username, a t.me link, or the exact chat title.",
+            "type": [
+              "string",
+              "integer"
+            ]
+          },
+          "limit": {
+            "maximum": 100,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "query": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "type": "object"
+      },
+      "name": "tg_search",
+      "outputSchema": {
+        "anyOf": [
+          {
+            "required": []
+          },
+          {
+            "required": [
+              "error"
+            ]
+          }
+        ],
+        "properties": {
+          "count": {
+            "type": "integer"
+          },
+          "error": {
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "type": "object"
+          },
+          "hits": {
+            "type": "array"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "readOnlyHint": true
+      },
+      "description": "One chat's details: id, type, title, unread count, muted/pinned, last message, and for groups and channels the description, public username and member count.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "chat": {
+            "description": "Chat: numeric id (Bot API -100... ids work too), @username, a t.me link, or the exact chat title.",
+            "type": [
+              "string",
+              "integer"
+            ]
+          }
+        },
+        "required": [
+          "chat"
+        ],
+        "type": "object"
+      },
+      "name": "tg_chat_info",
+      "outputSchema": {
+        "anyOf": [
+          {
+            "required": []
+          },
+          {
+            "required": [
+              "error"
+            ]
+          }
+        ],
+        "properties": {
+          "error": {
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "type": "object"
+          },
+          "id": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "readOnlyHint": true
+      },
+      "description": "Files in a chat (videos, photos, documents, audio...), newest first, with message id, file name, size, type, date and caption. query searches captions and file names.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "chat": {
+            "description": "Chat: numeric id (Bot API -100... ids work too), @username, a t.me link, or the exact chat title.",
+            "type": [
+              "string",
+              "integer"
+            ]
+          },
+          "limit": {
+            "maximum": 200,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "mediaType": {
+            "enum": [
+              "video",
+              "photo",
+              "document",
+              "audio",
+              "gif",
+              "round_video",
+              "round_voice",
+              "photo_video",
+              "webpage"
+            ],
+            "type": "string"
+          },
+          "query": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "chat"
+        ],
+        "type": "object"
+      },
+      "name": "tg_list_media",
+      "outputSchema": {
+        "anyOf": [
+          {
+            "required": []
+          },
+          {
+            "required": [
+              "error"
+            ]
+          }
+        ],
+        "properties": {
+          "chat": {
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "title": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "count": {
+            "type": "integer"
+          },
+          "error": {
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "type": "object"
+          },
+          "items": {
+            "type": "array"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "readOnlyHint": true
+      },
+      "description": "Resolve t.me message links in a text (t.me/name/123, t.me/c/id/123, ranges like /10-20, albums) to the files they point at: chat, message id, file name, size and type. Downloads nothing.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "text": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "type": "object"
+      },
+      "name": "tg_resolve_links",
+      "outputSchema": {
+        "anyOf": [
+          {
+            "required": []
+          },
+          {
+            "required": [
+              "error"
+            ]
+          }
+        ],
+        "properties": {
+          "error": {
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "type": "object"
+          },
+          "errors": {
+            "type": "array"
+          },
+          "items": {
+            "type": "array"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "readOnlyHint": true
+      },
+      "description": "A local http URL that streams one message's video or audio (Range supported) for a player on this computer, with mime type, size and duration. The URL only works on this machine.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "chat": {
+            "description": "Chat: numeric id (Bot API -100... ids work too), @username, a t.me link, or the exact chat title.",
+            "type": [
+              "string",
+              "integer"
+            ]
+          },
+          "messageId": {
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "chat",
+          "messageId"
+        ],
+        "type": "object"
+      },
+      "name": "tg_stream_url",
+      "outputSchema": {
+        "anyOf": [
+          {
+            "required": []
+          },
+          {
+            "required": [
+              "error"
+            ]
+          }
+        ],
+        "properties": {
+          "error": {
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "type": "object"
+          },
+          "mime": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "readOnlyHint": true
+      },
+      "description": "Telegram downloads running right now (id and title).",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "required": [],
+        "type": "object"
+      },
+      "name": "tg_download_status",
+      "outputSchema": {
+        "anyOf": [
+          {
+            "required": []
+          },
+          {
+            "required": [
+              "error"
+            ]
+          }
+        ],
+        "properties": {
+          "active": {
+            "type": "array"
+          },
+          "count": {
+            "type": "integer"
+          },
+          "error": {
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "type": "object"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "readOnlyHint": true
+      },
+      "description": "Auto-save rules: chats whose new files OmniGet saves on its own, with filters, output folder, last message seen and how many files each saved.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "required": [],
+        "type": "object"
+      },
+      "name": "tg_watch_list",
+      "outputSchema": {
+        "anyOf": [
+          {
+            "required": []
+          },
+          {
+            "required": [
+              "error"
+            ]
+          }
+        ],
+        "properties": {
+          "error": {
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "type": "object"
+          },
+          "rules": {
+            "type": "array"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "readOnlyHint": true
+      },
+      "description": "Compact text of what was said in the last hours, grouped by chat, ready to summarize: one line per message with id, time, author, text, media and links. Without chats, takes the chats with activity in the period (unread first).",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "chats": {
+            "items": {
+              "description": "Chat: numeric id (Bot API -100... ids work too), @username, a t.me link, or the exact chat title.",
+              "type": [
+                "string",
+                "integer"
+              ]
+            },
+            "maxItems": 30,
+            "type": "array"
+          },
+          "maxMessages": {
+            "maximum": 3000,
+            "minimum": 10,
+            "type": "integer"
+          },
+          "sinceHours": {
+            "maximum": 720,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [],
+        "type": "object"
+      },
+      "name": "tg_digest",
+      "outputSchema": {
+        "anyOf": [
+          {
+            "required": []
+          },
+          {
+            "required": [
+              "error"
+            ]
+          }
+        ],
+        "properties": {
+          "chats": {
+            "type": "integer"
+          },
+          "digest": {
+            "type": "string"
+          },
+          "error": {
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "type": "object"
+          },
+          "errors": {
+            "type": "array"
+          },
+          "messages": {
+            "type": "integer"
+          },
+          "since": {
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "readOnlyHint": true
+      },
+      "description": "Export a chat's messages as compact markdown or json returned in the result (not a file), oldest first, cut to fit in context. For a file export with media use the /telegram screen.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "chat": {
+            "description": "Chat: numeric id (Bot API -100... ids work too), @username, a t.me link, or the exact chat title.",
+            "type": [
+              "string",
+              "integer"
+            ]
+          },
+          "format": {
+            "enum": [
+              "markdown",
+              "json"
+            ],
+            "type": "string"
+          },
+          "fromDate": {
+            "description": "Oldest message date, unix seconds",
+            "type": "integer"
+          },
+          "limit": {
+            "maximum": 3000,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "toDate": {
+            "description": "Newest message date, unix seconds",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "chat"
+        ],
+        "type": "object"
+      },
+      "name": "tg_export",
+      "outputSchema": {
+        "anyOf": [
+          {
+            "required": []
+          },
+          {
+            "required": [
+              "error"
+            ]
+          }
+        ],
+        "properties": {
+          "chat": {
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "title": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "count": {
+            "type": "integer"
+          },
+          "error": {
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "type": "object"
+          },
+          "format": {
+            "type": "string"
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "readOnlyHint": false
+      },
+      "description": "Download Telegram files to this computer. Either links (t.me message links) or chat plus filters (mediaTypes, dates, sizes, keyword, extensions; limit defaults to 200 files). Resumes interrupted files. template names files with {chat} {chat_id} {msg_id} {date} {time} {file_name} {stem} {ext} {type} {caption} {album}; slashes make folders.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "chat": {
+            "description": "Chat: numeric id (Bot API -100... ids work too), @username, a t.me link, or the exact chat title.",
+            "type": [
+              "string",
+              "integer"
+            ]
+          },
+          "extExclude": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "extInclude": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "fromDate": {
+            "description": "Oldest message date, unix seconds",
+            "type": "integer"
+          },
+          "keyword": {
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 5000,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "links": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "string",
+              "array"
+            ]
+          },
+          "maxSize": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "mediaTypes": {
+            "items": {
+              "enum": [
+                "video",
+                "photo",
+                "document",
+                "audio",
+                "gif",
+                "round_video",
+                "voice"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "minSize": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "outputDir": {
+            "type": "string"
+          },
+          "template": {
+            "type": "string"
+          },
+          "toDate": {
+            "description": "Newest message date, unix seconds",
+            "type": "integer"
+          }
+        },
+        "required": [],
+        "type": "object"
+      },
+      "name": "tg_download",
+      "outputSchema": {
+        "anyOf": [
+          {
+            "required": []
+          },
+          {
+            "required": [
+              "error"
+            ]
+          }
+        ],
+        "properties": {
+          "batch_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "count": {
+            "type": "integer"
+          },
+          "error": {
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "type": "object"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "readOnlyHint": false
+      },
+      "description": "Create an auto-save rule: from now on, new files in the chat that pass the filters are saved on their own. backfill also saves the n newest matching files now.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "backfill": {
+            "maximum": 1000,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "chat": {
+            "description": "Chat: numeric id (Bot API -100... ids work too), @username, a t.me link, or the exact chat title.",
+            "type": [
+              "string",
+              "integer"
+            ]
+          },
+          "extExclude": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "extInclude": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "keyword": {
+            "type": "string"
+          },
+          "maxSize": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "mediaTypes": {
+            "items": {
+              "enum": [
+                "video",
+                "photo",
+                "document",
+                "audio",
+                "gif",
+                "round_video",
+                "voice"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "minSize": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "outputDir": {
+            "type": "string"
+          },
+          "template": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "chat"
+        ],
+        "type": "object"
+      },
+      "name": "tg_watch_add",
+      "outputSchema": {
+        "anyOf": [
+          {
+            "required": []
+          },
+          {
+            "required": [
+              "error"
+            ]
+          }
+        ],
+        "properties": {
+          "error": {
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "type": "object"
+          },
+          "rule": {
+            "type": "object"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "readOnlyHint": false
+      },
+      "description": "Change an auto-save rule. patch holds the fields to change (enabled, mediaTypes, minSize, maxSize, keyword, extInclude, extExclude, outputDir, template).",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "patch": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "id",
+          "patch"
+        ],
+        "type": "object"
+      },
+      "name": "tg_watch_update",
+      "outputSchema": {
+        "anyOf": [
+          {
+            "required": []
+          },
+          {
+            "required": [
+              "error"
+            ]
+          }
+        ],
+        "properties": {
+          "error": {
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "type": "object"
+          },
+          "rule": {
+            "type": "object"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "readOnlyHint": false
+      },
+      "description": "Delete an auto-save rule. Files already saved stay.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "name": "tg_watch_remove",
+      "outputSchema": {
+        "anyOf": [
+          {
+            "required": []
+          },
+          {
+            "required": [
+              "error"
+            ]
+          }
+        ],
+        "properties": {
+          "error": {
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "type": "object"
+          },
+          "ok": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "readOnlyHint": false
+      },
+      "description": "Run an auto-save rule now (all enabled rules without id). Returns how many new files were found and queued.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [],
+        "type": "object"
+      },
+      "name": "tg_watch_run",
+      "outputSchema": {
+        "anyOf": [
+          {
+            "required": []
+          },
+          {
+            "required": [
+              "error"
+            ]
+          }
+        ],
+        "properties": {
+          "error": {
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "type": "object"
+          },
+          "result": {}
+        },
+        "type": "object"
+      }
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "readOnlyHint": false
+      },
+      "description": "Send a text message from the person's account. Always asks the person in the OmniGet window first and waits up to 5 minutes; a refusal fails the call.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "chat": {
+            "description": "Chat: numeric id (Bot API -100... ids work too), @username, a t.me link, or the exact chat title.",
+            "type": [
+              "string",
+              "integer"
+            ]
+          },
+          "text": {
+            "maxLength": 4096,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "chat",
+          "text"
+        ],
+        "type": "object"
+      },
+      "name": "tg_send_message",
+      "outputSchema": {
+        "anyOf": [
+          {
+            "required": []
+          },
+          {
+            "required": [
+              "error"
+            ]
+          }
+        ],
+        "properties": {
+          "chat": {
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "title": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "error": {
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "type": "object"
+          },
+          "message_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "ok": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "readOnlyHint": false
+      },
+      "description": "Send local files or folders (recursive) from the person's account; photos and videos are grouped in albums. Always asks the person in the OmniGet window first.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "asDocument": {
+            "type": "boolean"
+          },
+          "caption": {
+            "maxLength": 1024,
+            "type": "string"
+          },
+          "chat": {
+            "description": "Chat: numeric id (Bot API -100... ids work too), @username, a t.me link, or the exact chat title.",
+            "type": [
+              "string",
+              "integer"
+            ]
+          },
+          "paths": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 50,
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "chat",
+          "paths"
+        ],
+        "type": "object"
+      },
+      "name": "tg_send_files",
+      "outputSchema": {
+        "anyOf": [
+          {
+            "required": []
+          },
+          {
+            "required": [
+              "error"
+            ]
+          }
+        ],
+        "properties": {
+          "chat": {
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "title": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "count": {
+            "type": "integer"
+          },
+          "error": {
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "type": "object"
+          },
+          "ok": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "readOnlyHint": false
+      },
+      "description": "Forward messages from one chat to another from the person's account. Always asks the person in the OmniGet window first.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "fromChat": {
+            "description": "Chat: numeric id (Bot API -100... ids work too), @username, a t.me link, or the exact chat title.",
+            "type": [
+              "string",
+              "integer"
+            ]
+          },
+          "messageIds": {
+            "description": "Message ids (from tg_read_messages, tg_search or tg_list_media)",
+            "items": {
+              "type": [
+                "integer",
+                "string"
+              ]
+            },
+            "maxItems": 100,
+            "minItems": 1,
+            "type": "array"
+          },
+          "toChat": {
+            "description": "Chat: numeric id (Bot API -100... ids work too), @username, a t.me link, or the exact chat title.",
+            "type": [
+              "string",
+              "integer"
+            ]
+          }
+        },
+        "required": [
+          "fromChat",
+          "toChat",
+          "messageIds"
+        ],
+        "type": "object"
+      },
+      "name": "tg_forward",
+      "outputSchema": {
+        "anyOf": [
+          {
+            "required": []
+          },
+          {
+            "required": [
+              "error"
+            ]
+          }
+        ],
+        "properties": {
+          "count": {
+            "type": "integer"
+          },
+          "error": {
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "type": "object"
+          },
+          "ok": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "annotations": {
+        "destructiveHint": true,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "readOnlyHint": false
+      },
+      "description": "Delete messages (for everyone when allowed). Cannot be undone. Always asks the person in the OmniGet window first.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "chat": {
+            "description": "Chat: numeric id (Bot API -100... ids work too), @username, a t.me link, or the exact chat title.",
+            "type": [
+              "string",
+              "integer"
+            ]
+          },
+          "messageIds": {
+            "description": "Message ids (from tg_read_messages, tg_search or tg_list_media)",
+            "items": {
+              "type": [
+                "integer",
+                "string"
+              ]
+            },
+            "maxItems": 100,
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "chat",
+          "messageIds"
+        ],
+        "type": "object"
+      },
+      "name": "tg_delete_messages",
+      "outputSchema": {
+        "anyOf": [
+          {
+            "required": []
+          },
+          {
+            "required": [
+              "error"
+            ]
+          }
+        ],
+        "properties": {
+          "chat": {
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "title": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "count": {
+            "type": "integer"
+          },
+          "error": {
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "type": "object"
+          },
+          "ok": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "readOnlyHint": true
+      },
       "description": "Capabilities actually implemented by this server.",
       "inputSchema": {
         "additionalProperties": false,

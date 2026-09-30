@@ -9,14 +9,14 @@ use tauri::{AppHandle, Manager};
 
 pub fn catalog(p: &Principal) -> Vec<Value> {
     tools(p).into_iter().map(|tool| {
-        let writes = matches!(policy::scope(tool.name), Some("enqueue" | "control" | "company_control" | "orchestration_control" | "orchestration_create" | "app_control" | "app_capture" | "system_change" | "approvals_respond" | "agents_run"))
+        let writes = matches!(policy::scope(tool.name), Some("enqueue" | "control" | "company_control" | "orchestration_control" | "orchestration_create" | "app_control" | "app_capture" | "system_change" | "telegram_write" | "approvals_respond" | "agents_run"))
             || matches!(tool.name, "auth_connection_request" | "diagnostic_bundle_create" | "catalog_install" | "memory_retain");
         let open_world = matches!(tool.name, "download_enqueue" | "downloads_batch_enqueue" | "download_retry" | "download_resume" | "media_inspect" | "media_collection_list");
         let mut value = serde_json::to_value(&tool).expect("static tool schema serializes");
         // MCP semantics: destructive = may undo or discard existing work
         // (cancel/pause); creating or enqueueing is additive and, with its
         // idempotency key, idempotent.
-        let destructive = writes && matches!(tool.name, "download_cancel" | "download_pause" | "missions_cancel" | "missions_pause" | "wmb_execute" | "job_cancel");
+        let destructive = writes && matches!(tool.name, "download_cancel" | "download_pause" | "missions_cancel" | "missions_pause" | "wmb_execute" | "job_cancel" | "tg_delete_messages");
         value["annotations"] = json!({"readOnlyHint":!writes,"destructiveHint":destructive,"idempotentHint":!matches!(tool.name,"omniget_app_capture"|"omniget_app_export"),"openWorldHint":open_world});
         value
     }).collect()
@@ -223,6 +223,14 @@ pub async fn call(app: &AppHandle, p: &Principal, name: &str, a: Value) -> Resul
             return Err("TOOL_NOT_AUTHORIZED".into());
         }
         return super::call_catalog(app, p, name, a).await;
+    }
+    // Telegram tools take chats as ids or names and message ids as lists of
+    // integers, which the generic validator below does not accept.
+    if name.starts_with("tg_") {
+        if !policy::allowed(p, name) {
+            return Err("TOOL_NOT_AUTHORIZED".into());
+        }
+        return super::telegram::call(p, name, a).await;
     }
     validate(p, name, &a)?;
     if name.starts_with("wmb_") {

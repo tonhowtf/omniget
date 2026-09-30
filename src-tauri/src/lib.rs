@@ -40,6 +40,7 @@ pub mod local_bridge_jobs;
 pub mod local_bridge_llm;
 pub mod local_bridge_observe;
 pub mod local_bridge_remote;
+pub mod local_bridge_telegram;
 pub mod local_bridge_wmb;
 pub mod mcp;
 pub mod missions;
@@ -701,6 +702,7 @@ pub fn run() {
             core::channel_poller::start(app.handle().clone());
             core::queue::start_scheduler(app.handle().clone());
             commands::league::start_background(app.handle().clone());
+            commands::telegram::install(app.handle());
             commands::washmybelly::start_background(app.handle().clone());
             {
                 let app_handle = app.handle().clone();
@@ -1054,6 +1056,25 @@ pub fn run() {
             commands::video::cast::video_cast_status,
             commands::video::video_open_path,
             commands::video::video_source_for_key,
+            commands::telegram::telegram_call,
+            commands::telegram::telegram_net_status,
+            commands::telegram::telegram_net_scan,
+            commands::telegram::telegram_net_doctor,
+            commands::telegram::telegram_net_add_links,
+            commands::telegram::telegram_net_add_route,
+            commands::telegram::telegram_net_remove_route,
+            commands::telegram::telegram_net_keep,
+            commands::telegram::telegram_net_remove_failed,
+            commands::telegram::telegram_net_test,
+            commands::telegram::telegram_net_set_mode,
+            commands::telegram::telegram_net_set_opts,
+            commands::telegram::telegram_net_add_subscription,
+            commands::telegram::telegram_net_remove_subscription,
+            commands::telegram::telegram_net_refresh_subscriptions,
+            commands::telegram::telegram_net_mihomo_status,
+            commands::telegram::telegram_net_mihomo_set,
+            commands::telegram::telegram_net_mihomo_restart,
+            commands::telegram::telegram_net_mihomo_remove_node,
             commands::music::music_status,
             commands::music::music_roots_add,
             commands::music::music_roots_remove,
@@ -1800,6 +1821,8 @@ pub fn run() {
                 // Game mode never outlives OmniGet (Windows power plan,
                 // priorities, screen kept awake).
                 omniget_core::core::washmybelly::game::shutdown();
+                // The optional mihomo core of /telegram dies with the app.
+                omniget_core::core::telegram::net::mihomo::shutdown();
                 // The managed llama-server dies with the app (phase 2).
                 tauri::async_runtime::block_on(omniget_core::core::llm::local_servers::stop());
                 // Central: terminal shells and the CLI driver sessions of the

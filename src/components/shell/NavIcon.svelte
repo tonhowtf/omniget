@@ -26,12 +26,14 @@
     music: { glyph: "puzzle-piece", from: "#FF6B8B", to: "#E0245E" },
     washmybelly: { glyph: "sparkle", from: "#FF9BC2", to: "#E0527F" },
     video: { glyph: "puzzle-piece", from: "#FF8A3D", to: "#E5383B" },
+    telegram: { glyph: "puzzle-piece", from: "#2AABEE", to: "#229ED9" },
     fallback: { glyph: "puzzle-piece", from: "#8E8E93", to: "#5C5C60" },
   };
 
   const ART = new Set([
     "home", "downloads", "llm", "help", "world",
     "superpowers", "settings", "about", "league", "music", "washmybelly", "video",
+    "telegram",
   ]);
 
   let tile = $derived(TILES[icon] ?? TILES.fallback);

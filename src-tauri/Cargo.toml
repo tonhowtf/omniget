@@ -146,3 +146,11 @@ opt-level = 1
 lto = "thin"
 codegen-units = 1
 strip = true
+
+# grammers 0.8 with two local fixes (from the Telegram plugin): the
+# InvocationError `From` recursion that overflowed the stack on network
+# errors (omniget#289) and the channel id range. Both are fixed upstream in
+# 0.10; drop these when the Telegram client moves there.
+[patch.crates-io]
+grammers-session = { path = "vendor/grammers-session-patched" }
+grammers-mtsender = { path = "vendor/grammers-mtsender-patched" }

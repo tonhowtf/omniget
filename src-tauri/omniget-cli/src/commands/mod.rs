@@ -11,5 +11,6 @@ pub mod import_cookies;
 pub mod info;
 pub mod launch;
 pub mod splash;
+pub mod tg;
 pub mod usage;
 pub mod wmb;
