@@ -65,6 +65,7 @@
   let vertical = $derived(snap.edge === "left" || snap.edge === "right");
   let look = $derived(snap.look ?? DEFAULT_LOOK);
   let scale = $derived(Number.isFinite(look.scale) && look.scale > 0 ? look.scale : 1);
+  let emptyTipVisible = $state(false);
   let openRing = $derived(snap.rings.find((r) => r.id === openId) ?? null);
   let stacks = $derived(groups(snap.rings));
   /** The one ring that most needs a look: the fullest at 80 % or more. */
@@ -364,9 +365,19 @@
       {#if initialLoading}
         <span class="empty" role="status" aria-label={$t("common.loading")}>…</span>
       {:else}
-        <button class="empty empty-action" type="button" disabled={openingApp} onclick={openConnections}
-          aria-label={$t(loadFailed ? "llm.limits.strip.open_after_error" : "llm.limits.strip.connect_hint")}
-          title={$t(loadFailed ? "llm.limits.strip.open_after_error" : "llm.limits.strip.connect_hint")}>+</button>
+        <!-- Keyboard focus shows the same description the pointer gets from `title`;
+             the button already carries it as its name, so the tip is not read twice. -->
+        <span class="empty-tip-anchor">
+          <button class="empty empty-action" type="button" disabled={openingApp} onclick={openConnections}
+            aria-label={$t(loadFailed ? "llm.limits.strip.open_after_error" : "llm.limits.strip.connect_hint")}
+            title={$t(loadFailed ? "llm.limits.strip.open_after_error" : "llm.limits.strip.connect_hint")}
+            onfocus={(e) => (emptyTipVisible = e.currentTarget.matches(":focus-visible"))}
+            onblur={() => (emptyTipVisible = false)}
+            onkeydown={(e) => { if (e.key === "Escape" && emptyTipVisible) { e.preventDefault(); emptyTipVisible = false; } }}>+</button>
+          {#if emptyTipVisible}
+            <span class="empty-tip" role="tooltip" aria-hidden="true">{$t(loadFailed ? "llm.limits.strip.open_after_error" : "llm.limits.strip.connect_hint")}</span>
+          {/if}
+        </span>
       {/if}
     {/each}
   </div>
@@ -809,6 +820,26 @@
   .empty-action { min-height: 32px; border: none; border-radius: 8px; background: transparent; font: inherit; font-size: 21px; cursor: pointer; }
   .empty-action:hover { background: var(--fill-1); color: var(--text); }
   .empty-action:focus-visible { outline: var(--focus-ring); }
+  .empty-tip-anchor { position: relative; display: inline-flex; }
+  .empty-tip {
+    position: absolute;
+    inset-block-start: 50%;
+    inset-inline-start: calc(100% + 6px);
+    transform: translateY(-50%);
+    z-index: 2;
+    max-inline-size: 220px;
+    inline-size: max-content;
+    padding: 4px 8px;
+    border-radius: 6px;
+    background: var(--glass);
+    box-shadow: inset 0 0 0 1px var(--edge), var(--shadow);
+    color: var(--ink);
+    font-size: 12px;
+    line-height: 1.35;
+    white-space: normal;
+    pointer-events: none;
+  }
+  .pill.vertical .empty-tip { inset-block-start: calc(100% + 6px); inset-inline-start: 50%; transform: translateX(-50%); }
 
   .card {
     flex: 1;

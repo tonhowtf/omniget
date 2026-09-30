@@ -26,7 +26,6 @@ zip = { version = "4.6", default-features = false }
 image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
 tauri = { version = "2", features = ["tray-icon", "macos-private-api"] }
 tauri-plugin-shell = "2"
-tauri-plugin-store = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-notification = "2"
 tokio = { version = "1", features = ["full"] }
@@ -56,6 +55,8 @@ urlencoding = "2"
 rand = "0.10.0"
 rusqlite = { version = "0.32", features = ["bundled"] }
 base64 = "0.22.1"
+# Atomic settings writes (same pin as omniget-core).
+tempfile = "=3.25.0"
 sha2 = "0.10"
 ed25519-dalek = "2"
 data-encoding = "2"

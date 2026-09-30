@@ -14,7 +14,6 @@
   import { effectiveModelLabel } from "$lib/llm/types";
   import {
     cancelRoom,
-    cancelTurn,
     getActiveRoom,
     getAgents,
     getLastAsk,
@@ -36,6 +35,8 @@
     getToolAsk,
     answerTool,
     sendMessage,
+    sendConversationDraft,
+    stopConversationTurn,
     switchModel,
     selectConversation,
   } from "$lib/stores/llm-store.svelte";
@@ -58,7 +59,6 @@
   let switchFailed = $state(false);
   let switching = $state(false);
   let pickerTrigger = $state<HTMLButtonElement | null>(null);
-  let submittedText = "";
   let sendGeneration = 0;
   let cancelledGeneration = 0;
 
@@ -134,29 +134,40 @@
 
   async function onSend(text: string): Promise<boolean> {
     const generation = ++sendGeneration;
-    const conversationId = conversation?.id;
+    // Identity is fixed before the await: the result, the cleared draft and
+    // any error belong to the conversation the text was written in.
+    const conversationId = draftConversationId ?? conversation?.id ?? null;
     sendFailed = false;
-    submittedText = text;
-    const sent = await sendMessage(text);
-    if (conversationId !== conversation?.id) return false;
+    const sent = conversationId ? await sendConversationDraft(conversationId, text) : await sendMessage(text);
+    if (conversationId !== (conversation?.id ?? null)) return false;
     sendFailed = !sent && generation !== cancelledGeneration;
     if (sent) void stickToBottom();
     return sent;
   }
 
   async function onStop() {
+    const conversationId = conversation?.id ?? null;
     if (room) {
-      actionFailed = !(await cancelRoom(room.id));
+      const roomId = room.id;
+      const stopped = await cancelRoom(roomId);
+      if (conversationId === (conversation?.id ?? null)) actionFailed = !stopped;
       return;
     }
     cancelledGeneration = sendGeneration;
     sendFailed = false;
-    const interruptedText = submittedText;
     actionFailed = false;
+    if (!conversationId) return;
     try {
-      await cancelTurn();
-      if (!draft.trim()) updateDraft(interruptedText);
-    } catch { actionFailed = true; }
+      // Restores the interrupted text into this conversation only, and only
+      // when its draft is still empty; the composer re-reads it when shown.
+      await stopConversationTurn(conversationId);
+      if (conversationId === (conversation?.id ?? null)) {
+        const restored = getConversationDraft(conversationId);
+        if (!draft.trim() && restored) draft = restored;
+      }
+    } catch {
+      if (conversationId === (conversation?.id ?? null)) actionFailed = true;
+    }
   }
 
   async function onAnswer(allow: boolean, always = false) {
@@ -270,7 +281,7 @@
           <a class="button primary" href="/llm/accounts">{$t("llm.surface.connect")}</a>
         {:else}
           <div class="task-suggestions">
-            {#each [$t("llm.surface.suggestion_1"), $t("llm.surface.suggestion_2"), $t("llm.surface.suggestion_3")] as suggestion}
+            {#each [$t("llm.surface.suggestion_1"), $t("llm.surface.suggestion_2")] as suggestion}
               <button type="button" onclick={() => updateDraft(suggestion)}>{suggestion}</button>
             {/each}
           </div>

@@ -10,10 +10,16 @@
   let body = $derived(getChangelogBody());
   let version = $derived(getCurrentVersion());
   let loading = $state(true);
+  let failed = $state(false);
 
   onMount(async () => {
-    await fetchChangelog();
-    loading = false;
+    try {
+      await fetchChangelog();
+    } catch {
+      failed = true;
+    } finally {
+      loading = false;
+    }
   });
 
   function renderMarkdown(md: string): string {
@@ -75,7 +81,8 @@
   }
 </script>
 
-<div class="changelog-page">
+<!-- Native readiness: data is ready only once the fetch settles (an empty result is ready). -->
+<div class="changelog-page" data-agent-readiness={loading ? "loading" : failed ? "error" : "ready"}>
   {#if version}
     <div class="version-row">
       <span class="version-label">{$t("about.version")}</span>
@@ -84,8 +91,9 @@
   {/if}
 
   {#if loading}
-    <div class="loading" role="status" aria-label={$t("common.loading") as string}>
+    <div class="loading" role="status">
       <span class="spinner" aria-hidden="true"></span>
+      <span class="loading-text">{$t("common.loading")}</span>
     </div>
   {:else if body}
     <div class="card">
@@ -130,7 +138,13 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    gap: calc(var(--padding) / 2);
     padding: calc(var(--padding) * 3) 0;
+  }
+
+  .loading-text {
+    font-size: var(--text-sm);
+    color: var(--gray);
   }
 
   .spinner {

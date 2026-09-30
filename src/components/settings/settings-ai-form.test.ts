@@ -1,7 +1,9 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   aiSettingsPayload, clearSavedAiSettingsDraft, isAiSettingsDirty, isLoopbackAiEndpoint,
   readAiSettingsDraft, retainAiSettingsDraft, type AiConfigView, type AiSettingsDraft,
+  aiConnectionStatus, loadAiConnection, resetAiConnectionStatus, saveAiConnection, switchAiProvider,
+  testAiConnection, type AiInvoke,
 } from "./settings-ai-form";
 
 const saved: AiConfigView = {
@@ -13,7 +15,7 @@ const draft = (): AiSettingsDraft => ({
   openaiKey: "", anthropicKey: "", removeOpenaiKey: false, removeAnthropicKey: false,
 });
 
-afterEach(() => retainAiSettingsDraft(null));
+afterEach(() => { retainAiSettingsDraft(null); resetAiConnectionStatus(); });
 
 describe("AI settings credential intent", () => {
   it("keeps a saved credential when the input is blank, but sends an explicit removal", () => {
@@ -64,5 +66,85 @@ describe("AI settings draft across section navigation", () => {
     expect(readAiSettingsDraft()?.model).toBe("newer");
     clearSavedAiSettingsDraft(readAiSettingsDraft()!);
     expect(readAiSettingsDraft()).toBeNull();
+  });
+});
+
+/** Fake IPC: counts every command, never reaches a provider. */
+function fakeInvoke(handlers: Record<string, (args?: Record<string, unknown>) => unknown>) {
+  const fn = vi.fn(async (command: string, args?: Record<string, unknown>) => {
+    const handler = handlers[command];
+    if (!handler) throw new Error(`unexpected IPC ${command}`);
+    return handler(args);
+  });
+  return { invoke: fn as unknown as AiInvoke, calls: (command: string) => fn.mock.calls.filter(([c]) => c === command).length, order: () => fn.mock.calls.map(([c]) => c) };
+}
+
+describe("AI connection save and test", () => {
+  it("loading reads the saved connection only and never tests the provider", async () => {
+    const ipc = fakeInvoke({ ai_get_config: () => saved });
+    expect(await loadAiConnection(ipc.invoke)).toEqual(saved);
+    expect(ipc.order()).toEqual(["ai_get_config"]);
+    expect(aiConnectionStatus(saved)).toBe("unknown");
+  });
+
+  it("a dirty draft is saved first and tested only after the save is confirmed", async () => {
+    const next = { ...saved, model: "new/model" };
+    let release!: () => void;
+    const pendingSave = new Promise<void>((done) => { release = done; });
+    const ipc = fakeInvoke({ ai_set_config: async () => { await pendingSave; return next; }, ai_test: () => "ok" });
+    const running = testAiConnection(ipc.invoke, { dirty: true, draft: { ...draft(), model: "new/model" }, saved });
+    await Promise.resolve();
+    expect(ipc.calls("ai_test")).toBe(0);
+    release();
+    expect(await running).toEqual({ kind: "ok", saved: next });
+    expect(ipc.order()).toEqual(["ai_set_config", "ai_test"]);
+    expect(aiConnectionStatus(next)).toBe("verified");
+  });
+
+  it("a failed save never reaches ai_test and keeps the draft", async () => {
+    const form = { ...draft(), model: "unsaved/model" };
+    retainAiSettingsDraft(form);
+    const ipc = fakeInvoke({ ai_set_config: () => { throw "ERR_IO"; }, ai_test: () => "ok" });
+    const outcome = await testAiConnection(ipc.invoke, { dirty: true, draft: form, saved });
+    expect(outcome.kind).toBe("save_failed");
+    expect(ipc.calls("ai_set_config")).toBe(1);
+    expect(ipc.calls("ai_test")).toBe(0);
+    expect(readAiSettingsDraft()?.model).toBe("unsaved/model");
+    expect(aiConnectionStatus(saved)).toBe("unknown");
+  });
+
+  it("a clean form tests without saving; a failure is reported for that connection only", async () => {
+    const ipc = fakeInvoke({ ai_test: () => { throw "ERR_AUTH"; } });
+    const outcome = await testAiConnection(ipc.invoke, { dirty: false, draft: draft(), saved });
+    expect(outcome.kind).toBe("test_failed");
+    expect(ipc.order()).toEqual(["ai_test"]);
+    expect(aiConnectionStatus(saved)).toBe("error");
+    expect(aiConnectionStatus({ ...saved, model: "other" })).toBe("unknown");
+  });
+
+  it("saving again forgets an earlier verified result", async () => {
+    const ipc = fakeInvoke({ ai_test: () => "ok", ai_set_config: () => saved });
+    await testAiConnection(ipc.invoke, { dirty: false, draft: draft(), saved });
+    expect(aiConnectionStatus(saved)).toBe("verified");
+    await saveAiConnection(ipc.invoke, { ...draft(), openaiKey: "replacement" });
+    expect(aiConnectionStatus(saved)).toBe("unknown");
+    expect(ipc.calls("ai_test")).toBe(1);
+  });
+});
+
+describe("AI provider switch", () => {
+  it("clears only hidden draft fields and never turns a switch into key removal", () => {
+    const marked = { ...draft(), provider: "openai" as const, localBaseUrl: "", openaiKey: "typed", removeOpenaiKey: true };
+    const toAnthropic = switchAiProvider(marked, "anthropic");
+    expect(toAnthropic).toMatchObject({ provider: "anthropic", openaiKey: "", removeOpenaiKey: false });
+    expect(aiSettingsPayload(toAnthropic).openaiKey).toBeNull();
+    expect(aiSettingsPayload(toAnthropic).anthropicKey).toBeNull();
+  });
+
+  it("keeps the shared connection key between endpoint and OpenAI, and drops the endpoint", () => {
+    const local = { ...draft(), openaiKey: "typed" };
+    expect(switchAiProvider(local, "openai")).toMatchObject({ openaiKey: "typed", localBaseUrl: "" });
+    expect(switchAiProvider(local, "none")).toMatchObject({ openaiKey: "", localBaseUrl: saved.local_base_url });
+    expect(switchAiProvider(local, "local")).toEqual(local);
   });
 });

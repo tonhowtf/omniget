@@ -3,21 +3,17 @@
   import { onMount, onDestroy } from "svelte";
   import { t } from "$lib/i18n";
   import { showToast } from "$lib/stores/toast-store.svelte";
+  import SettingGroup from "./rebrand/SettingGroup.svelte";
 
   import {
-    aiSettingsPayload, clearSavedAiSettingsDraft, isAiSettingsDirty, isLoopbackAiEndpoint,
-    readAiSettingsDraft, retainAiSettingsDraft,
+    aiConnectionStatus, clearSavedAiSettingsDraft, isAiSettingsDirty, isLoopbackAiEndpoint,
+    loadAiConnection, readAiSettingsDraft, retainAiSettingsDraft, saveAiConnection, switchAiProvider,
+    testAiConnection,
     type AiProvider as Provider, type AiConfigView as ConfigView, type AiSettingsDraft,
   } from "./settings-ai-form";
 
-  type HistoryEntry = {
-    id: number;
-    kind: string;
-    url: string;
-    title: string;
-    content: string;
-    created_at_ms: number;
-  };
+  // Settings only configures the summary connection and reports its status.
+  // Running a summary and reading its history live in /llm/summaries.
 
   let provider = $state<Provider>("none");
   let model = $state("");
@@ -36,22 +32,26 @@
   let configReady = $state(false);
   let saving = $state(false);
   let testing = $state(false);
+  // Bumped after each test so the status re-reads the module-level result.
+  let testRevision = $state(0);
   function draft(): AiSettingsDraft {
     return { provider, model, localBaseUrl, openaiKey, anthropicKey, removeOpenaiKey, removeAnthropicKey };
+  }
+  function applyDraft(d: AiSettingsDraft) {
+    provider = d.provider;
+    model = d.model;
+    localBaseUrl = d.localBaseUrl;
+    openaiKey = d.openaiKey;
+    anthropicKey = d.anthropicKey;
+    removeOpenaiKey = d.removeOpenaiKey;
+    removeAnthropicKey = d.removeAnthropicKey;
   }
   let configDirty = $derived(isAiSettingsDirty(draft(), savedConfig));
   let effectiveKind = $derived(
     savedConfig && provider === savedConfig.provider && localBaseUrl.trim().replace(/\/+$/, "") === savedConfig.local_base_url
       ? savedConfig.kind : ""
   );
-  let summarizeUrl = $state("");
-  let summarizing = $state(false);
-  let summaryStyle = $state<"short" | "balanced" | "detailed">("balanced");
-  let summaryLang = $state("");
-  let history = $state<HistoryEntry[]>([]);
-  let historyLoading = $state(true);
-  let historyError = $state(false);
-  let clearingHistory = $state(false);
+  let connectionStatus = $derived.by(() => { void testRevision; return aiConnectionStatus(savedConfig); });
 
   function applyConfig(c: ConfigView) {
     provider = c.provider;
@@ -72,19 +72,11 @@
     configLoading = true;
     configError = false;
     try {
-      const c = await invoke<ConfigView>("ai_get_config");
-      applyConfig(c);
+      // Local read only: opening Settings never contacts the provider.
+      applyConfig(await loadAiConnection(invoke));
       const retained = readAiSettingsDraft();
-      if (retained) {
-        provider = retained.provider;
-        model = retained.model;
-        localBaseUrl = retained.localBaseUrl;
-        openaiKey = retained.openaiKey;
-        anthropicKey = retained.anthropicKey;
-        removeOpenaiKey = retained.removeOpenaiKey;
-        removeAnthropicKey = retained.removeAnthropicKey;
-      }
-    } catch (e: any) {
+      if (retained) applyDraft(retained);
+    } catch {
       configReady = false;
       configError = true;
     } finally {
@@ -102,35 +94,26 @@
     if (configReady) retainAiSettingsDraft(configDirty ? draft() : null);
   });
 
-  async function loadHistory() {
-    historyLoading = true;
-    historyError = false;
-    try {
-      history = (await invoke<HistoryEntry[]>("ai_history_list")).slice().reverse();
-    } catch {
-      historyError = true;
-    } finally {
-      historyLoading = false;
-    }
-  }
-
   onMount(() => {
     loadConfig();
-    loadHistory();
   });
 
+  function onProviderChange(next: Provider) {
+    applyDraft(switchAiProvider(draft(), next));
+  }
+
   async function save(): Promise<boolean> {
-    if (!configReady || saving || summarizing) return false;
+    if (!configReady || saving) return false;
     saving = true;
     saveFailed = false;
     const submitted = draft();
     try {
-      const result = await invoke<ConfigView>("ai_set_config", aiSettingsPayload(submitted));
-      clearSavedAiSettingsDraft(submitted);
+      const result = await saveAiConnection(invoke, submitted);
       applyConfig(result);
+      testRevision++;
       showToast("success", $t("settings.ai.saved") as string);
       return true;
-    } catch (e: any) {
+    } catch {
       saveFailed = true;
       showToast("error", $t("settings.ai.save_failed"));
       return false;
@@ -140,83 +123,57 @@
   }
 
   async function runTest() {
-    if (!configReady || testing || saving || summarizing) return;
+    if (!configReady || testing || saving) return;
     testing = true;
+    const dirty = configDirty;
+    const submitted = draft();
+    if (dirty) saving = true;
+    saveFailed = false;
     try {
-      // A dirty form must never report a result for the previously saved provider.
-      if (configDirty && !(await save())) return;
-      await invoke<string>("ai_test");
-      showToast("success", $t("settings.ai.test_ok") as string);
-    } catch (e: any) {
-      const msg = typeof e === "string" ? e : $t("common.error");
-      showToast("error", $t("settings.ai.test_fail", { error: msg }) as string);
+      // A dirty form is saved first; the provider is contacted only after the
+      // save is confirmed, so a result never belongs to the previous connection.
+      const outcome = await testAiConnection(invoke, { dirty, draft: submitted, saved: savedConfig });
+      if (outcome.kind === "save_failed") {
+        saveFailed = true;
+        showToast("error", $t("settings.ai.save_failed"));
+        return;
+      }
+      if (dirty && outcome.saved) {
+        clearSavedAiSettingsDraft(submitted);
+        applyConfig(outcome.saved);
+      }
+      if (outcome.kind === "ok") showToast("success", $t("settings.ai.test_ok") as string);
+      else {
+        const msg = typeof outcome.error === "string" ? outcome.error : $t("common.error");
+        showToast("error", $t("settings.ai.test_fail", { error: msg }) as string);
+      }
     } finally {
+      saving = false;
       testing = false;
-    }
-  }
-
-  async function summarize() {
-    const url = summarizeUrl.trim();
-    if (!url || summarizing || !configReady || configDirty || saving || testing) return;
-    summarizing = true;
-    try {
-      await invoke("ai_summarize_url", {
-        url,
-        style: summaryStyle === "balanced" ? null : summaryStyle,
-        lang: summaryLang.trim() || null,
-      });
-      summarizeUrl = "";
-      await loadHistory();
-      showToast("success", $t("settings.ai.summary_ready") as string);
-    } catch (e: any) {
-      const raw = typeof e === "string" ? e : $t("common.error");
-      const msg =
-        raw === "no_transcript"
-          ? ($t("settings.ai.no_transcript") as string)
-          : raw === "ai_not_configured"
-            ? ($t("settings.ai.not_configured") as string)
-            : raw;
-      showToast("error", msg);
-    } finally {
-      summarizing = false;
-    }
-  }
-
-  async function clearHistory() {
-    if (clearingHistory || !confirm($t("settings.ai.history_clear_confirm"))) return;
-    clearingHistory = true;
-    try {
-      await invoke("ai_history_clear");
-      history = [];
-    } catch {
-      showToast("error", $t("settings.ai.history_clear_failed"));
-    } finally {
-      clearingHistory = false;
+      testRevision++;
     }
   }
 </script>
 
-<section class="section">
-  <h5 class="section-title">{$t('settings.ai.title')}</h5>
+<SettingGroup id="connections" title={$t('settings.ai.title') as string} description={$t('settings.ai.provider_desc') as string}>
+  {#snippet actions()}
+    <a class="link-btn" href="/llm/summaries" data-setting-key="settings.ai.summarize_title">{$t('settings.ai.summarize_title')}</a>
+  {/snippet}
 
   {#if configLoading}
-    <div class="card" role="status">{$t('common.loading')}</div>
+    <div class="ai-state" role="status">{$t('common.loading')}</div>
   {:else if configError}
-    <div class="card" role="alert">
+    <div class="ai-state" role="alert">
       <p>{$t('settings.ai.load_failed')}</p>
       <button class="ghost-btn" onclick={loadConfig}>{$t('error.remedy.retry')}</button>
     </div>
   {/if}
-  <fieldset class="card config-fields" disabled={!configReady || saving || testing || summarizing} aria-busy={saving || testing}>
+  <fieldset class="config-fields" disabled={!configReady || saving || testing} aria-busy={saving || testing}>
     <div class="setting-row" data-setting-key="settings.ai.provider">
       <div class="setting-col">
         <label class="setting-label" for="ai-provider">{$t('settings.ai.provider')}</label>
-        <span class="setting-path">{$t('settings.ai.provider_desc')}</span>
       </div>
-      <select id="ai-provider" class="input-text select" bind:value={provider} disabled={saving || testing} onchange={(event) => {
-        const next = event.currentTarget.value as Provider;
-        if (next !== provider && (next === "openai" || next === "anthropic")) localBaseUrl = "";
-      }}>
+      <select id="ai-provider" class="input-text select" value={provider} disabled={saving || testing} onchange={(event) => onProviderChange(event.currentTarget.value as Provider)}>
         <option value="none">{$t('settings.ai.provider_none')}</option>
         <option value="openai">OpenAI</option>
         <option value="anthropic">Anthropic</option>
@@ -235,7 +192,7 @@
       <div class="setting-row" data-setting-key="settings.ai.model">
         <div class="setting-col">
           <label class="setting-label" for="ai-model">{$t('settings.ai.model')}</label>
-          <span class="setting-path">{$t('settings.ai.model_desc')}</span>
+          <span class="setting-path wrap">{$t('settings.ai.model_desc')}</span>
         </div>
         <input type="text" class="input-text" placeholder={$t('settings.ai.model_placeholder')} id="ai-model" bind:value={model} disabled={saving || testing} />
       </div>
@@ -289,6 +246,13 @@
       </div>
     {/if}
 
+    {#if provider !== "none" && savedConfig?.provider !== "none" && !configDirty}
+      <div class="divider"></div>
+      <p class="connection-status" data-state={connectionStatus} role={connectionStatus === "error" ? "alert" : "status"} data-setting-key="settings.ai.test">
+        {$t(connectionStatus === "verified" ? 'settings.rebrand.connection.verified' : connectionStatus === "error" ? 'settings.rebrand.connection.error' : 'settings.rebrand.connection.unknown')}
+      </p>
+    {/if}
+
     <div class="divider"></div>
     <div class="actions-row">
       <button class="primary-btn" disabled={!configReady || !configDirty || saving || testing} onclick={save}>
@@ -296,106 +260,35 @@
       </button>
       {#if configDirty}<button class="ghost-btn" onclick={discard}>{$t('settings.ai.discard')}</button>{/if}
       {#if provider !== "none"}
-        <button class="ghost-btn" disabled={!configReady || testing || saving} onclick={runTest}>
-          {configDirty ? $t('settings.ai.save_test') : $t('settings.ai.test')}
+        <button class="ghost-btn" disabled={!configReady || testing || saving} onclick={runTest} aria-describedby="ai-test-cost">
+          {configDirty ? $t('settings.ai.save_test') : $t('settings.rebrand.connection.test')}
         </button>
       {/if}
     </div>
+    {#if provider !== "none"}<p class="setting-path wrap" id="ai-test-cost">{$t('settings.rebrand.connection.test_cost_notice')}</p>{/if}
     {#if configDirty}<p class="setting-path unsaved-state wrap" role="status">{$t('settings.ai.draft_retained')}</p>{/if}
     {#if saveFailed}<p class="feedback-error" role="alert">{$t('settings.ai.save_failed')}</p>{/if}
-    {#if provider !== "none"}<p class="setting-path wrap">{$t('settings.ai.test_effect')}</p>{/if}
   </fieldset>
-
-  {#if provider !== "none"}
-    <h5 class="section-title">{$t('settings.ai.summarize_title')}</h5>
-    <div class="card">
-      <div class="add-row">
-        <input
-          type="text"
-          class="input-text"
-          placeholder={$t('settings.ai.summarize_placeholder')}
-          aria-label={$t('settings.ai.summarize_placeholder')}
-          disabled={summarizing}
-          bind:value={summarizeUrl}
-          onkeydown={(e) => { if (e.key === "Enter") summarize(); }}
-        />
-        <button class="primary-btn" disabled={!summarizeUrl.trim() || summarizing || !configReady || configDirty || saving || testing} onclick={summarize}>
-          {summarizing ? $t('settings.ai.summarizing') : $t('settings.ai.summarize')}
-        </button>
-      </div>
-      <div class="add-row sum-opts">
-        <select class="input-text select" bind:value={summaryStyle} disabled={summarizing} aria-label={$t('settings.ai.style') as string}>
-          <option value="short">{$t('settings.ai.style_short')}</option>
-          <option value="balanced">{$t('settings.ai.style_balanced')}</option>
-          <option value="detailed">{$t('settings.ai.style_detailed')}</option>
-        </select>
-        <input
-          type="text"
-          class="input-text"
-          placeholder={$t('settings.ai.lang_placeholder')}
-          aria-label={$t('settings.ai.lang_placeholder')}
-          disabled={summarizing}
-          bind:value={summaryLang}
-        />
-      </div>
-      <span class="setting-path add-hint wrap">{$t('settings.ai.summarize_effect')}</span>
-    </div>
-  {/if}
-
-  <div class="hist-head">
-    <h5 class="section-title">{$t('settings.ai.history')}</h5>
-    {#if history.length > 0 && !historyError}
-      <button class="link-btn danger" disabled={clearingHistory || historyLoading} onclick={clearHistory}>{$t('settings.ai.history_clear')}</button>
-    {/if}
-  </div>
-  {#if historyLoading}
-    <div class="card empty" role="status">{$t('common.loading')}</div>
-  {:else if historyError}
-    <div class="card empty" role="alert">
-      <p>{$t('settings.ai.history_load_failed')}</p>
-      <button class="ghost-btn" onclick={loadHistory}>{$t('error.remedy.retry')}</button>
-    </div>
-  {:else if history.length === 0}
-    <div class="card empty">
-      <span class="setting-path">{$t('settings.ai.history_empty')}</span>
-    </div>
-  {:else}
-    <div class="card">
-      {#each history as h, i (h.id)}
-        {#if i > 0}<div class="divider"></div>{/if}
-        <details class="hist">
-          <summary>{h.title || h.url}</summary>
-          <p class="hist-body">{h.content}</p>
-        </details>
-      {/each}
-    </div>
-  {/if}
-</section>
+</SettingGroup>
 
 <style>
-  .config-fields { min-width: 0; border: 0; }
+  /* Rows sit directly in the group: no bordered card inside the group card. */
+  .config-fields { min-width: 0; margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; }
+  .config-fields > .setting-row { flex-wrap: wrap; gap: var(--space-2) var(--space-4); }
+  /* Rows are always separated by a .divider. */
+  .config-fields > .divider + .setting-row { border-block-start: var(--hairline, 1px) solid var(--separator); }
+  .config-fields .setting-col { flex: 1 1 14rem; }
+  .ai-state { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); padding-block: var(--space-2); }
+  .ai-state p { margin: 0; }
   .credential-input { display: flex; flex-wrap: wrap; gap: 8px; }
   .credential-input .input-text { min-width: 0; flex: 1; }
   .wrap { white-space: normal; overflow: visible; line-height: 1.5; }
   .feedback-error { color: var(--error); }
-
-  .select {
-    min-width: 160px;
-  }
-
-  .actions-row,
-  .add-row {
-    display: flex;
-    gap: 8px;
-    width: 100%;
-  }
-
-  .add-row .input-text {
-    flex: 1;
-    min-width: 0;
-  }
-
+  /* The provider select grows to its longest option; the row wraps before it would clip. */
+  .config-fields .select { flex: 0 1 auto; min-width: 160px; max-width: 100%; }
+  .actions-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; width: 100%; margin-block-start: var(--space-3); }
   .primary-btn {
+    min-block-size: var(--control-h, 32px);
     padding: 0 16px;
     border: none;
     border-radius: var(--border-radius);
@@ -404,13 +297,10 @@
     font-weight: 600;
     cursor: pointer;
   }
-
-  .primary-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
+  .primary-btn:disabled,
+  .ghost-btn:disabled { opacity: 0.5; cursor: not-allowed; }
   .ghost-btn {
+    min-block-size: var(--control-h, 32px);
     padding: 0 16px;
     border: none;
     border-radius: var(--border-radius);
@@ -418,64 +308,10 @@
     color: var(--text);
     cursor: pointer;
   }
-
-  .ghost-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
-  .add-hint {
-    display: block;
-    margin-top: 8px;
-  }
-
   .unsaved-state { margin: 10px 0 0; }
-
-  .sum-opts {
-    margin-top: 8px;
-  }
-
-  .sum-opts .input-text {
-    flex: 1;
-    min-width: 0;
-  }
-
-  .hist-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-  }
-
-  .link-btn {
-    background: none;
-    border: none;
-    color: var(--accent);
-    cursor: pointer;
-    font-size: 13px;
-    padding: 0;
-  }
-
-  .link-btn.danger {
-    color: var(--error);
-  }
-
-  .empty {
-    text-align: center;
-    padding: 20px 16px;
-  }
-
-  .hist summary {
-    cursor: pointer;
-    font-weight: 600;
-    padding: 6px 0;
-  }
-
-  .hist-body {
-    white-space: pre-wrap;
-    margin: 4px 0 8px;
-    color: var(--text);
-    font-size: 13px;
-    line-height: 1.5;
-  }
+  .link-btn { color: var(--accent); font-size: 13px; text-decoration: none; white-space: nowrap; }
+  .link-btn:focus-visible { outline: var(--focus-ring); }
+  .connection-status { margin: 0; font-size: 13px; color: var(--text-muted); }
+  .connection-status[data-state="verified"] { color: var(--text); }
+  .connection-status[data-state="error"] { color: var(--error); }
 </style>

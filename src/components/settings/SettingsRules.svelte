@@ -4,6 +4,8 @@
   import { open } from "@tauri-apps/plugin-dialog";
   import { t } from "$lib/i18n";
   import { showToast } from "$lib/stores/toast-store.svelte";
+  import SettingGroup from "./rebrand/SettingGroup.svelte";
+  import SettingsEmptyState from "./rebrand/SettingsEmptyState.svelte";
 
   type Condition =
     | { HostIs: { value: string } }
@@ -166,24 +168,15 @@
   onMount(load);
 </script>
 
-<section class="section" data-setting-key="settings.rules.title">
-  <h5 class="section-title">{$t("settings.rules.title")}</h5>
-  <p class="muted">{$t("settings.rules.description")}</p>
-
+<SettingGroup id="rules" title={$t("settings.rules.title")} description={$t("settings.rules.description")} advanced>
   <div class="card">
     {#if loading}
-      <div class="rules-empty">{$t("common.loading")}</div>
+      <p class="rules-empty" role="status" aria-busy="true">{$t("settings.rebrand.state.loading")}</p>
     {:else if loadError}
-      <div class="rules-empty" role="alert">
-        <p>{$t("settings.rules.load_failed")}</p>
-        <button type="button" class="button" onclick={load}>{$t("error.remedy.retry")}</button>
-      </div>
+      <SettingsEmptyState error title={$t("settings.rules.load_failed")} onRetry={() => void load()} />
     {:else if rules.length === 0}
       <!-- Empty state que direciona a primeira ação de valor, em vez de card vazio. -->
-      <div class="rules-empty">
-        <p>{$t("settings.rules.empty_title")}</p>
-        <p class="muted small">{$t("settings.rules.empty_hint")}</p>
-      </div>
+      <SettingsEmptyState title={$t("settings.rules.empty_title")} hint={$t("settings.rules.empty_hint")} />
     {:else}
       {#each rules as rule, i (i)}
         <div class="rule-row">
@@ -288,7 +281,7 @@
   </div>
 
   <div class="rules-actions">
-    <button type="button" class="button" disabled={loading || loadError || saving} onclick={addRule}>
+    <button type="button" class="button" data-setting-key="settings.rules.add" disabled={loading || loadError || saving} onclick={addRule}>
       {$t("settings.rules.add")}
     </button>
     {#if dirty || saving}
@@ -307,7 +300,7 @@
 
   <!-- Responder "esta regra pega o que eu espero?" antes de descobrir no
        download errado. -->
-  <div class="card rules-test">
+  <div class="card rules-test" data-setting-key="settings.rules.test_title">
     <label class="rule-label" for="rules-test-url">{$t("settings.rules.test_title")}</label>
     <input
       type="text"
@@ -322,7 +315,7 @@
       <span class="test-result" role="status">{testResult}</span>
     {/if}
   </div>
-</section>
+</SettingGroup>
 
 <style>
   .feedback-error { color: var(--error); }

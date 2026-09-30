@@ -1,7 +1,7 @@
 import { check } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { storeChangelogForUpdate } from "$lib/stores/changelog-store.svelte";
-import { getSettings } from "$lib/stores/settings-store.svelte";
+import { invoke } from "@tauri-apps/api/core";
 
 export interface UpdateInfo {
   available: boolean;
@@ -9,22 +9,15 @@ export interface UpdateInfo {
   body?: string;
 }
 
-function proxyUrl(): string | undefined {
-  const proxy = getSettings()?.proxy;
-  if (!proxy?.enabled || !proxy.host || !proxy.port) return undefined;
-  const scheme =
-    proxy.proxy_type === "socks5" || proxy.proxy_type === "https"
-      ? proxy.proxy_type
-      : "http";
-  const auth = proxy.username
-    ? `${encodeURIComponent(proxy.username)}:${encodeURIComponent(proxy.password ?? "")}@`
-    : "";
-  return `${scheme}://${auth}${proxy.host}:${proxy.port}`;
+// The proxy password never reaches the settings snapshot; Rust builds the URL.
+async function proxyUrl(): Promise<string | undefined> {
+  const url = await invoke<string | null>("get_updater_proxy_url");
+  return url ?? undefined;
 }
 
 export async function checkForUpdate(): Promise<UpdateInfo> {
   try {
-    const update = await check({ proxy: proxyUrl() });
+    const update = await check({ proxy: await proxyUrl() });
     if (update) {
       return {
         available: true,
@@ -39,7 +32,7 @@ export async function checkForUpdate(): Promise<UpdateInfo> {
 }
 
 export async function installUpdate(): Promise<void> {
-  const update = await check({ proxy: proxyUrl() });
+  const update = await check({ proxy: await proxyUrl() });
   if (update) {
     if (update.body && update.version) {
       storeChangelogForUpdate(update.body, update.version);

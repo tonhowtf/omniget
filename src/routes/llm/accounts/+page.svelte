@@ -23,7 +23,6 @@
   import AccountList from "$components/llm/accounts/AccountList.svelte";
   import UsageDashboard from "$components/llm/accounts/UsageDashboard.svelte";
   import AcpAgents from "$components/llm/accounts/AcpAgents.svelte";
-  import LimitsStrip from "$components/llm/accounts/LimitsStrip.svelte";
   import {
     activateAccount,
     createAccount,
@@ -179,7 +178,8 @@
     </section>
   {/if}
 
-  <LimitsStrip />
+  <!-- The limits strip editor lives in Settings > General; this is only the way there. -->
+  <p class="connection-links"><a href="/settings?tab=general&section=limits-strip">{$t("llm.limits.title")}</a></p>
 
   <section class="surface-card rotation">
     <label class="rot-toggle">

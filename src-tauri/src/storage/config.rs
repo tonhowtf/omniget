@@ -1,61 +1,58 @@
+use std::path::Path;
+
 use tauri::AppHandle;
-use tauri_plugin_store::StoreExt;
 
 use crate::models::settings::AppSettings;
+use crate::storage::settings_repository::{self, RepoError, ENVELOPE_KEY, SETTINGS_FILE};
 
-const STORE_PATH: &str = "settings.json";
-const STORE_KEY: &str = "app_settings";
+/// The confirmed settings of the profile, from the one repository that owns
+/// `settings.json`. While the file cannot be read this returns defaults for
+/// the readers, but every writer stays blocked.
+pub fn load_settings(_app: &AppHandle) -> AppSettings {
+    settings_repository::global().settings()
+}
 
-/// Absolute path of the settings store, anchored to the app data dir that
-/// honors OMNIGET_DATA_DIR. A relative store path resolves against Tauri's
-/// own AppData dir, which ignores the portable-mode override — the store
-/// writers and the standalone readers below would then use different files.
-fn store_path() -> std::path::PathBuf {
+/// Read-only access for code without an `AppHandle` (and other processes):
+/// reads the file directly and never writes it.
+pub fn load_settings_standalone() -> AppSettings {
     match crate::core::paths::app_data_dir() {
-        Some(dir) => dir.join(STORE_PATH),
-        None => std::path::PathBuf::from(STORE_PATH),
+        Some(dir) => read_settings_file(&dir.join(SETTINGS_FILE)),
+        None => AppSettings::default(),
     }
 }
 
-pub fn load_settings(app: &AppHandle) -> AppSettings {
-    let store = match app.store(store_path()) {
-        Ok(s) => s,
-        Err(_) => return AppSettings::default(),
+/// Parses a settings file the way the repository does, without writing.
+pub fn read_settings_file(path: &Path) -> AppSettings {
+    let Ok(content) = std::fs::read(path) else {
+        return AppSettings::default();
     };
-
-    match store.get(STORE_KEY) {
+    let Ok(json) = serde_json::from_slice::<serde_json::Value>(&content) else {
+        return AppSettings::default();
+    };
+    match json.get(ENVELOPE_KEY) {
         Some(val) => {
-            let mut settings = parse_settings(&val);
-            if settings.migrate() {
-                let _ = save_settings(app, &settings);
-            }
+            let mut settings = parse_settings(val);
+            settings.migrate();
             settings
         }
         None => AppSettings::default(),
     }
 }
 
-pub fn load_settings_standalone() -> AppSettings {
-    let data_dir = match crate::core::paths::app_data_dir() {
-        Some(d) => d,
-        None => return AppSettings::default(),
-    };
-
-    let store_path = data_dir.join(STORE_PATH);
-    let content = match std::fs::read_to_string(&store_path) {
-        Ok(c) => c,
-        Err(_) => return AppSettings::default(),
-    };
-
-    let json: serde_json::Value = match serde_json::from_str(&content) {
-        Ok(v) => v,
-        Err(_) => return AppSettings::default(),
-    };
-
-    match json.get(STORE_KEY) {
-        Some(val) => parse_settings(val),
-        None => AppSettings::default(),
-    }
+/// Changes the settings through the repository (internal writers: bridge
+/// bootstrap, onboarding, prune, watchdog, jobs). The effects of the fields
+/// that changed are scheduled and the UI is told about the new revision.
+pub fn update_settings<F>(app: &AppHandle, f: F) -> Result<AppSettings, RepoError>
+where
+    F: FnOnce(&mut AppSettings),
+{
+    let commit = settings_repository::global().mutate(None, |current| {
+        let mut next = current.clone();
+        f(&mut next);
+        Ok(next)
+    })?;
+    crate::storage::settings_effects::after_commit(app, &commit);
+    Ok(commit.after)
 }
 
 /// Settings as stored, read by this version. A file written by another
@@ -64,41 +61,69 @@ pub fn load_settings_standalone() -> AppSettings {
 /// the stored values are laid over the defaults, so only the fields that do
 /// not fit fall back.
 fn parse_settings(val: &serde_json::Value) -> AppSettings {
+    recover_settings(val).0
+}
+
+/// [`parse_settings`] plus the paths that fell back to their default.
+///
+/// Every stored value is tried against the real types on its own: a value
+/// of the right JSON kind but outside its Rust type (`proxy.port: 70000`)
+/// falls back alone instead of taking the whole document down with it.
+/// Keys this version does not know are kept (serde ignores them).
+pub(crate) fn recover_settings(val: &serde_json::Value) -> (AppSettings, Vec<String>) {
     if let Ok(settings) = serde_json::from_value::<AppSettings>(val.clone()) {
-        return settings;
+        return (settings, Vec::new());
     }
     let mut merged = serde_json::to_value(AppSettings::default()).unwrap_or_default();
-    overlay(&mut merged, val);
-    serde_json::from_value(merged).unwrap_or_default()
-}
-
-/// Copies `saved` into `base` where the JSON kinds agree; a value of another
-/// kind keeps the default. Keys this version does not know are kept (serde
-/// ignores them).
-fn overlay(base: &mut serde_json::Value, saved: &serde_json::Value) {
-    use serde_json::Value;
-    if let (Value::Object(b), Value::Object(s)) = (&mut *base, saved) {
-        for (k, v) in s {
-            match b.get_mut(k) {
-                Some(slot) => overlay(slot, v),
-                None => {
-                    b.insert(k.clone(), v.clone());
-                }
+    let mut leaves = Vec::new();
+    collect_leaves(&merged, val, "", &mut leaves);
+    let mut fallen = Vec::new();
+    for (path, value) in leaves {
+        let previous = crate::models::settings::get_path(&merged, &path).cloned();
+        crate::models::settings::set_path(&mut merged, &path, value);
+        if serde_json::from_value::<AppSettings>(merged.clone()).is_err() {
+            match previous {
+                Some(p) => crate::models::settings::set_path(&mut merged, &path, p),
+                None => remove_path(&mut merged, &path),
             }
+            fallen.push(path);
         }
-        return;
     }
-    if base.is_null() || std::mem::discriminant(&*base) == std::mem::discriminant(saved) {
-        *base = saved.clone();
+    (serde_json::from_value(merged).unwrap_or_default(), fallen)
+}
+
+/// Stored values to try, as dotted paths: objects present on both sides are
+/// walked into, anything else is one value.
+fn collect_leaves(
+    base: &serde_json::Value,
+    saved: &serde_json::Value,
+    prefix: &str,
+    out: &mut Vec<(String, serde_json::Value)>,
+) {
+    let Some(saved) = saved.as_object() else {
+        return;
+    };
+    for (k, v) in saved {
+        let path = if prefix.is_empty() {
+            k.clone()
+        } else {
+            format!("{prefix}.{k}")
+        };
+        match base.get(k) {
+            Some(b) if b.is_object() && v.is_object() => collect_leaves(b, v, &path, out),
+            _ => out.push((path, v.clone())),
+        }
     }
 }
 
-pub fn save_settings(app: &AppHandle, settings: &AppSettings) -> anyhow::Result<()> {
-    let store = app.store(store_path())?;
-    let val = serde_json::to_value(settings)?;
-    store.set(STORE_KEY, val);
-    store.save()?;
-    Ok(())
+fn remove_path(v: &mut serde_json::Value, path: &str) {
+    let (parent, key) = match path.rsplit_once('.') {
+        Some((p, k)) => (p.split('.').try_fold(&mut *v, |cur, k| cur.get_mut(k)), k),
+        None => (Some(v), path),
+    };
+    if let Some(serde_json::Value::Object(map)) = parent {
+        map.remove(key);
+    }
 }
 
 #[cfg(test)]
@@ -147,5 +172,133 @@ mod tests {
         let s = parse_settings(&stored());
         assert_eq!(s.download.video_quality, "1080p");
         assert_eq!(s.bridge.token, "paired-token");
+    }
+}
+
+/// Planning audit: the real parser and AppSettings codec, with synthetic values.
+/// These tests do not open an app or read a settings file.
+#[cfg(test)]
+mod settings_rebrand_audit {
+    use super::*;
+    use serde_json::{json, Value};
+
+    fn leaf_count(value: &Value) -> usize {
+        match value {
+            Value::Object(fields) => fields.values().map(leaf_count).sum(),
+            // A list is one preference, regardless of its number of items.
+            _ => 1,
+        }
+    }
+
+    fn synthetic_values(value: &mut Value, path: &str) {
+        match value {
+            Value::Object(fields) => {
+                for (key, slot) in fields {
+                    let child = if path.is_empty() {
+                        key.clone()
+                    } else {
+                        format!("{path}.{key}")
+                    };
+                    synthetic_values(slot, &child);
+                }
+            }
+            Value::Bool(flag) => *flag = !*flag,
+            Value::String(text) => *text = "audit-fixture-only".into(),
+            Value::Number(number) => {
+                *value = if number.is_f64() {
+                    // Exactly representable by f32 and f64.
+                    json!(1.5)
+                } else {
+                    json!(number.as_u64().expect("unsigned settings default") + 1)
+                };
+            }
+            Value::Array(_) => {
+                *value = if matches!(path, "league.pick_champions" | "league.ban_champions") {
+                    json!([1, 2])
+                } else {
+                    json!(["audit-fixture-only"])
+                };
+            }
+            Value::Null => {
+                *value = match path {
+                    "world.tier_override" | "world.tier_measured" => json!(2),
+                    "world.measured_median_ms" => json!(12.5),
+                    "llm.ask_timeout_job_s" => json!(45),
+                    "llm.jobs_max_per_agent" => json!(2),
+                    "last_download_options.mode"
+                    | "last_download_options.quality"
+                    | "omnidisc.voice.input_device"
+                    | "omnidisc.voice.output_device"
+                    | "world.backend_override"
+                    | "world.measured_app_version" => json!("audit-fixture-only"),
+                    _ => panic!("audit inventory needs the type of nullable field {path}"),
+                };
+            }
+        }
+    }
+
+    #[test]
+    fn actual_rust_defaults_match_the_155_leaf_harness_fixture() {
+        let mut actual = serde_json::to_value(AppSettings::default()).unwrap();
+        // The sole machine-dependent default is not compared to a personal path.
+        actual["download"]["default_output_dir"] =
+            json!("/tmp/omniget-settings-rebrand-fixture/downloads");
+        let expected: Value = serde_json::from_str(include_str!(
+            "../../tests/fixtures/settings-audit-defaults.json"
+        ))
+        .unwrap();
+        assert_eq!(leaf_count(&actual), 155);
+        assert_eq!(leaf_count(&expected), 155);
+        // Read the fixture through its actual Rust types: f32 defaults such as
+        // 1.55 otherwise differ from JSON's f64 representation by rounding.
+        let typed_fixture: AppSettings = serde_json::from_value(expected).unwrap();
+        assert_eq!(actual, serde_json::to_value(typed_fixture).unwrap());
+    }
+
+    #[test]
+    fn all_155_settings_keep_nondefault_values_through_the_real_codec() {
+        let mut expected = serde_json::to_value(AppSettings::default()).unwrap();
+        synthetic_values(&mut expected, "");
+        assert_eq!(leaf_count(&expected), 155);
+        let decoded: AppSettings = serde_json::from_value(expected.clone()).unwrap();
+        assert_eq!(serde_json::to_value(decoded).unwrap(), expected);
+        assert_eq!(
+            serde_json::to_value(parse_settings(&expected)).unwrap(),
+            expected
+        );
+    }
+
+    #[test]
+    fn a_wrong_json_kind_falls_back_only_for_that_preference() {
+        let mut expected = serde_json::to_value(AppSettings::default()).unwrap();
+        synthetic_values(&mut expected, "");
+        expected["proxy"]["port"] = json!(AppSettings::default().proxy.port);
+        let mut saved = expected.clone();
+        saved["proxy"]["port"] = json!("invalid-port-fixture");
+        assert_eq!(
+            serde_json::to_value(parse_settings(&saved)).unwrap(),
+            expected
+        );
+    }
+
+    /// Intended future contract. The current overlay accepts any JSON Number,
+    /// including one outside u16, and then falls back to the entire default.
+    /// Run explicitly with --ignored; remove ignore when the parser is fixed.
+    #[test]
+    fn an_out_of_range_proxy_port_preserves_every_other_preference() {
+        let mut expected = serde_json::to_value(AppSettings::default()).unwrap();
+        synthetic_values(&mut expected, "");
+        expected["proxy"]["port"] = json!(AppSettings::default().proxy.port);
+        let mut saved = expected.clone();
+        saved["proxy"]["port"] = json!(70_000);
+        let actual = serde_json::to_value(parse_settings(&saved)).unwrap();
+        // Keep failure output synthetic, concise, and specific to data loss.
+        assert_eq!(actual["appearance"], expected["appearance"]);
+        assert_eq!(
+            actual["download"]["video_quality"],
+            expected["download"]["video_quality"]
+        );
+        assert_eq!(actual["bridge"]["token"], expected["bridge"]["token"]);
+        assert_eq!(actual, expected);
     }
 }

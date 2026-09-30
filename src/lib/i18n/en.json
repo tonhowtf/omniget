@@ -1904,6 +1904,103 @@
     },
     "world": {
       "pet_load_failed": "Could not check desktop pet availability. Try again."
+    },
+    "rebrand": {
+      "title": "Settings",
+      "category": {
+        "general": "General",
+        "appearance": "Appearance",
+        "downloads": "Downloads",
+        "ai": "AI and agents",
+        "integrations": "Integrations",
+        "advanced": "Advanced"
+      },
+      "search": {
+        "label": "Search settings",
+        "placeholder": "Search by name or task",
+        "clear": "Clear search",
+        "results": "Results: {{count}}",
+        "empty": "No settings found",
+        "empty_hint": "Try another word or choose a category."
+      },
+      "navigation": {
+        "back": "Back",
+        "back_settings": "Back to settings"
+      },
+      "disclosure": {
+        "show_advanced": "Show advanced options",
+        "hide_advanced": "Hide advanced options"
+      },
+      "state": {
+        "loading": "Loading…",
+        "saving": "Saving…",
+        "saved": "Saved",
+        "save_failed": "Could not save. Your changes are still here.",
+        "retry": "Try again",
+        "pending_apply": "Saved. Waiting to apply.",
+        "retry_apply": "Try applying again",
+        "unavailable": "Unavailable",
+        "next_task": "Applies to the next task.",
+        "restart_required": "Restart OmniGet to apply."
+      },
+      "form": {
+        "save": "Save changes",
+        "discard": "Discard changes",
+        "draft": "Unsaved draft",
+        "unsaved_title": "You have unsaved changes",
+        "stay": "Keep editing",
+        "discard_confirm": "Discard this draft?"
+      },
+      "reset": {
+        "section_title": "Reset {{name}}?",
+        "section_body": "Only the preferences in this section will return to their defaults.",
+        "section_action": "Reset this section",
+        "app_title": "Reset app preferences?",
+        "app_body": "App preferences will return to their defaults.",
+        "app_action": "Reset app preferences",
+        "kept": "Accounts, keys, history, downloads and access grants are kept."
+      },
+      "dialog": {
+        "confirm": "Confirm",
+        "cancel": "Cancel"
+      },
+      "appearance": {
+        "system": "Follow system",
+        "light": "Light",
+        "dark": "Dark",
+        "custom_font": "Custom font",
+        "font_hint": "Choose a font installed on this device."
+      },
+      "connection": {
+        "local": "Local connection",
+        "local_hint": "Choose a server available on this computer.",
+        "test": "Test connection",
+        "test_cost_notice": "The test sends a request through the selected connection and may use quota or credits.",
+        "unknown": "Not tested",
+        "verified": "Connection verified",
+        "error": "Connection test failed"
+      },
+      "downloads": {
+        "quality": "Quality",
+        "remove": "Remove",
+        "best_available": "Best available",
+        "audio": "Audio",
+        "video": "Video",
+        "output": "Files and folders",
+        "subtitles": "Subtitles and metadata"
+      },
+      "llm": {
+        "routines": "Routines",
+        "tasks": "Tasks",
+        "usage_performance": "Usage and performance"
+      },
+      "permissions": {
+        "agent_scope": "Applies only to {{name}}.",
+        "inherited": "Inherited from the app policy.",
+        "view_policy": "View app policy",
+        "customize": "Customize for this agent",
+        "use_inherited": "Use inherited policy"
+      }
     }
   },
   "omnibox": {

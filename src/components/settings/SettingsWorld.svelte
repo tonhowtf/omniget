@@ -9,6 +9,9 @@
   import { t } from "$lib/i18n";
   import { showToast } from "$lib/stores/toast-store.svelte";
   import WorldSettings from "$components/world/WorldSettings.svelte";
+  import SettingGroup from "./rebrand/SettingGroup.svelte";
+  import SettingRow from "./rebrand/SettingRow.svelte";
+  import SettingsEmptyState from "./rebrand/SettingsEmptyState.svelte";
 
   // Desktop pet (phase 5). State comes from `pet_capabilities`, which also says
   // whether this desktop can draw a transparent window at all.
@@ -46,7 +49,8 @@
       pet = (await invoke("pet_capabilities")) as PetCaps;
     } catch (error) {
       petError = true;
-      showToast("error", String(error));
+      console.warn("[pet] command failed", command, error);
+      showToast("error", $t("common.error") as string);
     } finally {
       petBusy = false;
     }
@@ -57,63 +61,53 @@
 
 <WorldSettings />
 
-<section class="settings-section" id="settings-pet">
-  <h5 class="section-title">{$t("pet.title")}</h5>
-  <div class="card">
-    {#if petLoading}
-      <p role="status">{$t("common.loading")}</p>
-    {:else if petError}
-      <div role="alert">
-        <p>{$t("settings.world.pet_load_failed")}</p>
-        <button class="button" onclick={loadPet}>{$t("error.remedy.retry")}</button>
-      </div>
-    {:else if pet?.fallback_recommended}
-      <div class="setting-row">
-        <div class="setting-col">
-          <span class="setting-path">{$t("pet.unsupported")}</span>
-        </div>
-      </div>
-    {:else}
-      <div class="setting-row">
-        <div class="setting-col">
-          <span class="setting-label">{$t("pet.enable")}</span>
-        </div>
+<SettingGroup id="pet" title={$t("pet.title")}>
+  {#if petLoading}
+    <p class="pet-state" role="status" aria-busy="true">{$t("settings.rebrand.state.loading")}</p>
+  {:else if petError}
+    <SettingsEmptyState error title={$t("settings.world.pet_load_failed")} onRetry={() => void loadPet()} />
+  {:else if pet?.fallback_recommended}
+    <SettingsEmptyState title={$t("pet.unsupported")} />
+  {:else}
+    <SettingRow id="settings-pet-enabled" label={$t("pet.enable")} settingKey="pet.enable">
+      {#snippet control(c)}
         <button
+          type="button"
           class="toggle"
           class:on={pet?.open ?? false}
+          id={c.id}
+          aria-describedby={c.describedBy}
           disabled={pet === null || petBusy}
           onclick={() => petCall(pet?.open ? "pet_close" : "pet_open")}
           role="switch"
           aria-checked={pet?.open ?? false}
           aria-label={$t("pet.enable") as string}
         ><span class="toggle-knob"></span></button>
-      </div>
+      {/snippet}
+    </SettingRow>
 
-      <div class="divider"></div>
-
-      <div class="setting-row">
-        <div class="setting-col">
-          <span class="setting-label">{$t("pet.click_through")}</span>
-        </div>
+    <SettingRow id="settings-pet-click-through" label={$t("pet.click_through")} settingKey="pet.click_through">
+      {#snippet control(c)}
         <button
+          type="button"
           class="toggle"
           class:on={pet?.click_through_on ?? false}
+          id={c.id}
+          aria-describedby={c.describedBy}
           disabled={pet === null || petBusy || pet?.click_through === false}
           onclick={() => petCall("pet_set_click_through", { enabled: !(pet?.click_through_on ?? false) })}
           role="switch"
           aria-checked={pet?.click_through_on ?? false}
           aria-label={$t("pet.click_through") as string}
         ><span class="toggle-knob"></span></button>
-      </div>
+      {/snippet}
+    </SettingRow>
 
-      <div class="divider"></div>
-
-      <div class="setting-row">
-        <div class="setting-col">
-          <label class="setting-label" for="settings-pet-corner">{$t("pet.menu.corner")}</label>
-        </div>
+    <SettingRow id="settings-pet-corner" label={$t("pet.menu.corner")} settingKey="pet.menu.corner">
+      {#snippet control(c)}
         <select
-          id="settings-pet-corner"
+          id={c.id}
+          aria-describedby={c.describedBy}
           class="input-text select"
           disabled={pet === null || petBusy}
           value={pet?.corner ?? "bottom-right"}
@@ -123,7 +117,11 @@
             <option value={corner}>{$t(`pet.corner.${corner}`)}</option>
           {/each}
         </select>
-      </div>
-    {/if}
-  </div>
-</section>
+      {/snippet}
+    </SettingRow>
+  {/if}
+</SettingGroup>
+
+<style>
+  .pet-state { margin: 0; padding-block: var(--space-2); font-size: 13px; color: var(--text-muted); }
+</style>

@@ -50,7 +50,8 @@
   let scrollTop = $state(0);
   let viewportHeight = $state(480);
   let query = $state("");
-  let view = $state<"agents" | "chats">("agents");
+  // History first: the agent picker also lives in the chat header.
+  let view = $state<"agents" | "chats">("chats");
 
   let conversations = $derived(getConversations());
   let active = $derived(getActiveConversation());
@@ -266,8 +267,8 @@
 
 <style>
   .llm-rail {
-    width: 264px;
-    min-width: 264px;
+    width: 224px;
+    min-width: 224px;
     display: flex;
     flex-direction: column;
     min-height: 0;

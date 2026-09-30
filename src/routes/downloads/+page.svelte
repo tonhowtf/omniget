@@ -754,7 +754,7 @@
       <div class="item-body">
         <div class="item-header">
           <div class="item-header-left">
-            <span class="item-name" title={item.name}>{item.name}</span>
+            <span class="item-name" id={`download-item-title-${item.id}`} title={item.name}>{item.name}</span>
           </div>
           <div class="item-header-actions">
             {#if item.status === "downloading"}
@@ -834,8 +834,9 @@
                 class="action-icon-btn"
                 class:confirm-remove={pendingRemove === item.id}
                 onclick={() => removeItem(item.id)}
-                aria-label={pendingRemove === item.id ? $t('downloads.confirm_remove') : $t('common.close')}
-                title={pendingRemove === item.id ? $t('downloads.confirm_remove') : undefined}
+                aria-label={pendingRemove === item.id ? $t('downloads.confirm_remove') : $t('settings.rebrand.downloads.remove')}
+                aria-describedby={`download-item-title-${item.id}`}
+                title={pendingRemove === item.id ? $t('downloads.confirm_remove') : $t('settings.rebrand.downloads.remove')}
               >
                 {#if pendingRemove === item.id}
                   <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -878,8 +879,9 @@
                 class="action-icon-btn"
                 class:confirm-remove={pendingRemove === item.id}
                 onclick={() => removeItem(item.id)}
-                aria-label={pendingRemove === item.id ? $t('downloads.confirm_remove') : $t('common.close')}
-                title={pendingRemove === item.id ? $t('downloads.confirm_remove') : undefined}
+                aria-label={pendingRemove === item.id ? $t('downloads.confirm_remove') : $t('settings.rebrand.downloads.remove')}
+                aria-describedby={`download-item-title-${item.id}`}
+                title={pendingRemove === item.id ? $t('downloads.confirm_remove') : $t('settings.rebrand.downloads.remove')}
               >
                 {#if pendingRemove === item.id}
                   <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -936,8 +938,9 @@
                 class="action-icon-btn"
                 class:confirm-remove={pendingRemove === item.id}
                 onclick={() => removeItem(item.id)}
-                aria-label={pendingRemove === item.id ? $t('downloads.confirm_remove') : $t('common.close')}
-                title={pendingRemove === item.id ? $t('downloads.confirm_remove') : undefined}
+                aria-label={pendingRemove === item.id ? $t('downloads.confirm_remove') : $t('settings.rebrand.downloads.remove')}
+                aria-describedby={`download-item-title-${item.id}`}
+                title={pendingRemove === item.id ? $t('downloads.confirm_remove') : $t('settings.rebrand.downloads.remove')}
               >
                 {#if pendingRemove === item.id}
                   <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

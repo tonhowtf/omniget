@@ -40,6 +40,22 @@
   let detailsTrigger = $state<HTMLButtonElement>();
   let detailsClose = $state<HTMLButtonElement>();
   let detailsPanel = $state<HTMLElement>();
+  // Below 1180px the history rail becomes a drawer; focus returns to its trigger.
+  let railOpen = $state(false);
+  let railTrigger = $state<HTMLButtonElement>();
+  let railPanel = $state<HTMLElement>();
+
+  async function openRail() {
+    railOpen = true;
+    await tick();
+    railPanel?.querySelector<HTMLElement>("input, button:not(:disabled)")?.focus();
+  }
+
+  function closeRail() {
+    if (!railOpen) return;
+    railOpen = false;
+    railTrigger?.focus();
+  }
 
   async function toggleDetails() {
     detailsOpen = !detailsOpen;
@@ -49,6 +65,11 @@
   }
 
   function detailsKeydown(event: KeyboardEvent) {
+    if (railOpen && !event.defaultPrevented && event.key === "Escape") {
+      event.preventDefault();
+      closeRail();
+      return;
+    }
     if (!detailsOpen || event.defaultPrevented) return;
     if (event.key === "Escape") {
       event.preventDefault();
@@ -77,6 +98,15 @@
   $effect(() => {
     setLlmFocus({ conversationId: active?.id ?? null });
     return () => setLlmFocus({ conversationId: null });
+  });
+  // Picking a chat in the drawer closes it and hands focus back to the trigger.
+  let railSelection = $derived(active?.id ?? null);
+  let railSelectionSeen: string | null = null;
+  $effect(() => {
+    const id = railSelection;
+    if (id === railSelectionSeen) return;
+    railSelectionSeen = id;
+    if (untrack(() => railOpen)) closeRail();
   });
   let rooms = $derived(getRooms());
   let turn = $derived(getActiveTurn());
@@ -121,6 +151,7 @@
 {/if}
 
 <div class="chat-toolbar">
+  <button bind:this={railTrigger} type="button" class="button rail-toggle" aria-expanded={railOpen} aria-controls="llm-history-rail" onclick={() => (railOpen ? closeRail() : void openRail())}>{$t("llm.rail.view_chats")}</button>
   <div class="compact-agents">
     <label for="chat-agent">{$t("llm.rail.title")}</label>
     <select
@@ -136,13 +167,14 @@
         </optgroup>
       {/if}
     </select>
-    <button class="button" type="button" onclick={onNew} disabled={!agents.length}>{$t("llm.rail.new_chat")}</button>
-    <button class="button" type="button" onclick={() => (creatingRoom = true)} disabled={!agents.length}>{$t("assist.groups.new")}</button>
+    <button class="button compact-only" type="button" onclick={onNew} disabled={!agents.length}>{$t("llm.rail.new_chat")}</button>
+    <button class="button compact-only" type="button" onclick={() => (creatingRoom = true)} disabled={!agents.length}>{$t("assist.groups.new")}</button>
   </div>
   <button bind:this={detailsTrigger} type="button" class="button details-toggle" aria-expanded={detailsOpen} aria-controls="agent-details" onclick={toggleDetails}>{$t("llm.chat.details")}</button>
 </div>
 <div class="llm-chat" class:with-details={detailsOpen} data-agent-readiness={rosterError ? "error" : !rosterReady ? "loading" : turn ? "streaming" : "ready"}>
-  <div class="agent-rail"><Rail {agents} speakingAgentId={turn?.agentId ?? null} onselect={selectAgent} onnew={onNew} /></div>
+  {#if railOpen}<button type="button" class="rail-scrim" tabindex="-1" aria-hidden="true" onclick={closeRail}></button>{/if}
+  <div bind:this={railPanel} id="llm-history-rail" class="agent-rail" class:open={railOpen}><Rail {agents} speakingAgentId={turn?.agentId ?? null} onselect={selectAgent} onnew={onNew} /></div>
   <Conversation agent={activeAgent} />
   {#if detailsOpen}<aside bind:this={detailsPanel} id="agent-details" class="agent-details" aria-label={$t("llm.chat.details")}><button bind:this={detailsClose} type="button" class="button details-close" onclick={toggleDetails}>{$t("common.close")}</button><Inspector agent={activeAgent} /></aside>{/if}
 </div>
@@ -152,7 +184,8 @@
 <style>
   .chat-toolbar { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-2) var(--space-4); border-bottom: 1px solid var(--separator); flex-wrap: wrap; }
   .details-toggle { margin-left: auto; }
-  .compact-agents { display: none; align-items: center; gap: var(--space-2); min-width: 0; flex-wrap: wrap; }
+  .compact-agents { display: flex; align-items: center; gap: var(--space-2); min-width: 0; flex-wrap: wrap; }
+  .compact-only, .rail-toggle, .rail-scrim { display: none; }
   .compact-agents select { max-width: 220px; }
   .llm-chat { flex: 1; min-height: 0; min-width: 0; display: flex; position: relative; }
   .agent-rail, .agent-details { display: flex; min-height: 0; flex-shrink: 0; }
@@ -162,8 +195,11 @@
   @media (max-width: 1100px) {
     .agent-details { position: absolute; right: 0; top: 0; bottom: 0; z-index: 10; background: var(--surface); box-shadow: var(--shadow-lg); max-width: 100%; }
   }
-  @media (max-width: 820px) {
+  @media (max-width: 1179px) {
+    /* History rail as a drawer: never three permanent columns on a small window. */
+    .rail-toggle, .compact-only { display: inline-flex; }
     .agent-rail { display: none; }
-    .compact-agents { display: flex; }
+    .agent-rail.open { display: flex; position: absolute; left: 0; top: 0; bottom: 0; z-index: 11; background: var(--surface); box-shadow: var(--shadow-lg); max-width: 100%; }
+    .rail-scrim { display: block; position: absolute; inset: 0; z-index: 10; border: 0; padding: 0; background: rgba(0, 0, 0, 0.18); cursor: default; }
   }
 </style>

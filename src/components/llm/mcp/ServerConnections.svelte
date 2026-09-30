@@ -4,6 +4,7 @@
   import { open } from "@tauri-apps/plugin-dialog";
   import { t } from "$lib/i18n";
   import { isAbsolutePath, shortPath } from "$lib/stores/assist-missions-store.svelte";
+  import { MCP_SECTION_IDS } from "$lib/destination-targets";
   type ExecGrant = { id: string; principal: string; principal_name: string; workspace: string; workspace_full: string; executors: { id: string; name: string }[]; max_tokens: number; media: boolean; revoked: boolean };
   type FileRoot = { id: string; principal: string; principal_name: string; path: string; path_full: string };
   type DerivedBot = { bot: string; name: string; grant_id: string; principal: string; principal_name: string; source_name: string; created_ms: number; retired: boolean; grant_active: boolean };
@@ -183,7 +184,8 @@
   }
 </script>
 
-<section aria-label={$t("mcp_connections.title")}>
+<!-- Deep-link targets (`/llm/mcp?mode=server&section=permissions|media`): focus only, no action. -->
+<section id={MCP_SECTION_IDS.permissions} tabindex="-1" aria-label={$t("mcp_connections.title")}>
   <h3>{$t("mcp_connections.title")}</h3>
   <p>{$t("mcp_connections.intro")}</p>
   <form onsubmit={(e) => { e.preventDefault(); void create(); }}>
@@ -295,7 +297,7 @@
       {/each}
     </div>
   {/if}
-  <section class="media-controls" aria-label={$t("mcp_connections.media_local_title")}>
+  <section class="media-controls" id={MCP_SECTION_IDS.media} tabindex="-1" aria-label={$t("mcp_connections.media_local_title")}>
     <h3>{$t("mcp_connections.media_local_title")}</h3>
     <p>{$t("mcp_connections.media_local_help")}</p>
     <form onsubmit={(e) => { e.preventDefault(); void configureMedia(); }}>
@@ -328,7 +330,8 @@
   </section>
 </section>
 <style>
-  section { display: grid; gap: var(--space-3); }
+  section { display: grid; gap: var(--space-3); scroll-margin-top: var(--space-4); }
+  section:focus-visible { outline: var(--focus-ring); outline-offset: var(--focus-ring-offset, 2px); }
   h3, p { margin: 0; } p { color: var(--text-muted); font-size: var(--text-sm); }
   form { display: grid; gap: var(--space-3); } label { display: grid; gap: var(--space-2); }
   input:not([type="checkbox"]) { padding: var(--space-2); border: 1px solid var(--input-border); border-radius: var(--radius-sm); background: transparent; color: inherit; }

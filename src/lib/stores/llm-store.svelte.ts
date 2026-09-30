@@ -637,9 +637,20 @@ async function attachListener(): Promise<void> {
  * Starts a real turn and reports whether the draft was accepted. Only a demo
  * roster may play a stub response; real startup failures keep input recoverable.
  */
-export async function sendMessage(text: string): Promise<boolean> {
+export async function sendMessage(text: string, conversationId?: string): Promise<boolean> {
   const trimmed = text.trim();
   if (!trimmed) return false;
+  if (conversationId !== undefined) {
+    // The caller captured its origin: never redirect into whatever is active now.
+    const origin = conversations.find((c) => c.id === conversationId);
+    if (!origin) return false;
+    if (origin.kind === "group") return sendRoomMessage(origin.id, trimmed);
+    if (turn || startingRequestId) {
+      enqueueMessage(origin.id, trimmed);
+      return true;
+    }
+    return startDirectTurn(origin, trimmed);
+  }
   let conversation = getActiveConversation();
   if (!conversation) {
     const agentId = agents[0]?.id;
@@ -772,6 +783,37 @@ export async function cancelTurn(): Promise<void> {
   }
 }
 
+/** Last text each conversation sent from its composer, for Stop to put back. */
+let submittedDrafts: Record<string, string> = {};
+
+/**
+ * Sends a composer draft on behalf of the conversation it was written in.
+ * The origin is fixed before any await: if the reader moves to another chat
+ * meanwhile, an accepted send still clears the origin's draft (only when it was
+ * not edited since), and never touches the chat now on screen.
+ */
+export async function sendConversationDraft(conversationId: string, text: string): Promise<boolean> {
+  const trimmed = text.trim();
+  if (!conversationId || !trimmed) return false;
+  submittedDrafts = { ...submittedDrafts, [conversationId]: trimmed };
+  const accepted = await sendMessage(trimmed, conversationId);
+  if (accepted && getConversationDraft(conversationId).trim() === trimmed) setConversationDraft(conversationId, "");
+  return accepted;
+}
+
+/**
+ * Stops the turn running in `conversationId` (and nothing else). After the stop
+ * the interrupted text goes back into that conversation's draft, only when the
+ * draft is still empty: a newer edit is never replaced.
+ */
+export async function stopConversationTurn(conversationId: string): Promise<void> {
+  const state = turn;
+  if (!conversationId || !state || state.conversationId !== conversationId) return;
+  const interrupted = submittedDrafts[conversationId] ?? "";
+  await cancelTurn();
+  if (interrupted && !getConversationDraft(conversationId).trim()) setConversationDraft(conversationId, interrupted);
+}
+
 /** Answers a tool permission prompt (`GrantMode::Ask`). */
 export async function answerTool(toolCallId: string, allow: boolean, always = false): Promise<void> {
   errorKey = null;
@@ -824,6 +866,7 @@ export function resetLlmStore(): void {
   conversations = [];
   activeConversationId = null;
   conversationDrafts = {};
+  submittedDrafts = {};
   rosterLoadError = null;
   conversationListLoadError = null;
   historyLoadErrors = {};
@@ -885,11 +928,14 @@ export async function loadConversations(): Promise<void> {
     });
   }
   if (saved.length === 0) return;
-  // An empty chat opened before the saved ones arrived gives way to them.
+  // An empty chat opened before the saved ones arrived gives way to them,
+  // unless it already holds an unsent draft: that text must stay reachable.
   const savedAgents = new Set(saved.map((c) => c.agentId));
   const placeholders = new Set(
     conversations
-      .filter((c) => c.kind !== "group" && c.loaded === undefined && c.messages.length === 0 && savedAgents.has(c.agentId))
+      .filter((c) =>
+        c.kind !== "group" && c.loaded === undefined && c.messages.length === 0 &&
+        savedAgents.has(c.agentId) && !(conversationDrafts[c.id] ?? "").trim())
       .map((c) => c.id),
   );
   const activeAgent = placeholders.has(activeConversationId ?? "")

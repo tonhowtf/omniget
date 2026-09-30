@@ -1,9 +1,12 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, untrack } from "svelte";
+  import { page } from "$app/state";
   import { invoke } from "@tauri-apps/api/core";
   import { getCurrentWebview } from "@tauri-apps/api/webview";
   import { t } from "$lib/i18n";
   import { getSettings } from "$lib/stores/settings-store.svelte";
+  import { focusWhenReady, parseMusicTarget } from "$lib/settings-navigation";
+  import { applyMusicTarget } from "$lib/destination-targets";
   import { showToast } from "$lib/stores/toast-store.svelte";
   import { albumKey, groupAlbums } from "$lib/music/library";
   import { library, loadLibrary, patchTracksLocal, upsertTracks } from "$lib/music/library-store.svelte";
@@ -51,6 +54,8 @@
 
   let enabled = $derived(getSettings()?.music?.enabled ?? true);
   let lib = $derived(library());
+  /** For the native agent: `data-agent-readiness` on the library area. */
+  let readiness = $derived(lib.loading && !lib.loaded ? "loading" : lib.error ? "error" : "ready");
   let peaks = $state<number[]>([]);
   let peaksFor = $state<number | null>(null);
   let dropping = $state(false);
@@ -131,6 +136,21 @@
       showToast("error", String(e));
     }
   }
+
+  // `/music?view=settings&panel=eq` (links from Settings): reveal through the
+  // store navigation and focus. Never enables Music, plays, scans or edits.
+  $effect(() => {
+    const target = parseMusicTarget(page.url.searchParams);
+    const selector = untrack(() =>
+      applyMusicTarget(target, {
+        currentKind: ui.view.kind,
+        go,
+        showEq: () => { ui.side = "eq"; },
+      }),
+    );
+    if (!selector) return;
+    return focusWhenReady(selector, { timeoutMs: 8000 });
+  });
 
   // waveform for the current track
   $effect(() => {
@@ -243,7 +263,7 @@
     <MusicIcon name="note" size={32} />
     <h2>{$t("music.disabled_title")}</h2>
     <p>{$t("superpowers.disabled_hint")}</p>
-    <a class="btn btn-primary" href="/settings?tab=advanced">{$t("superpowers.open_settings")}</a>
+    <a class="btn btn-primary" href="/settings?tab=integrations&section=music">{$t("superpowers.open_settings")}</a>
   </div>
 {:else}
   <div class="music" class:with-side={!!ui.side}>
@@ -313,11 +333,11 @@
         </label>
         {#if ui.view.kind === "album" && albumTitle}<span class="crumb">{albumTitle}</span>{/if}
       </div>
-      <div class="view" class:fill={["songs", "liked", "recent", "genre", "search", "nowplaying", "playlist"].includes(ui.view.kind)}>
+      <div class="view" class:fill={["songs", "liked", "recent", "genre", "search", "nowplaying", "playlist"].includes(ui.view.kind)} data-agent-readiness={readiness}>
         {#if lib.loading && !lib.loaded}
-          <div class="loading"><MusicIcon name="loader" size={22} spin /></div>
+          <div class="loading" role="status"><MusicIcon name="loader" size={22} spin /><span>{$t("settings.rebrand.state.loading")}</span></div>
         {:else if lib.error}
-          <p class="err">{lib.error}</p>
+          <p class="err" role="alert">{lib.error}</p>
         {:else}
           {@const v = ui.view}
           {#if v.kind === "home"}<HomeView />
@@ -339,7 +359,7 @@
           {:else if v.kind === "tools"}<ToolsView tab={v.tab ?? "analyze"} ids={v.ids ?? []} />
           {:else if v.kind === "stats"}<StatsView />
           {:else if v.kind === "nowplaying"}<NowPlayingView />
-          {:else if v.kind === "settings"}<SettingsView />
+          {:else if v.kind === "settings"}<div id="music-settings-view" class="view-anchor" tabindex="-1"><SettingsView /></div>
           {/if}
         {/if}
       </div>
@@ -356,7 +376,7 @@
         <div class="side-body">
           {#if ui.side === "queue"}<QueuePanel />
           {:else if ui.side === "lyrics"}<LyricsPanel />
-          {:else}<EqPanel />{/if}
+          {:else}<div id="music-eq-panel" class="view-anchor" tabindex="-1"><EqPanel /></div>{/if}
         </div>
       </aside>
     {/if}
@@ -637,8 +657,18 @@
   .loading {
     display: grid;
     place-items: center;
+    align-content: center;
+    gap: var(--space-2);
     height: 60%;
     color: var(--text-muted);
+    font-size: var(--text-sm);
+  }
+  .view-anchor {
+    outline: none;
+  }
+  .view-anchor:focus-visible {
+    outline: var(--focus-ring);
+    outline-offset: 2px;
   }
   .err {
     color: var(--danger);
@@ -676,6 +706,9 @@
   .side-body {
     flex: 1;
     min-height: 0;
+  }
+  .side-body > .view-anchor {
+    height: 100%;
   }
   .m-player {
     grid-area: player;

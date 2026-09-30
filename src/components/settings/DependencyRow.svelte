@@ -164,11 +164,11 @@
 
 <tr class="deps-table-row">
   <td class="deps-cell-name">
-    <span class="deps-name">{name}</span>
+    <span class="deps-name" id={`dep-${name}-name`} dir="ltr">{name}</span>
   </td>
   <td class="deps-cell-version">
     {#if installed && version}
-      <span class="deps-version">v{version}</span>
+      <span class="deps-version" dir="ltr">v{version}</span>
     {:else}
       <span class="deps-version deps-version-missing">—</span>
     {/if}
@@ -197,8 +197,9 @@
     <div class="deps-actions">
       {#if busy}
         <span class="dep-spinner" aria-hidden="true"></span>
+        <span class="dep-busy-text" role="status">{$t("settings.rebrand.state.loading")}</span>
       {:else}
-        <button class="button dep-btn" onclick={handleInstall}>
+        <button class="button dep-btn" aria-describedby={`dep-${name}-name`} onclick={handleInstall}>
           {#if installed}
             {source === "system" ? $t("settings.dependencies.download_managed") : $t("settings.dependencies.update")}
           {:else}
@@ -214,6 +215,7 @@
           onclick={toggleMenu}
           disabled={busy}
           aria-label={$t("settings.dependencies.more_options") as string}
+          aria-describedby={`dep-${name}-name`}
           aria-haspopup="menu"
           aria-expanded={menuOpen}
         >
@@ -262,11 +264,11 @@
             {/if}
             {#if path}
               <div class="menu-path" title={path}>
-                <code>{path}</code>
+                <code dir="ltr">{path}</code>
               </div>
             {:else if installDir}
               <div class="menu-path" title={installDir}>
-                <code>{installDir}</code>
+                <code dir="ltr">{installDir}</code>
               </div>
             {/if}
           </div>
@@ -277,6 +279,14 @@
 </tr>
 
 <style>
+  .dep-busy-text {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
   .deps-name {
     font-size: 13px;
     font-weight: 600;

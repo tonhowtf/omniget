@@ -2,6 +2,7 @@
 @import './lib/style/primitives.css';
 @import './lib/style/settings.css';
 @import './lib/style/macos-shell.css';
+@import './lib/style/settings-rebrand.css';
 
 /* Lao script only (unicode-range), so Latin text keeps the chosen UI font. */
 @font-face {
@@ -796,6 +797,8 @@ video {
 /* Accessibility preferences (Settings → Appearance mirrors the OS)     */
 /* ------------------------------------------------------------------ */
 
+/* Reduced motion comes from the OS OR the app preference; either removes
+   displacement. Indeterminate progress stays visible and still, no pulse. */
 [data-reduce-motion="true"] {
   --duration-fast: 0.01ms;
   --duration-base: 0.01ms;
@@ -812,16 +815,27 @@ video {
   transition-duration: 0.01ms !important;
 }
 
-[data-reduce-motion="true"] .spinner,
-[data-reduce-motion="true"] .update-spinner,
-[data-reduce-motion="true"] .dep-spinner,
-[data-reduce-motion="true"] .feedback-spinner {
-  animation: reduce-motion-pulse 1.5s ease-in-out infinite !important;
+[data-reduce-motion="true"] .progress.indeterminate .progress-fill {
+  transform: none;
+  width: 100%;
 }
 
-@keyframes reduce-motion-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.45; }
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-fast: 0.01ms;
+    --duration-base: 0.01ms;
+    --duration-slow: 0.01ms;
+    --duration-bounce: 0.01ms;
+    --ease-spring: var(--ease-out);
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 [data-reduce-transparency="true"] {

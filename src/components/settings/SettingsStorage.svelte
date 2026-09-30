@@ -4,6 +4,8 @@
   import { open } from "@tauri-apps/plugin-dialog";
   import { t } from "$lib/i18n";
   import { showToast } from "$lib/stores/toast-store.svelte";
+  import SettingRow from "./rebrand/SettingRow.svelte";
+  import SettingsEmptyState from "./rebrand/SettingsEmptyState.svelte";
 
   type StoreStats = {
     objects: number;
@@ -155,87 +157,53 @@
   });
 </script>
 
-<section class="section" data-setting-key="settings.storage.title">
-  <h5 class="section-title">{$t("settings.storage.title")}</h5>
-  <p class="muted">{$t("settings.storage.description")}</p>
-
+<div class="storage" data-setting-key="settings.storage.title">
   {#if portableError}
-    <div class="card" role="alert">
-      <p>{$t("settings.storage.portable_load_failed")}</p>
-      <button class="button" onclick={loadPortable}>{$t("error.remedy.retry")}</button>
-    </div>
+    <SettingsEmptyState error title={$t("settings.storage.portable_load_failed")} onRetry={() => void loadPortable()} />
   {/if}
   {#if portable?.is_portable}
-    <div class="card portable-card">
-      <div class="setting-row">
-        <div class="setting-col">
-          <span class="setting-label" data-setting-key="settings.storage.portable_label">{$t("settings.storage.portable_label")}</span>
-          <span class="setting-path wrap">
-            {$t("settings.storage.portable_active", { dir: portable.data_dir ?? "<app>/data" })}
-          </span>
-        </div>
-      </div>
-
+    <div class="portable" data-setting-key="settings.storage.portable_label">
+      <p class="portable-label">{$t("settings.storage.portable_label")}</p>
+      <p class="muted wrap">{$t("settings.storage.portable_active", { dir: portable.data_dir ?? "<app>/data" })}</p>
       <!-- O modo portatil nao cobre o WebView no macOS, e o usuario que leva o
            pendrive para outra maquina precisa saber disso antes, nao depois. -->
       {#if portable.macos_webview_notice}
-        <div class="divider"></div>
-        <div class="setting-row">
-          <div class="setting-col">
-            <span class="setting-path wrap">{$t("settings.storage.portable_macos_notice")}</span>
-          </div>
-        </div>
+        <p class="muted wrap">{$t("settings.storage.portable_macos_notice")}</p>
       {/if}
     </div>
   {/if}
 
-  <div class="card">
-    <div class="setting-row">
-      <div class="setting-col">
-        <span class="setting-label" data-setting-key="settings.storage.dedupe_label">{$t("settings.storage.dedupe_label")}</span>
-        <span class="setting-path">
-          {#if statsLoading}
-            {$t("common.loading")}
-          {:else if statsError}
-            <span role="alert">{$t("settings.storage.stats_load_failed")}</span>
-          {:else if stats && stats.objects > 0 && stats.savings_measurable}
-            {$t("settings.storage.dedupe_stats", {
-              objects: stats.objects,
-              saved: humanBytes(saved),
-            })}
-          {:else if stats && stats.objects > 0}
-            <!-- Windows não sabe contar links. Dizer "0 economizado" seria dar
-                 cara de medição a algo que não foi medido. -->
-            {$t("settings.storage.dedupe_unmeasurable", { objects: stats.objects })}
-          {:else}
-            {$t("settings.storage.dedupe_empty")}
-          {/if}
-        </span>
-      </div>
-      {#if statsError}<button class="button" disabled={statsLoading} onclick={loadStats}>{$t("error.remedy.retry")}</button>{/if}
-      <button type="button" class="button" disabled={running} onclick={runDedupe}>
+  <SettingRow id="settings-storage-dedupe" label={$t("settings.storage.dedupe_label")} settingKey="settings.storage.dedupe_label"
+    help={statsLoading ? $t("settings.rebrand.state.loading")
+      : statsError ? undefined
+      : stats && stats.objects > 0 && stats.savings_measurable ? $t("settings.storage.dedupe_stats", { objects: stats.objects, saved: humanBytes(saved) })
+      : stats && stats.objects > 0 ? $t("settings.storage.dedupe_unmeasurable", { objects: stats.objects })
+      : $t("settings.storage.dedupe_empty")}>
+    {#snippet control({ id, describedBy })}
+      <button {id} type="button" class="btn btn-secondary btn-sm" aria-describedby={describedBy} disabled={running} onclick={runDedupe}>
         {running ? $t("settings.storage.dedupe_running") : $t("settings.storage.dedupe_action")}
       </button>
-    </div>
+    {/snippet}
+  </SettingRow>
+  {#if statsError}
+    <!-- Windows não sabe contar links; uma leitura que falhou nunca vira "0 economizado". -->
+    <SettingsEmptyState error title={$t("settings.storage.stats_load_failed")} onRetry={() => void loadStats()} />
+  {/if}
 
-    <div class="divider"></div>
-
-    <div class="setting-row">
-      <div class="setting-col">
-        <span class="setting-label" data-setting-key="settings.storage.silence_label">{$t("settings.storage.silence_label")}</span>
-        <span class="setting-path">{$t("settings.storage.silence_hint")}</span>
-      </div>
-      <button type="button" class="button" disabled={probing} onclick={probeSilence}>
+  <SettingRow id="settings-storage-silence" label={$t("settings.storage.silence_label")} help={$t("settings.storage.silence_hint")} settingKey="settings.storage.silence_label">
+    {#snippet control({ id, describedBy })}
+      <button {id} type="button" class="btn btn-secondary btn-sm" aria-describedby={describedBy} disabled={probing} onclick={probeSilence}>
         {probing ? $t("settings.storage.silence_running") : $t("settings.storage.silence_action")}
       </button>
-    </div>
-  </div>
-</section>
+    {/snippet}
+  </SettingRow>
+</div>
 
 <style>
-  .portable-card {
-    margin-bottom: var(--padding);
-  }
+  .storage { display: flex; flex-direction: column; min-inline-size: 0; }
+  .portable { padding-block: var(--space-2); border-block-end: 1px solid var(--separator); }
+  .portable-label { margin: 0; font-size: 13px; line-height: 20px; color: var(--text); }
+  .muted { margin: 2px 0 0; font-size: 12px; line-height: 18px; color: var(--text-muted); }
 
   /* O caminho de dados e o aviso do macOS sao frases inteiras, nao rotulos:
      sem isto ficam numa linha so e sao cortados. */

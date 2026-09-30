@@ -11,6 +11,9 @@
   import CookieContentModal from "$components/cookies/CookieContentModal.svelte";
   import CookiePasteModal from "$components/cookies/CookiePasteModal.svelte";
   import BilibiliQrLogin from "$components/cookies/BilibiliQrLogin.svelte";
+  import SettingGroup from "./rebrand/SettingGroup.svelte";
+  import SettingRow from "./rebrand/SettingRow.svelte";
+  import SettingsEmptyState from "./rebrand/SettingsEmptyState.svelte";
 
   type Account = {
     slug: string;
@@ -40,6 +43,26 @@
 
   let registry = $state<Registry>({ buckets: {} });
   let healthByKey = $state<Record<string, HealthItem>>({});
+
+  // Backend errors from cookie commands can echo file contents, paths or
+  // header values. Only translated i18n keys reach a toast; anything else
+  // becomes the generic error text.
+  function safeErrorText(e: unknown): string {
+    if (typeof e === "string" && /^[a-z][\w-]*(\.[\w-]+)+$/.test(e)) {
+      const text = $t(e) as string;
+      if (text && text !== e) return text;
+    }
+    return $t("common.error") as string;
+  }
+
+  // yt-dlp's first error line is useful to see, but it may carry cookie
+  // values or tokens: redact key=value pairs and long opaque strings.
+  function redactDiagnostic(message: string): string {
+    return message
+      .replace(/([\w-]+)=([^\s;&"']+)/g, "$1=…")
+      .replace(/[A-Za-z0-9_\-%+/]{24,}={0,2}/g, "…")
+      .slice(0, 160);
+  }
 
   function healthKey(domain: string, slug: string): string {
     return `${domain}__${slug}`;
@@ -79,11 +102,11 @@
       } else {
         showToast(
           "error",
-          ($t("settings.cookies.test_fail", { msg: res.message }) as string) || res.message,
+          $t("settings.cookies.test_fail", { msg: redactDiagnostic(res.message) }) as string,
         );
       }
     } catch (e) {
-      showToast("error", String(e));
+      showToast("error", safeErrorText(e));
     } finally {
       testing = { ...testing, [key]: false };
     }
@@ -98,7 +121,11 @@
     });
   }
   let cookiesDir = $state("");
-  let loading = $state(true);
+  // Read state of the cookie registry. A failed read must never render as
+  // "no cookies": the last valid registry stays on screen next to the error.
+  type LoadState = { kind: "loading" } | { kind: "ready" } | { kind: "error" };
+  let loadState = $state<LoadState>({ kind: "loading" });
+  let hasLoaded = $state(false);
   let pasteOpen = $state(false);
   let genericDomain = $state("");
   let genericFormOpen = $state(false);
@@ -141,7 +168,7 @@
   let selectedCount = $derived(selectedCookieItems.length);
 
   async function reload() {
-    loading = true;
+    loadState = { kind: "loading" };
     try {
       const res = await invoke<ListResponse>("cookies_list");
       registry = res.registry;
@@ -162,10 +189,10 @@
       } catch {
         healthByKey = {};
       }
-    } catch (e) {
-      showToast("error", String(e));
-    } finally {
-      loading = false;
+      hasLoaded = true;
+      loadState = { kind: "ready" };
+    } catch {
+      loadState = { kind: "error" };
     }
   }
 
@@ -190,7 +217,7 @@
       pasteOpen = false;
       await reload();
     } catch (e) {
-      showToast("error", String(e));
+      showToast("error", safeErrorText(e));
     }
   }
 
@@ -209,7 +236,7 @@
       );
       await reload();
     } catch (e) {
-      showToast("error", String(e));
+      showToast("error", safeErrorText(e));
     }
   }
 
@@ -228,7 +255,7 @@
       viewSlug = slug;
       viewOpen = true;
     } catch (e) {
-      showToast("error", String(e));
+      showToast("error", safeErrorText(e));
     }
   }
 
@@ -246,7 +273,7 @@
         showToast("success", $t("settings.cookies.export_done") as string);
       }
     } catch (e) {
-      showToast("error", String(e));
+      showToast("error", safeErrorText(e));
     }
   }
 
@@ -255,7 +282,7 @@
       await invoke("cookies_rename", { request: { domain, slug, new_alias: newAlias } });
       await reload();
     } catch (e) {
-      showToast("error", String(e));
+      showToast("error", safeErrorText(e));
     }
   }
 
@@ -331,7 +358,7 @@
       await reload();
     } catch (e) {
       const key = typeof e === "string" ? e : "errors.bilibili.network_failed";
-      showToast("error", ($t(key) as string) || String(e));
+      showToast("error", safeErrorText(key));
     } finally {
       bilibiliWebviewLoading = false;
     }
@@ -389,7 +416,7 @@
       );
       await enqueueImportedUrls(res.items);
     } catch (e) {
-      showToast("error", typeof e === "string" ? ($t(e) as string) || e : String(e));
+      showToast("error", safeErrorText(e));
     }
   }
 
@@ -408,7 +435,7 @@
       );
       await enqueueImportedUrls(res.items);
     } catch (e) {
-      showToast("error", typeof e === "string" ? ($t(e) as string) || e : String(e));
+      showToast("error", safeErrorText(e));
     }
   }
 
@@ -432,7 +459,7 @@
       addAccountOpen = false;
       await reload();
     } catch (e) {
-      showToast("error", String(e));
+      showToast("error", safeErrorText(e));
     }
   }
 
@@ -443,7 +470,7 @@
       await reload();
       showToast("success", $t("settings.cookies.cleared_toast") as string);
     } catch (e) {
-      showToast("error", String(e));
+      showToast("error", safeErrorText(e));
     }
   }
 
@@ -465,7 +492,7 @@
         `${$t("settings.cookies.cleared_toast") as string} (${res.cleared})`,
       );
     } catch (e) {
-      showToast("error", String(e));
+      showToast("error", safeErrorText(e));
     }
   }
 
@@ -490,50 +517,50 @@
   });
 </script>
 
-<section class="section">
-  <header class="section-head">
-    <h2 class="section-title">{$t("settings.cookies.title")}</h2>
-    <p class="section-intro">{$t("settings.cookies.intro")}</p>
-    <div class="head-actions">
-      <button type="button" class="ghost-btn" onclick={showExtensionHint}>
-        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <rect x="4" y="4" width="16" height="16" rx="3"/>
-          <path d="M8 8h8M8 12h6M8 16h4"/>
-        </svg>
-        {$t("settings.cookies.capture_via_extension")}
-      </button>
-      <button type="button" class="ghost-btn subtle" onclick={openCookiesDir} disabled={!cookiesDir}>
-        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
-        </svg>
-        {$t("settings.cookies.open_folder")}
-      </button>
-      <CookieImportMenu
-        onImportFile={handleImportFile}
-        onImportPaste={() => pasteOpen = true}
-      />
-    </div>
-    {#if cookiesDir}
-      <p class="dir-hint" title={cookiesDir}>
-        <span>{$t("settings.cookies.dir_label")}</span>
-        <code>{cookiesDir}</code>
-      </p>
-    {/if}
+<SettingGroup id="cookies" title={$t("settings.cookies.title")} description={$t("settings.cookies.intro")} advanced>
+  <div class="head-actions">
+    <button type="button" class="ghost-btn" onclick={showExtensionHint}>
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect x="4" y="4" width="16" height="16" rx="3"/>
+        <path d="M8 8h8M8 12h6M8 16h4"/>
+      </svg>
+      {$t("settings.cookies.capture_via_extension")}
+    </button>
+    <button type="button" class="ghost-btn subtle" onclick={openCookiesDir} disabled={!cookiesDir}>
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+      </svg>
+      {$t("settings.cookies.open_folder")}
+    </button>
+    <CookieImportMenu
+      onImportFile={handleImportFile}
+      onImportPaste={() => pasteOpen = true}
+    />
+  </div>
+  {#if cookiesDir}
+    <p class="dir-hint" title={cookiesDir}>
+      <span>{$t("settings.cookies.dir_label")}</span>
+      <code dir="ltr">{cookiesDir}</code>
+    </p>
+  {/if}
 
-    <label class="managed-toggle">
-      <input
-        type="checkbox"
-        checked={managedOnly}
-        onchange={toggleManagedOnly}
-      />
-      <div class="managed-toggle-text">
-        <span class="managed-toggle-title">{$t("settings.cookies.managed_only_title")}</span>
-        <span class="managed-toggle-desc">{$t("settings.cookies.managed_only_desc")}</span>
-      </div>
-    </label>
-  </header>
+  <SettingRow
+    id="cookies-managed-only"
+    label={$t("settings.cookies.managed_only_title")}
+    help={$t("settings.cookies.managed_only_desc")}
+    settingKey="settings.cookies.managed_only_title"
+    status="download.always_use_managed_cookies"
+  >
+    {#snippet control(c)}
+      <button type="button" class="toggle" class:on={managedOnly} id={c.id} aria-describedby={c.describedBy} role="switch" aria-checked={managedOnly} aria-label={$t("settings.cookies.managed_only_title") as string} onclick={toggleManagedOnly}><span class="toggle-knob"></span></button>
+    {/snippet}
+  </SettingRow>
 
-  {#if bucketList.length > 0}
+  {#if loadState.kind === "error"}
+    <SettingsEmptyState error title={$t("common.error")} onRetry={() => void reload()} />
+  {/if}
+
+  {#if hasLoaded && bucketList.length > 0}
     <div class="bulk-bar">
       <div class="bulk-info">
         <span>{selectedCount} selected</span>
@@ -552,25 +579,30 @@
     </div>
   {/if}
 
-  {#if loading}
-    <div class="loading">
-      {#each Array(3) as _, i (i)}
-        <div class="skel"></div>
-      {/each}
-    </div>
+  {#if !hasLoaded}
+    {#if loadState.kind === "loading"}
+      <div class="loading" aria-busy="true">
+        <p class="visually-hidden" role="status">{$t("settings.rebrand.state.loading")}</p>
+        {#each Array(3) as _, i (i)}
+          <div class="skel" aria-hidden="true"></div>
+        {/each}
+      </div>
+    {/if}
   {:else if bucketList.length === 0}
-    <div class="empty-state">
-      <svg viewBox="0 0 24 24" width="42" height="42" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <circle cx="12" cy="12" r="10"/>
-        <circle cx="8" cy="10" r="1"/>
-        <circle cx="16" cy="10" r="1"/>
-        <circle cx="11" cy="14" r="1"/>
-      </svg>
-      <h3>{$t("settings.cookies.empty_title")}</h3>
-      <p>{$t("settings.cookies.empty_body")}</p>
-    </div>
+    {#if loadState.kind === "ready"}
+      <div class="empty-state">
+        <svg viewBox="0 0 24 24" width="42" height="42" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="10"/>
+          <circle cx="8" cy="10" r="1"/>
+          <circle cx="16" cy="10" r="1"/>
+          <circle cx="11" cy="14" r="1"/>
+        </svg>
+        <h3>{$t("settings.cookies.empty_title")}</h3>
+        <p>{$t("settings.cookies.empty_body")}</p>
+      </div>
+    {/if}
   {:else}
-    <div class="buckets">
+    <div class="buckets" aria-busy={loadState.kind === "loading"}>
       {#each bucketList as bucket (bucket.domain)}
         <CookieBucketCard
           {bucket}
@@ -619,6 +651,7 @@
       <div class="add-form">
         <input
           type="text"
+          aria-label={$t("settings.cookies.add_generic_placeholder") as string}
           placeholder={$t("settings.cookies.add_generic_placeholder") as string}
           bind:value={genericDomain}
         />
@@ -636,7 +669,7 @@
       </div>
     {/if}
   </div>
-</section>
+</SettingGroup>
 
 <CookieContentModal
   open={viewOpen}
@@ -703,11 +736,7 @@
 {/if}
 
 <style>
-  .section { display: flex; flex-direction: column; gap: 16px; }
-  .section-head { display: flex; flex-direction: column; gap: 8px; }
-  .section-title { margin: 0; font-size: 18px; font-weight: 600; color: var(--secondary); }
-  .section-intro { margin: 0; color: var(--secondary); font-size: 13px; line-height: 1.5; }
-  .head-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 6px; }
+  .head-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-block: 6px 0; }
   .dir-hint {
     margin: 6px 0 0;
     font-size: 11px;
@@ -725,20 +754,6 @@
     overflow: hidden;
     text-overflow: ellipsis;
     max-width: 100%;
-  }
-  .managed-toggle {
-    display: flex;
-    gap: 10px;
-    align-items: flex-start;
-    margin-top: 10px;
-    padding: 10px 12px;
-    background: var(--button);
-    border-radius: var(--border-radius);
-    cursor: pointer;
-  }
-  .managed-toggle input[type="checkbox"] {
-    margin-top: 3px;
-    flex-shrink: 0;
   }
   .bulk-bar {
     display: flex;
@@ -759,21 +774,6 @@
     flex-wrap: wrap;
     gap: 8px;
     justify-content: flex-end;
-  }
-  .managed-toggle-text {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
-  .managed-toggle-title {
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--secondary);
-  }
-  .managed-toggle-desc {
-    font-size: 12px;
-    color: var(--secondary);
-    line-height: 1.4;
   }
   .ghost-btn {
     display: inline-flex;

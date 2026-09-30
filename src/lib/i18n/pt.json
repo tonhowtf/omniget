@@ -1904,6 +1904,103 @@
     },
     "world": {
       "pet_load_failed": "Não foi possível verificar a disponibilidade do pet na área de trabalho. Tente novamente."
+    },
+    "rebrand": {
+      "title": "Configurações",
+      "category": {
+        "general": "Geral",
+        "appearance": "Aparência",
+        "downloads": "Downloads",
+        "ai": "IA e agentes",
+        "integrations": "Integrações",
+        "advanced": "Avançado"
+      },
+      "search": {
+        "label": "Buscar configurações",
+        "placeholder": "Busque por nome ou tarefa",
+        "clear": "Limpar busca",
+        "results": "Resultados: {{count}}",
+        "empty": "Nenhuma configuração encontrada",
+        "empty_hint": "Tente outra palavra ou escolha uma categoria."
+      },
+      "navigation": {
+        "back": "Voltar",
+        "back_settings": "Voltar às configurações"
+      },
+      "disclosure": {
+        "show_advanced": "Mostrar opções avançadas",
+        "hide_advanced": "Ocultar opções avançadas"
+      },
+      "state": {
+        "loading": "Carregando…",
+        "saving": "Salvando…",
+        "saved": "Salvo",
+        "save_failed": "Não foi possível salvar. Suas alterações continuam aqui.",
+        "retry": "Tentar novamente",
+        "pending_apply": "Salvo. Aguardando aplicação.",
+        "retry_apply": "Tentar aplicar novamente",
+        "unavailable": "Indisponível",
+        "next_task": "Vale para a próxima tarefa.",
+        "restart_required": "Reinicie o OmniGet para aplicar."
+      },
+      "form": {
+        "save": "Salvar alterações",
+        "discard": "Descartar alterações",
+        "draft": "Rascunho não salvo",
+        "unsaved_title": "Há alterações não salvas",
+        "stay": "Continuar editando",
+        "discard_confirm": "Descartar este rascunho?"
+      },
+      "reset": {
+        "section_title": "Restaurar {{name}}?",
+        "section_body": "Apenas as preferências desta seção voltarão aos padrões.",
+        "section_action": "Restaurar esta seção",
+        "app_title": "Restaurar preferências do aplicativo?",
+        "app_body": "As preferências do aplicativo voltarão aos padrões.",
+        "app_action": "Restaurar preferências do aplicativo",
+        "kept": "Contas, chaves, histórico, downloads e autorizações de acesso serão preservados."
+      },
+      "dialog": {
+        "confirm": "Confirmar",
+        "cancel": "Cancelar"
+      },
+      "appearance": {
+        "system": "Seguir o sistema",
+        "light": "Claro",
+        "dark": "Escuro",
+        "custom_font": "Fonte personalizada",
+        "font_hint": "Escolha uma fonte instalada neste dispositivo."
+      },
+      "connection": {
+        "local": "Conexão local",
+        "local_hint": "Escolha um servidor disponível neste computador.",
+        "test": "Testar conexão",
+        "test_cost_notice": "O teste envia uma solicitação pela conexão selecionada e pode consumir cota ou créditos.",
+        "unknown": "Não testada",
+        "verified": "Conexão verificada",
+        "error": "O teste de conexão falhou"
+      },
+      "downloads": {
+        "quality": "Qualidade",
+        "remove": "Remover",
+        "best_available": "Melhor disponível",
+        "audio": "Áudio",
+        "video": "Vídeo",
+        "output": "Arquivos e pastas",
+        "subtitles": "Legendas e metadados"
+      },
+      "llm": {
+        "routines": "Rotinas",
+        "tasks": "Tarefas",
+        "usage_performance": "Uso e desempenho"
+      },
+      "permissions": {
+        "agent_scope": "Vale apenas para {{name}}.",
+        "inherited": "Herdada da política do aplicativo.",
+        "view_policy": "Ver política do aplicativo",
+        "customize": "Personalizar para este agente",
+        "use_inherited": "Usar política herdada"
+      }
     }
   },
   "omnibox": {

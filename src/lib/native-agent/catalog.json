@@ -261,6 +261,21 @@
     }
   },
   {
+    "screenId": "/llm/summaries",
+    "route": "/llm/summaries",
+    "windowId": "main",
+    "sensitive": true,
+    "kind": "page",
+    "navigation": "main-route",
+    "preconditions": [],
+    "capabilities": {
+      "inspect": true,
+      "capture": true,
+      "actions": "Only actions returned by inspect",
+      "conditionalStates": "Inspect currently rendered state; hidden dialogs and tabs are not enumerated"
+    }
+  },
+  {
     "screenId": "/llm/loops",
     "route": "/llm/loops",
     "windowId": "main",

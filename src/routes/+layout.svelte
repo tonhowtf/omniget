@@ -10,37 +10,29 @@
     return () => { disposed = true; stop?.(); };
   });
   import "$lib/style/workspace-design.css";
-  import { getWorkspaceDesign, initWorkspaceDesign } from "$lib/stores/workspace-design.svelte";
-  let workspaceDesign = $derived(getWorkspaceDesign());
-  let designScope = $derived(page.url.pathname === "/" || page.url.pathname === "/downloads" || page.url.pathname === "/llm" || page.url.pathname.startsWith("/llm/") || page.url.pathname === "/help" || page.url.pathname.startsWith("/help/"));
-  onMount(initWorkspaceDesign);
-  // Document-level scope includes native chrome and portals; cleanup restores
-  // the legacy module contract when leaving the workspace.
-  $effect(() => {
-    if (!designScope) return;
-    const root = document.documentElement;
-    const previous = { preset: root.getAttribute("data-ds-preset"), mode: root.getAttribute("data-ds-mode"), scoped: root.classList.contains("ds-scope") };
-    root.classList.add("ds-scope");
-    root.setAttribute("data-ds-preset", workspaceDesign.preset);
-    root.setAttribute("data-ds-mode", workspaceDesign.resolvedMode);
-    return () => {
-      if (!previous.scoped) root.classList.remove("ds-scope");
-      for (const [key, value] of [["data-ds-preset", previous.preset], ["data-ds-mode", previous.mode]]) {
-        if (value === null) root.removeAttribute(key!); else root.setAttribute(key!, value!);
-      }
-    };
+  // The settings store is the single appearance authority for every route:
+  // it applies theme/preset/typography, follows the OS while in system mode
+  // and re-reads when another window commits (settings-v3-changed).
+  onMount(() => {
+    setSettingsLocaleApplier(async (language) => {
+      await loadTranslations(language, page.url.pathname);
+      locale.set(language);
+    });
+    const stopSync = startSettingsSync();
+    return () => { stopSync(); setSettingsLocaleApplier(null); };
   });
 
   import "$lib/style/queue-kinds.css";
   import { page } from "$app/state";
   import { isMac } from "$lib/platform";
-  import { goto } from "$app/navigation";
+  import { afterNavigate, goto } from "$app/navigation";
+  import { holdFocusUntilNavigated, releaseFocusAfterNavigation } from "$lib/settings-navigation";
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { listen } from "@tauri-apps/api/event";
   import { initDownloadListener } from "$lib/stores/download-listener";
   import { getCounts } from "$lib/stores/download-store.svelte";
-  import { getSettings, loadSettings, updateSettings } from "$lib/stores/settings-store.svelte";
+  import { getSettings, getSettingsLoadState, loadSettings, updateSettings, setSettingsLocaleApplier, startSettingsSync } from "$lib/stores/settings-store.svelte";
   import { queueExternalPrefill, type ExternalUrlEvent } from "$lib/stores/external-url-store.svelte";
   import Toast from "$components/toast/Toast.svelte";
   import NativeAgentActivity from "$components/llm/mcp/NativeAgentActivity.svelte";
@@ -60,7 +52,7 @@
   import { needsOnboarding } from "$lib/stores/onboarding-store.svelte";
   import { isYtdlpAvailable, isDepsChecked, refreshYtdlpStatus } from "$lib/stores/dependency-store.svelte";
   import { showToast } from "$lib/stores/toast-store.svelte";
-  import { rawTranslations, t, locale, isRtlLocale } from "$lib/i18n";
+  import { rawTranslations, t, locale, isRtlLocale, loadTranslations } from "$lib/i18n";
   import { trayStrings } from "$lib/tray-strings";
   import { usageTrayStrings } from "$lib/usage-tray-strings";
   import { agentPrompts } from "$lib/agent-prompts";
@@ -71,6 +63,12 @@
   import { isBareWindow } from "$lib/bare-window";
   import type { Snippet } from "svelte";
   import type { Component } from "svelte";
+
+  // Deep links focus their destination (focusWhenReady). On a cold load SvelteKit
+  // resets focus to <body> at the end of the first navigation, so those requests wait
+  // for it; the extra task runs after SvelteKit's own deferred focus work.
+  holdFocusUntilNavigated();
+  afterNavigate(() => { setTimeout(releaseFocusAfterNavigation, 0); });
 
 
   let coreNavItems = $derived(
@@ -188,13 +186,16 @@
     initDownloadListener().then(stop => {
       if (disposed) stop(); else stopDownloads = stop;
     }).catch(() => {});
-    // If `get_settings` failed while the shell was booting, the sidebar has no
-    // League entry and Settings spins forever. Retry a few times instead of
-    // leaving the app half-configured until the next restart.
+    // If the first settings read failed while the shell was booting, the sidebar
+    // has no League entry and Settings shows only the error. Retry a few times
+    // instead of leaving the app half-configured until the next restart. The
+    // shell does not wait for that read (+layout.ts), so a read still in flight
+    // is left alone: a second one would only race it.
     if (!getSettings()) {
       let attempts = 0;
       const retry = () => {
-        if (getSettings() || attempts >= 5) return;
+        if (disposed || getSettings() || attempts >= 5) return;
+        if (getSettingsLoadState().kind === "loading") { setTimeout(retry, 1000); return; }
         attempts += 1;
         loadSettings().catch(() => setTimeout(retry, 1000 * attempts));
       };
@@ -423,7 +424,7 @@
       </div>
     {/if}
 
-    <main id="main-content" class="content" class:ds-scope={designScope} data-ds-preset={designScope ? workspaceDesign.preset : undefined} data-ds-mode={designScope ? workspaceDesign.resolvedMode : undefined}>
+    <main id="main-content" class="content">
       <div class="mac-pane" class:mac-pane--flush={isFlushRoute}>
         {#if isCoreRoute}
           <div class="core-shell" class:core-shell--flush={isFlushRoute}>

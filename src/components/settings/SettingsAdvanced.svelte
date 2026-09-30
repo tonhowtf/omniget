@@ -1,216 +1,130 @@
+<script lang="ts" module>
+  export type AdvancedPart = "performance" | "torrent" | "expert" | "league" | "music" | "debug";
+</script>
+
 <script lang="ts">
-  import { goto } from "$app/navigation";
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "$lib/i18n";
   import { isDebugEnabled, setDebugEnabled, setDebugPanelOpen } from "$lib/stores/debug-store.svelte";
   import { getSettings, saveSettings as updateSettings, toggleBool, changeNumber } from "./settings-helpers";
-  import SettingsDrillBack from "./SettingsDrillBack.svelte";
-  import SettingsDrillItem from "./SettingsDrillItem.svelte";
+  import SettingRow from "./rebrand/SettingRow.svelte";
 
-  let {
-    resetting = false,
-    onReset,
-    section = "",
-  }: {
-    resetting?: boolean;
-    onReset: () => void;
-    section?: string;
-  } = $props();
-
-  type AdvancedDrill = "performance" | "torrent" | "expert" | "league" | "music" | "debug";
+  // Rows only: the settings route wraps each part in its SettingGroup, so the same
+  // controls can live under Advanced (performance, torrent, expert, debug) and
+  // Integrations (League, Music) without a second copy.
+  let { part }: { part: AdvancedPart } = $props();
 
   let settings = $derived(getSettings());
 
-  const DRILL_ITEMS: { id: AdvancedDrill; titleKey: string; hintKey: string }[] = [
-    { id: "performance", titleKey: "settings.advanced.section_performance", hintKey: "settings.advanced.section_performance_desc" },
-    { id: "torrent", titleKey: "settings.advanced.section_torrent", hintKey: "settings.advanced.section_torrent_desc" },
-    { id: "expert", titleKey: "settings.advanced.section_expert", hintKey: "settings.advanced.section_expert_desc" },
-    { id: "league", titleKey: "league.settings_title", hintKey: "league.settings_desc" },
-    { id: "music", titleKey: "music.settings_title", hintKey: "music.settings_desc" },
-    { id: "debug", titleKey: "settings.advanced.section_debug", hintKey: "settings.advanced.section_debug_desc" },
+  type NumberRow = { key: string; field: string; min: number; max: number; step?: number };
+  const PERFORMANCE_NUMBERS: NumberRow[] = [
+    { key: "max_concurrent_downloads", field: "max_concurrent_downloads", min: 1, max: 10 },
+    { key: "max_concurrent_segments", field: "max_concurrent_segments", min: 1, max: 100 },
+    { key: "concurrent_fragments", field: "concurrent_fragments", min: 1, max: 32 },
+    { key: "max_retries", field: "max_retries", min: 1, max: 20 },
+    { key: "stagger_delay", field: "stagger_delay_ms", min: 0, max: 2000, step: 50 },
   ];
 
-  let subView = $derived(DRILL_ITEMS.some(item => item.id === section) ? section as AdvancedDrill : null);
-
+  function advancedValue(field: string): number {
+    return (settings?.advanced as unknown as Record<string, number> | undefined)?.[field] ?? 0;
+  }
 </script>
 
-{#if settings}
-  {#if subView === null}
-    <nav class="settings-drill-list" aria-label={$t('settings.cat_advanced')}>
-      {#each DRILL_ITEMS as item (item.id)}
-        <SettingsDrillItem
-          title={$t(item.titleKey)}
-          hint={$t(item.hintKey)}
-          onclick={() => { void goto(`/settings?tab=advanced&section=${item.id}`); }}
-        />
-      {/each}
-    </nav>
-    <div class="settings-drill-spacer"></div>
-    <div class="card">
-      <div class="setting-row" data-setting-key="settings.advanced.reset">
-        <div class="setting-col">
-          <span class="setting-label">{$t('settings.advanced.reset')}</span>
-          <span class="setting-path">{$t('settings.advanced.reset_desc')}</span>
-        </div>
-        <button class="button reset-btn" onclick={onReset} disabled={resetting}>{$t('settings.advanced.reset')}</button>
-      </div>
-    </div>
-  {:else}
-    {@const active = DRILL_ITEMS.find((i) => i.id === subView)}
-    <div id={`settings-section-${subView}`}>
-    {#if active}
-      <SettingsDrillBack
-        title={$t(active.titleKey)}
-        hint={$t(active.hintKey)}
-        onBack={() => { void goto("/settings?tab=advanced"); }}
-      />
-    {/if}
+{#snippet toggle(id: string, describedBy: string | undefined, on: boolean, onclick: () => void)}
+  <button {id} type="button" class="toggle" class:on role="switch" aria-checked={on} aria-labelledby={`${id}-label`} aria-describedby={describedBy} {onclick}><span class="toggle-knob"></span></button>
+{/snippet}
 
-    {#if subView === "performance"}
-      <div class="card">
-        <div class="setting-row" data-setting-key="settings.advanced.max_concurrent_downloads">
-          <div class="setting-col">
-            <label class="setting-label" for="setting-settings-advanced-max_concurrent_downloads">{$t('settings.advanced.max_concurrent_downloads')}</label>
-            <span class="setting-path" id="setting-settings-advanced-max_concurrent_downloads-help">{$t('settings.advanced.max_concurrent_downloads_desc')}</span>
-          </div>
-          <input id="setting-settings-advanced-max_concurrent_downloads" aria-describedby="setting-settings-advanced-max_concurrent_downloads-help" type="number" class="input-number" min="1" max="10" value={settings.advanced.max_concurrent_downloads} onchange={(e) => changeNumber("advanced", "max_concurrent_downloads", e)} />
-        </div>
-        <div class="divider"></div>
-        <div class="setting-row" data-setting-key="settings.advanced.max_concurrent_segments">
-          <div class="setting-col">
-            <label class="setting-label" for="setting-settings-advanced-max_concurrent_segments">{$t('settings.advanced.max_concurrent_segments')}</label>
-            <span class="setting-path" id="setting-settings-advanced-max_concurrent_segments-help">{$t('settings.advanced.max_concurrent_segments_desc')}</span>
-          </div>
-          <input id="setting-settings-advanced-max_concurrent_segments" aria-describedby="setting-settings-advanced-max_concurrent_segments-help" type="number" class="input-number" min="1" max="100" value={settings.advanced.max_concurrent_segments} onchange={(e) => changeNumber("advanced", "max_concurrent_segments", e)} />
-        </div>
-        <div class="divider"></div>
-        <div class="setting-row" data-setting-key="settings.advanced.concurrent_fragments">
-          <div class="setting-col">
-            <label class="setting-label" for="setting-settings-advanced-concurrent_fragments">{$t('settings.advanced.concurrent_fragments')}</label>
-            <span class="setting-path" id="setting-settings-advanced-concurrent_fragments-help">{$t('settings.advanced.concurrent_fragments_desc')}</span>
-          </div>
-          <input id="setting-settings-advanced-concurrent_fragments" aria-describedby="setting-settings-advanced-concurrent_fragments-help" type="number" class="input-number" min="1" max="32" value={settings.advanced.concurrent_fragments} onchange={(e) => changeNumber("advanced", "concurrent_fragments", e)} />
-        </div>
-        <div class="divider"></div>
-        <div class="setting-row" data-setting-key="settings.advanced.max_retries">
-          <div class="setting-col">
-            <label class="setting-label" for="setting-settings-advanced-max_retries">{$t('settings.advanced.max_retries')}</label>
-            <span class="setting-path" id="setting-settings-advanced-max_retries-help">{$t('settings.advanced.max_retries_desc')}</span>
-          </div>
-          <input id="setting-settings-advanced-max_retries" aria-describedby="setting-settings-advanced-max_retries-help" type="number" class="input-number" min="1" max="20" value={settings.advanced.max_retries} onchange={(e) => changeNumber("advanced", "max_retries", e)} />
-        </div>
-        <div class="divider"></div>
-        <div class="setting-row" data-setting-key="settings.advanced.stagger_delay">
-          <div class="setting-col">
-            <label class="setting-label" for="setting-settings-advanced-stagger_delay">{$t('settings.advanced.stagger_delay')}</label>
-            <span class="setting-path" id="setting-settings-advanced-stagger_delay-help">{$t('settings.advanced.stagger_delay_desc')}</span>
-          </div>
-          <input id="setting-settings-advanced-stagger_delay" aria-describedby="setting-settings-advanced-stagger_delay-help" type="number" class="input-number" min="0" max="2000" step="50" value={settings.advanced.stagger_delay_ms} onchange={(e) => changeNumber("advanced", "stagger_delay_ms", e)} />
-        </div>
-        <div class="divider"></div>
-        <div class="setting-row" data-setting-key="settings.advanced.prevent_sleep">
-          <div class="setting-col">
-            <span class="setting-label">{$t('settings.advanced.prevent_sleep')}</span>
-            <span class="setting-path">{$t('settings.advanced.prevent_sleep_desc')}</span>
-          </div>
-          <button class="toggle" class:on={settings.advanced.prevent_sleep} onclick={() => toggleBool("advanced", "prevent_sleep", settings.advanced.prevent_sleep)} role="switch" aria-checked={settings.advanced.prevent_sleep} aria-label={$t('settings.advanced.prevent_sleep') as string}><span class="toggle-knob"></span></button>
-        </div>
-      </div>
-    {:else if subView === "torrent"}
-      <div class="card">
-        <div class="setting-row" data-setting-key="settings.advanced.torrent_listen_port">
-          <div class="setting-col">
-            <label class="setting-label" for="setting-settings-advanced-torrent_listen_port">{$t('settings.advanced.torrent_listen_port')}</label>
-            <span class="setting-path" id="setting-settings-advanced-torrent_listen_port-help">{$t('settings.advanced.torrent_listen_port_desc')}</span>
-          </div>
-          <input id="setting-settings-advanced-torrent_listen_port" aria-describedby="setting-settings-advanced-torrent_listen_port-help" type="number" class="input-number" min="1024" max="65525" value={settings.advanced.torrent_listen_port} onchange={(e) => changeNumber("advanced", "torrent_listen_port", e)} />
-        </div>
-        <div class="divider"></div>
-        <div class="setting-row" data-setting-key="settings.advanced.torrent_auto_trackers">
-          <div class="setting-col">
-            <span class="setting-label">{$t('settings.advanced.torrent_auto_trackers')}</span>
-            <span class="setting-path">{$t('settings.advanced.torrent_auto_trackers_desc')}</span>
-          </div>
-          <button class="toggle" class:on={settings.advanced.torrent_auto_trackers} onclick={() => toggleBool("advanced", "torrent_auto_trackers", settings.advanced.torrent_auto_trackers)} role="switch" aria-checked={settings.advanced.torrent_auto_trackers} aria-label={$t('settings.advanced.torrent_auto_trackers') as string}><span class="toggle-knob"></span></button>
-        </div>
-        <div class="divider"></div>
-        <div class="setting-row" data-setting-key="settings.advanced.torrent_upnp">
-          <div class="setting-col">
-            <span class="setting-label">{$t('settings.advanced.torrent_upnp')}</span>
-            <span class="setting-path">{$t('settings.advanced.torrent_upnp_desc')}</span>
-          </div>
-          <button class="toggle" class:on={settings.advanced.torrent_upnp} onclick={() => toggleBool("advanced", "torrent_upnp", settings.advanced.torrent_upnp)} role="switch" aria-checked={settings.advanced.torrent_upnp} aria-label={$t('settings.advanced.torrent_upnp') as string}><span class="toggle-knob"></span></button>
-        </div>
-      </div>
-    {:else if subView === "expert"}
-      <div class="card">
-        <div class="setting-row" data-setting-key="settings.advanced.cookies_from_browser">
-          <div class="setting-col">
-            <label class="setting-label" for="setting-settings-advanced-cookies_from_browser">{$t('settings.advanced.cookies_from_browser')}</label>
-            <span class="setting-path" id="setting-settings-advanced-cookies_from_browser-help">{$t('settings.advanced.cookies_from_browser_desc')}</span>
-          </div>
-          <input id="setting-settings-advanced-cookies_from_browser" aria-describedby="setting-settings-advanced-cookies_from_browser-help" type="text" class="input-text" placeholder={$t('settings.advanced.cookies_from_browser_placeholder')} value={settings.advanced?.cookies_from_browser ?? ""} onchange={(e) => updateSettings({ advanced: { cookies_from_browser: (e.target as HTMLInputElement).value.trim() } })} />
-        </div>
-        <div class="divider"></div>
-        <div class="setting-row" data-setting-key="settings.advanced.user_agent">
-          <div class="setting-col">
-            <label class="setting-label" for="setting-settings-advanced-user_agent">{$t('settings.advanced.user_agent')}</label>
-            <span class="setting-path" id="setting-settings-advanced-user_agent-help">{$t('settings.advanced.user_agent_desc')}</span>
-          </div>
-          <input id="setting-settings-advanced-user_agent" aria-describedby="setting-settings-advanced-user_agent-help" type="text" class="input-text" placeholder={$t('settings.advanced.user_agent_placeholder')} value={settings.advanced?.user_agent ?? ""} onchange={(e) => updateSettings({ advanced: { user_agent: (e.target as HTMLInputElement).value.trim() } })} />
-        </div>
-      </div>
-    {:else if subView === "league"}
-      <div class="card">
-        <div class="setting-row" data-setting-key="league.settings_enable">
-          <div class="setting-col">
-            <span class="setting-label">{$t('league.settings_enable')}</span>
-            <span class="setting-path">{$t('league.settings_enable_desc')}</span>
-          </div>
-          <button class="toggle" class:on={settings.league?.enabled ?? true} onclick={() => updateSettings({ league: { enabled: !(settings.league?.enabled ?? true) } })} role="switch" aria-checked={settings.league?.enabled ?? true} aria-label={$t('league.settings_enable') as string}><span class="toggle-knob"></span></button>
-        </div>
-        {#if settings.league?.enabled ?? true}
-          <div class="divider"></div>
-          <div class="setting-row" data-setting-key="league.settings_auto_accept">
-            <div class="setting-col">
-              <span class="setting-label">{$t('league.settings_auto_accept')}</span>
-              <span class="setting-path">{$t('league.settings_auto_accept_desc')}</span>
-            </div>
-            <button class="toggle" class:on={settings.league?.auto_accept} onclick={() => { const next = !(settings.league?.auto_accept ?? false); updateSettings({ league: { auto_accept: next } }); invoke("league_auto_accept_set", { enabled: next }).catch(() => {}); }} role="switch" aria-checked={settings.league?.auto_accept ?? false} aria-label={$t('league.settings_auto_accept') as string}><span class="toggle-knob"></span></button>
-          </div>
-        {/if}
-      </div>
-    {:else if subView === "music"}
-      <div class="card">
-        <div class="setting-row" data-setting-key="music.settings_enable">
-          <div class="setting-col">
-            <span class="setting-label">{$t('music.settings_enable')}</span>
-            <span class="setting-path">{$t('music.settings_enable_desc')}</span>
-          </div>
-          <button class="toggle" class:on={settings.music?.enabled ?? true} onclick={() => updateSettings({ music: { enabled: !(settings.music?.enabled ?? true) } })} role="switch" aria-checked={settings.music?.enabled ?? true} aria-label={$t('music.settings_enable') as string}><span class="toggle-knob"></span></button>
-        </div>
-      </div>
-    {:else if subView === "debug"}
-      <div class="card">
-        <div class="setting-row" data-setting-key="debug.enable">
-          <div class="setting-col">
-            <span class="setting-label">{$t('debug.enable')}</span>
-            <span class="setting-path">{$t('debug.enable_desc')}</span>
-          </div>
-          <button class="toggle" class:on={isDebugEnabled()} onclick={() => setDebugEnabled(!isDebugEnabled())} role="switch" aria-checked={isDebugEnabled()} aria-label={$t('debug.enable') as string}><span class="toggle-knob"></span></button>
-        </div>
-        {#if isDebugEnabled()}
-          <div class="divider"></div>
-          <div class="setting-row" data-setting-key="debug.open_panel">
-            <div class="setting-col">
-              <span class="setting-label">{$t('debug.open_panel')}</span>
-              <span class="setting-path">{$t('debug.open_panel_desc')}</span>
-            </div>
-            <button class="button" onclick={() => setDebugPanelOpen(true)}>{$t('debug.open_panel')}</button>
-          </div>
-        {/if}
-      </div>
+{#if settings}
+  {#if part === "performance"}
+    {#each PERFORMANCE_NUMBERS as row (row.key)}
+      <SettingRow id={`setting-advanced-${row.field}`} label={$t(`settings.advanced.${row.key}`)} help={$t(`settings.advanced.${row.key}_desc`)}
+        settingKey={`settings.advanced.${row.key}`} status={`advanced.${row.field}`}>
+        {#snippet control({ id, describedBy })}
+          <input {id} aria-describedby={describedBy} type="number" class="input-number" dir="ltr" min={row.min} max={row.max} step={row.step ?? 1}
+            value={advancedValue(row.field)} onchange={(e) => changeNumber("advanced", row.field, e)} />
+        {/snippet}
+      </SettingRow>
+    {/each}
+    <SettingRow id="setting-advanced-prevent_sleep" label={$t("settings.advanced.prevent_sleep")} help={$t("settings.advanced.prevent_sleep_desc")}
+      settingKey="settings.advanced.prevent_sleep" status="advanced.prevent_sleep">
+      {#snippet control({ id, describedBy })}
+        {@render toggle(id, describedBy, settings.advanced.prevent_sleep, () => toggleBool("advanced", "prevent_sleep", settings.advanced.prevent_sleep))}
+      {/snippet}
+    </SettingRow>
+  {:else if part === "torrent"}
+    <SettingRow id="setting-advanced-torrent_listen_port" label={$t("settings.advanced.torrent_listen_port")} help={$t("settings.advanced.torrent_listen_port_desc")}
+      settingKey="settings.advanced.torrent_listen_port" status="advanced.torrent_listen_port">
+      {#snippet control({ id, describedBy })}
+        <input {id} aria-describedby={describedBy} type="number" class="input-number" dir="ltr" min="1024" max="65525"
+          value={settings.advanced.torrent_listen_port} onchange={(e) => changeNumber("advanced", "torrent_listen_port", e)} />
+      {/snippet}
+    </SettingRow>
+    <SettingRow id="setting-advanced-torrent_auto_trackers" label={$t("settings.advanced.torrent_auto_trackers")} help={$t("settings.advanced.torrent_auto_trackers_desc")}
+      settingKey="settings.advanced.torrent_auto_trackers" status="advanced.torrent_auto_trackers">
+      {#snippet control({ id, describedBy })}
+        {@render toggle(id, describedBy, settings.advanced.torrent_auto_trackers, () => toggleBool("advanced", "torrent_auto_trackers", settings.advanced.torrent_auto_trackers))}
+      {/snippet}
+    </SettingRow>
+    <SettingRow id="setting-advanced-torrent_upnp" label={$t("settings.advanced.torrent_upnp")} help={$t("settings.advanced.torrent_upnp_desc")}
+      settingKey="settings.advanced.torrent_upnp" status="advanced.torrent_upnp">
+      {#snippet control({ id, describedBy })}
+        {@render toggle(id, describedBy, settings.advanced.torrent_upnp, () => toggleBool("advanced", "torrent_upnp", settings.advanced.torrent_upnp))}
+      {/snippet}
+    </SettingRow>
+  {:else if part === "expert"}
+    <SettingRow id="setting-advanced-cookies_from_browser" label={$t("settings.advanced.cookies_from_browser")} help={$t("settings.advanced.cookies_from_browser_desc")}
+      settingKey="settings.advanced.cookies_from_browser" status="advanced.cookies_from_browser">
+      {#snippet control({ id, describedBy })}
+        <input {id} aria-describedby={describedBy} type="text" class="input-text" dir="ltr" spellcheck="false" placeholder={$t("settings.advanced.cookies_from_browser_placeholder")}
+          value={settings.advanced?.cookies_from_browser ?? ""} onchange={(e) => updateSettings({ advanced: { cookies_from_browser: (e.target as HTMLInputElement).value.trim() } })} />
+      {/snippet}
+    </SettingRow>
+    <SettingRow id="setting-advanced-user_agent" label={$t("settings.advanced.user_agent")} help={$t("settings.advanced.user_agent_desc")}
+      settingKey="settings.advanced.user_agent" status="advanced.user_agent">
+      {#snippet control({ id, describedBy })}
+        <input {id} aria-describedby={describedBy} type="text" class="input-text" dir="ltr" spellcheck="false" placeholder={$t("settings.advanced.user_agent_placeholder")}
+          value={settings.advanced?.user_agent ?? ""} onchange={(e) => updateSettings({ advanced: { user_agent: (e.target as HTMLInputElement).value.trim() } })} />
+      {/snippet}
+    </SettingRow>
+  {:else if part === "league"}
+    {@const leagueOn = settings.league?.enabled ?? true}
+    <SettingRow id="setting-league-enabled" label={$t("league.settings_enable")} help={$t("league.settings_enable_desc")} settingKey="league.settings_enable" status="league.enabled">
+      {#snippet control({ id, describedBy })}
+        {@render toggle(id, describedBy, leagueOn, () => updateSettings({ league: { enabled: !leagueOn } }))}
+      {/snippet}
+    </SettingRow>
+    {#if leagueOn}
+      <SettingRow id="setting-league-auto_accept" label={$t("league.settings_auto_accept")} help={$t("league.settings_auto_accept_desc")} settingKey="league.settings_auto_accept" status="league.auto_accept">
+        {#snippet control({ id, describedBy })}
+          {@render toggle(id, describedBy, settings.league?.auto_accept ?? false, () => {
+            const next = !(settings.league?.auto_accept ?? false);
+            void updateSettings({ league: { auto_accept: next } }).then((saved) => {
+              // Only tell the running client after the value is confirmed on disk.
+              if (saved) invoke("league_auto_accept_set", { enabled: next }).catch(() => {});
+            });
+          })}
+        {/snippet}
+      </SettingRow>
     {/if}
-    </div>
+  {:else if part === "music"}
+    {@const musicOn = settings.music?.enabled ?? true}
+    <SettingRow id="setting-music-enabled" label={$t("music.settings_enable")} help={$t("music.settings_enable_desc")} settingKey="music.settings_enable" status="music.enabled">
+      {#snippet control({ id, describedBy })}
+        {@render toggle(id, describedBy, musicOn, () => updateSettings({ music: { enabled: !musicOn } }))}
+      {/snippet}
+    </SettingRow>
+  {:else if part === "debug"}
+    <SettingRow id="setting-debug-enable" label={$t("debug.enable")} help={$t("debug.enable_desc")} settingKey="debug.enable">
+      {#snippet control({ id, describedBy })}
+        {@render toggle(id, describedBy, isDebugEnabled(), () => setDebugEnabled(!isDebugEnabled()))}
+      {/snippet}
+    </SettingRow>
+    {#if isDebugEnabled()}
+      <SettingRow id="setting-debug-open_panel" label={$t("debug.open_panel")} help={$t("debug.open_panel_desc")} settingKey="debug.open_panel">
+        {#snippet control({ id, describedBy })}
+          <button {id} type="button" class="btn btn-secondary btn-sm" aria-describedby={describedBy} onclick={() => setDebugPanelOpen(true)}>{$t("debug.open_panel")}</button>
+        {/snippet}
+      </SettingRow>
+    {/if}
   {/if}
 {/if}

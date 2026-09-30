@@ -1,4 +1,10 @@
-/** Device-local visual preferences, isolated from backend and other modules. */
+import { OMNIGET_PRESET, getAppearancePresentation, updateSettings } from "./settings-store.svelte";
+
+/**
+ * Workspace presets (palettes in workspace-design.css). This module is an
+ * adapter: the settings store is the only authority for mode/preset, and the
+ * legacy localStorage key is read once by the store's appearance import.
+ */
 export const PRESETS = [
   {
     "id": "amber-minimal",
@@ -57,24 +63,26 @@ export const PRESETS = [
 ] as const;
 export type Preset = typeof PRESETS[number]["id"];
 export type Mode = "system" | "light" | "dark";
-const KEY = "omniget.workspace.appearance.v1";
-let preset = $state<Preset>("amber-minimal");
-let mode = $state<Mode>("system");
-let systemDark = $state(true);
-export function getWorkspaceDesign() { return { preset, mode, systemDark, resolvedMode: mode === "system" ? (systemDark ? "dark" : "light") : mode }; }
-export function initWorkspaceDesign() {
-  const media = window.matchMedia("(prefers-color-scheme: dark)");
-  const sync = () => { systemDark = media.matches; };
-  sync(); media.addEventListener("change", sync);
-  try {
-    const saved = JSON.parse(localStorage.getItem(KEY) ?? "null");
-    if (saved && PRESETS.some(p => p.id === saved.preset)) preset = saved.preset;
-    if (["system", "light", "dark"].includes(saved?.mode)) mode = saved.mode;
-  } catch { /* Keep usable defaults if storage is unavailable. */ }
-  return () => media.removeEventListener("change", sync);
+/** A workspace preset, or the default Omniget desktop style. */
+export type DesignPreset = Preset | typeof OMNIGET_PRESET;
+
+export function getWorkspaceDesign(): { preset: DesignPreset; mode: Mode; systemDark: boolean; resolvedMode: "light" | "dark" } {
+  const p = getAppearancePresentation();
+  const preset = (PRESETS.some((item) => item.id === p.preset) ? p.preset : OMNIGET_PRESET) as DesignPreset;
+  return { preset, mode: p.mode, systemDark: p.systemDark, resolvedMode: p.resolvedMode };
 }
-export function saveWorkspaceDesign(nextPreset: Preset, nextMode: Mode): boolean {
-  try { localStorage.setItem(KEY, JSON.stringify({ preset: nextPreset, mode: nextMode })); }
-  catch { return false; }
-  preset = nextPreset; mode = nextMode; return true;
+
+/** Kept for callers of the old API; the store applies and follows the OS itself. */
+export function initWorkspaceDesign(): () => void {
+  return () => {};
+}
+
+/** Saves mode and preset through the settings store; true only after confirmation. */
+export async function saveWorkspaceDesign(nextPreset: DesignPreset, nextMode: Mode): Promise<boolean> {
+  try {
+    await updateSettings({ appearance: { preset: nextPreset, mode: nextMode } });
+    return true;
+  } catch {
+    return false;
+  }
 }

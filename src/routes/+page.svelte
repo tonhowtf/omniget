@@ -3,7 +3,8 @@
   import { open } from "@tauri-apps/plugin-dialog";
   import { open as openExternal } from "@tauri-apps/plugin-shell";
   import { getCurrentWebview } from "@tauri-apps/api/webview";
-  import { goto } from "$app/navigation";
+  import { goto, replaceState } from "$app/navigation";
+  import { page } from "$app/state";
   import { onMount } from "svelte";
   import BilibiliPreviewExtras from "$components/omnibox/BilibiliPreviewExtras.svelte";
   import DownloadModeSelector from "$components/omnibox/DownloadModeSelector.svelte";
@@ -42,6 +43,8 @@
   import { platformDisplayName } from "$lib/platform-display-names";
   import { classifyError, type ErrorKind } from "$lib/home/friendly-error";
   import { pluralKey, splitLink } from "$lib/home/plural";
+  import { applyRuleToDownloadOptions, type RuleThen } from "$lib/download-rule-options";
+  import { focusWhenReady, parseHomeTarget } from "$lib/settings-navigation";
 
   type DownloadStarted = {
     id: number;
@@ -70,6 +73,8 @@
   let omniState = $state<OmniState>({ kind: "idle" });
   let debounceTimer = $state<ReturnType<typeof setTimeout> | null>(null);
   let downloadMode = $state<"auto" | "audio" | "mute">("auto");
+  // Picked for this link (selector or preset); a matching rule never overrides it.
+  let downloadModeExplicit = $state(false);
   let selectedQuality = $state("best");
   let clipStart = $state("");
   let clipEnd = $state("");
@@ -315,6 +320,7 @@
       ? settingsQuality
       : "best";
     downloadMode = savedMode === "audio" || savedMode === "mute" ? savedMode : "auto";
+    downloadModeExplicit = false;
     selectedFormatId = null;
     formats = [];
     loadingFormats = false;
@@ -562,12 +568,14 @@
   function presetBest() {
     selectedFormatId = null;
     downloadMode = "auto";
+    downloadModeExplicit = true;
     selectedQuality = "best";
   }
 
   function presetMusic() {
     selectedFormatId = null;
     downloadMode = "audio";
+    downloadModeExplicit = true;
   }
 
   function persistLastDownloadOptions() {
@@ -638,27 +646,32 @@
     // preenche o que ele não escolheu explicitamente nesta sessão — uma regra
     // não pode sobrescrever a escolha feita agora, na frente dele.
     let ruleQuality = selectedQuality;
+    let ruleDownloadMode: "audio" | "mute" | null = downloadMode === "auto" ? null : downloadMode;
 
     try {
       const hit = await invoke<{
         name: string;
-        then: {
-          output_dir?: string | null;
-          quality?: string | null;
-        };
+        then: RuleThen;
       } | null>("preview_rule_match", {
         url: currentUrl,
         platform,
       });
 
       if (hit) {
-        if (hit.then.output_dir && !hasExplicitOutputDir) {
-          outputDir = hit.then.output_dir;
-        }
-
-        if (hit.then.quality && !selectedQuality) {
-          ruleQuality = hit.then.quality;
-        }
+        const options = applyRuleToDownloadOptions(
+          {
+            outputDir,
+            outputDirExplicit: hasExplicitOutputDir,
+            mode: downloadMode,
+            modeExplicit: downloadModeExplicit,
+            quality: selectedQuality,
+            formatId: selectedFormatId,
+          },
+          hit.then,
+        );
+        outputDir = options.outputDir;
+        ruleQuality = options.quality;
+        ruleDownloadMode = options.downloadMode;
 
         showToast(
           "info",
@@ -706,7 +719,7 @@
       await invoke<DownloadStarted>("download_from_url", {
         url: currentUrl,
         outputDir,
-        downloadMode: downloadMode === "auto" ? null : downloadMode,
+        downloadMode: ruleDownloadMode,
         quality: ruleQuality,
         formatId: selectedFormatId,
         referer: referer.trim() || null,
@@ -926,6 +939,23 @@
     url = "";
   }
 
+  // `/?panel=download-advanced` (Settings > Downloads links here) only reveals
+  // the existing advanced omnibox: nothing is imported, queued or saved.
+  $effect(() => {
+    if (parseHomeTarget(page.url.searchParams).panel !== "download-advanced") return;
+    advancedMode = true;
+    return focusWhenReady("#home-advanced-title");
+  });
+
+  function closeAdvanced() {
+    advancedMode = false;
+    // `page.url` is not updated by replaceState: read the live address.
+    const next = new URL(location.href);
+    if (parseHomeTarget(next.searchParams).panel === null) return;
+    next.searchParams.delete("panel");
+    replaceState(`${next.pathname}${next.search}${next.hash}`, page.state);
+  }
+
   function handleMore(action: MoreAction) {
     if (action === "advanced") {
       advancedMode = true;
@@ -1125,11 +1155,11 @@
   {#if advancedMode}
     <div class="home-column home-column--wide">
       <div class="adv-head">
-        <button type="button" class="back-link" onclick={() => { advancedMode = false; }}>
+        <button type="button" class="back-link" onclick={closeAdvanced}>
           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6" /></svg>
           {$t("home.action_simple")}
         </button>
-        <h2 class="adv-title">{$t("home.adv_title")}</h2>
+        <h2 class="adv-title" id="home-advanced-title" tabindex="-1">{$t("home.adv_title")}</h2>
       </div>
       <OmniboxAdvanced />
     </div>
@@ -1196,7 +1226,7 @@
       {:else if omniState.kind === "batch"}
         <div class="batch-panel">
           <p class="state-line">{$t(pluralKey("omnibox.batch_detected", omniState.urls.length), { count: omniState.urls.length })}</p>
-          <DownloadModeSelector bind:downloadMode />
+          <DownloadModeSelector bind:downloadMode onChange={() => { downloadModeExplicit = true; }} />
           <button class="download-primary-btn" onclick={handleBatchDownload}>{$t("omnibox.batch_download_all", { count: omniState.urls.length })}</button>
         </div>
       {:else if omniState.kind === "search-results"}
@@ -1319,7 +1349,7 @@
             <details class="options-panel">
               <summary class="options-toggle">{$t('omnibox.options')}</summary>
               <div class="options-content">
-                <DownloadModeSelector bind:downloadMode onChange={() => { selectedFormatId = null; }} />
+                <DownloadModeSelector bind:downloadMode onChange={() => { selectedFormatId = null; downloadModeExplicit = true; }} />
                 <QualityPicker bind:selectedQuality selectedFormatId {availableHeights} {hasAudioOnly} />
                 <OutputLocationPicker bind:selectedOutputDir />
                 {#if cookieAccounts.length > 1}

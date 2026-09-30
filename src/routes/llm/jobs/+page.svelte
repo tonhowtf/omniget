@@ -245,12 +245,12 @@
   }
 </script>
 
-<svelte:head><title>{$t("llm.tab.jobs")}</title></svelte:head>
+<svelte:head><title>{$t("settings.rebrand.llm.tasks")}</title></svelte:head>
 
 <div class="page page-wide jobs-page">
   <header class="page-head">
     <div>
-      <h1 class="page-title">{$t("llm.surface.tasks")}</h1>
+      <h1 class="page-title">{$t("settings.rebrand.llm.tasks")}</h1>
     </div>
   </header>
   <SurfaceGuide text={$t("llm.surface.jobs_hint")} href="/help?article=tasks#guide" />

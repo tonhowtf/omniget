@@ -6,6 +6,9 @@
   import { onMount } from "svelte";
   import { t } from "$lib/i18n";
   import { acquireLimitsMonitor, getLimitsMonitor, saveLimitsPrefs, type Edge, type Prefs, type ProviderInfo, type StripSize } from "$lib/stores/limits-monitor.svelte";
+  // `embedded`: mounted inside a Settings group, which already shows the title
+  // and the description, so this drops its own card and heading.
+  let { embedded = false }: { embedded?: boolean } = $props();
   const EDGES: Edge[] = ["top", "right", "bottom", "left"];
   const SIZES: StripSize[] = ["s", "m", "l"];
   /** The on/off looks of the strip, in the order they are listed. */
@@ -47,9 +50,11 @@
   }
 </script>
 
-<section class="surface-card limits">
-  <h2 class="section-title">{$t("llm.limits.title")}</h2>
-  <p class="field-hint">{$t("llm.limits.hint")}</p>
+<section class="limits" class:surface-card={!embedded} class:embedded>
+  {#if !embedded}
+    <h2 class="section-title">{$t("llm.limits.title")}</h2>
+    <p class="field-hint"><bdi>{$t("llm.limits.hint")}</bdi></p>
+  {/if}
 
   {#if monitor.error}<p role="alert" class="field-hint">{monitor.error}</p>{/if}
   {#if unavailable}
@@ -89,7 +94,7 @@
         {/each}
       </div>
     </div>
-    <p class="field-hint">{$t("llm.limits.drag_hint")}</p>
+    <p class="field-hint"><bdi>{$t("llm.limits.drag_hint")}</bdi></p>
 
     <h3 class="limits-sub">{$t("llm.limits.appearance")}</h3>
     <div class="limits-row">
@@ -184,6 +189,9 @@
     flex-direction: column;
     gap: var(--space-2);
     margin-top: var(--space-4);
+  }
+  .limits.embedded {
+    margin-top: 0;
   }
   .limits-row {
     display: flex;
@@ -299,7 +307,8 @@
   }
   .segment.active {
     background: var(--accent);
-    color: var(--accent-text, #fff);
+    /* --accent-text is the accent itself in most themes: the label vanished. */
+    color: var(--on-accent, #fff);
   }
   @media (prefers-reduced-motion: reduce) {
     .switch,

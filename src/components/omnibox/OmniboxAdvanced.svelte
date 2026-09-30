@@ -203,6 +203,7 @@
         class="text-input small"
         type="text"
         placeholder={$t("omnibox.adv.template_name_placeholder")}
+        aria-label={$t("omnibox.adv.template_name_placeholder")}
         bind:value={saveName}
       />
       <button type="button" class="ghost-btn small" onclick={saveTemplate} disabled={savingTpl}>

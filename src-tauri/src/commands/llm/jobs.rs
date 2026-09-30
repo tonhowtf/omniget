@@ -42,11 +42,16 @@ pub async fn llm_jobs_limits_set(
     app: AppHandle,
     limits: jobs::JobLimitsInput,
 ) -> Result<Value, String> {
-    let mut current = crate::storage::config::load_settings(&app);
-    current.llm = jobs::merge_limits(current.llm, &limits);
-    crate::storage::config::save_settings(&app, &current).map_err(|e| format!("Save: {e}"))?;
+    // The runtime exists before the commit, so the `llm.jobs` effect of the
+    // commit updates its gate.
     let j = jobs::get(&app)?;
-    j.apply_limits(&current.llm);
+    crate::storage::config::update_settings(&app, |current| {
+        current.llm = jobs::merge_limits(current.llm.clone(), &limits);
+    })
+    .map_err(|e| format!("Save: {e}"))?;
+    crate::storage::settings_effects::settle(&[
+        crate::storage::settings_effects::EffectId::LlmJobs,
+    ]);
     Ok(j.state_view())
 }
 

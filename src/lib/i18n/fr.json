@@ -1904,6 +1904,103 @@
     },
     "world": {
       "pet_load_failed": "Could not check desktop pet availability. Try again."
+    },
+    "rebrand": {
+      "title": "Réglages",
+      "category": {
+        "general": "Général",
+        "appearance": "Apparence",
+        "downloads": "Téléchargements",
+        "ai": "IA et agents",
+        "integrations": "Intégrations",
+        "advanced": "Avancé"
+      },
+      "search": {
+        "label": "Rechercher un réglage",
+        "placeholder": "Rechercher par nom ou tâche",
+        "clear": "Effacer la recherche",
+        "results": "Résultats : {{count}}",
+        "empty": "Aucun réglage trouvé",
+        "empty_hint": "Essayez un autre mot ou choisissez une catégorie."
+      },
+      "navigation": {
+        "back": "Retour",
+        "back_settings": "Retour aux réglages"
+      },
+      "disclosure": {
+        "show_advanced": "Afficher les options avancées",
+        "hide_advanced": "Masquer les options avancées"
+      },
+      "state": {
+        "loading": "Chargement…",
+        "saving": "Enregistrement…",
+        "saved": "Enregistré",
+        "save_failed": "Enregistrement impossible. Vos modifications sont conservées ici.",
+        "retry": "Réessayer",
+        "pending_apply": "Enregistré. En attente d’application.",
+        "retry_apply": "Réessayer d’appliquer",
+        "unavailable": "Indisponible",
+        "next_task": "S’applique à la prochaine tâche.",
+        "restart_required": "Redémarrez OmniGet pour appliquer."
+      },
+      "form": {
+        "save": "Enregistrer les modifications",
+        "discard": "Annuler les modifications",
+        "draft": "Brouillon non enregistré",
+        "unsaved_title": "Des modifications ne sont pas enregistrées",
+        "stay": "Continuer à modifier",
+        "discard_confirm": "Abandonner ce brouillon ?"
+      },
+      "reset": {
+        "section_title": "Réinitialiser {{name}} ?",
+        "section_body": "Seules les préférences de cette section reprendront leurs valeurs par défaut.",
+        "section_action": "Réinitialiser cette section",
+        "app_title": "Réinitialiser les préférences de l’application ?",
+        "app_body": "Les préférences de l’application reprendront leurs valeurs par défaut.",
+        "app_action": "Réinitialiser les préférences de l’application",
+        "kept": "Les comptes, clés, historiques, téléchargements et autorisations d’accès seront conservés."
+      },
+      "dialog": {
+        "confirm": "Confirmer",
+        "cancel": "Annuler"
+      },
+      "appearance": {
+        "system": "Suivre le système",
+        "light": "Clair",
+        "dark": "Sombre",
+        "custom_font": "Police personnalisée",
+        "font_hint": "Choisissez une police installée sur cet appareil."
+      },
+      "connection": {
+        "local": "Connexion locale",
+        "local_hint": "Choisissez un serveur disponible sur cet ordinateur.",
+        "test": "Tester la connexion",
+        "test_cost_notice": "Le test envoie une requête via la connexion choisie et peut consommer du quota ou des crédits.",
+        "unknown": "Non testée",
+        "verified": "Connexion vérifiée",
+        "error": "Échec du test de connexion"
+      },
+      "downloads": {
+        "quality": "Qualité",
+        "remove": "Supprimer",
+        "best_available": "Meilleure disponible",
+        "audio": "Audio",
+        "video": "Vidéo",
+        "output": "Fichiers et dossiers",
+        "subtitles": "Sous-titres et métadonnées"
+      },
+      "llm": {
+        "routines": "Routines",
+        "tasks": "Tâches",
+        "usage_performance": "Utilisation et performances"
+      },
+      "permissions": {
+        "agent_scope": "S’applique uniquement à {{name}}.",
+        "inherited": "Héritée de la politique de l’application.",
+        "view_policy": "Voir la politique de l’application",
+        "customize": "Personnaliser pour cet agent",
+        "use_inherited": "Utiliser la politique héritée"
+      }
     }
   },
   "omnibox": {

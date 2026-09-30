@@ -6,13 +6,44 @@
   import { showToast } from "$lib/stores/toast-store.svelte";
   import Modal from "$components/music/Modal.svelte";
   import DependencyRow from "./DependencyRow.svelte";
+  import SettingRow from "./rebrand/SettingRow.svelte";
+  import SettingsEmptyState from "./rebrand/SettingsEmptyState.svelte";
+  import { refreshYtdlpStatus } from "$lib/stores/dependency-store.svelte";
 
-  let { deps = [], installingDep = null, onInstallDep, onRefresh }: {
-    deps?: DependencyStatus[];
-    installingDep?: string | null;
-    onInstallDep: (name: string) => void;
-    onRefresh?: () => void | Promise<void>;
-  } = $props();
+  // Two parts, mounted by the settings route in different categories:
+  // "extension" (browser extension install, Integrations) and "binaries"
+  // (yt-dlp, FFmpeg and friends, Advanced). Each part reads only what it shows.
+  let { part }: { part: "extension" | "binaries" } = $props();
+
+  let deps = $state<DependencyStatus[]>([]);
+  let depsLoading = $state(false);
+  let depsLoaded = $state(false);
+  let depsError = $state(false);
+  let installingDep = $state<string | null>(null);
+
+  async function loadDeps() {
+    if (depsLoading) return;
+    depsLoading = true;
+    depsError = false;
+    try { deps = await invoke<DependencyStatus[]>("check_dependencies"); depsLoaded = true; }
+    catch { depsError = true; }
+    finally { depsLoading = false; }
+  }
+
+  async function onInstallDep(name: string) {
+    if (installingDep) return;
+    const wasInstalled = deps.find(d => d.name === name)?.installed ?? false;
+    installingDep = name;
+    try {
+      const version = await invoke<string>("install_dependency", { name, force: wasInstalled });
+      await loadDeps();
+      await refreshYtdlpStatus();
+      showToast("success", $t(wasInstalled ? "settings.dependencies.update_success" : "settings.dependencies.install_success", { name, version }));
+    } catch { showToast("error", $t("common.error")); }
+    finally { installingDep = null; }
+  }
+
+  const onRefresh = loadDeps;
 
   let settings = $derived(getSettings());
 
@@ -46,7 +77,10 @@
     catch { extensionsError = true; }
     finally { extensionsLoading = false; }
   }
-  onMount(() => { void loadExtensions(); });
+  onMount(() => {
+    if (part === "extension") void loadExtensions();
+    else void loadDeps();
+  });
 
   async function exportExtension(browser: string, trigger: HTMLButtonElement) {
     if (busyBrowser) return;
@@ -91,58 +125,53 @@
   }
 </script>
 
-{#if settings}
-  <section class="section">
-    <h5 class="section-title">{$t("settings.browser_ext.title")}</h5>
+{#if settings && part === "extension"}
+  <div class="ext-install" data-setting-key="settings.browser_ext.title" aria-busy={extensionsLoading}>
     <p class="muted">{$t("settings.browser_ext.description")}</p>
-    {#if extensionsLoading}<p role="status">{$t("common.loading")}</p>{/if}
-    {#if extensionsError}<div role="alert"><p>{$t("settings.dependencies.load_failed")}</p><button class="button" onclick={loadExtensions}>{$t("settings.retry")}</button></div>{/if}
-    <div class="card">
-      {#each extStatuses as ext, i (ext.browser)}
-        {#if i > 0}<div class="divider"></div>{/if}
-        <div class="setting-row">
-          <div class="setting-col">
-            <span class="setting-label">{browserLabel(ext.browser)}</span>
-            <span class="setting-path">
-              {#if ext.bundled_version}
-                {$t("settings.browser_ext.bundled_version", { version: ext.bundled_version })}
-              {:else}
-                {hintFor(ext.install_hint_key)}
-              {/if}
-            </span>
-          </div>
-          {#if ext.installable}
-            <button
-              class="button"
-              disabled={busyBrowser !== null}
-              onclick={(e) => exportExtension(ext.browser, e.currentTarget)}
-            >
-              {busyBrowser === ext.browser
-                ? $t("settings.browser_ext.extracting")
-                : $t("settings.browser_ext.update_install")}
-            </button>
-          {:else if ext.store_url}
-            <a class="button" href={ext.store_url} target="_blank" rel="noreferrer">{$t("settings.browser_ext.open_store")}</a>
-          {:else}
-            <span class="muted small">{$t("settings.browser_ext.unavailable")}</span>
-          {/if}
-        </div>
+    {#if extensionsLoading}
+      <p class="muted" role="status">{$t("settings.rebrand.state.loading")}</p>
+    {:else if extensionsError}
+      <SettingsEmptyState error title={$t("settings.dependencies.load_failed")} onRetry={() => void loadExtensions()} />
+    {:else}
+      {#each extStatuses as ext (ext.browser)}
+        <SettingRow id={`browser-ext-${ext.browser}`} label={browserLabel(ext.browser)}
+          help={ext.bundled_version ? $t("settings.browser_ext.bundled_version", { version: ext.bundled_version }) : hintFor(ext.install_hint_key)}>
+          {#snippet control({ id, describedBy })}
+            {#if ext.installable}
+              <button {id} type="button" class="btn btn-secondary btn-sm" aria-describedby={describedBy} disabled={busyBrowser !== null}
+                onclick={(e) => exportExtension(ext.browser, e.currentTarget)}>
+                {busyBrowser === ext.browser ? $t("settings.browser_ext.extracting") : $t("settings.browser_ext.update_install")}
+              </button>
+            {:else if ext.store_url}
+              <a {id} class="btn btn-secondary btn-sm" aria-describedby={describedBy} href={ext.store_url} target="_blank" rel="noreferrer">{$t("settings.browser_ext.open_store")}</a>
+            {:else}
+              <span {id} class="muted small">{$t("settings.browser_ext.unavailable")}</span>
+            {/if}
+          {/snippet}
+        </SettingRow>
       {/each}
-    </div>
-  </section>
+    {/if}
+  </div>
+{/if}
 
+{#if settings && part === "binaries"}
+  {#if depsLoading && !depsLoaded}
+    <p class="muted" role="status" aria-busy="true">{$t("settings.rebrand.state.loading")}</p>
+  {:else if depsError && !depsLoaded}
+    <SettingsEmptyState error title={$t("settings.dependencies.load_failed")} onRetry={() => void loadDeps()} />
+  {/if}
+  {#if depsError && depsLoaded}
+    <SettingsEmptyState error title={$t("settings.dependencies.load_failed")} onRetry={() => void loadDeps()} />
+  {/if}
   {#if deps.length > 0}
-    <section class="section">
-      <div class="settings-section-head section-title">
-        <h5 class="section-title">{$t('settings.dependencies.title')}</h5>
-      </div>
+    <div data-setting-key="settings.dependencies.title">
       <div class="deps-table-wrap">
         <table class="deps-table">
           <thead>
             <tr>
               <th scope="col">{$t('settings.dependencies.col_name')}</th>
-              <th scope="col">{$t('settings.dependencies.col_version')}</th>
-              <th scope="col">{$t('settings.dependencies.col_status')}</th>
+              <th scope="col" data-setting-key="settings.dependencies.col_version">{$t('settings.dependencies.col_version')}</th>
+              <th scope="col" data-setting-key="settings.dependencies.col_status">{$t('settings.dependencies.col_status')}</th>
               <th scope="col" class="deps-col-action">{$t('settings.dependencies.col_action')}</th>
             </tr>
           </thead>
@@ -163,7 +192,7 @@
           </tbody>
         </table>
       </div>
-    </section>
+    </div>
   {/if}
 {/if}
 
@@ -171,7 +200,7 @@
   <Modal title={$t("settings.browser_ext.install_title", { browser: browserLabel(installModal.browser) })} width={560} onclose={closeInstall}>
     <div class="body">
       <p>{$t("settings.browser_ext.extracted_to")}</p>
-      <code class="path">{installModal.path}</code>
+      <code class="path" dir="ltr">{installModal.path}</code>
       <button class="button" onclick={() => openFolder(installModal!.path)}>{$t("settings.browser_ext.open_folder")}</button>
       <h3>{$t("settings.browser_ext.install_steps")}</h3>
       <p class="hint">{installModal.hint}</p>
@@ -184,6 +213,8 @@
 <style>
   .muted, .hint { color: var(--text-muted); font-size: var(--text-sm); line-height: var(--leading-base); margin: 0 0 var(--space-2); }
   .small { font-size: var(--text-xs); }
+  .ext-install { display: flex; flex-direction: column; min-inline-size: 0; }
+  .deps-table-wrap { overflow-x: auto; max-inline-size: 100%; }
   .body { display: flex; flex-direction: column; gap: var(--space-3); }
   .body h3 { margin: var(--space-2) 0 0; font-size: var(--text-base); }
   .body p { margin: 0; line-height: var(--leading-base); }

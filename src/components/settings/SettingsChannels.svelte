@@ -4,6 +4,8 @@
   import { t, locale as i18nLocale } from "$lib/i18n";
   import { get } from "svelte/store";
   import { showToast } from "$lib/stores/toast-store.svelte";
+  import SettingGroup from "./rebrand/SettingGroup.svelte";
+  import SettingsEmptyState from "./rebrand/SettingsEmptyState.svelte";
 
   type Channel = {
     id: string;
@@ -140,16 +142,16 @@
   }
 </script>
 
-<section class="section" data-setting-key="settings.channels.title">
-  <h5 class="section-title">{$t('settings.channels.title')}</h5>
-
-  <div class="card">
+<SettingGroup id="channels" title={$t('settings.channels.title')} advanced>
+  <div class="add-block" data-setting-key="settings.channels.add">
     <div class="add-row">
       <input
         type="text"
         class="input-text"
         placeholder={$t('settings.channels.add_placeholder')}
         aria-label={$t('settings.channels.add_placeholder')}
+        aria-describedby="channels-add-hint"
+        dir="ltr"
         disabled={adding}
         bind:value={newUrl}
         onkeydown={(e) => { if (e.key === "Enter") addChannel(); }}
@@ -158,21 +160,19 @@
         {adding ? $t('common.loading') : $t('settings.channels.add')}
       </button>
     </div>
-    <span class="setting-path add-hint">{$t('settings.channels.add_hint')}</span>
+    <span class="setting-path add-hint" id="channels-add-hint">{$t('settings.channels.add_hint')}</span>
   </div>
 
+  <!-- A failed read keeps the last list on screen and never claims "no channels". -->
+  {#if loadError && !loading}
+    <SettingsEmptyState error title={$t('settings.channels.load_failed')} onRetry={() => void load()} />
+  {/if}
   {#if loading && channels.length === 0}
-    <div class="card empty" role="status">{$t('common.loading')}</div>
-  {:else if loadError}
-    <div class="card empty" role="alert">
-      <p>{$t('settings.channels.load_failed')}</p>
-      <button class="link-btn" disabled={loading} onclick={load}>{$t('error.remedy.retry')}</button>
-    </div>
+    <p class="channels-loading" role="status" aria-busy="true">{$t('settings.rebrand.state.loading')}</p>
   {:else if channels.length === 0}
-    <div class="card empty">
-      <span class="empty-title">{$t('settings.channels.empty_title')}</span>
-      <span class="setting-path">{$t('settings.channels.empty_hint')}</span>
-    </div>
+    {#if !loadError}
+      <SettingsEmptyState title={$t('settings.channels.empty_title')} hint={$t('settings.channels.empty_hint')} />
+    {/if}
   {:else}
     <div class="card">
       {#each channels as ch, i (ch.id)}
@@ -230,10 +230,13 @@
       {/each}
     </div>
   {/if}
-</section>
+</SettingGroup>
 
 <style>
+  .channels-loading { margin: 0; padding-block: var(--space-3); font-size: 13px; color: var(--text-muted); }
   .link-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .add-block { padding-block: var(--space-2); min-inline-size: 0; }
 
   .add-row {
     display: flex;
@@ -267,17 +270,7 @@
     margin-top: 8px;
   }
 
-  .empty {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    text-align: center;
-    padding: 24px 16px;
-  }
 
-  .empty-title {
-    font-weight: 600;
-  }
 
   .channel {
     display: flex;

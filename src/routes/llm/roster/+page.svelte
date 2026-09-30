@@ -7,7 +7,7 @@
 <script lang="ts">
   import SurfaceGuide from "$components/llm/SurfaceGuide.svelte";
   /** Roster tab: the agent list, the editor and the team templates. */
-  import { onMount } from "svelte";
+  import { onMount, untrack } from "svelte";
   import { t } from "$lib/i18n";
   import type { AgentDef } from "$lib/llm/types";
   import { agentTint, roleLabelKey, roleText, modelLabel } from "$lib/llm/types";
@@ -25,6 +25,8 @@
   import CreateBot from "$components/llm/bots/CreateBot.svelte";
   import BotPanel from "$components/llm/bots/BotPanel.svelte";
   import { page } from "$app/state";
+  import { replaceState } from "$app/navigation";
+  import { parseRosterTarget } from "$lib/settings-navigation";
 
   let agents = $derived(getAgents());
   let editing = $state<AgentDef | null>(null);
@@ -40,13 +42,40 @@
     void loadRoster();
     const q = page.url.searchParams;
     if (q.get("create") === "1") creating = true;
-    if (q.get("bot")) selected = q.get("bot");
     if (q.get("edit") === "resume" && pendingEditor) {
       editing = pendingEditor;
       editingStep = 1;
       pendingEditor = null;
     }
   });
+
+  // `?bot=<id>[&section=skills|learning]`, also when the query changes on
+  // this route. It only selects an agent that exists (the list shows until
+  // the roster loads); an unknown id creates nothing. An open editor or the
+  // create flow keeps its draft.
+  let target = $derived(parseRosterTarget(page.url.searchParams));
+  /** The bot the current link points at, until the user goes back to the list. */
+  let linkBot = $state<string | null>(null);
+  $effect(() => {
+    const bot = target.bot;
+    linkBot = bot;
+    if (!bot) return;
+    untrack(() => {
+      if (!creating && !editing) selected = bot;
+    });
+  });
+
+  // Back to the list forgets the link target, so reopening a bot does not jump again.
+  function backToList() {
+    selected = null;
+    if (!linkBot) return;
+    linkBot = null;
+    // `page.url` is not updated by replaceState: read the live address.
+    const next = new URL(location.href);
+    next.searchParams.delete("bot");
+    next.searchParams.delete("section");
+    replaceState(`${next.pathname}${next.search}${next.hash}`, page.state);
+  }
 
   function blankAgent(): AgentDef {
     return {
@@ -122,10 +151,10 @@
     <CreateBot oncancel={() => (creating = false)} oncreated={(v) => { creating = false; selected = v.agent.id; }} onadvanced={({ name, purpose }) => { creating = false; editingStep = 0; editing = { ...blankAgent(), name, system_prompt: purpose }; }} />
   {:else if selectedAgent && !editing}
     <div class="bot-actions">
-      <button type="button" class="button" onclick={() => (selected = null)}>‹ {$t("assist.bots.back")}</button>
+      <button type="button" class="button" onclick={backToList}>‹ {$t("assist.bots.back")}</button>
       <button type="button" class="button" onclick={() => { editingStep = 0; editing = selectedAgent; }}>{$t("assist.bots.edit_advanced")}</button>
     </div>
-    {#key selectedAgent.id}<BotPanel botId={selectedAgent.id} />{/key}
+    {#key selectedAgent.id}<BotPanel botId={selectedAgent.id} focusSection={linkBot === selectedAgent.id ? target.section : null} />{/key}
   {:else if editing}
     {#key editing.id}
     <RosterEditor

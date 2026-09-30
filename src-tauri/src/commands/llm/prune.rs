@@ -15,6 +15,7 @@ use serde_json::{json, Value};
 use tauri::{AppHandle, Manager, State};
 
 use crate::storage::config;
+use crate::storage::settings_effects::EffectId;
 use crate::AppState;
 
 pub const ERR_PRUNE_KEY: &str = "ERR_PRUNE_KEY";
@@ -37,9 +38,13 @@ fn has_key() -> bool {
 /// Jev selected with no key yields no judge, which is the same as off: no
 /// request is ever made without a key.
 pub fn install(app: &AppHandle) {
-    let settings = config::load_settings(app).llm;
+    install_with(app, &config::load_settings(app).llm);
+}
+
+/// [`install`] for a given snapshot: the settings effect `llm.pruning`.
+pub fn install_with(app: &AppHandle, settings: &LlmSettings) {
     let coordinator = app.state::<AppState>().llm.coordinator();
-    let cfg = config_from(&settings);
+    let cfg = config_from(settings);
     let judge = prune::judge_for(&cfg);
     let dir = coordinator.dir().map(|p| p.to_path_buf());
     coordinator.set_prune(Arc::new(ContextPruner::new(cfg, judge).with_dir(dir)));
@@ -65,14 +70,17 @@ pub async fn llm_prune_set_config(
     judge: String,
     min_tokens: Option<u32>,
 ) -> Result<Value, String> {
-    let mut current = config::load_settings(&app);
-    current.llm.prune_enabled = enabled;
-    if let Some(n) = min_tokens {
-        current.llm.prune_min_tokens = n.clamp(1_000, 1_000_000);
-    }
-    current.llm.prune_judge = PruneJudge::parse(&judge).as_str().to_string();
-    config::save_settings(&app, &current).map_err(|e| format!("Save: {e}"))?;
-    install(&app);
+    let judge = PruneJudge::parse(&judge).as_str().to_string();
+    config::update_settings(&app, |current| {
+        current.llm.prune_enabled = enabled;
+        if let Some(n) = min_tokens {
+            current.llm.prune_min_tokens = n.clamp(1_000, 1_000_000);
+        }
+        current.llm.prune_judge = judge;
+    })
+    .map_err(|e| format!("Save: {e}"))?;
+    // The `llm.pruning` effect installs the pruner; answer once it ran.
+    crate::storage::settings_effects::settle(&[EffectId::LlmPruning]);
     Ok(json!({ "ok": true }))
 }
 

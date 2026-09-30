@@ -1,4 +1,7 @@
-/* Scoped 21st preset adapter. Legacy --primary means background. */
+/* 21st workspace preset palettes. The settings store sets data-ds-preset/
+   data-ds-mode and .ds-scope on <html> for every route when a workspace preset
+   is the saved style; previews scope them locally. Legacy --primary means
+   background. New components read the --sr-* tokens, derived from these. */
 [data-ds-preset="amber-minimal"][data-ds-mode="light"] {
   --ds-art-surface: #ffffff;
   --ds-background: #ffffff;
@@ -232,6 +235,7 @@ html.ds-scope, main.ds-scope, .ds-scope {
  .ds-scope :is(button, a) svg { transition: transform 140ms ease-out; }
  .ds-scope :is(button, a):is(:hover, :focus-visible) svg { transform: translateY(-1px); }
 }
+html[data-reduce-motion="true"].ds-scope :is(button, a):is(:hover, :focus-visible) svg { transform: none; }
 @media (prefers-reduced-motion: reduce) {
  .ds-scope *, .ds-scope *::before, .ds-scope *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
 }
@@ -257,7 +261,7 @@ html.ds-scope, main.ds-scope, .ds-scope {
   text-underline-offset: 3px;
 }
 
-/* Chrome and portals inherit the same route-owned palette. */
+/* Chrome and portals inherit the same palette. */
 html.ds-scope {
   --fill-1: color-mix(in srgb, var(--ds-foreground) 12%, transparent);
   --fill-2: color-mix(in srgb, var(--ds-foreground) 8%, transparent);

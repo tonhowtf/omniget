@@ -1,20 +1,32 @@
 <script lang="ts">
   import { t } from "$lib/i18n";
   import { getSettings, updateSettings } from "$lib/stores/settings-store.svelte";
+  import { createSettingsDraft } from "$lib/stores/settings-drafts.svelte";
   import { rpcTestConnection, rpcSyncIdleStats } from "$lib/rpc";
   import { showToast } from "$lib/stores/toast-store.svelte";
+  import { failureShownInline } from "$lib/stores/settings-status-surfaces";
+  import SettingGroup from "./rebrand/SettingGroup.svelte";
+  import SettingRow from "./rebrand/SettingRow.svelte";
+  import SettingsSaveBar from "./rebrand/SettingsSaveBar.svelte";
 
   let settings = $derived(getSettings());
   let busy = $state(false);
   let testResult = $state<"ok" | "fail" | null>(null);
-  let appIdInput = $state("");
-  let imageKeyInput = $state("");
 
-  $effect(() => {
-    if (settings) {
-      appIdInput = settings.rpc?.app_id ?? "";
-      imageKeyInput = settings.rpc?.large_image_key ?? "";
-    }
+  // Application ID and image key are free text: edited as a draft and written
+  // together with "Save changes".
+  const advanced = createSettingsDraft({
+    id: "rpc",
+    read: (s) => ({
+      app_id: s.rpc?.app_id ?? "",
+      large_image_key: s.rpc?.large_image_key ?? "",
+    }),
+    toPatch: (d) => ({
+      rpc: {
+        app_id: d.app_id.trim(),
+        large_image_key: d.large_image_key.trim(),
+      },
+    }),
   });
 
   async function toggleEnabled() {
@@ -27,28 +39,17 @@
       } else {
         void rpcSyncIdleStats();
       }
+    } catch {
+      // The row's SettingStatus (rpc.enabled) already shows the failure inline.
+      if (!failureShownInline({ rpc: { enabled: true } })) showToast("error", $t("settings.save_failed") as string);
     } finally {
       busy = false;
     }
   }
 
   async function saveAdvanced() {
-    if (!settings || busy) return;
-    busy = true;
-    try {
-      await updateSettings({
-        rpc: {
-          app_id: appIdInput.trim(),
-          large_image_key: imageKeyInput.trim(),
-        },
-      });
-      void rpcSyncIdleStats();
-      showToast("success", $t("settings.rpc.saved") as string);
-    } catch (e) {
-      showToast("error", e instanceof Error ? e.message : String(e));
-    } finally {
-      busy = false;
-    }
+    if (advanced.saving) return;
+    if (await advanced.save()) void rpcSyncIdleStats();
   }
 
   async function testConnection() {
@@ -58,14 +59,8 @@
     try {
       const res = await rpcTestConnection();
       testResult = res.ok ? "ok" : "fail";
-      if (!res.ok) {
-        showToast("error", $t("settings.rpc.test_fail") as string);
-      } else {
-        showToast("success", $t("settings.rpc.test_ok") as string);
-      }
-    } catch (e) {
+    } catch {
       testResult = "fail";
-      showToast("error", e instanceof Error ? e.message : String(e));
     } finally {
       busy = false;
     }
@@ -73,83 +68,68 @@
 </script>
 
 {#if settings}
-  <div class="card">
-    <div class="setting-row">
-      <div class="setting-col">
-        <span class="setting-label">{$t("settings.rpc.enable")}</span>
-        <span class="setting-path">{$t("settings.rpc.privacy_note")}</span>
-      </div>
-      <button
-        class="toggle"
-        class:on={settings.rpc.enabled}
-        onclick={toggleEnabled}
-        disabled={busy}
-        role="switch"
-        aria-checked={settings.rpc.enabled}
-        aria-label={$t("settings.rpc.enable") as string}
-      ><span class="toggle-knob"></span></button>
-    </div>
-    <div class="divider"></div>
-    <div class="setting-row">
-      <div class="setting-col">
-        <span class="setting-label">{$t("settings.rpc.test")}</span>
-        <span class="setting-path">{$t("settings.rpc.test_desc")}</span>
-      </div>
-      <div class="rpc-test-row">
+  <SettingGroup id="rpc" title={$t("settings.rpc.title")} description={$t("settings.rpc.desc")}>
+    <SettingRow id="rpc-enabled" label={$t("settings.rpc.enable")} help={$t("settings.rpc.privacy_note")} settingKey="settings.rpc.enable" status="rpc.enabled">
+      {#snippet control(c)}
+        <button
+          type="button"
+          class="toggle"
+          class:on={settings.rpc.enabled}
+          id={c.id}
+          aria-describedby={c.describedBy}
+          onclick={toggleEnabled}
+          disabled={busy}
+          role="switch"
+          aria-checked={settings.rpc.enabled}
+          aria-label={$t("settings.rpc.enable") as string}
+        ><span class="toggle-knob"></span></button>
+      {/snippet}
+    </SettingRow>
+    <SettingRow id="rpc-test" label={$t("settings.rpc.test")} help={$t("settings.rpc.test_desc")} settingKey="settings.rpc.test">
+      {#snippet control(c)}
         <button
           class="button"
+          id={c.id}
+          aria-describedby={[c.describedBy, "rpc-test-result"].filter(Boolean).join(" ")}
           onclick={testConnection}
           disabled={busy || !settings.rpc.enabled}
+          aria-busy={busy}
           type="button"
         >{$t("settings.rpc.test_button")}</button>
-        {#if testResult === "ok"}
-          <span class="badge ok">✓</span>
-        {:else if testResult === "fail"}
-          <span class="badge fail">✗</span>
-        {/if}
-      </div>
-    </div>
-  </div>
+      {/snippet}
+    </SettingRow>
+    <p class="rpc-test-result" id="rpc-test-result" role="status">
+      {#if testResult === "ok"}
+        <span class="ok">{$t("settings.rpc.test_ok")}</span>
+      {:else if testResult === "fail"}
+        <span class="fail">{$t("settings.rpc.test_fail")}</span>
+      {/if}
+    </p>
+  </SettingGroup>
 
-  <p class="settings-subsection-head">{$t("settings.rpc.advanced")}</p>
-  <div class="card">
-      <div class="setting-row stack">
-        <div class="setting-col">
-          <span class="setting-label">{$t("settings.rpc.app_id")}</span>
-          <span class="setting-path">{$t("settings.rpc.app_id_hint")}</span>
-        </div>
-        <input type="text" class="rpc-input" bind:value={appIdInput} spellcheck="false" />
-      </div>
-      <div class="divider"></div>
-      <div class="setting-row stack">
-        <div class="setting-col">
-          <span class="setting-label">{$t("settings.rpc.large_image")}</span>
-          <span class="setting-path">{$t("settings.rpc.large_image_hint")}</span>
-        </div>
-        <input type="text" class="rpc-input" bind:value={imageKeyInput} spellcheck="false" />
-      </div>
-      <div class="divider"></div>
-      <div class="setting-row">
-        <span class="setting-label"></span>
-        <button class="button" onclick={saveAdvanced} disabled={busy} type="button">
-          {$t("settings.rpc.save")}
-        </button>
-      </div>
-    </div>
+  <SettingGroup id="rpc-advanced" title={$t("settings.rpc.advanced")} advanced>
+    <form class="rpc-form" onsubmit={(e) => { e.preventDefault(); void saveAdvanced(); }}>
+      <SettingRow id="rpc-app-id" label={$t("settings.rpc.app_id")} help={$t("settings.rpc.app_id_hint")} settingKey="settings.rpc.app_id">
+        {#snippet control(c)}
+          <input id={c.id} aria-describedby={c.describedBy} type="text" class="rpc-input" dir="ltr" bind:value={advanced.value.app_id} spellcheck="false" autocomplete="off" />
+        {/snippet}
+      </SettingRow>
+      <SettingRow id="rpc-large-image" label={$t("settings.rpc.large_image")} help={$t("settings.rpc.large_image_hint")} settingKey="settings.rpc.large_image">
+        {#snippet control(c)}
+          <input id={c.id} aria-describedby={c.describedBy} type="text" class="rpc-input" dir="ltr" bind:value={advanced.value.large_image_key} spellcheck="false" autocomplete="off" />
+        {/snippet}
+      </SettingRow>
+      <SettingsSaveBar dirty={advanced.dirty} saving={advanced.saving} error={advanced.error} onSave={() => void saveAdvanced()} onDiscard={() => advanced.discard()} />
+    </form>
+  </SettingGroup>
 {/if}
 
 <style>
-  .rpc-test-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-  .badge {
-    font-size: 14px;
-    font-weight: 700;
-  }
-  .badge.ok { color: var(--success); }
-  .badge.fail { color: var(--danger); }
+  .rpc-test-result { margin: 0; font-size: 12px; line-height: 18px; }
+  .rpc-test-result:empty { display: none; }
+  .rpc-test-result .ok { color: var(--success); }
+  .rpc-test-result .fail { color: var(--danger); }
+  .rpc-form { display: flex; flex-direction: column; min-inline-size: 0; }
   .rpc-input {
     width: 100%;
     padding: 8px 10px;
@@ -165,10 +145,5 @@
     border-color: var(--accent);
     outline: var(--focus-ring);
     outline-offset: var(--focus-ring-offset);
-  }
-  .setting-row.stack {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 8px;
   }
 </style>

@@ -5,7 +5,7 @@
 //! without changing behaviour. A [`Namespace`] is the unit of separation: it
 //! carries the keyring service name, the folder the encrypted file store lives
 //! in, and the environment variable that forces that folder somewhere else for
-//! tests. Two namespaces exist today, [`OMNIDISC`] and [`PROFILE`].
+//! tests. The namespaces are [`OMNIDISC`], [`PROFILE`], [`AI_KEYS`] and [`MCP`].
 //!
 //! Where the bytes end up depends on [`use_keyring`]:
 //!
@@ -88,12 +88,24 @@ pub const AI_KEYS: Namespace = Namespace {
     dir_env: "OMNIGET_AI_KEYS_SECRET_DIR",
 };
 
+/// Credentials of the external MCP servers: the header and environment values
+/// `mcp-servers.json` only points at with `secret:<id>`. `dir_name` matches
+/// `omniget_core::core::mcp::types::SECRET_NS`, the name the MCP registry asks
+/// for over the [`AppSecretStore`] seam. Its own service and folder, so a
+/// server token never shares a store with a provider key or the profile seed.
+pub const MCP: Namespace = Namespace {
+    service: "wtf.tonho.omniget.mcp",
+    dir_name: "mcp",
+    dir_env: "OMNIGET_MCP_SECRET_DIR",
+};
+
 /// The namespaces the core is allowed to name over the `SecretStore` seam.
 pub fn namespace_by_name(name: &str) -> Option<Namespace> {
     match name {
         n if n == OMNIDISC.dir_name => Some(OMNIDISC),
         n if n == PROFILE.dir_name => Some(PROFILE),
         n if n == AI_KEYS.dir_name => Some(AI_KEYS),
+        n if n == MCP.dir_name => Some(MCP),
         _ => None,
     }
 }
@@ -1220,6 +1232,51 @@ mod tests {
         let _ = std::fs::remove_dir_all(&root);
     }
 
+    /// A synthetic MCP token goes in, comes back and goes away through the
+    /// same seam the registry uses, inside a temporary directory and apart
+    /// from the provider keys. The forced directory keeps the keyring out.
+    #[test]
+    fn an_mcp_token_lives_in_its_own_folder_and_can_be_forgotten() {
+        use omniget_core::core::mcp::types::SECRET_NS;
+        use omniget_core::core::secrets::SecretStore;
+
+        let root = temp_dir("mcp");
+        let guard = EnvGuard::acquire();
+        guard.set(SECRETS_DIR_ENV, Some(root.to_str().expect("utf-8 path")));
+        guard.set(MCP.dir_env, None);
+        guard.set(AI_KEYS.dir_env, None);
+
+        let store = AppSecretStore;
+        let account = "fixture-header-authorization";
+        store
+            .set(SECRET_NS, account, "Bearer synthetic-token")
+            .unwrap();
+        assert_eq!(base_dir(MCP).unwrap(), root.join("mcp"));
+        assert!(root.join("mcp").join(SESSIONS_FILE).is_file());
+        clear_cache();
+        assert_eq!(
+            store.get(SECRET_NS, account).unwrap().as_deref(),
+            Some("Bearer synthetic-token")
+        );
+        assert_eq!(file_store_accounts(MCP), vec![account.to_string()]);
+        // Not visible under another namespace, not written into its folder.
+        assert_eq!(
+            store
+                .get(omniget_core::core::secrets::AI_KEYS, account)
+                .unwrap(),
+            None
+        );
+        assert!(file_store_accounts(AI_KEYS).is_empty());
+
+        store.delete(SECRET_NS, account).unwrap();
+        clear_cache();
+        assert_eq!(store.get(SECRET_NS, account).unwrap(), None);
+        assert!(file_store_accounts(MCP).is_empty());
+
+        drop(guard);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
     #[test]
     fn a_namespace_variable_beats_the_shared_one() {
         let root = temp_dir("shared");
@@ -1234,5 +1291,33 @@ mod tests {
         drop(guard);
         let _ = std::fs::remove_dir_all(&root);
         let _ = std::fs::remove_dir_all(&own);
+    }
+}
+
+/// Pure resolver audit: no filesystem, keyring, credential or network access.
+#[cfg(test)]
+mod settings_rebrand_audit {
+    use super::*;
+
+    #[test]
+    fn the_desktop_resolver_keeps_known_namespaces_distinct() {
+        assert_eq!(AppSecretStore::resolve("ai_keys").unwrap(), AI_KEYS);
+        assert_eq!(AppSecretStore::resolve("profile").unwrap(), PROFILE);
+        assert_eq!(AppSecretStore::resolve("omnidisc").unwrap(), OMNIDISC);
+        assert!(AppSecretStore::resolve("audit-unknown-namespace").is_err());
+        assert_ne!(AI_KEYS.service, PROFILE.service);
+        assert_ne!(AI_KEYS.dir_name, OMNIDISC.dir_name);
+    }
+
+    /// The MCP registry names this namespace over the seam; the desktop has to
+    /// resolve it to a store of its own instead of refusing it.
+    #[test]
+    fn the_mcp_registry_namespace_is_supported_by_the_desktop_resolver() {
+        let name = omniget_core::core::mcp::types::SECRET_NS;
+        let namespace = AppSecretStore::resolve(name)
+            .expect("desktop must support the namespace used by its MCP registry");
+        assert_eq!(namespace.dir_name, name);
+        assert_ne!(namespace.dir_name, AI_KEYS.dir_name);
+        assert_ne!(namespace.service, AI_KEYS.service);
     }
 }

@@ -11,6 +11,10 @@
   import { t } from "$lib/i18n";
   import { getSettings, updateSettings } from "$lib/stores/settings-store.svelte";
   import { showToast } from "$lib/stores/toast-store.svelte";
+  import { createSettingsDraft } from "$lib/stores/settings-drafts.svelte";
+  import SettingGroup from "$components/settings/rebrand/SettingGroup.svelte";
+  import SettingRow from "$components/settings/rebrand/SettingRow.svelte";
+  import SettingsSaveBar from "$components/settings/rebrand/SettingsSaveBar.svelte";
 
   type Tier = 0 | 1 | 2 | 3;
   const TIERS: Tier[] = [0, 1, 2, 3];
@@ -21,6 +25,14 @@
   let medianMs = $derived(settings?.world?.measured_median_ms ?? null);
   let measuredVersion = $derived(settings?.world?.measured_app_version ?? null);
   let pinned = $derived(settings?.world?.tier_override ?? null);
+  let thinking = $derived(settings?.world?.thinking ?? false);
+
+  // The room server address is free text: a draft saved with "Save changes".
+  const roomServer = createSettingsDraft({
+    id: "world-room-server",
+    read: (s) => ({ room_server: s.world?.room_server ?? "" }),
+    toPatch: (d) => ({ world: { room_server: d.room_server.trim() } }),
+  });
 
   let calibrating = $state(false);
   let lowered = $state<Tier | null>(null);
@@ -55,7 +67,9 @@
       });
       lowered = null;
     } catch (error) {
-      showToast("error", `${$t("world.error")} ${String(error)}`);
+      // The renderer's error text is diagnostic, not user copy.
+      console.warn("[world] calibration failed", error);
+      showToast("error", $t("world.error") as string);
     } finally {
       calibrating = false;
     }
@@ -94,7 +108,8 @@
       exists = false;
       showToast("success", $t("world.settings.deleted") as string);
     } catch (error) {
-      showToast("error", String(error));
+      console.warn("[world] delete failed", error);
+      showToast("error", $t("common.error") as string);
     } finally {
       deleting = false;
       confirmingDelete = false;
@@ -121,135 +136,113 @@
   });
 </script>
 
-<section class="settings-section" id="settings-world">
-  <h5 class="section-title">{$t("world.settings.title")}</h5>
-  <p class="section-desc">{$t("world.settings.desc")}</p>
-
-  <div class="card">
-    <div class="setting-row">
-      <div class="setting-col">
-        <span class="setting-label">{$t("world.settings.enabled")}</span>
-        <span class="setting-path">{$t("world.settings.enabled_desc")}</span>
-      </div>
+<SettingGroup id="world" title={$t("world.settings.title")} description={$t("world.settings.desc")}>
+  <SettingRow id="world-enabled" label={$t("world.settings.enabled")} help={$t("world.settings.enabled_desc")} settingKey="world.settings.enabled" status="world.enabled">
+    {#snippet control(c)}
       <button
+        type="button"
         class="toggle"
         class:on={enabled}
+        id={c.id}
+        aria-describedby={c.describedBy}
         onclick={toggleEnabled}
         role="switch"
         aria-checked={enabled}
         aria-label={$t("world.settings.enabled") as string}
       ><span class="toggle-knob"></span></button>
-    </div>
+    {/snippet}
+  </SettingRow>
+</SettingGroup>
 
-    <div class="divider"></div>
-
-    <div class="setting-row">
-      <div class="setting-col">
-        <span class="setting-label">{$t("world.settings.thinking")}</span>
-        <span class="setting-path">{$t("world.settings.thinking_desc")}</span>
-      </div>
+<SettingGroup id="world-advanced" title={$t("settings.rebrand.category.advanced")} advanced>
+  <SettingRow id="world-thinking" label={$t("world.settings.thinking")} help={$t("world.settings.thinking_desc")} settingKey="world.settings.thinking" status="world.thinking">
+    {#snippet control(c)}
       <button
+        type="button"
         class="toggle"
-        class:on={getSettings()?.world?.thinking ?? false}
+        class:on={thinking}
+        id={c.id}
+        aria-describedby={c.describedBy}
         disabled={!enabled}
-        onclick={() => updateSettings({ world: { thinking: !(getSettings()?.world?.thinking ?? false) } })}
+        onclick={() => updateSettings({ world: { thinking: !thinking } })}
         role="switch"
-        aria-checked={getSettings()?.world?.thinking ?? false}
+        aria-checked={thinking}
         aria-label={$t("world.settings.thinking") as string}
       ><span class="toggle-knob"></span></button>
-    </div>
+    {/snippet}
+  </SettingRow>
 
-    <div class="divider"></div>
+  <form class="room-form" onsubmit={(e) => { e.preventDefault(); void roomServer.save(); }}>
+    <SettingRow id="world-room-server" label={$t("world.settings.room_server")} help={$t("world.settings.room_server_desc")} settingKey="world.settings.room_server">
+      {#snippet control(c)}
+        <input
+          id={c.id}
+          aria-describedby={c.describedBy}
+          class="room-server"
+          type="text"
+          dir="ltr"
+          placeholder="wss://…/v1/room"
+          spellcheck="false"
+          autocapitalize="off"
+          autocomplete="off"
+          disabled={!enabled}
+          bind:value={roomServer.value.room_server}
+        />
+      {/snippet}
+    </SettingRow>
+    <SettingsSaveBar dirty={roomServer.dirty} saving={roomServer.saving} error={roomServer.error} onSave={() => void roomServer.save()} onDiscard={() => roomServer.discard()} />
+  </form>
 
-    <div class="setting-row">
-      <div class="setting-col">
-        <span class="setting-label">{$t("world.settings.room_server")}</span>
-        <span class="setting-path">{$t("world.settings.room_server_desc")}</span>
-      </div>
-      <input
-        class="room-server"
-        type="text"
-        placeholder="wss://…/v1/room"
-        spellcheck="false"
-        autocapitalize="off"
-        disabled={!enabled}
-        value={getSettings()?.world?.room_server ?? ""}
-        onchange={(e) => updateSettings({ world: { room_server: (e.currentTarget as HTMLInputElement).value.trim() } })}
-        aria-label={$t("world.settings.room_server") as string}
-      />
-    </div>
-
-    <div class="divider"></div>
-
-    <div class="setting-row">
-      <div class="setting-col">
-        <span class="setting-label">{$t("world.settings.tier_measured")}</span>
-        <span class="setting-path">
-          {#if measured === null}
-            {$t("world.settings.never_measured")}
-          {:else}
-            {tierLabel(measured)}{#if medianMs !== null} · {medianMs.toFixed(1)} ms{/if}{#if measuredVersion} · v{measuredVersion}{/if}
-          {/if}
-        </span>
-      </div>
-      <button class="btn btn-secondary" onclick={recalibrate} disabled={calibrating}>
+  <SettingRow id="world-recalibrate" label={$t("world.settings.tier_measured")} help={measured === null ? ($t("world.settings.never_measured") as string) : `${tierLabel(measured)}${medianMs !== null ? ` · ${medianMs.toFixed(1)} ms` : ""}${measuredVersion ? ` · v${measuredVersion}` : ""}`} settingKey="world.settings.tier_measured">
+    {#snippet control(c)}
+      <button type="button" class="btn btn-secondary" id={c.id} aria-describedby={c.describedBy} onclick={recalibrate} disabled={calibrating} aria-busy={calibrating}>
         {calibrating ? $t("world.settings.recalibrating") : $t("world.settings.recalibrate")}
       </button>
-    </div>
+    {/snippet}
+  </SettingRow>
 
-    <div class="divider"></div>
-
-    <div class="setting-row">
-      <div class="setting-col">
-        <span class="setting-label">{$t("world.settings.tier_pinned")}</span>
-        <span class="setting-path">{$t("world.settings.tier_pinned_desc")}</span>
-      </div>
-      <select class="input-text select" value={pinned === null ? "auto" : String(pinned)} onchange={(e) => pin((e.target as HTMLSelectElement).value)}>
+  <SettingRow id="world-tier-pinned" label={$t("world.settings.tier_pinned")} help={$t("world.settings.tier_pinned_desc")} settingKey="world.settings.tier_pinned" status="world.tier_override">
+    {#snippet control(c)}
+      <select id={c.id} aria-describedby={c.describedBy} class="input-text select" value={pinned === null ? "auto" : String(pinned)} onchange={(e) => pin((e.target as HTMLSelectElement).value)}>
         <option value="auto">{$t("world.settings.tier_auto")}</option>
         {#each TIERS as tier (tier)}
           <option value={String(tier)}>{tierLabel(tier)}</option>
         {/each}
       </select>
-    </div>
+    {/snippet}
+  </SettingRow>
 
-    {#if lowered !== null}
-      <div class="divider"></div>
-      <div class="setting-row">
-        <div class="setting-col">
-          <span class="setting-label">{$t("world.settings.tier_lowered")}</span>
-          <span class="setting-path">{tierLabel(lowered)}</span>
-        </div>
-      </div>
-    {/if}
+  {#if lowered !== null}
+    <p class="world-lowered" role="status">
+      <strong>{$t("world.settings.tier_lowered")}</strong> {tierLabel(lowered)}
+    </p>
+  {/if}
 
-    <div class="divider"></div>
-
-    <div class="setting-row">
-      <div class="setting-col">
-        <span class="setting-label">{$t("world.settings.delete")}</span>
-        <span class="setting-path">
-          {enabled && exists === false
-            ? $t("world.settings.delete_none")
-            : $t("world.settings.delete_desc")}
-        </span>
-      </div>
+  <SettingRow id="world-delete" label={$t("world.settings.delete")} help={enabled && exists === false ? ($t("world.settings.delete_none") as string) : ($t("world.settings.delete_desc") as string)} settingKey="world.settings.delete">
+    {#snippet control(c)}
       <!-- With the world switched off `world_exists` answers "no" by design, so
            the button stays available: "I turned it off, now erase it" has to
            work. Deleting nothing is not an error. -->
       <button
+        type="button"
         class="btn btn-secondary"
+        id={c.id}
+        aria-describedby={c.describedBy}
         onclick={deleteWorld}
         disabled={deleting || (enabled && exists === false)}
       >
         {confirmingDelete ? $t("world.settings.delete_confirm") : $t("world.settings.delete")}
       </button>
-    </div>
-  </div>
-</section>
+    {/snippet}
+  </SettingRow>
+</SettingGroup>
 
 <style>
+  .room-form { display: flex; flex-direction: column; min-inline-size: 0; }
+  .world-lowered { margin: 0; padding-block: var(--space-2); font-size: 12px; line-height: 18px; color: var(--text-muted); }
   .room-server {
-    width: 16rem;
+    width: 100%;
+    box-sizing: border-box;
     padding: 5px 9px;
     border-radius: 8px;
     border: 1px solid var(--separator, rgba(127, 127, 127, 0.3));
@@ -258,11 +251,5 @@
     font: inherit;
     font-size: var(--text-sm);
     font-family: var(--font-mono, ui-monospace, monospace);
-  }
-
-  .section-desc {
-    margin: 0 0 12px;
-    color: var(--text-secondary);
-    font-size: 13px;
   }
 </style>
