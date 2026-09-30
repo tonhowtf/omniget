@@ -16,6 +16,7 @@ pub type ActiveP2pSends = Arc<tokio::sync::Mutex<HashMap<String, P2pSendHandle>>
 pub mod agentkit_boot;
 pub mod approvals;
 pub mod bridge_tokens;
+pub mod canvas;
 pub mod commands;
 pub mod company;
 pub mod cookies;
@@ -34,6 +35,7 @@ pub mod llm_budget;
 pub mod llm_manager;
 pub mod local_bridge;
 pub mod local_bridge_agentkit;
+pub mod local_bridge_canvas;
 pub mod local_bridge_company;
 pub mod local_bridge_debug;
 pub mod local_bridge_jobs;
@@ -50,6 +52,7 @@ mod native_agent_media;
 mod native_agent_record;
 mod native_capture;
 pub mod platforms;
+pub mod portal;
 pub mod preview;
 pub mod profile;
 pub mod pty;
@@ -59,7 +62,6 @@ pub mod threads_host;
 pub mod tray;
 pub mod usage_tray;
 pub mod world_bench;
-pub mod world_manager;
 
 struct DesktopCookieProvider;
 
@@ -238,8 +240,6 @@ pub struct AppState {
     pub pending_external_events: Arc<tokio::sync::Mutex<Vec<external_url::ExternalUrlEvent>>>,
     pub profile: Arc<profile::ProfileManager>,
     pub llm: Arc<llm_manager::LlmManager>,
-    /// Lazy on purpose: a user who never opens `/world` pays nothing.
-    pub world: std::sync::OnceLock<Arc<world_manager::WorldManager>>,
 }
 
 /// Whether this start shows no window (3.2): `--background`, "start in
@@ -252,7 +252,8 @@ fn launched_hidden(app: &tauri::AppHandle) -> bool {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tracing_subscriber::fmt::init();
+    // Console log plus the ring buffer Report a Problem reads.
+    canvas::diagnostics::init_tracing();
 
     // Emitido antes do single-instance poder sair em silencio: ver
     // core::portable::startup_banner.
@@ -319,7 +320,6 @@ pub fn run() {
         pending_external_events: Arc::new(tokio::sync::Mutex::new(Vec::new())),
         profile: Arc::new(profile::ProfileManager::new()),
         llm: Arc::new(llm_manager::LlmManager::new()),
-        world: std::sync::OnceLock::new(),
     };
 
     // A second profile (`OMNIGET_DATA_DIR` set by hand or by the debug-build dev
@@ -332,6 +332,10 @@ pub fn run() {
         builder
     } else {
         builder.plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
+            if let Some(link) = argv.iter().find(|a| a.starts_with("omniget://canvas")) {
+                crate::canvas::spotlight::open_link(app, link);
+                return;
+            }
             if let Some(url) =
                 external_url::find_external_url_arg(argv.iter().skip(1).map(|arg| arg.as_str()))
             {
@@ -384,6 +388,16 @@ pub fn run() {
         ))
         .setup(|app| {
             crate::agentkit_boot::spawn_ensure_shim();
+            // Terminals (Central and canvas): install the shared manager early
+            // so `term://` events flow before the first terminal command.
+            crate::pty::manager().bind(app.handle());
+            crate::canvas::chat::bind(app.handle());
+            crate::portal::bind(app.handle());
+            crate::canvas::routines::start(app.handle());
+            crate::canvas::companion::start(app.handle());
+            crate::canvas::power::start(app.handle());
+            // Spotlight: the canvas mirrored as .webloc items (macOS).
+            crate::canvas::spotlight::start();
             // Acesso remoto (opt-in): segundo listener só com /remote/*; nada roda desligado.
             tauri::async_runtime::spawn(crate::local_bridge_remote::boot(app.handle().clone()));
             // Provider keys (and anything else the core stores) go through the
@@ -764,6 +778,10 @@ pub fn run() {
                                 };
                                 let _ = handle.emit("llm://openrouter-auth", payload);
                             });
+                            continue;
+                        }
+                        // Spotlight results and canvas links: open the node.
+                        if crate::canvas::spotlight::open_link(&handle, &raw) {
                             continue;
                         }
                         // links in notes exported by /video: open the player there
@@ -1628,36 +1646,203 @@ pub fn run() {
             commands::llm::accounts::llm_accounts_activate,
             commands::llm::accounts::llm_accounts_set_chain,
             commands::llm::accounts::llm_accounts_rotation,
-            // Fase 7 (mundo) — f7-world-bridge
-            commands::world::session::world_exists,
-            commands::world::session::world_create,
-            commands::world::session::world_open,
-            commands::world::house::house_status,
-            commands::world::house::house_open,
-            commands::world::house::house_close,
-            commands::world::house::house_join,
-            commands::world::house::house_leave,
-            commands::world::house::house_input,
-            commands::world::house::house_chat,
+            // Mundo: a cidade
             commands::world::city::city_join,
             commands::world::city::city_leave,
             commands::world::city::city_input,
             commands::world::city::city_interest,
             commands::world::city::city_chat,
             commands::world::city::city_resync,
+            // canvas: stitched from handoffs (begin)
+            commands::canvas::doc::canvas_workspaces,
+            commands::canvas::doc::canvas_workspace_create,
+            commands::canvas::doc::canvas_workspace_update,
+            commands::canvas::doc::canvas_workspace_delete,
+            commands::canvas::doc::canvas_load,
+            commands::canvas::doc::canvas_apply,
+            commands::canvas::doc::canvas_flush,
+            commands::canvas::doc::canvas_note_read,
+            commands::canvas::doc::canvas_note_write,
+            commands::canvas::doc::canvas_note_list,
+            commands::canvas::doc::canvas_note_move,
+            commands::canvas::doc::canvas_layout_free_spot,
+            commands::canvas::doc::canvas_layout_arrange,
+            commands::canvas::doc::canvas_export_selection,
+            commands::canvas::doc::canvas_import_partitura,
+            commands::canvas::term::term_open,
+            commands::canvas::term::canvas_term_ensure,
+            commands::canvas::term::term_close,
+            commands::canvas::term::term_list,
+            commands::canvas::term::term_subscribe,
+            commands::canvas::term::term_set_visible,
+            commands::canvas::term::term_unsubscribe,
+            commands::canvas::term::term_frame_done,
+            commands::canvas::term::term_key,
+            commands::canvas::term::term_text,
+            commands::canvas::term::term_paste,
+            commands::canvas::term::term_resize,
+            commands::canvas::term::term_scroll,
+            commands::canvas::term::term_mouse,
+            commands::canvas::term::term_select,
+            commands::canvas::term::term_copy,
+            commands::canvas::term::term_search,
+            commands::canvas::term::term_focus,
+            commands::canvas::term::term_link,
+            commands::canvas::term::term_screen,
+            commands::canvas::term::term_clear,
+            commands::canvas::term::term_scroll_lock,
+            commands::canvas::term::term_search_count,
+            commands::canvas::term::term_search_clear,
+            commands::canvas::term::term_themes,
+            commands::canvas::floors::canvas_floor_list,
+            commands::canvas::floors::canvas_floor_pending,
+            commands::canvas::floors::canvas_floor_activity,
+            commands::canvas::floors::canvas_floor_pending_dismiss,
+            commands::canvas::floors::canvas_floor_create,
+            commands::canvas::floors::canvas_floor_land_preview,
+            commands::canvas::floors::canvas_floor_land,
+            commands::canvas::floors::canvas_floor_discard,
+            commands::canvas::floors::canvas_floor_run_hook,
+            commands::canvas::floors::canvas_floor_hooks_get,
+            commands::canvas::floors::canvas_floor_hooks_set,
+            commands::canvas::floors::canvas_floor_update,
+            commands::canvas::floors::canvas_floor_fetch,
+            commands::canvas::floors::canvas_floor_spawn_context,
+            commands::canvas::floors::canvas_env_get,
+            commands::canvas::floors::canvas_env_set,
+            commands::canvas::floors::canvas_env_test,
+            commands::canvas::floors::canvas_env_providers_get,
+            commands::canvas::floors::canvas_env_providers_set,
+            commands::canvas::floors::canvas_env_sessions,
+            commands::canvas::floors::canvas_env_session_kill,
+            commands::canvas::partituras::canvas_partitura_list,
+            commands::canvas::partituras::canvas_partitura_get,
+            commands::canvas::partituras::canvas_partitura_save,
+            commands::canvas::partituras::canvas_partitura_edit,
+            commands::canvas::partituras::canvas_partitura_delete,
+            commands::canvas::partituras::canvas_partitura_preview,
+            commands::canvas::partituras::canvas_partitura_import,
+            commands::canvas::partituras::canvas_partitura_read_file,
+            commands::canvas::partituras::canvas_partitura_add_to_library,
+            commands::canvas::partituras::canvas_partitura_export_file,
+            commands::canvas::routines::canvas_routine_list,
+            commands::canvas::routines::canvas_routine_save,
+            commands::canvas::routines::canvas_routine_set_enabled,
+            commands::canvas::routines::canvas_routine_delete,
+            commands::canvas::routines::canvas_routine_run_now,
+            commands::canvas::routines::canvas_routine_history,
+            commands::canvas::routines::canvas_routine_history_clear,
+            commands::canvas::maestro::canvas_maestro_set,
+            commands::canvas::files::canvas_files_list,
+            commands::canvas::files::canvas_files_read,
+            commands::canvas::files::canvas_file_node_preview,
+            commands::canvas::files::canvas_files_write,
+            commands::canvas::files::canvas_files_create,
+            commands::canvas::files::canvas_files_rename,
+            commands::canvas::files::canvas_files_delete,
+            commands::canvas::files::canvas_files_search,
+            commands::canvas::files::canvas_files_definition,
+            commands::canvas::files::canvas_files_remote,
+            commands::canvas::files::canvas_files_git_status,
+            commands::canvas::files::canvas_files_git_diff,
+            commands::canvas::files::canvas_files_git_op,
+            commands::canvas::files::canvas_files_kind,
+            commands::canvas::files::canvas_paths_probe,
+            commands::canvas::files::canvas_image_data,
+            commands::canvas::portal::canvas_portal_open,
+            commands::canvas::portal::canvas_portal_close,
+            commands::canvas::portal::canvas_portal_set_bounds,
+            commands::canvas::portal::canvas_portal_set_visible,
+            commands::canvas::portal::canvas_portal_navigate,
+            commands::canvas::portal::canvas_portal_snapshot_image,
+            commands::canvas::portal::canvas_portal_set_user_agent,
+            commands::canvas::portal::canvas_portal_states,
+            commands::canvas::portal::canvas_portal_report,
+            commands::canvas::roles::canvas_roles_list,
+            commands::canvas::roles::canvas_roles_get,
+            commands::canvas::roles::canvas_roles_save,
+            commands::canvas::roles::canvas_roles_delete,
+            commands::canvas::roles::canvas_roles_assign,
+            commands::canvas::roles::canvas_roles_launch,
+            commands::canvas::roles::canvas_roles_discover,
+            commands::canvas::roles::canvas_roles_import,
+            commands::canvas::chat::canvas_chat_history,
+            commands::canvas::chat::canvas_chat_send,
+            commands::canvas::chat::canvas_chat_clear,
+            commands::canvas::chat::canvas_attachment_save,
+            commands::canvas::cords::canvas_terminal_env,
+            commands::canvas::cords::canvas_cord_test,
+            commands::canvas::cords::canvas_asks_list,
+            commands::canvas::cords::canvas_inbox,
+            commands::canvas::cords::canvas_mark_seen,
+            commands::canvas::companion::canvas_companion_settings_get,
+            commands::canvas::companion::canvas_companion_settings_set,
+            commands::canvas::companion::canvas_companion_history,
+            commands::canvas::companion::canvas_companion_dismiss,
+            commands::canvas::companion::canvas_companion_act,
+            commands::canvas::companion::canvas_companion_summarize,
+            commands::canvas::companion::canvas_companion_models,
+            commands::canvas::remote::canvas_remote_status,
+            commands::canvas::remote::canvas_remote_pair_code,
+            commands::canvas::remote::canvas_visit_status,
+            commands::canvas::remote::canvas_visit_open,
+            commands::canvas::remote::canvas_visit_close,
+            commands::canvas::remote::canvas_visit_share,
+            commands::canvas::remote::canvas_visit_join,
+            commands::canvas::remote::canvas_visit_leave,
+            commands::canvas::remote::canvas_visit_chat,
+            commands::canvas::remote::canvas_visit_react,
+            commands::canvas::remote::canvas_visit_refresh,
+            // parity-gaps
+            commands::canvas::workspace_io::canvas_workspace_export,
+            commands::canvas::workspace_io::canvas_workspace_import_preview,
+            commands::canvas::workspace_io::canvas_workspace_import,
+            commands::canvas::workspace_io::canvas_workspace_backups,
+            commands::canvas::workspace_io::canvas_workspace_backup_now,
+            commands::canvas::workspace_io::canvas_workspace_backup_diff,
+            commands::canvas::workspace_io::canvas_workspace_backup_restore,
+            commands::canvas::clipboard::canvas_clipboard_copy,
+            commands::canvas::clipboard::canvas_clipboard_paste,
+            commands::canvas::clipboard::canvas_clipboard_read,
+            commands::canvas::chat::canvas_chat_delete_entry,
+            commands::canvas::chat::canvas_chat_wipe,
+            commands::canvas::chat::canvas_chat_select_thread,
+            commands::canvas::chat::canvas_chat_mark_read,
+            commands::canvas::chat::canvas_chat_interrupt,
+            commands::canvas::chat::canvas_chat_search,
+            commands::canvas::portal::canvas_portal_design_arm,
+            commands::canvas::portal::canvas_portal_design_disarm,
+            commands::canvas::portal::canvas_portal_design_targets,
+            commands::canvas::portal::canvas_portal_design_send,
+            commands::canvas::portal::canvas_portal_trust_cert,
+            commands::canvas::portal::canvas_portal_inspect,
+            commands::canvas::portal::canvas_portal_copy_screenshot,
+            commands::canvas::companion::canvas_companion_ask,
+            commands::canvas::companion::canvas_omni_window,
+            commands::canvas::cords::canvas_cord_link,
+            canvas::prefs::canvas_settings_get,
+            canvas::prefs::canvas_settings_replace,
+            canvas::prefs::canvas_agent_presets,
+            commands::canvas::workspace_meta::canvas_workspace_icon,
+            commands::canvas::workspace_meta::canvas_workspace_agent_files,
+            commands::canvas::workspace_meta::canvas_workspace_open_ide,
+            commands::canvas::workspace_meta::canvas_ides,
+            commands::canvas::workspace_meta::canvas_session_boot,
+            commands::canvas::workspace_meta::canvas_session_mark,
+            commands::canvas::workspace_meta::canvas_data_dir_move,
+            commands::canvas::floors::canvas_env_ssh_hosts,
+            commands::canvas::floors::canvas_env_files,
+            commands::canvas::floors::canvas_env_drop,
+            commands::canvas::floors::canvas_skills_info,
+            commands::central::remote::remote_private_only_set,
+            canvas::diagnostics::canvas_report_problem,
+            // canvas: stitched from handoffs (end)
             commands::world::city::city_api,
             commands::world::city::city_asset,
             commands::world::city::city_session,
             commands::world::city::city_login,
             commands::world::city::city_register,
             commands::world::city::city_logout,
-            commands::world::session::world_close,
-            commands::world::session::world_set_visible,
-            commands::world::session::world_resync,
-            commands::world::session::world_activity,
-            commands::world::demo::world_demo,
-            commands::world::session::world_delete,
-            commands::world::input::world_input,
             // assist:begin
             commands::assist::memory::assist_memory_list,
             commands::assist::memory::assist_memory_scopes,
@@ -1805,6 +1990,8 @@ pub fn run() {
                 // Central: terminal shells and the CLI driver sessions of the
                 // threads die with the app too (bounded, never blocks exit).
                 crate::pty::manager().shutdown_all();
+                // Canvas: debounced document saves reach the disk before exit.
+                crate::canvas::doc::flush_on_exit();
                 tauri::async_runtime::block_on(async {
                     let _ = tokio::time::timeout(
                         std::time::Duration::from_secs(5),

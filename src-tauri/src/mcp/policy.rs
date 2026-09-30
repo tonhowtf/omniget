@@ -260,6 +260,8 @@ pub fn scope(name: &str) -> Option<&'static str> {
         | "wmb_perf_capture_start"
         | "wmb_perf_capture_stop" => "system_change",
         n if n.starts_with("wmb_") => "system_read",
+        // The World canvas: reads under app_observe, changes under app_control.
+        n if super::canvas::owns(n) => return super::canvas::scope(n),
         _ => return None,
     })
 }

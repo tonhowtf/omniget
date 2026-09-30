@@ -1,0 +1,193 @@
+/* Rich Markdown (notes and chat). Global on purpose: the nodes come from
+   {@html}, so component-scoped styles would not reach them. Everything is
+   under .rich-md and prefixed rich-. */
+
+/* light-dark() follows each theme's color-scheme (light, dark, catppuccin…). */
+.rich-md {
+  --tok-keyword: light-dark(#a626a4, #c678dd);
+  --tok-string: light-dark(#3f8f3e, #98c379);
+  --tok-number: light-dark(#986801, #d19a66);
+  --tok-comment: light-dark(#80858e, #7f848e);
+  --tok-type: light-dark(#a86f00, #e5c07b);
+  --tok-fn: light-dark(#3b6fe0, #61afef);
+  --tok-punct: color-mix(in srgb, var(--text, #222) 70%, transparent);
+  --tok-tag: light-dark(#d03f33, #e06c75);
+  --tok-attr: light-dark(#986801, #d19a66);
+  --tok-var: light-dark(#0177a8, #56b6c2);
+}
+
+.rich-md .tok-keyword { color: var(--tok-keyword); }
+.rich-md .tok-string { color: var(--tok-string); }
+.rich-md .tok-number { color: var(--tok-number); }
+.rich-md .tok-comment { color: var(--tok-comment); font-style: italic; }
+.rich-md .tok-type { color: var(--tok-type); }
+.rich-md .tok-fn { color: var(--tok-fn); }
+.rich-md .tok-punct { color: var(--tok-punct); }
+.rich-md .tok-tag { color: var(--tok-tag); }
+.rich-md .tok-attr { color: var(--tok-attr); }
+.rich-md .tok-var { color: var(--tok-var); }
+
+.rich-md pre.rich-code,
+.rich-md pre.rich-mermaid {
+  position: relative;
+}
+.rich-md pre.rich-mermaid {
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--border, #ccc) 70%, transparent);
+  border-radius: 10px;
+  padding: 10px;
+  white-space: normal;
+  overflow-x: auto;
+  text-align: center;
+}
+.rich-md .rich-mermaid-view svg {
+  display: inline-block;
+  max-width: 100%;
+  height: auto;
+}
+
+.rich-md .rich-btn {
+  font: 500 11px/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  padding: 4px 7px;
+  border-radius: 6px;
+  border: 1px solid var(--border, #ccc);
+  background: var(--surface, #fff);
+  color: var(--text-muted, #666);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.rich-md .rich-btn:hover {
+  color: var(--text, #111);
+  border-color: color-mix(in srgb, var(--accent, #0a84ff) 50%, var(--border, #ccc));
+}
+.rich-md .rich-btn:focus-visible {
+  outline: 2px solid var(--accent, #0a84ff);
+  outline-offset: 1px;
+}
+.rich-md .rich-btn[data-flash='ok'] { color: var(--accent, #0a84ff); }
+.rich-md .rich-btn[data-flash='fail'] { color: #d33; }
+
+.rich-md .rich-copy,
+.rich-md .rich-tools {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+.rich-md .rich-tools {
+  display: flex;
+  gap: 4px;
+}
+.rich-md pre:hover > .rich-copy,
+.rich-md pre:hover > .rich-tools,
+.rich-md pre:focus-within > .rich-copy,
+.rich-md pre:focus-within > .rich-tools {
+  opacity: 1;
+}
+@media (hover: none) {
+  .rich-md .rich-copy,
+  .rich-md .rich-tools { opacity: 1; }
+}
+
+.rich-md .rich-note {
+  display: block;
+  margin-top: 6px;
+  font: 11px/1.3 -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  color: var(--text-muted, #777);
+  white-space: normal;
+}
+
+.rich-md table.rich-table {
+  position: relative;
+}
+.rich-md caption.rich-table-tools {
+  caption-side: top;
+  text-align: right;
+  padding: 0 0 3px;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+.rich-md caption.rich-table-tools .rich-btn + .rich-btn { margin-left: 4px; }
+.rich-md table.rich-table:hover > caption.rich-table-tools,
+.rich-md table.rich-table:focus-within > caption.rich-table-tools {
+  opacity: 1;
+}
+.rich-md table.rich-table td[data-flash='ok'],
+.rich-md table.rich-table th[data-flash='ok'] {
+  background: color-mix(in srgb, var(--accent, #0a84ff) 18%, transparent);
+}
+
+.rich-md img.rich-img,
+.rich-md img[src] {
+  max-width: 100%;
+  height: auto;
+  border-radius: 6px;
+}
+.rich-md img.rich-img-loading {
+  min-width: 40px;
+  min-height: 24px;
+  background: color-mix(in srgb, var(--text-muted, #888) 12%, transparent);
+}
+.rich-md img.rich-img-missing {
+  display: inline-block;
+  padding: 2px 6px;
+  border: 1px dashed var(--border, #ccc);
+  color: var(--text-muted, #777);
+  font-size: 12px;
+}
+
+.rich-md .rich-path {
+  color: var(--accent-hi, var(--accent, #0a84ff));
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.rich-md .rich-path:hover { text-decoration-style: solid; }
+
+.rich-md .rich-menu {
+  position: absolute;
+  z-index: 20;
+  min-width: 170px;
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+  border-radius: 9px;
+  border: 1px solid var(--border, #ccc);
+  background: var(--popup-bg, var(--surface, #fff));
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  text-align: left;
+  white-space: nowrap;
+  caption-side: top;
+}
+.rich-md .rich-menu button {
+  font: 12px/1.2 -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  text-align: left;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text, #111);
+  cursor: pointer;
+}
+.rich-md .rich-menu button:hover,
+.rich-md .rich-menu button:focus-visible {
+  background: color-mix(in srgb, var(--accent, #0a84ff) 18%, transparent);
+  outline: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rich-md .rich-copy,
+  .rich-md .rich-tools,
+  .rich-md caption.rich-table-tools { transition: none; }
+}
+
+/* Web links read as links (⌘-click opens them in the browser). */
+.rich-md a[href^='http'],
+.rich-md a[href^='mailto'] {
+  color: var(--accent, #0a84ff);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}

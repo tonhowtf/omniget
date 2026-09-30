@@ -16,8 +16,10 @@ pub fn catalog(p: &Principal) -> Vec<Value> {
         // MCP semantics: destructive = may undo or discard existing work
         // (cancel/pause); creating or enqueueing is additive and, with its
         // idempotency key, idempotent.
-        let destructive = writes && matches!(tool.name, "download_cancel" | "download_pause" | "missions_cancel" | "missions_pause" | "wmb_execute" | "job_cancel");
-        value["annotations"] = json!({"readOnlyHint":!writes,"destructiveHint":destructive,"idempotentHint":!matches!(tool.name,"omniget_app_capture"|"omniget_app_export"),"openWorldHint":open_world});
+        let destructive = writes && (matches!(tool.name, "download_cancel" | "download_pause" | "missions_cancel" | "missions_pause" | "wmb_execute" | "job_cancel") || super::canvas::is_destructive(tool.name));
+        // Canvas writes create nodes, send keys and messages: never idempotent.
+        let idempotent = !matches!(tool.name,"omniget_app_capture"|"omniget_app_export") && !(writes && super::canvas::owns(tool.name));
+        value["annotations"] = json!({"readOnlyHint":!writes,"destructiveHint":destructive,"idempotentHint":idempotent,"openWorldHint":open_world});
         value
     }).collect()
 }
@@ -52,6 +54,11 @@ pub fn tools(p: &Principal) -> Vec<ToolDef> {
     );
     list.extend(
         super::orchestration::tools()
+            .into_iter()
+            .filter(|t| policy::allowed(p, t.name)),
+    );
+    list.extend(
+        super::canvas::tools()
             .into_iter()
             .filter(|t| policy::allowed(p, t.name)),
     );
@@ -214,6 +221,9 @@ pub async fn call(app: &AppHandle, p: &Principal, name: &str, a: Value) -> Resul
             return Err("TOOL_NOT_AUTHORIZED".into());
         }
         return super::orchestration::call(app, p, name, a).await;
+    }
+    if super::canvas::owns(name) {
+        return super::canvas::call(app, p, name, a).await;
     }
     if matches!(policy::scope(name), Some("memory_read" | "memory_write")) {
         return super::memory::call(app, p, name, a).await;

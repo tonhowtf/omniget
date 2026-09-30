@@ -19,7 +19,7 @@
 //!                         the URL through `external_url::handle_external_url`.
 
 use std::net::SocketAddr;
-use std::sync::atomic::{AtomicI64, Ordering};
+use std::sync::atomic::{AtomicI64, AtomicU16, Ordering};
 use std::sync::Arc;
 
 use axum::{
@@ -186,6 +186,88 @@ fn ensure_bridge_settings(app: &AppHandle, bound_port: u16) -> anyhow::Result<(S
     Ok((settings.bridge.token, settings.bridge.port))
 }
 
+/// Port the full bridge is serving on this run (0 = not running).
+static MAIN_PORT: AtomicU16 = AtomicU16::new(0);
+/// Port of the canvas-only listener (0 = not started).
+static CANVAS_PORT: AtomicU16 = AtomicU16::new(0);
+static CANVAS_START: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+/// Port where the canvas routes (`/v1/canvas/*`) answer, starting a
+/// canvas-only listener when the full bridge is off.
+///
+/// Decision (world canvas C2, "bridge off => no cords"): turning the bridge
+/// off in Settings is about the extension, MCP and agent routes, so those stay
+/// off. Cords only need `/v1/canvas/*`, which accept nothing but the per-node
+/// `oct_` tokens minted for canvas terminals. So when a canvas terminal opens
+/// and the bridge is off, a second listener on `127.0.0.1` serves only
+/// `/v1/health` and the canvas routes, behind the same token guard. It lives
+/// until the app quits.
+pub fn ensure_running_for_canvas(app: &AppHandle) -> Result<u16, String> {
+    let main = MAIN_PORT.load(Ordering::Relaxed);
+    if main != 0 {
+        return Ok(main);
+    }
+    let settings = config::load_settings(app);
+    if settings.bridge.enabled {
+        // Starting up: the full bridge is about to bind its persisted port.
+        if settings.bridge.port != 0 {
+            return Ok(settings.bridge.port);
+        }
+    }
+    let _g = CANVAS_START.lock().unwrap_or_else(|e| e.into_inner());
+    let port = CANVAS_PORT.load(Ordering::Relaxed);
+    if port != 0 {
+        return Ok(port);
+    }
+    let addr: SocketAddr = ([127, 0, 0, 1], 0).into();
+    let std_listener = std::net::TcpListener::bind(addr).map_err(|e| format!("CANVAS_IO: {e}"))?;
+    std_listener
+        .set_nonblocking(true)
+        .map_err(|e| format!("CANVAS_IO: {e}"))?;
+    let port = std_listener
+        .local_addr()
+        .map_err(|e| format!("CANVAS_IO: {e}"))?
+        .port();
+    let token = if settings.bridge.token.trim().is_empty() {
+        generate_token()
+    } else {
+        settings.bridge.token.clone()
+    };
+    let state = BridgeState {
+        app: app.clone(),
+        token: Arc::new(token),
+    };
+    let router = Router::new()
+        .route("/v1/health", get(health))
+        .merge(crate::local_bridge_canvas::router(
+            state.app.clone(),
+            crate::local_bridge_jobs::JobsBridgeState::from_bridge(&state).guard(),
+        ))
+        .with_state(state);
+    tauri::async_runtime::spawn(async move {
+        let listener = match TcpListener::from_std(std_listener) {
+            Ok(l) => l,
+            Err(error) => {
+                tracing::warn!("canvas bridge failed to start: {error}");
+                CANVAS_PORT.store(0, Ordering::Relaxed);
+                return;
+            }
+        };
+        if let Err(error) = axum::serve(listener, router).await {
+            tracing::warn!("canvas bridge stopped: {error}");
+        }
+        CANVAS_PORT.store(0, Ordering::Relaxed);
+    });
+    CANVAS_PORT.store(port, Ordering::Relaxed);
+    tracing::info!("canvas-only bridge listening on http://127.0.0.1:{port} (full bridge is off)");
+    Ok(port)
+}
+
+/// Port of the canvas-only listener, when it runs.
+pub fn canvas_port() -> Option<u16> {
+    Some(CANVAS_PORT.load(Ordering::Relaxed)).filter(|p| *p != 0)
+}
+
 /// Spawn the localhost bridge in a background tokio task.
 ///
 /// Returns once the listener has been bound (so the port is known and
@@ -276,6 +358,10 @@ pub async fn spawn(app: AppHandle) {
         .merge(crate::local_bridge_agentkit::router(
             crate::local_bridge_jobs::JobsBridgeState::from_bridge(&state).guard(),
         ))
+        .merge(crate::local_bridge_canvas::router(
+            state.app.clone(),
+            crate::local_bridge_jobs::JobsBridgeState::from_bridge(&state).guard(),
+        ))
         .merge(crate::local_bridge_wmb::router(
             crate::local_bridge_wmb::WmbBridgeState::from_bridge(&state),
         ))
@@ -287,6 +373,7 @@ pub async fn spawn(app: AppHandle) {
         .layer(cors);
 
     tracing::info!("local bridge listening on http://127.0.0.1:{port}");
+    MAIN_PORT.store(port, Ordering::Relaxed);
     omniget_core::core::assist::projection::set_endpoint(Some(format!(
         "http://127.0.0.1:{port}/mcp/assist"
     )));

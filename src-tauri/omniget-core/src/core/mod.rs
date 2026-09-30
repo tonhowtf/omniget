@@ -5,6 +5,7 @@ pub mod ai;
 pub mod app_launch;
 pub mod assist;
 pub mod binary_overrides;
+pub mod canvas;
 pub mod catalog;
 pub mod clipboard;
 pub mod clitools;
@@ -48,6 +49,7 @@ pub mod sessions;
 pub mod shell_words;
 pub mod skills;
 pub mod subtitle_merge;
+pub mod term;
 #[cfg(test)]
 pub mod test_env;
 pub mod threads;

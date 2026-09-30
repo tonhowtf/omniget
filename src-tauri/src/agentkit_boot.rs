@@ -134,12 +134,33 @@ fn install(src: &Path, dst: &Path) -> Result<(), String> {
     Ok(())
 }
 
+/// The canvas helper (C2): the same binary as the shim, installed as
+/// `<app_data>/bin/omniget`; called by that name it answers
+/// `omniget canvas …` for the agents in canvas terminals.
+fn ensure_canvas_cli(shim: &Path) {
+    let Some(dst) = shim.parent().map(|d| d.join(exe("omniget"))) else {
+        return;
+    };
+    if sha256_file(shim) != sha256_file(&dst) {
+        match install(shim, &dst) {
+            Ok(()) => tracing::info!("[canvas] omniget helper at {}", dst.display()),
+            Err(e) => tracing::warn!("[canvas] omniget helper: {e}"),
+        }
+    }
+}
+
 /// Setup hook: runs [`ensure_shim`] on its own thread and logs the outcome.
 pub fn spawn_ensure_shim() {
     let _ = std::thread::Builder::new()
         .name("agentkit-shim".into())
         .spawn(|| match ensure_shim() {
-            Ok(Some(p)) => tracing::info!("[agentkit] hook shim at {}", p.display()),
+            Ok(Some(p)) => {
+                tracing::info!("[agentkit] hook shim at {}", p.display());
+                ensure_canvas_cli(&p);
+                if let Err(e) = crate::canvas::cords::install_plugin() {
+                    tracing::warn!("[canvas] plugin: {e}");
+                }
+            }
             Ok(None) => tracing::warn!(
                 "[agentkit] hook shim not found (no `omniget-hook` sidecar in the bundle; in dev: `cargo build -p omniget-cli --bin omniget-hook-shim`): Claude Code turns run without OmniGet's permission hooks"
             ),

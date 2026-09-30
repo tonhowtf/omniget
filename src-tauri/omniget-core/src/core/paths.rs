@@ -3,6 +3,17 @@ pub fn app_data_dir() -> Option<std::path::PathBuf> {
         return Some(std::path::PathBuf::from(dir));
     }
 
+    // Data folder moved by the user (Settings, `canvas_data_dir_move`): a
+    // pointer file next to the default folder names the new one.
+    if let Some(p) = data_dir_redirect_file() {
+        if let Ok(to) = std::fs::read_to_string(&p) {
+            let to = std::path::PathBuf::from(to.trim());
+            if to.is_absolute() && to.is_dir() {
+                return Some(to);
+            }
+        }
+    }
+
     let base = dirs::data_dir()?;
     let new_path = base.join("wtf.tonho.omniget");
     let old_path = base.join("omniget");
@@ -29,6 +40,11 @@ pub fn app_data_dir() -> Option<std::path::PathBuf> {
     }
 
     Some(new_path)
+}
+
+/// Pointer file that relocates the default data folder (holds an absolute path).
+pub fn data_dir_redirect_file() -> Option<std::path::PathBuf> {
+    Some(dirs::data_dir()?.join("wtf.tonho.omniget.location"))
 }
 
 /// Set to `1` to make a debug build of the app use the installed app's profile

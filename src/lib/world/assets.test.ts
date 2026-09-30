@@ -165,15 +165,6 @@ describe('handcrafted scenery content', () => {
       ]);
     }
   });
-  it('adds the yard without replacing house chunks, slots or object IDs', () => {
-    const house = read('static/world/house-v1.json');
-    const yard = read('static/world/house-yard-v1.json');
-    expect(yard.chunks.slice(0, house.chunks.length)).toEqual(house.chunks);
-    expect(yard.objects.slice(0, house.objects.length)).toEqual(house.objects);
-    expect(new Set(yard.objects.map((o: { id: number }) => o.id)).size).toBe(yard.objects.length);
-    expect(yard.objects.filter((o: { slot: string }) => o.slot.startsWith('yard-work-'))).toHaveLength(4);
-    expect(marker(yard, 'house-door')).toEqual({ x: 9, y: 32 });
-  });
   it('renders every farm prop and keeps its collision footprint on free ground', () => {
     const yard = read('static/world/yard-v1.json') as MapDef;
     const themed = parseAtlas(craft);

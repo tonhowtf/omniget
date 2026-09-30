@@ -62,6 +62,10 @@ pub const SCOPE_BUDGET_WRITE: &str = "budget:write";
 /// checks then run on this machine, so neither a job's token (an agent
 /// trusting its own repository's commands) nor the extension key ever has it.
 pub const SCOPE_WORKFLOW_TRUST: &str = "workflow:trust";
+/// The one scope of a canvas node's token (`oct_…`): the `/v1/canvas/*`
+/// routes, for that node only. Never in [`SCOPES`]: no user or CLI token can
+/// hold it, and a canvas token holds nothing else.
+pub const SCOPE_CANVAS_NODE: &str = "canvas:node";
 pub const SCOPES: &[&str] = &[
     SCOPE_JOBS_READ,
     SCOPE_JOBS_OPERATE,
@@ -81,6 +85,10 @@ const LEGACY_SCOPES: &[&str] = &[SCOPE_JOBS_READ, SCOPE_JOBS_OPERATE];
 
 const USER_PREFIX: &str = "ogt_";
 const JOB_PREFIX: &str = "ojt_";
+const CANVAS_PREFIX: &str = "oct_";
+/// A canvas token outlives its process by this much at most (the revoke on
+/// exit, on delete and at boot is what normally kills it).
+const CANVAS_TOKEN_TTL_MS: u64 = 7 * 24 * 60 * 60 * 1000;
 /// A job token outlives the job's own deadline by this much at most (the
 /// revoke at the end is what normally kills it).
 const JOB_TOKEN_SLACK_MS: u64 = 5 * 60 * 1000;
@@ -97,6 +105,10 @@ pub enum Kind {
     User,
     Cli,
     Job,
+    /// A canvas node (C2): minted when its terminal spawns, bound to the node
+    /// id (kept in `job_id`), revoked when the process exits, when the node is
+    /// deleted and at boot.
+    Canvas,
 }
 
 impl Kind {
@@ -105,12 +117,14 @@ impl Kind {
             Kind::User => "user",
             Kind::Cli => "cli",
             Kind::Job => "job",
+            Kind::Canvas => "canvas",
         }
     }
     fn parse(s: &str) -> Kind {
         match s {
             "cli" => Kind::Cli,
             "job" => Kind::Job,
+            "canvas" => Kind::Canvas,
             _ => Kind::User,
         }
     }
@@ -158,6 +172,7 @@ fn digest(secret: &str) -> String {
 fn prefix_of(kind: Kind) -> &'static str {
     match kind {
         Kind::Job => JOB_PREFIX,
+        Kind::Canvas => CANVAS_PREFIX,
         _ => USER_PREFIX,
     }
 }
@@ -170,7 +185,8 @@ fn hint_of(kind: Kind, id: &str) -> String {
 fn parse(token: &str) -> Option<(&str, &str)> {
     let rest = token
         .strip_prefix(USER_PREFIX)
-        .or_else(|| token.strip_prefix(JOB_PREFIX))?;
+        .or_else(|| token.strip_prefix(JOB_PREFIX))
+        .or_else(|| token.strip_prefix(CANVAS_PREFIX))?;
     let (id, secret) = rest.split_once('_')?;
     let hexish = |s: &str| s.bytes().all(|b| b.is_ascii_hexdigit());
     (id.len() == 12 && secret.len() == 64 && hexish(id) && hexish(secret)).then_some((id, secret))
@@ -190,7 +206,12 @@ pub fn mint(
     if name.chars().count() > 80 {
         return Err("ERR_TOKEN_NAME: at most 80 characters".into());
     }
-    if scopes.is_empty() || scopes.iter().any(|s| !SCOPES.contains(&s.as_str())) {
+    // A canvas token has exactly the canvas scope, and only it has it.
+    let canvas_ok = kind == Kind::Canvas && scopes.len() == 1 && scopes[0] == SCOPE_CANVAS_NODE;
+    if kind == Kind::Canvas && !canvas_ok {
+        return Err(format!("ERR_TOKEN_SCOPE: a canvas token has only {SCOPE_CANVAS_NODE}"));
+    }
+    if !canvas_ok && (scopes.is_empty() || scopes.iter().any(|s| !SCOPES.contains(&s.as_str()))) {
         return Err(format!(
             "ERR_TOKEN_SCOPE: choose from {}",
             SCOPES.join(", ")
@@ -336,19 +357,53 @@ pub fn revoke_job(db: &Connection, job_id: &str, now: u64) -> Result<usize, Stri
 
 /// At boot no job runs yet: every job token left live by a crash is revoked
 /// (a resumed job mints a new one).
+/// Canvas node tokens too: no terminal survives a restart, a reopened node
+/// mints a new one.
 pub fn revoke_orphan_job_tokens(db: &Connection, now: u64) -> Result<usize, String> {
     db.execute(
-        "UPDATE bridge_tokens SET revoked_ms=?1 WHERE kind='job' AND revoked_ms IS NULL",
+        "UPDATE bridge_tokens SET revoked_ms=?1 WHERE kind IN ('job','canvas') AND revoked_ms IS NULL",
         params![now as i64],
     )
     .map_err(|e| e.to_string())
 }
 
-/// Live user and CLI tokens, newest first (job tokens come and go with their
-/// jobs and are not listed).
+/// Mints the token of a canvas node for one run of its process, revoking
+/// the node's earlier ones first (one live token per node).
+pub fn mint_canvas(db: &Connection, node_id: &str, name: &str, now: u64) -> Result<Minted, String> {
+    revoke_canvas_node(db, node_id, now)?;
+    let label: String = format!("canvas {name}").chars().take(80).collect();
+    mint(
+        db,
+        Kind::Canvas,
+        &label,
+        &[SCOPE_CANVAS_NODE.to_string()],
+        Some(node_id),
+        Some(now + CANVAS_TOKEN_TTL_MS),
+        now,
+    )
+}
+
+/// Revokes the live tokens of a canvas node (its process exited, or the node
+/// was deleted) and purges canvas tokens revoked long ago.
+pub fn revoke_canvas_node(db: &Connection, node_id: &str, now: u64) -> Result<usize, String> {
+    let n = db
+        .execute(
+            "UPDATE bridge_tokens SET revoked_ms=?2 WHERE kind='canvas' AND job_id=?1 AND revoked_ms IS NULL",
+            params![node_id, now as i64],
+        )
+        .map_err(|e| e.to_string())?;
+    let _ = db.execute(
+        "DELETE FROM bridge_tokens WHERE kind='canvas' AND revoked_ms IS NOT NULL AND revoked_ms < ?1",
+        params![now.saturating_sub(JOB_TOKEN_KEEP_MS) as i64],
+    );
+    Ok(n)
+}
+
+/// Live user and CLI tokens, newest first (job and canvas tokens come and go
+/// with their processes and are not listed).
 pub fn list(db: &Connection, now: u64) -> Vec<TokenView> {
     let Ok(mut stmt) = db.prepare(&format!(
-        "SELECT {COLS} FROM bridge_tokens WHERE kind!='job' AND revoked_ms IS NULL
+        "SELECT {COLS} FROM bridge_tokens WHERE kind NOT IN ('job','canvas') AND revoked_ms IS NULL
          AND (expires_ms IS NULL OR expires_ms > ?1) ORDER BY created_ms DESC"
     )) else {
         return Vec::new();
@@ -545,6 +600,23 @@ pub fn route_need(method: &Method, path: &str) -> Option<Need> {
             job: None,
             legacy_ok: false,
         }),
+        // The cords of the canvas (C2): only a node's own token, which the
+        // handler reads the node from; never the extension's.
+        ["v1", "canvas", "me" | "peers" | "screen"] if get => Some(Need {
+            scope: SCOPE_CANVAS_NODE,
+            job: None,
+            legacy_ok: false,
+        }),
+        ["v1", "canvas", "asks", _, "wait"] if get => Some(Need {
+            scope: SCOPE_CANVAS_NODE,
+            job: None,
+            legacy_ok: false,
+        }),
+        ["v1", "canvas", "asks" | "reply" | "hook" | "rpc"] if post => Some(Need {
+            scope: SCOPE_CANVAS_NODE,
+            job: None,
+            legacy_ok: false,
+        }),
         _ => None,
     }
 }
@@ -604,6 +676,16 @@ pub fn check_scoped(
                     "this token lacks the {} scope",
                     need.scope
                 )));
+            }
+            // A canvas token is bound to its node, which the canvas routes
+            // take from the principal (no node id in their paths).
+            if v.kind == Kind::Canvas {
+                let node = v.job_id.clone().unwrap_or_default();
+                return Ok(Principal {
+                    id: format!("canvas:{node}"),
+                    name: v.name,
+                    scopes: v.scopes,
+                });
             }
             if let Some(own) = &v.job_id {
                 if need.job.as_deref() != Some(own.as_str()) {
@@ -1019,6 +1101,10 @@ mod tests {
                 "local_bridge_company.rs",
                 include_str!("local_bridge_company.rs"),
             ),
+            (
+                "local_bridge_canvas.rs",
+                include_str!("local_bridge_canvas.rs"),
+            ),
         ] {
             let served = src.split("#[cfg(test)]").next().unwrap();
             let start = served
@@ -1185,6 +1271,40 @@ mod tests {
         assert!(j.token.starts_with("ojt_"));
         assert_eq!(revoke_orphan_job_tokens(&db, 2).unwrap(), 1);
         assert_eq!(lookup(&db, &j.token, 3), Lookup::Ended);
+    }
+
+    #[test]
+    fn a_canvas_token_reaches_only_the_canvas_routes_of_its_node() {
+        let db = db();
+        // Nobody else can hold the canvas scope.
+        assert!(mint(&db, Kind::User, "x", &s(&[SCOPE_CANVAS_NODE]), None, None, 1).is_err());
+        let first = mint_canvas(&db, "n1", "Planner", 1).unwrap();
+        let t = mint_canvas(&db, "n1", "Planner", 2).unwrap();
+        assert!(t.token.starts_with("oct_"));
+        // One live token per node: the respawn revoked the first.
+        assert_eq!(lookup(&db, &first.token, 3), Lookup::Ended);
+        let ctx = AuthCtx {
+            extension: "ext",
+            legacy_allowed: true,
+            lookup: &|tok: &str| lookup(&db, tok, 3),
+        };
+        let need = route_need(&Method::GET, "/v1/canvas/peers").unwrap();
+        assert_eq!(need.scope, SCOPE_CANVAS_NODE);
+        assert!(!need.legacy_ok);
+        let p = check_scoped(&headers(&t.token), &need, &ctx).unwrap();
+        assert_eq!(p.id, "canvas:n1");
+        // Not a jobs route, and not the extension key on a canvas route.
+        let jobs = route_need(&Method::GET, "/v1/jobs").unwrap();
+        assert!(matches!(check_scoped(&headers(&t.token), &jobs, &ctx), Err(Denied::Forbidden(_))));
+        assert!(matches!(check_scoped(&headers("ext"), &need, &ctx), Err(Denied::Forbidden(_))));
+        assert!(route_need(&Method::POST, "/v1/canvas/asks").is_some());
+        assert!(route_need(&Method::GET, "/v1/canvas/asks/ask_1/wait").is_some());
+        assert_eq!(revoke_canvas_node(&db, "n1", 4).unwrap(), 1);
+        assert_eq!(lookup(&db, &t.token, 5), Lookup::Ended);
+        let again = mint_canvas(&db, "n2", "Coder", 6).unwrap();
+        assert_eq!(revoke_orphan_job_tokens(&db, 7).unwrap(), 1);
+        assert_eq!(lookup(&db, &again.token, 8), Lookup::Ended);
+        assert!(list(&db, 9).is_empty());
     }
 }
 

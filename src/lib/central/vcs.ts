@@ -325,3 +325,66 @@ export function compactCount(n: number): string {
   if (n < 1_000_000) return Math.round(n / 1000) + "k";
   return (n / 1_000_000).toFixed(1).replace(/\.0$/, "") + "M";
 }
+
+// Same rules as `core::vcs::actions::suggest_commit_message`, so the commit
+// dialog can redo the message for the files left checked.
+const isDoc = (p: string) => {
+  const l = p.toLowerCase();
+  return /\.(md|mdx|txt|rst)$/.test(l) || l.startsWith("docs/");
+};
+const isTest = (p: string) => {
+  const l = p.toLowerCase();
+  return (
+    l.includes("/tests/") || l.startsWith("tests/") || l.includes("/test/") || l.includes(".test.") ||
+    l.includes(".spec.") || l.includes("_test.") || l.endsWith("_tests.rs")
+  );
+};
+const CONFIG_NAMES = new Set([
+  "package.json", "cargo.toml", "cargo.lock", "pnpm-lock.yaml", "package-lock.json", "yarn.lock",
+  "tsconfig.json", ".gitignore", "go.mod", "go.sum", "pyproject.toml", "requirements.txt",
+]);
+const isConfig = (p: string) => {
+  const name = (p.split("/").pop() ?? p).toLowerCase();
+  return CONFIG_NAMES.has(name) || (name.startsWith(".") && (name.endsWith("rc") || name.endsWith(".json") || name.endsWith(".yml") || name.endsWith(".yaml")));
+};
+const baseName = (p: string) => p.split("/").pop() ?? p;
+function commonDir(paths: string[]): string {
+  let parts: string[] | null = null;
+  for (const p of paths) {
+    const dirs = p.split("/").slice(0, -1);
+    if (!parts) parts = dirs;
+    else {
+      let i = 0;
+      while (i < parts.length && i < dirs.length && parts[i] === dirs[i]) i++;
+      parts = parts.slice(0, i);
+    }
+  }
+  return (parts ?? []).join("/");
+}
+
+export function suggestCommitMessage(changes: ChangeSummary[]): string {
+  if (!changes.length) return "Update files";
+  const paths = changes.map((c) => c.path);
+  const prefix = paths.every(isDoc) ? "docs: " : paths.every(isTest) ? "test: " : paths.every(isConfig) ? "chore: " : "";
+  const all = (s: string) => changes.every((c) => c.status === s);
+  const verb = all("added") ? "Add" : all("deleted") ? "Remove" : all("renamed") ? "Rename" : "Update";
+  let target: string;
+  if (changes.length === 1) {
+    const p = changes[0].path;
+    target = p.length <= 50 ? p : baseName(p);
+  } else {
+    const dir = commonDir(paths);
+    if (dir) target = `${dir} (${changes.length} files)`;
+    else {
+      const names = paths.map(baseName).filter((n, i, a) => i === 0 || a[i - 1] !== n);
+      target = names.length <= 3 && names.reduce((s, n) => s + n.length + 2, 0) <= 50 ? names.join(", ") : `${changes.length} files`;
+    }
+  }
+  let subject = prefix ? `${prefix}${verb.toLowerCase()} ${target}` : `${verb} ${target}`;
+  if ([...subject].length > 72) subject = [...subject].slice(0, 71).join("") + "…";
+  if (changes.length < 2) return subject;
+  const mark = (s: string) => (s === "added" ? "A" : s === "deleted" ? "D" : s === "renamed" ? "R" : "M");
+  const lines = changes.slice(0, 20).map((c) => `- ${mark(c.status)} ${c.path} (+${c.additions} -${c.deletions})`);
+  if (changes.length > 20) lines.push(`- … and ${changes.length - 20} more`);
+  return `${subject}\n\n${lines.join("\n")}`;
+}

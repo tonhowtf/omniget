@@ -44,13 +44,6 @@ def main():
     metadata = prepare(RAW, OUT)
     yard = generate(house, metadata)
     (ROOT / 'static/world/yard-v1.json').write_text(json.dumps(yard, indent=2) + '\n')
-    house['palette'] = yard['palette']
-    house['id'] = 'house-yard-v1'
-    house['atlas'] = 'world/tiles/craft-v1/atlas.json'
-    for field in ('chunks', 'objects', 'slots', 'rooms', 'markers'):
-        house[field].extend(v for v in yard[field] if field != 'markers' or v['name'] != 'spawn')
-    house['markers'].append({'name': 'yard-view', 'tile': [16, 39]})
-    (ROOT / 'static/world/house-yard-v1.json').write_text(json.dumps(house, indent=2) + '\n')
     print(f'Prepared {len(KEYS)} replacements and 5 farm props; preserved original house contracts.')
 
 

@@ -39,6 +39,7 @@ once_cell = "1"
 thiserror = "1"
 qrcode = { version = "0.14", default-features = false, features = ["svg"] }
 zip = { version = "2", default-features = false, features = ["deflate"] }
+shell-words = "1"
 tar = "0.4"
 flate2 = "1"
 quick-xml = "0.37"
@@ -70,6 +71,7 @@ sysinfo = "0.39.6"
 roxmltree = "0.21.1"
 serde_yaml = "0.9.34"
 xxhash-rust = { version = "0.8.18", features = ["xxh3"] }
+alacritty_terminal = "0.26.0"
 
 [target.'cfg(windows)'.dependencies]
 # Job Object of the CLI turns (`core::process::ProcessTreeGuard`): the only

@@ -99,7 +99,7 @@ pub fn wrap(id: &str, func: &str, args: &Value) -> String {
 
 /// Shared helpers: `find(selector)` (CSS, `e12` / `ref=e12` from the last
 /// snapshot, or `text=Label`) and `describe(el)`.
-const HELPERS: &str = r#"
+pub(crate) const HELPERS: &str = r#"
   var P = window.__omnigetPreview || { refs: new Map() };
   function clean(s, n) { s = (s || '').replace(/\s+/g, ' ').trim(); return s.length > n ? s.slice(0, n) + '…' : s; }
   function find(sel) {

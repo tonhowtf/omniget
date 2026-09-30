@@ -1178,14 +1178,6 @@ impl LlmManager {
 
     /// Refreshes the capacity snapshot of one agent's chain. Vault-only (no
     /// network); the price lookup is spawned so it lands in the next turn.
-    /// What the chat path does before a turn, for callers that drive the
-    /// `Coordinator` themselves (the world's thinker).
-    pub fn prepare_agent(&self, agent: &AgentDef) -> Result<(), String> {
-        self.ensure_providers(agent)?;
-        self.refresh_capacity(agent);
-        Ok(())
-    }
-
     pub fn refresh_capacity(&self, agent: &AgentDef) {
         let inner = self.inner();
         let candidates = chain_of(agent);

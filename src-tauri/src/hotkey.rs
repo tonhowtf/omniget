@@ -23,6 +23,8 @@ pub fn register_from_settings(app: &tauri::AppHandle) {
     if settings.download.music_hotkey_enabled {
         register_one(app, &settings.download.music_hotkey_binding, "music");
     }
+    // Omni's window (⌘⇧O) lives outside the download settings.
+    crate::canvas::companion::register_shortcut(app);
 }
 
 fn register_one(app: &tauri::AppHandle, binding: &str, label: &str) {
@@ -65,6 +67,9 @@ fn register_one(app: &tauri::AppHandle, binding: &str, label: &str) {
 }
 
 pub fn on_hotkey_pressed(app: &tauri::AppHandle, shortcut: &Shortcut) {
+    if crate::canvas::companion::on_shortcut(app, shortcut) {
+        return;
+    }
     let settings = config::load_settings(app);
 
     let download_match = matches_binding(shortcut, &settings.download.hotkey_binding);

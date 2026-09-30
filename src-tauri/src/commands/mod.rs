@@ -4,6 +4,7 @@ pub mod assist;
 pub mod auth_webview;
 pub mod autostart;
 pub mod bilibili_auth;
+pub mod canvas;
 pub mod browser_extension;
 pub mod central;
 pub mod channels;

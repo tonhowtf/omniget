@@ -38,7 +38,7 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 zip = { version = "4.6", default-features = false }
 image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
-tauri = { version = "2", features = ["tray-icon", "macos-private-api"] }
+tauri = { version = "2", features = ["tray-icon", "macos-private-api", "protocol-asset"] }
 tauri-plugin-shell = "2"
 tauri-plugin-store = "2"
 tauri-plugin-dialog = "2"
@@ -80,7 +80,6 @@ qrcode = { version = "0.14", default-features = false, features = ["svg"] }
 # Terminal embutido da Central (PTY multiplataforma do wezterm).
 portable-pty = "0.9"
 omniget-core = { path = "omniget-core" }
-omniget-world = { path = "omniget-world" }
 which = "7"
 # /music: walking the library folders
 walkdir = "2"

@@ -199,7 +199,11 @@
         next.delete(i);
         collapsed = next;
       }
-      void tick().then(() => scroller?.scrollTo({ top: layout.fileTop[i] ?? 0 }));
+      void tick().then(() => {
+        if (!scroller) return;
+        scroller.scrollTo({ top: layout.fileTop[i] ?? 0 });
+        scrollTop = scroller.scrollTop;
+      });
     });
   });
 
@@ -227,6 +231,11 @@
       collapsed = new Set(collapsedByDefault ? files.map((_, i) => i) : []);
       folds = new Map();
       clearSelection();
+      // A shorter list clamps the scroller without always firing `scroll`:
+      // a stale `scrollTop` would pin one file's header over another's lines.
+      void tick().then(() => {
+        if (scroller) scrollTop = scroller.scrollTop;
+      });
     }
   });
 

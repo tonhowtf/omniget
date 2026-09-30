@@ -148,6 +148,12 @@
     if (!confirm($t("company.routines.delete_confirm", { title: r.title }) as string)) return;
     void act(r, () => rpc("routine.delete", { company: id, routine_id: r.id }));
   }
+
+  // The literal "{{week}}"/"{{date}}" shown in the form. Passed escaped: the
+  // i18n parser re-parses its own output, so a raw "{{week}}" value recursed
+  // forever and froze the window when the form opened.
+  const WEEK_TOKEN = "\\{\\{week\\}\\}";
+  const DATE_TOKEN = "\\{\\{date\\}\\}";
 </script>
 
 <div class="page page-wide routines-page">
@@ -209,8 +215,8 @@
         <h2 class="dialog-title" id="routine-form-title">{form.id ? $t("company.routines.edit_title") : $t("company.routines.new_title")}</h2>
         <label class="field">
           <span class="field-label">{$t("company.routines.form.title")}</span>
-          <input class="input" type="text" bind:value={form.title} placeholder={$t("company.routines.form.title_placeholder", { week: "{{week}}" })} required />
-          <span class="field-hint">{$t("company.routines.form.title_hint", { date: "{{date}}", week: "{{week}}" })}</span>
+          <input class="input" type="text" bind:value={form.title} placeholder={$t("company.routines.form.title_placeholder", { week: WEEK_TOKEN })} required />
+          <span class="field-hint">{$t("company.routines.form.title_hint", { date: DATE_TOKEN, week: WEEK_TOKEN })}</span>
         </label>
         <label class="field">
           <span class="field-label">{$t("company.routines.form.body")}</span>

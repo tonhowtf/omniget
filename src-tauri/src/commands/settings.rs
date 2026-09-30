@@ -26,6 +26,12 @@ pub fn get_settings(app: tauri::AppHandle) -> Result<AppSettings, String> {
     Ok(config::load_settings(&app))
 }
 
+/// Locales with a file in `src/lib/i18n/` (the list of `i18n/index.ts`).
+/// Anything else would show English while claiming to be applied.
+pub const APP_LANGUAGES: &[&str] = &[
+    "en", "ru", "el", "pt", "zh", "zh-TW", "ja", "it", "fr", "es", "fa", "lo",
+];
+
 #[tauri::command]
 pub fn update_settings(app: tauri::AppHandle, partial: String) -> Result<AppSettings, String> {
     let mut current = config::load_settings(&app);
@@ -41,6 +47,7 @@ pub fn update_settings(app: tauri::AppHandle, partial: String) -> Result<AppSett
     let old_exit_on_close = current.exit_on_close;
     let old_autostart = autostart_wanted(&current);
     let old_rpc = current.rpc.clone();
+    let old_language = current.appearance.language.clone();
 
     let patch: serde_json::Value =
         serde_json::from_str(&partial).map_err(|e| format!("Invalid JSON: {}", e))?;
@@ -48,8 +55,22 @@ pub fn update_settings(app: tauri::AppHandle, partial: String) -> Result<AppSett
         serde_json::to_value(&current).map_err(|e| format!("Serialize: {}", e))?;
     merge_json(&mut current_val, &patch);
     current = serde_json::from_value(current_val).map_err(|e| format!("Deserialize: {}", e))?;
+    if current.appearance.language != old_language
+        && !APP_LANGUAGES.contains(&current.appearance.language.as_str())
+    {
+        return Err(format!(
+            "SETTING_INVALID: appearance.language '{}' has no translation; one of {}",
+            current.appearance.language,
+            APP_LANGUAGES.join(", ")
+        ));
+    }
     reconcile_close(&mut current, old_background, old_exit_on_close);
+    current.canvas.normalize();
     config::save_settings(&app, &current).map_err(|e| format!("Save: {}", e))?;
+    if current.appearance.language != old_language {
+        // Every window (the canvas, Omni's window, the pet) follows live.
+        crate::canvas::companion::on_language(&app, &current.appearance.language);
+    }
 
     crate::core::http_client::init_proxy(current.proxy.clone());
     crate::commands::washmybelly::sync_settings(&current.washmybelly);

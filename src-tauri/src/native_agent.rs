@@ -29,7 +29,11 @@ fn local_window(window: &WebviewWindow) -> Result<(), String> {
     ) {
         return Err("WINDOW_NOT_FOUND".into());
     }
-    let url = window.url().map_err(|_| "WINDOW_NOT_FOUND")?;
+    // wry unwraps WKWebView.URL, which is nil while the page is (re)loading
+    // or after its content process died: that panics the main thread.
+    let url = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| window.url()))
+        .map_err(|_| "FRONTEND_NOT_READY")?
+        .map_err(|_| "WINDOW_NOT_FOUND")?;
     let local = url.scheme() == "tauri" && url.host_str() == Some("localhost")
         || url.scheme() == "http" && url.host_str() == Some("tauri.localhost")
         || cfg!(debug_assertions)
