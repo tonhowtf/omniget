@@ -25,6 +25,7 @@ pub mod rpc;
 pub mod rules;
 pub mod settings;
 pub mod smart_speed;
+pub mod tube;
 pub mod video;
 pub mod video_ops;
 pub mod washmybelly;

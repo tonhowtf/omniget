@@ -32,6 +32,7 @@ const groups: [SettingsCategory, string, string, string[]][] = [
   ["advanced", "league", "league.settings_title", ["league.settings_title", "league.settings_enable", "league.settings_auto_accept"]],
   ["advanced", "music", "music.settings_title", ["music.settings_title", "music.settings_enable"]],
   ["advanced", "video", "video.settings_title", ["video.settings_title", "video.settings_enable"]],
+  ["advanced", "tube", "tube.settings_title", ["tube.settings_title", "tube.settings_enable"]],
   ["advanced", "washmybelly", "washmybelly.settings_title", ["washmybelly.settings_title", "washmybelly.settings_enable", "washmybelly.settings_quarantine_days", "washmybelly.settings_auto_hold"]],
   ["advanced", "debug", "settings.advanced.section_debug", ["settings.advanced.section_debug", "debug.enable", "debug.open_panel"]],
   ["advanced", "rules", "settings.rules.title", ["settings.rules.title", "settings.rules.add", "settings.rules.test_title"]],

@@ -310,6 +310,47 @@ pub async fn download_from_url(
     scheduled_at: Option<u64>,
     stop_at: Option<u64>,
 ) -> Result<DownloadStarted, String> {
+    download_from_url_with_args(
+        app,
+        state,
+        url,
+        output_dir,
+        download_mode,
+        quality,
+        format_id,
+        referer,
+        cookie_slug,
+        time_range,
+        playlist_items,
+        torrent_files,
+        scheduled_at,
+        stop_at,
+        None,
+    )
+    .await
+}
+
+/// `download_from_url` plus extra yt-dlp flags (OmniTube passes its
+/// SponsorBlock choice per download).
+#[cfg(not(target_os = "android"))]
+#[allow(clippy::too_many_arguments)]
+pub async fn download_from_url_with_args(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
+    url: String,
+    output_dir: String,
+    download_mode: Option<String>,
+    quality: Option<String>,
+    format_id: Option<String>,
+    referer: Option<String>,
+    cookie_slug: Option<String>,
+    time_range: Option<String>,
+    playlist_items: Option<Vec<u32>>,
+    torrent_files: Option<Vec<usize>>,
+    scheduled_at: Option<u64>,
+    stop_at: Option<u64>,
+    extra_ytdlp_args: Option<Vec<String>>,
+) -> Result<DownloadStarted, String> {
     omniget_core::core::platform_optout::ensure_allowed(&url)?;
     let _timer_start = std::time::Instant::now();
     let custom_ytdlp_args = match time_range.as_deref().map(str::trim) {
@@ -317,6 +358,13 @@ pub async fn download_from_url(
             Some(vec!["--download-sections".to_string(), format!("*{}", r)])
         }
         _ => None,
+    };
+    let custom_ytdlp_args = match (custom_ytdlp_args, extra_ytdlp_args) {
+        (Some(mut a), Some(b)) => {
+            a.extend(b);
+            Some(a)
+        }
+        (a, b) => a.or(b),
     };
 
     if let Err(err) = crate::core::path_limits::validate_output_dir(&output_dir) {

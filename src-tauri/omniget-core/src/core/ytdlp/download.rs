@@ -398,7 +398,12 @@ pub async fn download_video(
     base_args.extend(proxy_args());
     base_args.extend(extra_flags.iter().cloned());
 
-    if sponsorblock_enabled() && is_youtube_url(url) {
+    // A caller that already chose (OmniTube passes its own flags) wins over
+    // the global setting.
+    let caller_sponsorblock = extra_flags
+        .iter()
+        .any(|f| f.starts_with("--sponsorblock") || f == "--no-sponsorblock");
+    if sponsorblock_enabled() && is_youtube_url(url) && !caller_sponsorblock {
         let cats = sponsorblock_categories();
         let cat_arg = if cats.is_empty() {
             "default".to_string()

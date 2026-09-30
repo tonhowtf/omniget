@@ -32,6 +32,14 @@
       enabled: getSettings()?.video?.enabled ?? true,
     },
     {
+      id: "tube",
+      icon: "tube",
+      title: $t("tube.title") as string,
+      descKey: "superpowers.tube_desc",
+      href: "/youtube",
+      enabled: getSettings()?.tube?.enabled ?? true,
+    },
+    {
       id: "league",
       icon: "league",
       title: "League of Legends",

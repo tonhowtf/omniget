@@ -17,6 +17,7 @@
     if (path.startsWith("/league")) return $t("league.nav");
     if (path.startsWith("/music")) return $t("music.title");
     if (path.startsWith("/video")) return $t("video.title");
+    if (path.startsWith("/youtube")) return $t("tube.title");
     if (path.startsWith("/washmybelly")) return $t("washmybelly.nav");
     return "";
   });
