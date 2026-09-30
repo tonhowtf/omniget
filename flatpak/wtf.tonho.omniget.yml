@@ -1,10 +1,12 @@
 app-id: wtf.tonho.omniget
 runtime: org.gnome.Platform
-runtime-version: '48'
+runtime-version: '49'
 sdk: org.gnome.Sdk
 sdk-extensions:
   - org.freedesktop.Sdk.Extension.rust-stable
   - org.freedesktop.Sdk.Extension.node20
+  # libclang for bindgen (V4L2 camera of the 3D city's live avatar)
+  - org.freedesktop.Sdk.Extension.llvm21
 
 command: omniget
 
@@ -19,8 +21,11 @@ finish-args:
   # Screen capture itself needs no extra permission: the portal hands over a
   # file descriptor, which is the whole point of asking through the portal.
   - --socket=pulseaudio
-  - --socket=pipewire
+  # PipeWire (camera portal, screen-share audio); works on every flatpak version.
+  - --filesystem=xdg-run/pipewire-0
   - --device=dri
+  # The 3D city's webcam avatar reads the camera through V4L2 on Linux.
+  - --device=all
   - --filesystem=xdg-download
   - --filesystem=xdg-videos
   - --filesystem=xdg-music
@@ -33,6 +38,7 @@ build-options:
   env:
     CARGO_HOME: /run/build/omniget/cargo
     npm_config_nodedir: /usr/lib/sdk/node20
+    LIBCLANG_PATH: /usr/lib/sdk/llvm21/lib
 
 cleanup:
   - /include
@@ -52,6 +58,8 @@ modules:
   - name: libayatana-appindicator
     buildsystem: cmake-ninja
     config-opts:
+      # GNUInstallDirs picks lib64 on some arches; pkg-config looks in /app/lib.
+      - -DCMAKE_INSTALL_LIBDIR=lib
       - -DENABLE_BINDINGS_MONO=NO
       - -DENABLE_BINDINGS_VALA=NO
       - -DENABLE_GTKDOC=NO
@@ -74,10 +82,15 @@ modules:
             sha256: b9cc4a2acd74509435892823607d966d424bd9ad5d0b00938f27240a1bfa878a
           - type: patch
             path: 0001-Fix-HAVE_VALGRIND-AM_CONDITIONAL.patch
+          # The patch edits configure.ac; regenerate configure so it applies.
+          - type: shell
+            commands:
+              - autoreconf -fi
 
       - name: ayatana-ido
         buildsystem: cmake-ninja
         config-opts:
+          - -DCMAKE_INSTALL_LIBDIR=lib
           - -DENABLE_INTROSPECTION=OFF
         sources:
           - type: git
@@ -89,6 +102,8 @@ modules:
 
       - name: libayatana-indicator
         buildsystem: cmake-ninja
+        config-opts:
+          - -DCMAKE_INSTALL_LIBDIR=lib
         sources:
           - type: git
             url: https://github.com/AyatanaIndicators/libayatana-indicator.git
