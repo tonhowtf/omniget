@@ -5,7 +5,7 @@ resolver = "2"
 [package]
 name = "omniget"
 version = "0.10.1"
-description = "Desktop downloader for YouTube, Instagram, TikTok, X, torrents and the sites yt-dlp supports, with an MCP server for coding agents and a window to run AI agents (Claude Code, Codex, Gemini CLI, Ollama), plus a system cleaner and uninstaller (washmybelly)"
+description = "Desktop downloader for YouTube, Instagram, TikTok, X, torrents and the sites yt-dlp supports, with an MCP server for coding agents and a window to run AI agents (Claude Code, Codex, Gemini CLI, Ollama), meeting notes (record, transcribe, summarize, import Teams recordings), plus a system cleaner and uninstaller (washmybelly)"
 authors = ["tonhowtf"]
 license = "GPL-3.0"
 repository = "https://github.com/tonhowtf/omniget"
@@ -97,6 +97,9 @@ native-tls = "0.2.18"
 # /video cast: CASTV2 over TLS to the Chromecast (same rustls/ring the lock already has).
 tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12"] }
 fs4 = "1"
+# /meetings: local capture (mic + system audio loopback) into WAV tracks.
+cpal = "0.18"
+hound = "3.5"
 
 [target.'cfg(windows)'.dependencies]
 keyring = { version = "3", features = ["windows-native"] }

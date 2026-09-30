@@ -28,6 +28,7 @@
     washmybelly: { glyph: "sparkle", from: "#FF9BC2", to: "#E0527F" },
     video: { glyph: "puzzle-piece", from: "#FF8A3D", to: "#E5383B" },
     global: { glyph: "globe-hemisphere-west", from: "#40C8E0", to: "#0A7EA8" },
+    meetings: { glyph: "microphone", from: "#4FD1C5", to: "#1F8A9E" },
     fallback: { glyph: "puzzle-piece", from: "#8E8E93", to: "#5C5C60" },
   };
 

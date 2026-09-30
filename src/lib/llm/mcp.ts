@@ -338,9 +338,10 @@ export interface McpRegistryEntry {
 }
 
 /**
- * The five servers the core records fixtures for. Kept here rather than
- * fetched: the tab must open with zero network, and an entry that cannot be
- * installed offline is not worth a request.
+ * The five servers the core records fixtures for, plus Microsoft 365 (the
+ * way Meetings hands minutes back to Teams, the calendar and OneDrive). Kept
+ * here rather than fetched: the tab must open with zero network, and an
+ * entry that cannot be installed offline is not worth a request.
  */
 export const MCP_REGISTRY: McpRegistryEntry[] = [
   {
@@ -428,6 +429,28 @@ export const MCP_REGISTRY: McpRegistryEntry[] = [
       name: "Context7",
       enabled: true,
       transport: { kind: "http", url: "https://mcp.context7.com/mcp", headers: {} },
+    },
+  },
+  {
+    // Softeria/ms-365-mcp-server (MIT). `--org-mode` turns on Teams,
+    // SharePoint and online meetings; the first call signs in with a device
+    // code the agent shows to the person.
+    id: "microsoft365",
+    name: "Microsoft 365",
+    descKey: "llm.mcp.reg.microsoft365",
+    homepage: "https://github.com/Softeria/ms-365-mcp-server",
+    needs: [],
+    template: {
+      id: "microsoft365",
+      name: "Microsoft 365",
+      enabled: true,
+      transport: {
+        kind: "stdio",
+        command: "npx",
+        args: ["-y", "@softeria/ms-365-mcp-server", "--org-mode"],
+        env: {},
+        cwd: null,
+      },
     },
   },
 ];
