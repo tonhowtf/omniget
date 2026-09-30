@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>OmniGet records your microphone when you record a meeting.</string>
+	<key>NSAudioCaptureUsageDescription</key>
+	<string>OmniGet records the meeting audio your computer plays when you record a meeting.</string>
+</dict>
+</plist>

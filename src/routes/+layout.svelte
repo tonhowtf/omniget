@@ -150,6 +150,7 @@
     page.url.pathname.startsWith("/music") ||
     page.url.pathname.startsWith("/video") ||
     page.url.pathname.startsWith("/washmybelly") ||
+    page.url.pathname.startsWith("/meetings") ||
     page.url.pathname.startsWith("/about"),
   );
 
@@ -326,6 +327,13 @@
         group: get(t)("command_palette.group_nav"),
         keywords: "video watch assistir player filmes movies series séries cursos courses aulas lessons iptv jellyfin anime legendas subtitles",
         action: () => goto("/video"),
+      },
+      {
+        id: "nav-meetings",
+        label: get(t)("meetings.title"),
+        group: get(t)("command_palette.group_nav"),
+        keywords: "meetings reuniões reuniao teams zoom meet record gravar transcript transcrição ata minutes resumo summary action items whisper sharepoint",
+        action: () => goto("/meetings"),
       },
       {
         id: "nav-washmybelly",

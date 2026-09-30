@@ -36,6 +36,8 @@ pub fn for_tool(name: &str) -> Option<Value> {
         .or_else(|| super::catalog_output_schema(name))
         .or_else(|| super::washmybelly::output_schema(name))
         .or_else(|| super::memory::output_schema(name))
+        .or_else(|| super::meetings::output_schema(name))
+        .or_else(|| super::teams::output_schema(name))
         .map(with_error_branch)
 }
 

@@ -32,6 +32,8 @@ pub mod log_hook;
 pub mod mcp;
 pub mod media_processor;
 pub mod media_signature;
+pub mod meetings;
+pub mod msgraph;
 pub mod music;
 pub mod omni;
 pub mod onnxrt;

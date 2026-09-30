@@ -71,7 +71,7 @@ or export a GIF/WebP to assets/readme/hero.webp and use an <img>.
 4. [The World: watch your agents work](#the-world)
 5. [Tools: coming back](#tools-coming-back)
 
-Also: [Download and install](#download-and-install) · [Superpowers](#superpowers) · [washmybelly](#washmybelly) · [Everything else](#everything-else-in-the-box) · [Privacy](#privacy-and-what-omniget-refuses-to-do) · [Support OmniGet](#support-omniget) · [FAQ](#frequently-asked-questions) · [Command line](#command-line) · [Build from source](#build-from-source) · [Platform owners](#notice-to-platform-owners) · [Contributing](#contributing-and-translations)
+Also: [Download and install](#download-and-install) · [Superpowers](#superpowers) · [Meetings](#meetings) · [washmybelly](#washmybelly) · [Everything else](#everything-else-in-the-box) · [Privacy](#privacy-and-what-omniget-refuses-to-do) · [Support OmniGet](#support-omniget) · [FAQ](#frequently-asked-questions) · [Command line](#command-line) · [Build from source](#build-from-source) · [Platform owners](#notice-to-platform-owners) · [Contributing](#contributing-and-translations)
 
 ---
 
@@ -128,6 +128,8 @@ The token never goes on the command line, so it stays out of your shell history.
 | When something fails | Read cleaned-up engine logs, get a diagnosis from what the download left behind, get recovery options |
 | After downloading | Read the finished files' details and get temporary access to them |
 | Your agents | List agents and folders, start, pause, resume or cancel a mission, read its events and results, see pending approvals |
+| Your meetings | List, read and search meetings (summary, action items, decisions, transcript); list open action items across meetings and mark them done; import a Teams recording by its link; send the notetaker bot |
+| Your Teams | Read chats and channels as Markdown, list calendar meetings with join links, import a meeting's official transcript (permission `teams_read`, with your own Microsoft 365 sign-in) |
 | Your computer (washmybelly) | Read the system status, scan for junk, apps, startup items and privacy settings, build a plan; running or undoing a plan asks you in the OmniGet window |
 
 ### It stays under your control
@@ -148,6 +150,8 @@ The [`claude-plugin/`](claude-plugin/omniget) folder is a plugin for [Claude Cod
 /omniget:transcribe <url|file>       # captions, then local whisper.cpp, then Gemini or OpenAI if you added a key
 /omniget:research <url>              # caption and transcript turned into a Markdown note with [mm:ss] references
 /omniget:doctor                      # what is installed, what is missing, how to add it
+/omniget:meetings [todo]             # minutes and open action items of your OmniGet meetings
+/omniget:teams [chat|calendar]       # read or export a Teams chat, today's meetings, a meeting's transcript
 ```
 
 If the desktop app is installed, the plugin reuses the yt-dlp and FFmpeg it already manages.
@@ -468,7 +472,23 @@ sudo pacman -S gst-plugins-good gst-plugins-bad gst-libav   # Arch
 
 ## Superpowers
 
-Extra abilities in **Superpowers** in the sidebar. Each one can be switched off in **Settings → Advanced**.
+Extra abilities in **Superpowers** in the sidebar. Music, League of Legends and washmybelly can be switched off in **Settings → Advanced**.
+
+<a id="meetings"></a>
+
+### Meetings: record, transcribe and summarize, then send it back to Teams
+
+A meeting gets into OmniGet in one of three ways:
+
+- **Record it here, with no bot in the call.** OmniGet records your microphone and what your computer plays as two tracks, so the transcript tells **You** from **Others**. Computer audio works on Windows, on macOS 14.6 or newer, and on Linux with PulseAudio or PipeWire.
+- **Import a Teams recording.** Paste the recording's SharePoint or Stream link (or its `videomanifest` URL). OmniGet signs in to SharePoint in a window of its own, reads the Teams transcript with the speakers' names, and only downloads and transcribes the audio when there is no transcript. yt-dlp does not cover Teams recordings. Audio and video files work too.
+- **Send a bot.** Paste a Teams, Google Meet or Zoom link and a [Vexa](https://github.com/Vexa-ai/vexa) bot (open source, hosted or on your own server) joins and transcribes with speaker names.
+
+Whisper writes the transcript: locally with whisper.cpp (nothing leaves your computer), or through your AI provider. Your AI provider, Ollama included, then writes the summary, the decisions, the action items with owner and due date, and the open questions, taking into account the notes you typed during the call. Each meeting is saved as a Markdown file with front matter.
+
+**Teams, straight from Microsoft 365.** Sign in once with your own work account (an app registration you create in Entra ID; the steps are in the app) and OmniGet reads Teams through Microsoft Graph: export chats (and, with admin-approved permissions, channels) as Markdown or JSON, list the online meetings on your calendar with their join links to send the bot, and turn a meeting's official Teams transcript into minutes. The same sign-in serves the app, `omniget-cli teams` and the MCP tools, so Claude Code can catch you up on a chat, list what is still open after last week's meetings or draft the follow-up. The Claude Code plugin adds `/omniget:meetings` and `/omniget:teams`.
+
+To get it back to Teams, **Post to Teams** sends the summary and action items to a channel through a Workflows webhook. **Hand to an agent** gives the minutes to one of your agents: with the Microsoft 365 MCP server (one click in **LLM → MCP**) it can post them in the meeting chat, check your calendar or save them to OneDrive. Agents outside OmniGet read and search your meetings through the MCP server (`meetings_read` permission). From a terminal: `omniget-cli meetings list|show|search|import|summarize|post`.
 
 ### Music
 
@@ -615,6 +635,9 @@ omniget-cli download <url> -q 1080 -o ~/Videos
 omniget-cli download <url> --audio-only --subs en,pt
 omniget-cli batch links.txt -m 3           # one URL per line, 3 at a time
 omniget-cli import-cookies cookies.txt     # Netscape format
+omniget-cli meetings import call.m4a       # also a Teams/SharePoint recording link; then list, show, search
+omniget-cli meetings todo                  # open action items across every meeting
+omniget-cli teams read <chat id> --since 7d   # a Teams chat as Markdown; also: chats, export, calendar, transcript
 
 # through the running desktop app
 omniget-cli claude [account]               # Claude Code on one of the app's accounts
@@ -686,7 +709,7 @@ Loop is OmniGet's mascot. Fan art is welcome; the original artwork may not be us
 
 ## Standing on open source
 
-OmniGet is built on [yt-dlp](https://github.com/yt-dlp/yt-dlp), [FFmpeg](https://ffmpeg.org/), [gallery-dl](https://github.com/mikf/gallery-dl), [aria2](https://aria2.github.io/), [librqbit](https://github.com/ikatson/rqbit), [SponsorBlock](https://sponsor.ajay.app/), [FxTwitter](https://github.com/FixTweet/FxTwitter), [cat-catch](https://github.com/xifangczy/cat-catch) (parts of the extension's media sniffer), [whisper.cpp](https://github.com/ggml-org/whisper.cpp) (in the Claude Code plugin), [Tauri](https://tauri.app) and [Svelte](https://svelte.dev). The agents, jobs and the World borrowed ideas from [opencode](https://github.com/anomalyco/opencode), [Codex](https://github.com/openai/codex), [aider](https://github.com/Aider-AI/aider), [cline](https://github.com/cline/cline), [compozy](https://github.com/compozy/compozy), the [Agent Client Protocol](https://agentclientprotocol.com), [mem0](https://github.com/mem0ai/mem0), [letta](https://github.com/letta-ai/letta), [ai-town](https://github.com/a16z-infra/ai-town) and the [generative agents](https://github.com/joonspk-research/generative_agents) paper. Thank you to everyone who maintains them. washmybelly uses data and ideas from [privacy.sexy](https://github.com/undergroundwires/privacy.sexy), [BleachBit](https://github.com/bleachbit/bleachbit), [Win11Debloat](https://github.com/Raphire/Win11Debloat), [winutil](https://github.com/ChrisTitusTech/winutil), [Sophia Script](https://github.com/farag2/Sophia-Script-for-Windows), [Bulk Crap Uninstaller](https://github.com/Klocman/Bulk-Crap-Uninstaller), [Kudu](https://github.com/AdventDevInc/kudu), [kondo](https://github.com/tbillington/kondo), [czkawka](https://github.com/qarmin/czkawka), [Stats](https://github.com/exelban/stats), [CapFrameX](https://github.com/CXWorld/CapFrameX) and others; the full list with licenses is in [THIRD_PARTY.md](THIRD_PARTY.md).
+OmniGet is built on [yt-dlp](https://github.com/yt-dlp/yt-dlp), [FFmpeg](https://ffmpeg.org/), [gallery-dl](https://github.com/mikf/gallery-dl), [aria2](https://aria2.github.io/), [librqbit](https://github.com/ikatson/rqbit), [SponsorBlock](https://sponsor.ajay.app/), [FxTwitter](https://github.com/FixTweet/FxTwitter), [cat-catch](https://github.com/xifangczy/cat-catch) (parts of the extension's media sniffer), [whisper.cpp](https://github.com/ggml-org/whisper.cpp) (in Meetings and the Claude Code plugin), [Tauri](https://tauri.app) and [Svelte](https://svelte.dev). The agents, jobs and the World borrowed ideas from [opencode](https://github.com/anomalyco/opencode), [Codex](https://github.com/openai/codex), [aider](https://github.com/Aider-AI/aider), [cline](https://github.com/cline/cline), [compozy](https://github.com/compozy/compozy), the [Agent Client Protocol](https://agentclientprotocol.com), [mem0](https://github.com/mem0ai/mem0), [letta](https://github.com/letta-ai/letta), [ai-town](https://github.com/a16z-infra/ai-town) and the [generative agents](https://github.com/joonspk-research/generative_agents) paper. Meetings follows the lead of [Meetily](https://github.com/Zackriya-Solutions/meetily), [anarlog](https://github.com/fastrepl/anarlog), [minutes](https://github.com/silverstein/minutes) and [Humla](https://github.com/michaelwilhelmsen/humla), sends bots through [Vexa](https://github.com/Vexa-ai/vexa), reaches Teams through [ms-365-mcp-server](https://github.com/Softeria/ms-365-mcp-server), and reads Teams recordings the way [ms-teams-sharepoint-downloader](https://github.com/brendangooden/ms-teams-sharepoint-downloader) showed. Thank you to everyone who maintains them. washmybelly uses data and ideas from [privacy.sexy](https://github.com/undergroundwires/privacy.sexy), [BleachBit](https://github.com/bleachbit/bleachbit), [Win11Debloat](https://github.com/Raphire/Win11Debloat), [winutil](https://github.com/ChrisTitusTech/winutil), [Sophia Script](https://github.com/farag2/Sophia-Script-for-Windows), [Bulk Crap Uninstaller](https://github.com/Klocman/Bulk-Crap-Uninstaller), [Kudu](https://github.com/AdventDevInc/kudu), [kondo](https://github.com/tbillington/kondo), [czkawka](https://github.com/qarmin/czkawka), [Stats](https://github.com/exelban/stats), [CapFrameX](https://github.com/CXWorld/CapFrameX) and others; the full list with licenses is in [THIRD_PARTY.md](THIRD_PARTY.md).
 
 <p align="center">
   <a href="https://github.com/tonhowtf/omniget/releases/latest"><b>Download OmniGet</b></a> · <a href="LICENSE">GPL-3.0</a>

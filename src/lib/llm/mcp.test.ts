@@ -284,13 +284,14 @@ describe("grants", () => {
 });
 
 describe("the registry shown in the tab", () => {
-  it("carries the five servers the core records fixtures for", () => {
+  it("carries the five servers the core records fixtures for, then Microsoft 365", () => {
     expect(MCP_REGISTRY.map((e) => e.id)).toEqual([
       "filesystem",
       "github",
       "fetch",
       "playwright",
       "context7",
+      "microsoft365",
     ]);
   });
 

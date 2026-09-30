@@ -78,6 +78,13 @@ pub const SCOPES: &[&str] = &[
     "agents_run",
     "memory_read",
     "memory_write",
+    // Meetings: read the minutes and transcripts; write = import a Teams
+    // recording by its pre-signed URL.
+    "meetings_read",
+    "meetings_write",
+    // Microsoft Teams through the person's Microsoft 365 sign-in: read chats,
+    // channels and the calendar; import official meeting transcripts.
+    "teams_read",
 ];
 pub fn create(name: String, scopes: Vec<String>) -> Result<ConnectionGrant, String> {
     if name.trim().is_empty()
@@ -250,6 +257,17 @@ pub fn scope(name: &str) -> Option<&'static str> {
         "catalog_search" | "catalog_get" | "catalog_plan_install" | "catalog_install" => "catalog",
         "memory_recall" | "memory_reflect" => "memory_read",
         "memory_retain" => "memory_write",
+        "meetings_list" | "meeting_get" | "meetings_search" | "meetings_action_items" => {
+            "meetings_read"
+        }
+        "meeting_import" | "meeting_action_done" | "meeting_bot_send" => "meetings_write",
+        "teams_status"
+        | "teams_chats_list"
+        | "teams_chat_read"
+        | "teams_channels_list"
+        | "teams_channel_read"
+        | "teams_calendar"
+        | "teams_transcript_import" => "teams_read",
         // washmybelly: wmb_execute and wmb_restore from outside only create
         // an approval request the person answers in the OmniGet window.
         "wmb_plan"

@@ -42,6 +42,7 @@ pub mod local_bridge_observe;
 pub mod local_bridge_remote;
 pub mod local_bridge_wmb;
 pub mod mcp;
+mod meetings_capture;
 pub mod missions;
 pub mod models;
 mod native_agent;
@@ -697,6 +698,7 @@ pub fn run() {
             }
             core::recovery::init_from_disk();
             core::queue_history::init_from_disk();
+            std::thread::spawn(omniget_core::core::meetings::recover_interrupted);
             core::channels::init_from_disk();
             core::channel_poller::start(app.handle().clone());
             core::queue::start_scheduler(app.handle().clone());
@@ -1220,6 +1222,39 @@ pub fn run() {
             commands::ai::ai_summarize_url,
             commands::ai::ai_history_list,
             commands::ai::ai_history_clear,
+            commands::meetings::meetings_list,
+            commands::meetings::meeting_get,
+            commands::meetings::meeting_markdown,
+            commands::meetings::meeting_update,
+            commands::meetings::meeting_set_action_done,
+            commands::meetings::meeting_delete,
+            commands::meetings::meeting_import_file,
+            commands::meetings::meeting_import_url,
+            commands::meetings::meeting_retranscribe,
+            commands::meetings::meeting_resummarize,
+            commands::meetings::meeting_post_teams,
+            commands::meetings::meeting_capture_support,
+            commands::meetings::meeting_record_start,
+            commands::meetings::meeting_record_status,
+            commands::meetings::meeting_record_stop,
+            commands::meetings::meeting_bot_send,
+            commands::meetings::meeting_bot_refresh,
+            commands::meetings::meeting_bot_stop,
+            commands::meetings::meetings_settings_get,
+            commands::meetings::meetings_settings_set,
+            commands::meetings::meetings_whisper_status,
+            commands::meetings::meetings_whisper_install,
+            commands::meetings::meetings_whisper_model_download,
+            commands::meetings::meetings_whisper_model_remove,
+            commands::teams::teams_status,
+            commands::teams::teams_configure,
+            commands::teams::teams_sign_in_start,
+            commands::teams::teams_sign_in_finish,
+            commands::teams::teams_sign_out,
+            commands::teams::teams_chats,
+            commands::teams::teams_export,
+            commands::teams::teams_calendar,
+            commands::teams::teams_transcript_import,
             commands::video_ops::video_op_silence_estimate,
             commands::video_ops::video_op_preset,
             commands::video_ops::video_op_propose,

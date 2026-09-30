@@ -16,6 +16,14 @@
 
   let powers = $derived<Power[]>([
     {
+      id: "meetings",
+      icon: "meetings",
+      title: $t("meetings.title") as string,
+      descKey: "superpowers.meetings_desc",
+      href: "/meetings",
+      enabled: true,
+    },
+    {
       id: "music",
       icon: "music",
       title: $t("music.title") as string,

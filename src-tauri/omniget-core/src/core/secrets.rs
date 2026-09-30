@@ -88,6 +88,23 @@ pub fn put_or_delete(namespace: &str, account: &str, value: &str) -> Result<(), 
     }
 }
 
+/// Secrets the desktop app and the CLI both need (the Microsoft 365 sign-in
+/// that `omniget teams` and the Meetings screen share). The app's keychain is
+/// invisible to the CLI, so these always live in the encrypted file store.
+pub const SHARED: &str = "shared";
+
+pub fn shared_get(account: &str) -> Result<Option<String>, String> {
+    FileSecretStore::default_store().get(SHARED, account)
+}
+
+pub fn shared_set(account: &str, value: &str) -> Result<(), String> {
+    FileSecretStore::default_store().set(SHARED, account, value)
+}
+
+pub fn shared_delete(account: &str) -> Result<(), String> {
+    FileSecretStore::default_store().delete(SHARED, account)
+}
+
 // ---------------------------------------------------------------------------
 // File implementation (the default outside the app)
 // ---------------------------------------------------------------------------

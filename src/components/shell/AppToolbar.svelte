@@ -18,6 +18,7 @@
     if (path.startsWith("/music")) return $t("music.title");
     if (path.startsWith("/video")) return $t("video.title");
     if (path.startsWith("/washmybelly")) return $t("washmybelly.nav");
+    if (path.startsWith("/meetings")) return $t("meetings.title");
     return "";
   });
 </script>

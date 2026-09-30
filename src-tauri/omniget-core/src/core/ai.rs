@@ -566,12 +566,10 @@ pub async fn chat_with(
     Ok(trimmed.to_string())
 }
 
-// Whisper-style transcription via the OpenAI-compatible audio endpoint. Only
-// available for Openai/Local providers (Anthropic has no audio API). Reuses
-// the configured key/base so no separate model management is needed.
-pub async fn transcribe(audio_path: &std::path::Path) -> Result<String, String> {
-    let cfg = get();
-    let (endpoint, key) = match cfg.provider {
+/// Endpoint and key of the configured provider's OpenAI-style
+/// `/audio/transcriptions`.
+pub fn transcription_target(cfg: &AiConfig) -> Result<(String, String), String> {
+    Ok(match cfg.provider {
         AiProvider::Openai => (
             "https://api.openai.com/v1/audio/transcriptions".to_string(),
             cfg.openai_key.clone(),
@@ -586,7 +584,15 @@ pub async fn transcribe(audio_path: &std::path::Path) -> Result<String, String> 
             )
         }
         _ => return Err("Transcription needs an OpenAI-compatible provider".to_string()),
-    };
+    })
+}
+
+// Whisper-style transcription via the OpenAI-compatible audio endpoint. Only
+// available for Openai/Local providers (Anthropic has no audio API). Reuses
+// the configured key/base so no separate model management is needed.
+pub async fn transcribe(audio_path: &std::path::Path) -> Result<String, String> {
+    let cfg = get();
+    let (endpoint, key) = transcription_target(&cfg)?;
 
     let bytes = tokio::fs::read(audio_path)
         .await
