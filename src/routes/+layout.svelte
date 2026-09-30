@@ -51,6 +51,7 @@
   import DownloadStatusBar from "$components/download/DownloadStatusBar.svelte";
   import MusicHost from "$components/music/MusicHost.svelte";
   import TubeHost from "$components/tube/TubeHost.svelte";
+  import ReadHost from "$components/read/ReadHost.svelte";
   import { shellLayout } from "$lib/stores/shell-layout.svelte";
   import { setCommandPaletteItems } from "$lib/stores/command-palette-store.svelte";
   import { accountPaletteItems, activateAccount, getAccounts } from "$lib/stores/llm-accounts-store.svelte";
@@ -154,6 +155,7 @@
     page.url.pathname.startsWith("/washmybelly") ||
     page.url.pathname.startsWith("/city") ||
     page.url.pathname.startsWith("/meetings") ||
+    page.url.pathname.startsWith("/read") ||
     page.url.pathname.startsWith("/about"),
   );
 
@@ -163,6 +165,7 @@
     page.url.pathname.startsWith("/music") ||
     page.url.pathname.startsWith("/video") ||
     page.url.pathname.startsWith("/youtube") ||
+    page.url.pathname.startsWith("/read") ||
     page.url.pathname.startsWith("/downloads") ||
     page.url.pathname.startsWith("/washmybelly") ||
     page.url.pathname.startsWith("/settings"),
@@ -362,6 +365,13 @@
         keywords: "washmybelly clean limpar cache junk lixo uninstall desinstalar startup inicialização privacy privacidade debloat fps frametime battery bateria disk disco",
         action: () => goto("/washmybelly"),
       },
+      {
+        id: "nav-read",
+        label: get(t)("read.title"),
+        group: get(t)("command_palette.group_nav"),
+        keywords: "read ler leitura livros books ebook epub pdf manga mangá comics quadrinhos reader leitor biblioteca opds kindle kobo",
+        action: () => goto("/read"),
+      },
       { id: "nav-help", label: get(t)("nav.help"), group: get(t)("command_palette.group_nav"), keywords: "help ajuda guias docs assinatura agente monitor", action: () => goto("/help") },
       {
         id: "nav-about",
@@ -507,6 +517,7 @@
 <Toast />
 {#if settings?.music?.enabled ?? true}<MusicHost />{/if}
 {#if settings?.tube?.enabled ?? true}<TubeHost />{/if}
+{#if settings?.read?.enabled ?? true}<ReadHost />{/if}
 <McpAuthPrompt />
 <NativeAgentActivity />
 <CommandPalette />

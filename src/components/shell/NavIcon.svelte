@@ -30,6 +30,7 @@
     global: { glyph: "globe-hemisphere-west", from: "#40C8E0", to: "#0A7EA8" },
     meetings: { glyph: "microphone", from: "#4FD1C5", to: "#1F8A9E" },
     telegram: { glyph: "puzzle-piece", from: "#2AABEE", to: "#229ED9" },
+    read: { glyph: "book-open-text", from: "#FFB86B", to: "#E0712A" },
     fallback: { glyph: "puzzle-piece", from: "#8E8E93", to: "#5C5C60" },
   };
 

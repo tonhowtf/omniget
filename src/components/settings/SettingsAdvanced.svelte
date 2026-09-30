@@ -17,7 +17,7 @@
     section?: string;
   } = $props();
 
-  type AdvancedDrill = "performance" | "torrent" | "expert" | "league" | "music" | "telegram" | "video" | "tube" | "washmybelly" | "debug";
+  type AdvancedDrill = "performance" | "torrent" | "expert" | "league" | "music" | "read" | "telegram" | "video" | "tube" | "washmybelly" | "debug";
 
   let settings = $derived(getSettings());
 
@@ -31,6 +31,7 @@
     { id: "video", titleKey: "video.settings_title", hintKey: "video.settings_desc" },
     { id: "tube", titleKey: "tube.settings_title", hintKey: "tube.settings_desc" },
     { id: "washmybelly", titleKey: "washmybelly.settings_title", hintKey: "washmybelly.settings_desc" },
+    { id: "read", titleKey: "read.settings_title", hintKey: "read.settings_desc" },
     { id: "debug", titleKey: "settings.advanced.section_debug", hintKey: "settings.advanced.section_debug_desc" },
   ];
 
@@ -251,6 +252,16 @@
             <button class="toggle" class:on={settings.washmybelly?.auto_hold_power} onclick={() => updateSettings({ washmybelly: { auto_hold_power: !(settings.washmybelly?.auto_hold_power ?? false) } })} role="switch" aria-checked={settings.washmybelly?.auto_hold_power ?? false} aria-label={$t('washmybelly.settings_auto_hold') as string}><span class="toggle-knob"></span></button>
           </div>
         {/if}
+      </div>
+    {:else if subView === "read"}
+      <div class="card">
+        <div class="setting-row" data-setting-key="read.settings_enable">
+          <div class="setting-col">
+            <span class="setting-label">{$t('read.settings_enable')}</span>
+            <span class="setting-path">{$t('read.settings_enable_desc')}</span>
+          </div>
+          <button class="toggle" class:on={settings.read?.enabled ?? true} onclick={() => updateSettings({ read: { enabled: !(settings.read?.enabled ?? true) } })} role="switch" aria-checked={settings.read?.enabled ?? true} aria-label={$t('read.settings_enable') as string}><span class="toggle-knob"></span></button>
+        </div>
       </div>
     {:else if subView === "debug"}
       <div class="card">

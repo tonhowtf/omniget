@@ -88,6 +88,14 @@ pub const AI_KEYS: Namespace = Namespace {
     dir_env: "OMNIGET_AI_KEYS_SECRET_DIR",
 };
 
+/// `/read` logins: OPDS catalogs, the Suwayomi bridge, KOReader sync and the
+/// SMTP account for send-to-Kindle.
+pub const READ: Namespace = Namespace {
+    service: "wtf.tonho.omniget.read",
+    dir_name: "read",
+    dir_env: "OMNIGET_READ_SECRET_DIR",
+};
+
 /// The namespaces the core is allowed to name over the `SecretStore` seam.
 pub fn namespace_by_name(name: &str) -> Option<Namespace> {
     match name {

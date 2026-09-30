@@ -505,6 +505,10 @@ sudo pacman -S gst-plugins-good gst-plugins-bad gst-libav   # Arch
 
 一个外观和操作方式都和你熟悉的 YouTube 一样的 YouTube 与 YouTube Music 客户端，使用你自己的账号。如果你已经把 YouTube 的 Cookie 加到 OmniGet，它打开时就是登录状态：你的首页推荐、订阅、播放列表、赞过的视频，以及 YouTube Music 的音乐库和合辑，并享有你 Premium 的音质。不登录也能用，订阅和观看记录保存在你的电脑上。没有广告；SponsorBlock 会跳过赞助片段（也可以按类别先询问，并可设置不跳过的频道）；如果你愿意，DeArrow 会替换标题党的标题和缩略图；Return YouTube Dislike 显示点踩数。你可以隐藏 Shorts、直播、会员专享视频、合辑、首页推荐、相关视频或评论，并屏蔽频道和关键词。播放器的画质菜单就是下载用的同一个菜单，下载时可以标记或剪掉 SponsorBlock 片段。音乐在整个应用里持续播放，支持播放队列、无限电台、同步歌词和音量均衡。你关注的频道可以按规则（时长、关键词、是否为 Shorts）在磁盘上限内自动下载新视频，还可以从 NewPipe、FreeTube 或 Google Takeout 导入订阅和观看记录。
 
+### 阅读
+
+**阅读** 是一间读书、看漫画的阅览室。它为你的 EPUB、MOBI/AZW3、FB2、PDF、CBZ 和 TXT 文件建立书库，并在阅读器中打开：主题、字体、分栏或滚动、高亮和笔记、全文搜索、朗读、词典，以及一个只根据你已读内容回顾剧情、不剧透的 AI 助手。漫画可以从右到左、从左到右、竖向或条漫方式阅读，单页或双页。它可以从 Project Gutenberg、Standard Ebooks 和 Open Library 获取免费图书，在 MangaDex 和 MANGA Plus 上追更漫画并提醒新章节，也能读取任何 OPDS 书库或你自己运行的 Suwayomi 服务器。它还能转换格式、为 Kindle 或 Kobo 优化漫画、通过 USB 或电子邮件发送图书、通过 OPDS 把书库分享给同一 Wi-Fi 下的阅读器，并与 KOReader 同步阅读进度。
+
 ### 英雄联盟
 
 一个助手，在你自己的电脑上读取正在运行的英雄联盟客户端：对局侦察、实时经济和等级、一键应用符文。只有客户端开着时它才会做事，而自动接受对局之类的每一项自动化，在你主动打开之前都是关闭的。

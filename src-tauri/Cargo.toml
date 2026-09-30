@@ -100,6 +100,8 @@ fs4 = "1"
 # /meetings: local capture (mic + system audio loopback) into WAV tracks.
 cpal = "0.18"
 hound = "3.5"
+# /read: send-to-Kindle / e-mail delivery of books.
+lettre = { version = "0.11", default-features = false, features = ["smtp-transport", "tokio1", "tokio1-native-tls", "builder", "hostname"] }
 
 [target.'cfg(windows)'.dependencies]
 keyring = { version = "3", features = ["windows-native"] }

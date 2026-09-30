@@ -6,6 +6,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 
 import { devRevisionPlugin } from './scripts/dev/vite-plugin.mjs';
+import { setupPdfjs } from './scripts/setup-pdfjs.mjs';
 
 const host = process.env.TAURI_DEV_HOST;
 const configDir = path.dirname(fileURLToPath(import.meta.url));
@@ -52,6 +53,17 @@ function i18nKeysPlugin({ strict } = { strict: false }) {
   };
 }
 
+// The /read reader (vendored foliate-js) loads pdf.js runtime files from
+// /vendor/pdfjs/; copy them from node_modules before serving or building.
+function pdfjsRuntimePlugin() {
+  return {
+    name: "omniget-pdfjs-runtime",
+    buildStart() {
+      setupPdfjs();
+    },
+  };
+}
+
 export default defineConfig(({ command }) => {
   const gitInfo = getGitInfo();
   const isBuild = command === "build";
@@ -63,6 +75,7 @@ export default defineConfig(({ command }) => {
     plugins: [
       devRevisionPlugin(configDir),
       i18nKeysPlugin({ strict: strictI18n }),
+      pdfjsRuntimePlugin(),
       sveltekit(),
     ],
 

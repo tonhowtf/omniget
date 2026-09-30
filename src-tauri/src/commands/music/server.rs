@@ -153,7 +153,7 @@ async fn track(
     serve_file(&path, audio_mime(&path), &headers).await
 }
 
-async fn serve_file(path: &str, mime: &str, headers: &HeaderMap) -> Response {
+pub(crate) async fn serve_file(path: &str, mime: &str, headers: &HeaderMap) -> Response {
     let Ok(mut file) = tokio::fs::File::open(path).await else {
         return status(StatusCode::NOT_FOUND);
     };

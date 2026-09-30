@@ -93,6 +93,7 @@ pub const SCOPES: &[&str] = &[
     // Microsoft Teams through the person's Microsoft 365 sign-in: read chats,
     // channels and the calendar; import official meeting transcripts.
     "teams_read",
+    "library",
 ];
 pub fn create(name: String, scopes: Vec<String>) -> Result<ConnectionGrant, String> {
     if name.trim().is_empty()
@@ -295,6 +296,7 @@ pub fn scope(name: &str) -> Option<&'static str> {
             "telegram_write"
         }
         n if n.starts_with("tg_") => "telegram_read",
+        "read_library_search" | "read_book_get" | "read_book_text" | "read_updates" => "library",
         _ => return None,
     })
 }

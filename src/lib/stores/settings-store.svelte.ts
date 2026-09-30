@@ -126,6 +126,9 @@ export type AppSettings = {
     auto_hold_power?: boolean;
     perf_tool_path?: string;
   };
+  read?: {
+    enabled?: boolean;
+  };
   league?: {
     enabled?: boolean;
     auto_accept?: boolean;

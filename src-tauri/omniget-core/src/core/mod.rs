@@ -46,6 +46,7 @@ pub mod platform_optout;
 pub mod pokemon_names;
 pub mod pot_provider;
 pub mod process;
+pub mod read;
 pub mod redirect;
 pub mod registry;
 pub mod secrets;

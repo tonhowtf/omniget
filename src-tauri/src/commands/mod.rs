@@ -39,6 +39,7 @@ pub mod profile;
 pub mod profile_sync;
 pub mod proxy_check;
 pub mod quick_action;
+pub mod read;
 pub mod reencode;
 pub mod rpc;
 pub mod rules;

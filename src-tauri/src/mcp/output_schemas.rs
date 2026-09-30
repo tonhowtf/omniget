@@ -214,6 +214,19 @@ fn own(name: &str) -> Option<Value> {
             }),
             &["protocol", "scopes", "transports"],
         ),
+        "read_library_search" => obj(
+            json!({"books": arr(obj(json!({"id": ty("integer"), "title": ty("string"), "authors": arr(ty("string")), "format": ty("string"), "status": ty("string"), "progress": ty("number")}), &["id", "title"]))}),
+            &["books"],
+        ),
+        "read_book_get" => obj(
+            json!({"id": ty("integer"), "title": ty("string"), "annotations": arr(ty("object"))}),
+            &["id", "title", "annotations"],
+        ),
+        "read_book_text" => obj(
+            json!({"id": ty("integer"), "chapter": ty("integer"), "chapters": ty("integer"), "title": ty("string"), "text": ty("string"), "nextOffset": nullable("integer"), "totalChars": ty("integer")}),
+            &["id", "chapter", "chapters", "text", "totalChars"],
+        ),
+        "read_updates" => obj(json!({"unread": arr(ty("object"))}), &["unread"]),
         "omniget_health" => obj(
             json!({
                 "app": ty("string"),

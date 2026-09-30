@@ -20,6 +20,7 @@
     if (path.startsWith("/youtube")) return $t("tube.title");
     if (path.startsWith("/washmybelly")) return $t("washmybelly.nav");
     if (path.startsWith("/meetings")) return $t("meetings.title");
+    if (path.startsWith("/read")) return $t("read.title");
     return "";
   });
 </script>

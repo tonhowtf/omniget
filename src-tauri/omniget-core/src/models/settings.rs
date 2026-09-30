@@ -48,6 +48,8 @@ pub struct AppSettings {
     pub tube: TubeSettings,
     pub washmybelly: WashMyBellySettings,
     #[serde(default)]
+    pub read: ReadSettings,
+    #[serde(default)]
     pub accessibility: AccessibilitySettings,
     #[serde(default)]
     pub omnidisc: OmnidiscSettings,
@@ -489,6 +491,27 @@ impl Default for TubeSettings {
             lyrics_provider: "auto".into(),
             download_folder: None,
             storage_cap_gb: 0.0,
+        }
+    }
+}
+
+/// `/read` superpower. Reader preferences (fonts, themes, layout) are per
+/// device and live in the webview; library state is in `read.db`. Only the
+/// on/off switch is here.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReadSettings {
+    #[serde(default = "default_read_enabled")]
+    pub enabled: bool,
+}
+
+fn default_read_enabled() -> bool {
+    true
+}
+
+impl Default for ReadSettings {
+    fn default() -> Self {
+        Self {
+            enabled: default_read_enabled(),
         }
     }
 }
@@ -1207,6 +1230,7 @@ impl Default for AppSettings {
             video: VideoSettings::default(),
             tube: TubeSettings::default(),
             washmybelly: WashMyBellySettings::default(),
+            read: ReadSettings::default(),
             accessibility: AccessibilitySettings::default(),
             omnidisc: OmnidiscSettings::default(),
             world: WorldSettings::default(),

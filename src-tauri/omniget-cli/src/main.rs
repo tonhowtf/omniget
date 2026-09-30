@@ -155,6 +155,11 @@ enum Commands {
         #[command(subcommand)]
         command: commands::tg::TgCommand,
     },
+    /// Books and manga: metadata, legal catalogs, OPDS, text to EPUB
+    Read {
+        #[command(subcommand)]
+        command: commands::read::ReadCommand,
+    },
     /// Import a cookies.txt file (Netscape format)
     ImportCookies {
         file: String,
@@ -280,6 +285,9 @@ async fn main() -> anyhow::Result<()> {
         }
         Commands::Tg { local, command } => {
             commands::tg::execute(command, local, cli.json).await?;
+        }
+        Commands::Read { command } => {
+            commands::read::execute(command, cli.json).await?;
         }
         Commands::ImportCookies {
             file,

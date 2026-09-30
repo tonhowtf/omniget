@@ -81,7 +81,7 @@
   let reveal = $state(false);
   let snippets = $state<[string,string][]>([]);
   let client = $state(0);
-  const options = ["app_observe", "app_control", "app_capture", "discover", "enqueue", "control", "diagnostics", "artifacts", "history", "local_network", "transfer", "company_read", "company_control", "orchestration_read", "orchestration_control", "orchestration_create", "auth", "catalog", "system_read", "system_change", "telegram_read", "telegram_write", "approvals_respond", "agents_run", "memory_read", "memory_write", "city_read", "city_write", "meetings_read", "meetings_write", "teams_read"];
+  const options = ["app_observe", "app_control", "app_capture", "discover", "enqueue", "control", "diagnostics", "artifacts", "history", "local_network", "transfer", "company_read", "company_control", "orchestration_read", "orchestration_control", "orchestration_create", "auth", "catalog", "system_read", "system_change", "telegram_read", "telegram_write", "approvals_respond", "agents_run", "memory_read", "memory_write", "city_read", "city_write", "meetings_read", "meetings_write", "teams_read", "library"];
   async function chooseFolder() {
     const selected = await open({ directory: true, multiple: false });
     if (typeof selected === "string") folder = selected;

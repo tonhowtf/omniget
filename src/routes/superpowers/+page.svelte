@@ -56,6 +56,14 @@
       enabled: getSettings()?.tube?.enabled ?? true,
     },
     {
+      id: "read",
+      icon: "read",
+      title: $t("read.title") as string,
+      descKey: "superpowers.read_desc",
+      href: "/read",
+      enabled: getSettings()?.read?.enabled ?? true,
+    },
+    {
       id: "league",
       icon: "league",
       title: "League of Legends",
