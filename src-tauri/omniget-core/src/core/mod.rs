@@ -6,6 +6,7 @@ pub mod app_launch;
 pub mod assist;
 pub mod binary_overrides;
 pub mod catalog;
+pub mod city3d;
 pub mod clipboard;
 pub mod clitools;
 pub mod company;

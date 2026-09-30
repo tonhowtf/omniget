@@ -204,3 +204,78 @@ export interface CalibrationResult {
   backend: BackendName | 'none';
   contextLostDuring: boolean;
 }
+
+// ── 3D (three3d backend, estudo 99 M0) ────────────────────────────────────
+// The 2D `Renderer` above is a sprite contract (atlas, chunks baked to a
+// texture, text quads); none of it maps onto a 3D scene, so the city gets a
+// sibling contract instead of a stretched one. The policy layer is shared:
+// the same `Tier`, the watchdog, `ContextTracker` and `replaceCanvas`.
+
+export type Backend3DName = 'three3d';
+
+/** `orbit` = free orbit (camera-controls); `snap` = fixed tilt, 90° turns. */
+export type CameraMode3D = 'orbit' | 'snap';
+
+export interface InitOpts3D {
+  tier: Tier;
+  dpr?: number;
+  camera?: CameraMode3D;
+  /** Kept for readPixels probes (calibration, bench, restore check). */
+  preserveDrawingBuffer?: boolean;
+}
+
+export interface Caps3D {
+  backend: Backend3DName;
+  tier: Tier;
+  dpr: number;
+  maxTextureSize: number;
+  webgl2: boolean;
+  /** UNMASKED_RENDERER_WEBGL when the driver exposes it (diagnostics only). */
+  gpu: string;
+  /** Milliseconds `compileAsync` took on the last `compile()`. */
+  compileMs: number;
+}
+
+export interface FrameStats3D {
+  cpuMs: number;
+  drawCalls: number;
+  triangles: number;
+  /** Instances drawn this frame (visible meshes only). */
+  instances: number;
+  rendered: boolean;
+}
+
+export interface RenderMemory3D {
+  geometries: number;
+  textures: number;
+  programs: number;
+  /** Bytes of vertex/index/instance buffers plus textures, estimated. */
+  bytes: number;
+}
+
+/**
+ * The GPU half of the city: renderer, scene, camera and lifecycle. Content
+ * (regions, kit, people) is added through `scene` by the city layer on top;
+ * this contract only owns what has to survive a lost context.
+ */
+export interface Renderer3D {
+  init(canvas: HTMLCanvasElement, opts: InitOpts3D): Promise<Caps3D>;
+  /** Warms every shader of the current scene (`compileAsync`); returns ms. */
+  compile(): Promise<number>;
+  /** Draws one frame; `force` draws even when nothing changed. */
+  frame(dtMs: number, force?: boolean): FrameStats3D;
+  /** Marks the scene dirty so the next `frame` draws. */
+  invalidate(): void;
+  resize(w: number, h: number, dpr: number): void;
+  setTier(tier: Tier): void;
+  readonly tier: Tier;
+  readonly canvas: HTMLCanvasElement | null;
+  memory(): RenderMemory3D;
+  /** Reads one pixel (RGBA) of the last frame, y from the top. */
+  probe(x: number, y: number): [number, number, number, number] | null;
+  /** Drops the GL context on purpose and frees nothing the CPU still holds. */
+  sleep(): void;
+  /** Brings the context back (swapping the canvas on macOS if needed) and checks a pixel. */
+  wake(): Promise<void>;
+  destroy(): void;
+}

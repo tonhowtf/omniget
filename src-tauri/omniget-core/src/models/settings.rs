@@ -200,6 +200,10 @@ pub struct WorldSettings {
     /// Pins the renderer backend (`gl2`, `gl1`, `canvas2d`); None picks by tier.
     #[serde(default)]
     pub backend_override: Option<String>,
+    /// How `/city` draws: `lite` (2D sprites of the kit) or `3d`; None lets
+    /// the 3D calibration decide.
+    #[serde(default)]
+    pub city_backend: Option<String>,
     #[serde(default)]
     pub tier_measured: Option<u8>,
     #[serde(default)]
@@ -237,6 +241,7 @@ impl Default for WorldSettings {
             enabled: default_world_enabled(),
             tier_override: None,
             backend_override: None,
+            city_backend: None,
             tier_measured: None,
             measured_median_ms: None,
             measured_app_version: None,

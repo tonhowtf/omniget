@@ -15,11 +15,10 @@ import {
 } from './batcher';
 import { chunkLayout, chunkTilePx, sortTiles, ChunkStore } from './chunk';
 import { parseChunkId, worldToScreen } from './camera';
-import { ContextTracker, waitForRestore } from './context';
+import { ContextTracker, replaceCanvas, waitForRestore } from './context';
 import { TextAtlas, textUV } from './text';
 import { budgetForTier } from './tier';
 import {
-  CANVAS_REPLACED_EVENT,
   CHUNK_TILES,
   ERR,
   RenderError,
@@ -138,24 +137,8 @@ export function buildProgram(gl: GL, version: 1 | 2): WebGLProgram {
   return prog;
 }
 
-/**
- * Swaps a canvas whose context refused to come back for a fresh element in the
- * same DOM position, copying size and presentation. Returns null when the canvas
- * is detached, in which case the caller has to rebuild the renderer itself.
- */
-export function replaceCanvas(old: HTMLCanvasElement): HTMLCanvasElement | null {
-  const parent = old.parentNode;
-  if (!parent || typeof document === 'undefined') return null;
-  const next = document.createElement('canvas');
-  // Every attribute (class, tabindex, aria-label, style, id…), so focus and
-  // assistive tech see the same element they saw before.
-  for (const a of Array.from(old.attributes)) next.setAttribute(a.name, a.value);
-  next.width = old.width;
-  next.height = old.height;
-  parent.replaceChild(next, old);
-  old.dispatchEvent(new CustomEvent(CANVAS_REPLACED_EVENT, { detail: next }));
-  return next;
-}
+// Lives in context.ts (shared with the three3d backend); re-exported for old callers.
+export { replaceCanvas };
 
 interface LoadedAtlas {
   data: AtlasData;
@@ -181,6 +164,7 @@ export function createGlRenderer(version: 1 | 2): Renderer {
   let aUV = 0;
   let aColor = 0;
   let scratch: Float32Array | null = null;
+  let spriteScratch: Float32Array | null = null;
   let tier: Tier = 1;
   let dpr = 1;
   let width = 1;
@@ -443,20 +427,29 @@ export function createGlRenderer(version: 1 | 2): Renderer {
       if (uRes) g.uniform2f(uRes, width, height);
       g.clear(g.COLOR_BUFFER_BIT);
 
-      // 2. One draw call per visible chunk. The FBO texture is y-flipped, so V is
-      // swapped instead of re-rendering it.
-      scratch = growScratch(scratch, FLOATS_PER_QUAD);
+      // 2 + 3. Chunks (one draw call each; the FBO texture is y-flipped, so V
+      // is swapped instead of re-rendering it), then the sprites sorted by
+      // y + z, one draw call per atlas page run. Both go up in ONE buffer
+      // upload: on llvmpipe every bufferData on a buffer a pending draw still
+      // reads waits for that draw, which serialised the chunk draws with the
+      // CPU (measured on the lite city, estudo 99).
       const chunkSize = budgetForTier(tier).chunkTexture;
       const layout = chunkLayout(chunkSize);
       const drawSide = (chunkSize / layout.scale) * scene.camera.zoom;
       const shiftX = (layout.originX / layout.scale) * scene.camera.zoom;
       const shiftY = (layout.originY / layout.scale) * scene.camera.zoom;
+      const visible = cullSprites(scene.sprites, atlas.data, scene.camera);
+      spriteScratch = growScratch(spriteScratch, visible.length * FLOATS_PER_QUAD);
+      const built = buildSpriteBatches(visible, atlas.data, scene.camera, atlas.sizes, spriteScratch);
+      scratch = growScratch(scratch, (scene.chunksVisible.length + built.quads) * FLOATS_PER_QUAD);
+      const chunkTex: WebGLTexture[] = [];
+      let floats = 0;
       for (const id of scene.chunksVisible) {
         const tex = chunkTextures.get(id);
         if (!tex) continue;
         const { cx, cy } = parseChunkId(id);
         const origin = worldToScreen(scene.camera, cx * CHUNK_TILES, cy * CHUNK_TILES);
-        writeQuad(scratch, 0, {
+        floats = writeQuad(scratch, floats, {
           page: 0,
           sx: origin.sx - shiftX,
           sy: origin.sy - shiftY,
@@ -467,28 +460,27 @@ export function createGlRenderer(version: 1 | 2): Renderer {
           u1: 1,
           v1: 0,
         });
-        drawQuads(g, scratch, 1, tex);
-        stats.drawCalls++;
+        chunkTex.push(tex);
       }
-
-      // 3. Sprites, sorted by y + z, one draw call per atlas page run.
-      const visible = cullSprites(scene.sprites, atlas.data, scene.camera);
-      scratch = growScratch(scratch, visible.length * FLOATS_PER_QUAD);
-      const built = buildSpriteBatches(visible, atlas.data, scene.camera, atlas.sizes, scratch);
-      if (built.quads > 0) {
-        ensureIndices(g, built.quads);
+      const nChunks = chunkTex.length;
+      scratch.set(built.vertices.subarray(0, built.quads * FLOATS_PER_QUAD), floats);
+      const total = nChunks + built.quads;
+      if (total > 0) {
+        ensureIndices(g, total);
         g.bindBuffer(g.ARRAY_BUFFER, vbo);
-        g.bufferData(
-          g.ARRAY_BUFFER,
-          built.vertices.subarray(0, built.quads * FLOATS_PER_QUAD),
-          g.DYNAMIC_DRAW,
-        );
+        g.bufferData(g.ARRAY_BUFFER, scratch.subarray(0, total * FLOATS_PER_QUAD), g.DYNAMIC_DRAW);
         g.activeTexture(g.TEXTURE0);
+        for (let i = 0; i < nChunks; i++) {
+          g.bindTexture(g.TEXTURE_2D, chunkTex[i]);
+          g.drawElements(g.TRIANGLES, INDICES_PER_QUAD, g.UNSIGNED_SHORT, i * INDICES_PER_QUAD * 2);
+          stats.drawCalls++;
+        }
+        const base = nChunks * INDICES_PER_QUAD;
         for (const b of built.batches) {
           const tex = atlas.textures[b.page];
           if (!tex) continue;
           g.bindTexture(g.TEXTURE_2D, tex);
-          g.drawElements(g.TRIANGLES, b.count, g.UNSIGNED_SHORT, b.offset * 2);
+          g.drawElements(g.TRIANGLES, b.count, g.UNSIGNED_SHORT, (base + b.offset) * 2);
           stats.drawCalls++;
         }
         stats.sprites = built.quads;
@@ -677,6 +669,7 @@ export function createGlRenderer(version: 1 | 2): Renderer {
       gl = null;
       canvas = null;
       scratch = null;
+      spriteScratch = null;
     },
   };
 

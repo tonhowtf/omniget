@@ -150,11 +150,13 @@
     page.url.pathname.startsWith("/music") ||
     page.url.pathname.startsWith("/video") ||
     page.url.pathname.startsWith("/washmybelly") ||
+    page.url.pathname.startsWith("/city") ||
     page.url.pathname.startsWith("/about"),
   );
 
   let isFlushRoute = $derived(
     page.url.pathname === "/" ||
+    page.url.pathname.startsWith("/city") ||
     page.url.pathname.startsWith("/music") ||
     page.url.pathname.startsWith("/video") ||
     page.url.pathname.startsWith("/downloads") ||

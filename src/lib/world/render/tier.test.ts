@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   backendForTier,
+  cityBackendFromCalibration,
+  CITY3D_TIER0_FRAME_MS,
   budgetForTier,
   frameBudgetMs,
   lowerTier,
@@ -162,5 +164,14 @@ describe('context state machine', () => {
     expect(nextState('live', 'destroy')).toBe('destroyed');
     expect(nextState('destroyed', 'init')).toBe('destroyed');
     expect(nextState('destroyed', 'wake')).toBe('destroyed');
+  });
+});
+
+describe('city backend from the 3D calibration', () => {
+  it('goes lite over the tier-0 budget or when 3D cannot run', () => {
+    expect(cityBackendFromCalibration({ medianMs: 12, backend: 'gl2', contextLostDuring: false })).toBe('3d');
+    expect(cityBackendFromCalibration({ medianMs: CITY3D_TIER0_FRAME_MS + 1, backend: 'gl2', contextLostDuring: false })).toBe('lite');
+    expect(cityBackendFromCalibration({ medianMs: Infinity, backend: 'none', contextLostDuring: false })).toBe('lite');
+    expect(cityBackendFromCalibration({ medianMs: 5, backend: 'gl2', contextLostDuring: true })).toBe('lite');
   });
 });

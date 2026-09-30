@@ -78,6 +78,10 @@ pub const SCOPES: &[&str] = &[
     "agents_run",
     "memory_read",
     "memory_write",
+    // The 3D city: read (inspect, validate, render, codegeo) and change
+    // (propose, apply, found). Never a default.
+    "city_read",
+    "city_write",
 ];
 pub fn create(name: String, scopes: Vec<String>) -> Result<ConnectionGrant, String> {
     if name.trim().is_empty()
@@ -260,6 +264,8 @@ pub fn scope(name: &str) -> Option<&'static str> {
         | "wmb_perf_capture_start"
         | "wmb_perf_capture_stop" => "system_change",
         n if n.starts_with("wmb_") => "system_read",
+        "city_inspect" | "city_validate" | "city_render" | "city_codegeo" => "city_read",
+        "city_propose" | "city_apply" | "city_found" => "city_write",
         _ => return None,
     })
 }

@@ -370,3 +370,139 @@ export async function calibrate(canvas?: HTMLCanvasElement | null): Promise<Cali
 }
 
 export { GL_ATTRIBUTES };
+
+// ── 3D (three3d) ──────────────────────────────────────────────────────────
+// Same method as above: readPixels(1x1) and finish() passes, the timer query
+// when present, per-frame wall time for WKWebView's 1 ms clock, largest wins.
+// The scene is `three3d/calibration.ts` (N toon instances + shadow + 8
+// figures), imported on demand so the 2D path never downloads three.
+
+export interface Calibration3DDetail extends CalibrationDetail {
+  backend3d: 'three3d' | 'none';
+  instances: number;
+  characters: number;
+}
+
+export async function calibrate3dDetailed(target?: HTMLCanvasElement | null): Promise<Calibration3DDetail> {
+  const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
+  const started = now();
+  const canvas = target ?? makeCanvas();
+  const fail = (lost: boolean): Calibration3DDetail => ({
+    tier: 0 as Tier,
+    medianMs: Infinity,
+    backend: 'none',
+    backend3d: 'none',
+    contextLostDuring: lost,
+    readPixelsMs: Infinity,
+    finishMs: Infinity,
+    readPixelsPerFrameMs: Infinity,
+    finishPerFrameMs: Infinity,
+    timerQueryMs: null,
+    usedMethod: 'readPixels',
+    frames: 0,
+    durationMs: now() - started,
+    maxTextureSize: 0,
+    instances: 0,
+    characters: 0,
+  });
+  if (!canvas) return fail(false);
+  let contextLost = false;
+  const onLost = (e: Event) => {
+    e.preventDefault();
+    contextLost = true;
+  };
+  canvas.addEventListener('webglcontextlost', onLost as EventListener, false);
+  let scene: Awaited<ReturnType<typeof import('./three3d/calibration').buildCalibration3D>> | null = null;
+  try {
+    const mod = await import('./three3d/calibration');
+    scene = await mod.buildCalibration3D(canvas, CAL_WIDTH, CAL_HEIGHT);
+    const gl = scene.gl;
+    const pixel = new Uint8Array(4);
+    const draw = () => scene!.draw();
+    const syncReadPixels = () => gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
+    const syncFinish = () => gl.finish();
+
+    const rpStart = now();
+    const readPixelsSamples = runPass(draw, syncReadPixels, now, CAL_FRAMES, CAL_WARMUP);
+    const readPixelsPerFrameMs = (now() - rpStart) / (CAL_FRAMES + CAL_WARMUP);
+    const fnStart = now();
+    const finishSamples = runPass(draw, syncFinish, now, CAL_COMPARE_FRAMES, 2);
+    const finishPerFrameMs = (now() - fnStart) / (CAL_COMPARE_FRAMES + 2);
+
+    let timerQueryMs: number | null = null;
+    const ext = scene.webgl2
+      ? ((gl as WebGL2RenderingContext).getExtension('EXT_disjoint_timer_query_webgl2') as {
+          TIME_ELAPSED_EXT: number;
+          GPU_DISJOINT_EXT: number;
+        } | null)
+      : null;
+    if (ext) {
+      const gl2 = gl as WebGL2RenderingContext;
+      const samples: number[] = [];
+      for (let i = 0; i < CAL_COMPARE_FRAMES; i++) {
+        const q = gl2.createQuery();
+        if (!q) break;
+        gl2.beginQuery(ext.TIME_ELAPSED_EXT, q);
+        draw();
+        gl2.endQuery(ext.TIME_ELAPSED_EXT);
+        gl2.flush();
+        const ns = await waitForQuery(gl2, q, ext.GPU_DISJOINT_EXT);
+        gl2.deleteQuery(q);
+        if (ns === null) break;
+        samples.push(ns / 1e6);
+      }
+      if (samples.length > 0) timerQueryMs = median(samples);
+    }
+
+    const readPixelsMs = median(readPixelsSamples);
+    const finishMs = median(finishSamples);
+    let usedMethod: SyncMode = 'readPixels';
+    let medianMs = readPixelsMs;
+    if (finishMs > medianMs) {
+      medianMs = finishMs;
+      usedMethod = 'finish';
+    }
+    if (timerQueryMs !== null && timerQueryMs > medianMs) {
+      medianMs = timerQueryMs;
+      usedMethod = 'timerQuery';
+    }
+    if (readPixelsPerFrameMs > medianMs) {
+      medianMs = readPixelsPerFrameMs;
+      usedMethod = 'readPixels';
+    }
+    if (finishPerFrameMs > medianMs) {
+      medianMs = finishPerFrameMs;
+      usedMethod = 'finish';
+    }
+    const tier = tierFromMedian(medianMs, { webglAvailable: true, contextLost });
+    return {
+      tier,
+      medianMs,
+      backend: scene.webgl2 ? 'gl2' : 'gl1',
+      backend3d: 'three3d',
+      contextLostDuring: contextLost,
+      readPixelsMs,
+      finishMs,
+      readPixelsPerFrameMs,
+      finishPerFrameMs,
+      timerQueryMs,
+      usedMethod,
+      frames: readPixelsSamples.length,
+      durationMs: now() - started,
+      maxTextureSize: gl.getParameter(gl.MAX_TEXTURE_SIZE) as number,
+      instances: mod.CAL3D_INSTANCES,
+      characters: mod.CAL3D_CHARACTERS,
+    };
+  } catch {
+    return fail(contextLost);
+  } finally {
+    canvas.removeEventListener('webglcontextlost', onLost as EventListener);
+    scene?.dispose();
+  }
+}
+
+/** Contract-shaped entry for the 3D city. */
+export async function calibrate3d(canvas?: HTMLCanvasElement | null): Promise<CalibrationResult> {
+  const d = await calibrate3dDetailed(canvas);
+  return { tier: d.tier, medianMs: d.medianMs, backend: d.backend, contextLostDuring: d.contextLostDuring };
+}

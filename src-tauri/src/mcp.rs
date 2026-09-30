@@ -209,6 +209,9 @@ impl HostTools for AppHost {
                 Err("PERMISSION_REQUIRED: use an authenticated MCP connection".into())
             }
             n if n.starts_with("help_") => crate::commands::llm::help::dispatch(app, n, a).await,
+            n if n.starts_with("city_") => {
+                crate::commands::city3d::city::host_tool(app, n, a).await
+            }
             n if n.starts_with("preview_") => {
                 // A thread's agent drives its own thread's Browser preview: a
                 // driver session token pins the thread; a native turn runs
@@ -1271,7 +1274,7 @@ pub async fn handle(app: &AppHandle, principal: &policy::Principal, msg: &Value)
             }
             match downloads::call(app, principal, name, args).await {
                 Ok(mut v) => {
-                    let preview = if name.starts_with("omniget_app_") {
+                    let preview = if name.starts_with("omniget_app_") || name == "city_render" {
                         v.as_object_mut().and_then(|o| o.remove("_mcpImage"))
                     } else {
                         None
@@ -1673,7 +1676,10 @@ mod tests {
     fn a_lista_do_servidor_e_a_tabela_do_core() {
         let table: Vec<_> = omniget_core::core::llm::tool_table::available().collect();
         let list = tools();
-        let legacy = list.iter().filter(|t| !t.name.starts_with("wmb_")).count();
+        let legacy = list
+            .iter()
+            .filter(|t| !t.name.starts_with("wmb_") && !t.name.starts_with("city_"))
+            .count();
         assert_eq!(legacy, 45, "a tabela mudou de tamanho");
         assert_eq!(list.len(), table.len());
         for (def, entry) in list.iter().zip(table.iter().copied()) {
@@ -1691,7 +1697,7 @@ mod tests {
             .filter(|e| e.needs_host())
             .map(|e| e.name)
             .collect();
-        assert_eq!(host.len(), 34, "{:?}", host);
+        assert_eq!(host.len(), 35, "{:?}", host);
     }
 
     #[test]

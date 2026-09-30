@@ -2,6 +2,8 @@
 // The webview reclaims WebGL after inactivity in Tauri (pixijs#11731), so the
 // renderer drops the context on purpose when the route hides and rebuilds it on wake.
 
+import { CANVAS_REPLACED_EVENT } from './types';
+
 export type ContextState = 'new' | 'live' | 'sleeping' | 'lost' | 'restoring' | 'destroyed';
 
 export type ContextEvent = 'init' | 'sleep' | 'wake' | 'lost' | 'restored' | 'destroy';
@@ -122,4 +124,23 @@ export class ContextTracker {
   get isLive(): boolean {
     return this.state === 'live';
   }
+}
+
+/**
+ * Swaps a canvas whose context refused to come back for a fresh element in the
+ * same DOM position, copying size and presentation. Returns null when the canvas
+ * is detached, in which case the caller has to rebuild the renderer itself.
+ */
+export function replaceCanvas(old: HTMLCanvasElement): HTMLCanvasElement | null {
+  const parent = old.parentNode;
+  if (!parent || typeof document === 'undefined') return null;
+  const next = document.createElement('canvas');
+  // Every attribute (class, tabindex, aria-label, style, id…), so focus and
+  // assistive tech see the same element they saw before.
+  for (const a of Array.from(old.attributes)) next.setAttribute(a.name, a.value);
+  next.width = old.width;
+  next.height = old.height;
+  parent.replaceChild(next, old);
+  old.dispatchEvent(new CustomEvent(CANVAS_REPLACED_EVENT, { detail: next }));
+  return next;
 }

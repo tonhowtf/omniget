@@ -1,4 +1,5 @@
-//! `OMNIGET_WORLD_BENCH=<scenario>` hook: opens `/world?bench=<scenario>`, waits for
+//! `OMNIGET_WORLD_BENCH=<scenario>` hook: opens `/world?bench=<scenario>` (or the
+//! route in `OMNIGET_WORLD_BENCH_ROUTE`, e.g. `/city`), waits for
 //! `world_bench_report`, prints one `[world-bench] {json}` line and exits. Same
 //! mould as `OMNIGET_SMOKE_EXIT_MS` in `lib.rs`. Owned by `f6-bench`.
 //!
@@ -21,6 +22,11 @@ use std::time::{Duration, Instant};
 
 /// Scenario name; also the value the report echoes back.
 pub const ENV_SCENARIO: &str = "OMNIGET_WORLD_BENCH";
+/// Route the bench opens: `/world` (default) or `/city` (the 3D city and its
+/// lite mode, estudo 99).
+pub const ENV_ROUTE: &str = "OMNIGET_WORLD_BENCH_ROUTE";
+/// Routes the hook may open; anything else falls back to `/world`.
+const ROUTES: &[&str] = &["/world", "/city"];
 /// Safety net so a wedged webview fails the job instead of hanging it.
 pub const ENV_TIMEOUT_MS: &str = "OMNIGET_WORLD_BENCH_TIMEOUT_MS";
 /// Filled by the workflow (`apt-cache policy` / `glxinfo`); copied into the JSON.
@@ -54,14 +60,38 @@ static PAGE_ON_WORLD: AtomicBool = AtomicBool::new(false);
 
 /// Called by the `page-beacon` op with whatever `location.href` the page has.
 pub fn note_page_href(href: &str) {
-    PAGE_ON_WORLD.store(href_is_world(href), Ordering::Relaxed);
+    PAGE_ON_WORLD.store(href_is_route(href, &route()), Ordering::Relaxed);
 }
 
 /// Pure: does this href point at the bench route?
-fn href_is_world(href: &str) -> bool {
+fn href_is_route(href: &str, route: &str) -> bool {
     tauri::Url::parse(href)
-        .map(|u| u.path() == "/world")
+        .map(|u| u.path() == route)
         .unwrap_or(false)
+}
+
+#[cfg(test)]
+fn href_is_world(href: &str) -> bool {
+    href_is_route(href, "/world")
+}
+
+/// `OMNIGET_WORLD_BENCH_ROUTE`, checked against [`ROUTES`].
+pub fn route() -> String {
+    route_from(std::env::var(ENV_ROUTE).ok().as_deref())
+}
+
+fn route_from(raw: Option<&str>) -> String {
+    let r = raw.map(str::trim).unwrap_or("");
+    let r = if r.starts_with('/') {
+        r.to_string()
+    } else {
+        format!("/{r}")
+    };
+    if ROUTES.contains(&r.as_str()) {
+        r
+    } else {
+        "/world".into()
+    }
 }
 
 /// `OMNIGET_WORLD_BENCH` as a scenario name, or `None` when the hook is off.
@@ -87,12 +117,12 @@ fn timeout_ms_from(raw: Option<&str>) -> u64 {
         .unwrap_or(DEFAULT_TIMEOUT_MS)
 }
 
-/// `<app base>/world?bench=<scenario>` built from the URL the window is on, so
+/// `<app base><route>?bench=<scenario>` built from the URL the window is on, so
 /// this works the same under `tauri://localhost`, `http://localhost:1420` (dev)
 /// and the Linux custom protocol.
-fn bench_url(current: &tauri::Url, scenario: &str) -> tauri::Url {
+fn bench_url(current: &tauri::Url, route: &str, scenario: &str) -> tauri::Url {
     let mut url = current.clone();
-    url.set_path("/world");
+    url.set_path(route);
     url.set_query(Some(&format!("bench={scenario}")));
     url.set_fragment(None);
     url
@@ -108,7 +138,8 @@ pub fn maybe_run(app: &tauri::App) {
     BASELINE_RSS_KB.store(process_rss_kb().unwrap_or(0), Ordering::Relaxed);
 
     let timeout = timeout_ms_from(std::env::var(ENV_TIMEOUT_MS).ok().as_deref());
-    tracing::info!("[world-bench] scenario={scenario} timeout={timeout}ms");
+    let bench_route = route();
+    tracing::info!("[world-bench] scenario={scenario} route={bench_route} timeout={timeout}ms");
 
     let handle = app.handle().clone();
     let scenario_for_nav = scenario.clone();
@@ -126,7 +157,7 @@ pub fn maybe_run(app: &tauri::App) {
             // producing frames.
             show_and_focus(&handle);
             match current_path(&handle) {
-                Ok(path) if path == "/world" => {}
+                Ok(path) if path == bench_route => {}
                 Ok(path) => {
                     tracing::info!(
                         "[world-bench] webview is on {path}, navigating (try {attempt})"
@@ -241,7 +272,7 @@ fn navigate_to_bench(handle: &tauri::AppHandle, scenario: &str) -> Result<(), St
     let current = window
         .url()
         .map_err(|e| format!("ERR_WORLD_BENCH_URL: {e}"))?;
-    let target = bench_url(&current, scenario);
+    let target = bench_url(&current, &route(), scenario);
     tracing::info!("[world-bench] navigating to {target}");
     window
         .navigate(target)
@@ -483,7 +514,7 @@ mod tests {
     #[test]
     fn bench_url_keeps_origin_and_replaces_path_and_query() {
         let base = tauri::Url::parse("tauri://localhost/downloads?x=1#frag").unwrap();
-        let got = bench_url(&base, "nocompositing");
+        let got = bench_url(&base, "/world", "nocompositing");
         assert_eq!(got.scheme(), "tauri");
         assert_eq!(got.path(), "/world");
         assert_eq!(got.query(), Some("bench=nocompositing"));
@@ -491,9 +522,22 @@ mod tests {
 
         let dev = tauri::Url::parse("http://localhost:1420/").unwrap();
         assert_eq!(
-            bench_url(&dev, "llvmpipe").as_str(),
+            bench_url(&dev, "/world", "llvmpipe").as_str(),
             "http://localhost:1420/world?bench=llvmpipe"
         );
+        assert_eq!(
+            bench_url(&dev, "/city", "llvmpipe").as_str(),
+            "http://localhost:1420/city?bench=llvmpipe"
+        );
+    }
+
+    #[test]
+    fn route_is_world_unless_a_known_one_is_asked() {
+        assert_eq!(route_from(None), "/world");
+        assert_eq!(route_from(Some("city")), "/city");
+        assert_eq!(route_from(Some(" /city ")), "/city");
+        assert_eq!(route_from(Some("/downloads")), "/world");
+        assert!(href_is_route("tauri://localhost/city?bench=x", "/city"));
     }
 
     #[test]

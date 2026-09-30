@@ -7,6 +7,8 @@
 import { describe, expect, it } from "vitest";
 import {
   METRICS,
+  CITY_METRICS,
+  baselineKey,
   SCENARIOS,
   compareToBaseline,
   extractReport,
@@ -290,5 +292,23 @@ describe("percentile / round", () => {
   it("rounds to the asked number of decimals", () => {
     expect(round(1.23456)).toBe(1.235);
     expect(round(1.26, 1)).toBe(1.3);
+  });
+});
+
+describe("city route", () => {
+  it("compares the city metrics under their own baseline key", () => {
+    expect(baselineKey("city", "llvmpipe")).toBe("city-llvmpipe");
+    expect(baselineKey("world", "llvmpipe")).toBe("llvmpipe");
+    const report = {
+      scenario: "llvmpipe",
+      route: "city",
+      city: { three3d: { p50_ms: 30, p95_ms: 50 }, lite: { p50_ms: 10, p95_ms: 20, first_frame_ms: 5 } },
+      scene: { frames: 240, fps: 100, median_frame_ms: 10, p95_frame_ms: 20 },
+    };
+    const base = { scenarios: { "city-llvmpipe": { metrics: { city: { lite: { p95_ms: 10 } } } } } };
+    const c = compareToBaseline(base, report, { scenario: "city-llvmpipe", metrics: CITY_METRICS });
+    expect(c.rows).toHaveLength(CITY_METRICS.length);
+    expect(c.ok).toBe(false);
+    expect(c.failures.join()).toContain("modo leve p95");
   });
 });

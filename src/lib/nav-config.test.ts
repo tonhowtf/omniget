@@ -2,8 +2,8 @@ import { describe, it, expect } from "vitest";
 import { CORE_NAV_ITEMS } from "./nav-config";
 
 describe("CORE_NAV_ITEMS", () => {
-  it("has the expected 8 core entries", () => {
-    expect(CORE_NAV_ITEMS).toHaveLength(8);
+  it("has the expected 9 core entries", () => {
+    expect(CORE_NAV_ITEMS).toHaveLength(9);
   });
 
   it("Home is first in primary group", () => {

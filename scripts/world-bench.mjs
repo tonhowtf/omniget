@@ -77,6 +77,37 @@ export const METRICS = [
   { path: "ipc.200kb_15hz_cpu_pct", dir: "lower", label: "IPC 200 KB @15 Hz (CPU %)" },
 ];
 
+/**
+ * Metricas da rota `/city` (`--route city`): o 3D no tier 0 e o modo leve,
+ * medidos na mesma rodada. `scene.*` repete o modo leve, que e o que uma
+ * maquina fraca recebe, e passa pelo mesmo portao de sanidade.
+ * @type {{ path: string, dir: 'lower' | 'higher', label: string }[]}
+ */
+export const CITY_METRICS = [
+  { path: "calibrate_median_ms", dir: "lower", label: "calibracao 3D (mediana ms)" },
+  { path: "city.three3d.p50_ms", dir: "lower", label: "3D tier 0 p50 (ms)" },
+  { path: "city.three3d.p95_ms", dir: "lower", label: "3D tier 0 p95 (ms)" },
+  { path: "city.lite.p50_ms", dir: "lower", label: "modo leve p50 (ms)" },
+  { path: "city.lite.p95_ms", dir: "lower", label: "modo leve p95 (ms)" },
+  { path: "city.lite.first_frame_ms", dir: "lower", label: "modo leve primeiro frame (ms)" },
+  { path: "scene.fps", dir: "higher", label: "fps (modo leve)" },
+  { path: "rss_extra_mb", dir: "lower", label: "RSS extra (MB)" },
+];
+
+/**
+ * Rotas que o hook sabe abrir (`OMNIGET_WORLD_BENCH_ROUTE`).
+ * @type {Record<string, string>}
+ */
+export const ROUTES = { world: "/world", city: "/city" };
+
+/**
+ * Chave do baseline: `llvmpipe` para `/world`, `city-llvmpipe` para `/city`.
+ * @param {string} route @param {string} scenario
+ */
+export function baselineKey(route, scenario) {
+  return route === "city" ? `city-${scenario}` : scenario;
+}
+
 /** Regressao maior que isto reprova o job. */
 export const DEFAULT_TOLERANCE_PCT = 10;
 
@@ -204,7 +235,7 @@ export function pick(obj, path) {
  *
  * @param {unknown} baselineFile conteudo de `world-baseline.json`
  * @param {unknown} result o JSON de uma linha `[world-bench] {...}`
- * @param {{ scenario?: string, tolerancePct?: number }} [opts]
+ * @param {{ scenario?: string, tolerancePct?: number, metrics?: typeof METRICS }} [opts]
  * @returns {{ scenario: string, tolerancePct: number, ok: boolean, baselineEmpty: boolean, pumped: boolean, rows: {
  *   metric: string, label: string, dir: 'lower' | 'higher', baseline: number | undefined,
  *   value: number | undefined, deltaPct: number | undefined, ok: boolean, skipped?: string }[],
@@ -241,7 +272,7 @@ export function compareToBaseline(baselineFile, result, opts = {}) {
   if (fps === undefined || fps === 0) {
     sanityFailures.push(`fps zerado (scene.fps=${fps ?? "ausente"}) — o loop de medicao nao rodou`);
   }
-  const rows = METRICS.map((metric) => {
+  const rows = (opts.metrics ?? METRICS).map((metric) => {
     const value = pick(result, metric.path);
     const base = pick(baseline, metric.path);
     if (base === undefined || base === 0) {
@@ -366,11 +397,13 @@ const HELP = `world-bench — bench de pior caso do mundo (Fase 6)
   node scripts/world-bench.mjs [opcoes]
 
   --scenario <nome>   ${Object.keys(SCENARIOS).join(" | ")}  (padrao: llvmpipe)
+  --route <rota>      world | city  (padrao: world; city mede o 3D tier 0 e o
+                      modo leve da cidade de exemplo, baseline city-<cenario>)
   --bin <caminho>     binario do app (padrao: src-tauri/target/debug/omniget)
   --baseline <arq>    padrao: scripts/bench/world-baseline.json
   --out <arq>         grava o JSON do resultado
   --summary <arq>     grava a tabela markdown (use $GITHUB_STEP_SUMMARY)
-  --timeout <ms>      teto do app (padrao: 120000; tambem vira OMNIGET_WORLD_BENCH_TIMEOUT_MS)
+  --timeout <ms>      teto do app (padrao: 120000, 300000 na cidade; tambem vira OMNIGET_WORLD_BENCH_TIMEOUT_MS)
   --serve <dir>       pasta servida na porta do devUrl (padrao: build)
   --si-socket-aside   tira o socket do single-instance do caminho enquanto mede
                       e devolve depois (macOS/Linux; use quando o app ja estiver
@@ -436,7 +469,12 @@ async function main() {
     return 2;
   }
 
-  const timeoutMs = Number(typeof args.timeout === "string" ? args.timeout : 120_000);
+  const route = typeof args.route === "string" ? args.route : "world";
+  if (!(route in ROUTES)) {
+    console.error(`rota desconhecida: ${route}\nconhecidas: ${Object.keys(ROUTES).join(", ")}`);
+    return 2;
+  }
+  const timeoutMs = Number(typeof args.timeout === "string" ? args.timeout : route === "city" ? 300_000 : 120_000);
   const baselinePath = resolve(typeof args.baseline === "string" ? args.baseline : "scripts/bench/world-baseline.json");
 
   // Perfil limpo, no molde do `smoke-test.mjs`. Nao e higiene: as configuracoes
@@ -452,6 +490,7 @@ async function main() {
     ...process.env,
     RUST_LOG: "info",
     OMNIGET_WORLD_BENCH: scenario,
+    OMNIGET_WORLD_BENCH_ROUTE: ROUTES[route],
     OMNIGET_WORLD_BENCH_TIMEOUT_MS: String(timeoutMs),
     OMNIGET_DATA_DIR: join(workdir, "data"),
     LOCALAPPDATA: join(profile, "Local"),
@@ -460,7 +499,7 @@ async function main() {
     ...SCENARIOS[scenario].env,
   };
 
-  console.log(`[world-bench] cenario ${scenario}: ${SCENARIOS[scenario].about}`);
+  console.log(`[world-bench] cenario ${scenario} na rota ${ROUTES[route]}: ${SCENARIOS[scenario].about}`);
   console.log(`[world-bench] env: ${Object.entries(SCENARIOS[scenario].env).map(([k, v]) => `${k}=${v}`).join(" ") || "(nenhuma)"}`);
   console.log(`[world-bench] binario: ${bin}`);
 
@@ -567,9 +606,13 @@ async function main() {
     console.warn(`[world-bench] sem baseline em ${baselinePath} — nada a comparar`);
   }
 
-  const comparison = compareToBaseline(baselineFile, report, { scenario });
+  const key = baselineKey(route, scenario);
+  const comparison = compareToBaseline(baselineFile, report, {
+    scenario: key,
+    metrics: route === "city" ? CITY_METRICS : METRICS,
+  });
   if (comparison.baselineEmpty) {
-    console.log(`[world-bench] baseline vazio: sem comparacao (cenario ${scenario})`);
+    console.log(`[world-bench] baseline vazio: sem comparacao (cenario ${key})`);
   }
   const table = formatTable(comparison);
   console.log(`\n${table}`);

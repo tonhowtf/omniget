@@ -10,6 +10,12 @@ name: World bench
 #   I-5   quanto custa um `tauri::ipc::Channel` binario? (campo `ipc`)
 #   §1.2  frame, primeiro frame e RSS extra do tier 0.
 #
+#
+# A rota `/city` (job `city`) mede a cidade 3D (estudo 99) no mesmo Tauri: a
+# cidade de exemplo fundada sem LLM, o 3D preso no tier 0 e o modo leve (o
+# renderer 2D com o kit assado em sprites), cada um com p50 e p95 de frame
+# (`city.three3d.*`, `city.lite.*`) e a escolha que a calibracao faria.
+#
 # O portao e `scripts/world-bench.mjs`: qualquer metrica mais de 10% pior que
 # `scripts/bench/world-baseline.json` reprova. O baseline e atualizado **so pelo
 # orquestrador** ao fechar a fase — nenhum job escreve nele.
@@ -26,6 +32,11 @@ on:
     paths:
       - "src/lib/world/**"
       - "src/routes/world/**"
+      - "src/routes/city/**"
+      - "src/lib/city3d/**"
+      - "src-tauri/omniget-citygen/**"
+      - "src-tauri/omniget-codegeo/**"
+      - "src-tauri/src/commands/city3d/**"
       - "src-tauri/src/world_bench.rs"
       - "src-tauri/src/commands/world_bench.rs"
       - "static/world/**"
@@ -45,7 +56,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        scenario: [llvmpipe, nocompositing]
+        # A cidade roda so no llvmpipe: e o piso que decide o modo leve.
+        include:
+          - { route: world, scenario: llvmpipe }
+          - { route: world, scenario: nocompositing }
+          - { route: city, scenario: llvmpipe }
     steps:
       - uses: actions/checkout@v6
 
@@ -115,7 +130,7 @@ jobs:
             xvfb-run -a glxinfo -B 2>&1 | grep -i -E 'llvmpipe|iris|radeonsi|swrast' || \
             echo "nenhuma linha de driver no log do EGL"
 
-      - name: Bench (${{ matrix.scenario }})
+      - name: Bench (${{ matrix.route }}, ${{ matrix.scenario }})
         env:
           OMNIGET_WORLD_BENCH_WEBKITGTK: ${{ steps.versions.outputs.webkitgtk }}
           OMNIGET_WORLD_BENCH_MESA: ${{ steps.versions.outputs.mesa }}
@@ -124,9 +139,14 @@ jobs:
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.compare }}" != "true" ]; then
             ARGS="--no-compare"
           fi
-          xvfb-run -a node scripts/world-bench.mjs \
+          # A cidade mede em 1280x720: a tela do xvfb tem que caber a janela.
+          # O `/world` fica com a tela padrao, que e a do seu baseline.
+          XVFB=""
+          if [ "${{ matrix.route }}" = "city" ]; then XVFB="-screen 0 1920x1080x24"; fi
+          xvfb-run -a ${XVFB:+-s "$XVFB"} node scripts/world-bench.mjs \
+            --route ${{ matrix.route }} \
             --scenario ${{ matrix.scenario }} \
-            --out world-bench-${{ matrix.scenario }}.json \
+            --out world-bench-${{ matrix.route }}-${{ matrix.scenario }}.json \
             --summary "$GITHUB_STEP_SUMMARY" \
             $ARGS
 
@@ -135,6 +155,6 @@ jobs:
       - uses: actions/upload-artifact@v7
         if: always()
         with:
-          name: world-bench-${{ matrix.scenario }}
-          path: world-bench-${{ matrix.scenario }}.json
+          name: world-bench-${{ matrix.route }}-${{ matrix.scenario }}
+          path: world-bench-${{ matrix.route }}-${{ matrix.scenario }}.json
           if-no-files-found: warn
