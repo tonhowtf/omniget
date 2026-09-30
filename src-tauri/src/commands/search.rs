@@ -102,15 +102,19 @@ pub async fn search_videos(
             .and_then(|v| v.as_str())
             .map(|s| s.to_string());
 
-        let url = json
+        let url = match json
             .get("url")
             .or_else(|| json.get("webpage_url"))
             .and_then(|v| v.as_str())
-            .map(|s| s.to_string())
-            .unwrap_or_else(|| match platform.as_str() {
-                "youtube" => format!("https://www.youtube.com/watch?v={}", id),
-                _ => format!("https://www.youtube.com/watch?v={}", id),
-            });
+        {
+            Some(u) => u.to_string(),
+            // Only a YouTube id can be turned back into a page; a SoundCloud
+            // entry without a URL used to become a YouTube link to nothing.
+            None if platform != "soundcloud" => {
+                format!("https://www.youtube.com/watch?v={}", id)
+            }
+            None => continue,
+        };
 
         results.push(SearchResult {
             id,

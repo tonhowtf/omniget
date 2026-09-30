@@ -27,6 +27,8 @@
   import DownloadCommand from "$components/download/DownloadCommand.svelte";
   import ReencodeDialog from "$components/dialog/ReencodeDialog.svelte";
   import VideoOpsOverlay from "$components/download/VideoOpsOverlay.svelte";
+  import DownloadTools from "$components/download/tools/DownloadTools.svelte";
+  import { page } from "$app/state";
   import { getSettings, updateSettings } from "$lib/stores/settings-store.svelte";
   import { locale as i18nLocale } from "$lib/i18n";
   import { get } from "svelte/store";
@@ -323,7 +325,11 @@
     kind: QueueKind | null;
   };
 
-  let viewMode = $state<"active" | "history">("active");
+  // `?view=tools&tool=<id>` opens Downloads › Tools straight on a tool.
+  const initialTool = page.url.searchParams.get("tool");
+  let viewMode = $state<"active" | "history" | "tools">(
+    page.url.searchParams.get("view") === "tools" || initialTool ? "tools" : "active",
+  );
 
   // The toolbar acts on the list beneath it: view switcher in the centre,
   // bulk actions trailing. Registered here so the shell renders them.
@@ -346,10 +352,12 @@
       segments: [
         { id: "active", label: $t("downloads.view_queue") as string, count: filterCounts.active },
         { id: "history", label: $t("downloads.view_history") as string },
+        { id: "tools", label: $t("downloads.view_tools") as string },
       ],
       activeSegment: viewMode,
       onSegment: (id) => {
         if (id === "history") { if (viewMode !== "history") toggleHistoryView(); }
+        else if (id === "tools") viewMode = "tools";
         else viewMode = "active";
       },
       actions,
@@ -710,6 +718,8 @@
           </ul>
         {/if}
       </div>
+    {:else if viewMode === "tools"}
+      <DownloadTools {initialTool} />
     {/if}
   </div>
 {:else}

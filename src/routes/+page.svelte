@@ -37,6 +37,7 @@
   import { getMediaPreview, clearMediaPreview } from "$lib/stores/media-preview-store.svelte";
   import { clearPendingExternalPrefill, getPendingExternalPrefill, type ExternalUrlEvent } from "$lib/stores/external-url-store.svelte";
   import { getOmniboxDraftUrl, setOmniboxDraftUrl } from "$lib/stores/omnibox-draft-store.svelte";
+  import { linksFromPaste } from "$lib/home/paste-links";
   import { t } from "$lib/i18n";
   import { translateBackendError } from "$lib/error-translate";
   import { platformDisplayName } from "$lib/platform-display-names";
@@ -322,13 +323,19 @@
     formatFetchGeneration++;
     referer = "";
 
-    const trimmed = url.trim();
+    let trimmed = url.trim();
     if (!trimmed) {
       omniState = { kind: "idle" };
       return;
     }
 
-    const urls = trimmed.split(/[\s\n]+/).filter(isUrl);
+    // Links in any text, cleaned of trackers and counted once (paste-links.ts).
+    const urls = linksFromPaste(trimmed);
+    // Several links that are all the same video collapse to that one link.
+    if (urls.length === 1 && /\s/.test(trimmed) && isUrl(trimmed)) {
+      url = urls[0];
+      trimmed = urls[0];
+    }
 
     if (urls.length > 1) {
       omniState = { kind: "batch", urls };

@@ -283,5 +283,14 @@
   },
   "popup_manifest_gone": {
     "message": "Essa playlist foi achada numa página que já recarregou — abra de novo"
+  },
+  "context_menu_download": {
+    "message": "Baixar com o OmniGet"
+  },
+  "context_menu_download_page": {
+    "message": "Baixar esta página com o OmniGet"
+  },
+  "context_menu_download_selection": {
+    "message": "Baixar os links da seleção com o OmniGet"
   }
 }

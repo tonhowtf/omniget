@@ -67,52 +67,44 @@ pub async fn reencode_video(req: ReencodeRequest) -> Result<ReencodeResult, Stri
     }
 
     let hw = hwaccel::detect_hwaccel().await;
-    let (encoder, used_hw) = pick_encoder(&req.codec, &hw);
 
     let cq = req.cq.unwrap_or(match req.codec {
         ReencodeCodec::Av1 => 32,
         ReencodeCodec::Hevc => 28,
         ReencodeCodec::H264 => 22,
     });
-    let cq_str = cq.to_string();
-    let cq_label = if encoder.contains("nvenc")
-        || encoder.contains("qsv")
-        || encoder.contains("amf")
-        || encoder.contains("videotoolbox")
-    {
-        "-cq"
-    } else {
-        "-crf"
+
+    // Try the hardware encoders ffmpeg lists, best first, then the software one.
+    // ffmpeg lists every encoder it was built with (a Windows build lists NVENC,
+    // QSV and AMF on any PC), so each one is first checked on a few blank frames,
+    // and a real run that still fails moves on to the next. The idea comes from
+    // ezytdl's GPU "Auto Detect" and its GPU-to-CPU fallback; reimplemented here.
+    let mut failures: Vec<String> = Vec::new();
+    let mut used: Option<(String, bool)> = None;
+    for (encoder, is_hw) in encoder_ladder(&req.codec, &hw) {
+        if is_hw && !encoder_works(&encoder, cq).await {
+            failures.push(format!("{}: not usable on this machine", encoder));
+            continue;
+        }
+        let _ = std::fs::remove_file(&output_path);
+        match run_reencode(&input, &output_path, &encoder, is_hw, cq).await {
+            Ok(()) => {
+                used = Some((encoder, is_hw));
+                break;
+            }
+            Err(e) => failures.push(format!("{}: {}", encoder, e)),
+        }
+    }
+    let Some((encoder, used_hw)) = used else {
+        let _ = std::fs::remove_file(&output_path);
+        return Err(format!("ffmpeg reencode failed. {}", failures.join(" | ")));
     };
-
-    let status = process::command("ffmpeg")
-        .args([
-            "-y",
-            "-hwaccel",
-            "auto",
-            "-i",
-            input.to_string_lossy().as_ref(),
-            "-c:v",
-            &encoder,
-            cq_label,
-            &cq_str,
-            "-c:a",
-            "copy",
-            "-movflags",
-            "+faststart",
-            output_path.to_string_lossy().as_ref(),
-        ])
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .status()
-        .await
-        .map_err(|e| format!("spawn ffmpeg failed: {}", e))?;
-
-    if !status.success() {
-        return Err(format!(
-            "ffmpeg reencode failed (exit {}). encoder={}",
-            status, encoder
-        ));
+    if !failures.is_empty() {
+        tracing::warn!(
+            "[reencode] fell back to {}: {}",
+            encoder,
+            failures.join(" | ")
+        );
     }
     if !output_path.is_file() {
         return Err("output file missing after ffmpeg".to_string());
@@ -158,49 +150,137 @@ pub async fn reencode_video(req: ReencodeRequest) -> Result<ReencodeResult, Stri
     })
 }
 
-fn pick_encoder(codec: &ReencodeCodec, hw: &hwaccel::HwAccelInfo) -> (String, bool) {
-    let candidates: &[(&str, ReencodeCodec)] = match codec {
-        ReencodeCodec::Av1 => &[
-            ("av1_nvenc", ReencodeCodec::Av1),
-            ("av1_qsv", ReencodeCodec::Av1),
-            ("av1_amf", ReencodeCodec::Av1),
-            ("libsvtav1", ReencodeCodec::Av1),
-        ],
-        ReencodeCodec::Hevc => &[
-            ("hevc_nvenc", ReencodeCodec::Hevc),
-            ("hevc_qsv", ReencodeCodec::Hevc),
-            ("hevc_amf", ReencodeCodec::Hevc),
-            ("hevc_videotoolbox", ReencodeCodec::Hevc),
-            ("hevc_vaapi", ReencodeCodec::Hevc),
-            ("libx265", ReencodeCodec::Hevc),
-        ],
-        ReencodeCodec::H264 => &[
-            ("h264_nvenc", ReencodeCodec::H264),
-            ("h264_qsv", ReencodeCodec::H264),
-            ("h264_amf", ReencodeCodec::H264),
-            ("h264_videotoolbox", ReencodeCodec::H264),
-            ("h264_vaapi", ReencodeCodec::H264),
-            ("libx264", ReencodeCodec::H264),
-        ],
+/// Encoders to try for `codec`, best first: the hardware ones ffmpeg lists,
+/// then the software encoder, which is always last.
+fn encoder_ladder(codec: &ReencodeCodec, hw: &hwaccel::HwAccelInfo) -> Vec<(String, bool)> {
+    let (hardware, software): (&[&str], &str) = match codec {
+        ReencodeCodec::Av1 => (&["av1_nvenc", "av1_qsv", "av1_amf"], "libsvtav1"),
+        ReencodeCodec::Hevc => (
+            &["hevc_nvenc", "hevc_qsv", "hevc_amf", "hevc_videotoolbox"],
+            "libx265",
+        ),
+        ReencodeCodec::H264 => (
+            &["h264_nvenc", "h264_qsv", "h264_amf", "h264_videotoolbox"],
+            "libx264",
+        ),
     };
+    hardware
+        .iter()
+        .filter(|enc| hw.encoders.iter().any(|e| e == *enc))
+        .map(|enc| (enc.to_string(), true))
+        .chain(std::iter::once((software.to_string(), false)))
+        .collect()
+}
 
-    for (enc, _) in candidates {
-        let is_hw = !enc.starts_with("lib");
-        let available = if is_hw {
-            hw.encoders.iter().any(|e| e == enc)
-        } else {
-            true
-        };
-        if available {
-            return (enc.to_string(), is_hw);
-        }
-    }
-    let fallback = match codec {
-        ReencodeCodec::Av1 => "libsvtav1",
-        ReencodeCodec::Hevc => "libx265",
-        ReencodeCodec::H264 => "libx264",
+/// The constant-quality flags each encoder understands. `cq` is on the
+/// x264/x265 CRF scale (lower is better). VideoToolbox has no `-cq` or `-crf`
+/// (ffmpeg stops with "Unrecognized option 'cq'") and takes `-q:v` from 1 to
+/// 100, higher is better; QSV takes `-global_quality`; AMF a constant QP.
+fn quality_args(encoder: &str, cq: u32) -> Vec<String> {
+    let q = cq.to_string();
+    let args: Vec<&str> = if encoder.ends_with("_nvenc") {
+        vec!["-rc", "vbr", "-cq", &q]
+    } else if encoder.ends_with("_qsv") {
+        vec!["-global_quality", &q]
+    } else if encoder.ends_with("_amf") {
+        vec!["-rc", "cqp", "-qp_i", &q, "-qp_p", &q]
+    } else if encoder.ends_with("_videotoolbox") {
+        return vec!["-q:v".to_string(), videotoolbox_quality(cq).to_string()];
+    } else {
+        vec!["-crf", &q]
     };
-    (fallback.to_string(), false)
+    args.into_iter().map(str::to_string).collect()
+}
+
+fn videotoolbox_quality(cq: u32) -> u32 {
+    100u32.saturating_sub(cq.saturating_mul(2)).clamp(1, 100)
+}
+
+static ENCODER_CHECKS: std::sync::OnceLock<
+    std::sync::Mutex<std::collections::HashMap<String, bool>>,
+> = std::sync::OnceLock::new();
+
+/// Whether `encoder` really encodes on this machine: a few blank frames to
+/// the null muxer, checked once per encoder while the app runs.
+async fn encoder_works(encoder: &str, cq: u32) -> bool {
+    let checks = ENCODER_CHECKS.get_or_init(Default::default);
+    if let Some(ok) = checks.lock().ok().and_then(|m| m.get(encoder).copied()) {
+        return ok;
+    }
+    let mut args: Vec<String> = [
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-f",
+        "lavfi",
+        "-i",
+        "color=c=black:s=256x144:r=30:d=0.2",
+        "-frames:v",
+        "5",
+        "-c:v",
+        encoder,
+    ]
+    .into_iter()
+    .map(str::to_string)
+    .collect();
+    args.extend(quality_args(encoder, cq));
+    args.extend(["-f", "null", "-"].map(str::to_string));
+    let run = process::command("ffmpeg")
+        .args(&args)
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status();
+    let ok = matches!(
+        tokio::time::timeout(std::time::Duration::from_secs(10), run).await,
+        Ok(Ok(status)) if status.success()
+    );
+    if let Ok(mut m) = checks.lock() {
+        m.insert(encoder.to_string(), ok);
+    }
+    ok
+}
+
+async fn run_reencode(
+    input: &Path,
+    output: &Path,
+    encoder: &str,
+    is_hw: bool,
+    cq: u32,
+) -> Result<(), String> {
+    let mut args: Vec<String> = vec!["-y".into(), "-hide_banner".into()];
+    // Hardware decoding only goes with a hardware encoder, so the software
+    // attempt at the end of the ladder cannot fail on the decoder either.
+    if is_hw {
+        args.extend(["-hwaccel", "auto"].map(str::to_string));
+    }
+    args.extend(["-i".to_string(), input.to_string_lossy().into_owned()]);
+    args.extend(["-c:v".to_string(), encoder.to_string()]);
+    args.extend(quality_args(encoder, cq));
+    // QuickTime and iOS only play HEVC in MP4 with the hvc1 tag.
+    if encoder.starts_with("hevc") || encoder == "libx265" {
+        args.extend(["-tag:v", "hvc1"].map(str::to_string));
+    }
+    args.extend(["-c:a", "copy", "-movflags", "+faststart"].map(str::to_string));
+    args.push(output.to_string_lossy().into_owned());
+
+    let out = process::command("ffmpeg")
+        .args(&args)
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::piped())
+        .output()
+        .await
+        .map_err(|e| format!("spawn ffmpeg failed: {}", e))?;
+    if out.status.success() {
+        return Ok(());
+    }
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    let last = stderr
+        .lines()
+        .rev()
+        .find(|l| !l.trim().is_empty())
+        .unwrap_or("")
+        .trim();
+    Err(format!("exit {}: {}", out.status, last))
 }
 
 fn backup_path(p: &Path) -> PathBuf {
@@ -211,5 +291,63 @@ fn backup_path(p: &Path) -> PathBuf {
         parent.join(format!("{}.backup", stem))
     } else {
         parent.join(format!("{}.backup.{}", stem, ext))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn hw(encoders: &[&str]) -> hwaccel::HwAccelInfo {
+        hwaccel::HwAccelInfo {
+            encoders: encoders.iter().map(|s| s.to_string()).collect(),
+            decoders: Vec::new(),
+            recommended_video_encoder: None,
+            recommended_decoder: None,
+        }
+    }
+
+    #[test]
+    fn videotoolbox_gets_q_not_cq() {
+        assert_eq!(quality_args("h264_videotoolbox", 22), ["-q:v", "56"]);
+        assert_eq!(quality_args("hevc_videotoolbox", 28), ["-q:v", "44"]);
+        assert!(!quality_args("hevc_videotoolbox", 28).contains(&"-cq".to_string()));
+    }
+
+    #[test]
+    fn each_family_gets_its_own_quality_flag() {
+        assert_eq!(quality_args("h264_nvenc", 22), ["-rc", "vbr", "-cq", "22"]);
+        assert_eq!(quality_args("hevc_qsv", 28), ["-global_quality", "28"]);
+        assert_eq!(
+            quality_args("h264_amf", 22),
+            ["-rc", "cqp", "-qp_i", "22", "-qp_p", "22"]
+        );
+        assert_eq!(quality_args("libx264", 22), ["-crf", "22"]);
+        assert_eq!(quality_args("libsvtav1", 32), ["-crf", "32"]);
+        assert_eq!(videotoolbox_quality(80), 1);
+    }
+
+    #[test]
+    fn ladder_keeps_listed_hardware_first_and_software_last() {
+        let windows = hw(&["h264_nvenc", "h264_qsv", "h264_amf", "hevc_nvenc"]);
+        let ladder = encoder_ladder(&ReencodeCodec::H264, &windows);
+        assert_eq!(
+            ladder,
+            vec![
+                ("h264_nvenc".to_string(), true),
+                ("h264_qsv".to_string(), true),
+                ("h264_amf".to_string(), true),
+                ("libx264".to_string(), false),
+            ]
+        );
+        let mac = hw(&["h264_videotoolbox", "hevc_videotoolbox"]);
+        assert_eq!(
+            encoder_ladder(&ReencodeCodec::Av1, &mac),
+            vec![("libsvtav1".to_string(), false)]
+        );
+        assert_eq!(
+            encoder_ladder(&ReencodeCodec::Hevc, &mac)[0],
+            ("hevc_videotoolbox".to_string(), true)
+        );
     }
 }

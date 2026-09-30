@@ -283,5 +283,14 @@
   },
   "popup_manifest_gone": {
     "message": "そのプレイリストは再読み込みされたページで見つかりました。ページを開き直してください"
+  },
+  "context_menu_download": {
+    "message": "OmniGet でダウンロード"
+  },
+  "context_menu_download_page": {
+    "message": "このページを OmniGet でダウンロード"
+  },
+  "context_menu_download_selection": {
+    "message": "選択範囲のリンクを OmniGet でダウンロード"
   }
 }

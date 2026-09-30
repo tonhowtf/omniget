@@ -1502,14 +1502,18 @@ pub const YOUTUBE_VIDEO_INFO_TOTAL_TIMEOUT_SECS: u64 = 190;
 pub const DEFAULT_VIDEO_INFO_TOTAL_TIMEOUT_SECS: u64 = 110;
 
 mod binaries;
+mod channel_list;
 mod download;
 mod info;
 mod parse;
+mod size;
 
 pub use binaries::*;
+pub use channel_list::*;
 pub use download::*;
 pub use info::*;
 pub use parse::*;
+pub use size::*;
 
 #[cfg(test)]
 mod tests;

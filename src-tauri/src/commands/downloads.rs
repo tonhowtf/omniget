@@ -181,6 +181,29 @@ fn is_valid_time_range(r: &str) -> bool {
     part_ok(a) && (b == "inf" || part_ok(b))
 }
 
+/// yt-dlp flags for a subtitle language list such as `en` or `en,pt-BR`.
+/// Anything that is not a plain language list is ignored, so the value can
+/// never smuggle another flag in.
+fn subtitle_lang_args(langs: &str) -> Option<Vec<String>> {
+    let langs = langs.trim();
+    let valid = !langs.is_empty()
+        && langs.len() <= 64
+        && !langs.starts_with('-')
+        && langs
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, ',' | '-' | '_' | '.'));
+    valid.then(|| {
+        vec![
+            "--write-sub".to_string(),
+            "--write-auto-sub".to_string(),
+            "--sub-lang".to_string(),
+            langs.to_string(),
+            "--convert-subs".to_string(),
+            "srt".to_string(),
+        ]
+    })
+}
+
 #[derive(Clone, Serialize)]
 pub struct PlaylistEntryInfo {
     pub index: u32,
@@ -309,15 +332,22 @@ pub async fn download_from_url(
     torrent_files: Option<Vec<usize>>,
     scheduled_at: Option<u64>,
     stop_at: Option<u64>,
+    subtitle_lang: Option<String>,
+    engine: Option<String>,
 ) -> Result<DownloadStarted, String> {
     omniget_core::core::platform_optout::ensure_allowed(&url)?;
     let _timer_start = std::time::Instant::now();
-    let custom_ytdlp_args = match time_range.as_deref().map(str::trim) {
+    let mut custom_ytdlp_args = match time_range.as_deref().map(str::trim) {
         Some(r) if !r.is_empty() && is_valid_time_range(r) => {
             Some(vec!["--download-sections".to_string(), format!("*{}", r)])
         }
         _ => None,
     };
+    // Per-download subtitles (Downloads › Tools › Smart mode presets), on top
+    // of the global subtitle setting.
+    if let Some(flags) = subtitle_lang.as_deref().and_then(subtitle_lang_args) {
+        custom_ytdlp_args.get_or_insert_with(Vec::new).extend(flags);
+    }
 
     if let Err(err) = crate::core::path_limits::validate_output_dir(&output_dir) {
         return Err(format!(
@@ -358,8 +388,12 @@ pub async fn download_from_url(
             return Err("No downloader available for this URL".to_string());
         }
     };
-    let downloader = resolved.downloader;
-    let platform_name = resolved.platform_name;
+    // Downloads › Tools › Engine per link: the person picked the engine.
+    let (downloader, platform_name) =
+        match crate::commands::link_router::forced_engine(&state.registry, engine.as_deref())? {
+            Some(forced) => forced,
+            None => (resolved.downloader, resolved.platform_name),
+        };
     // Placeholder until metadata arrives: never the raw URL, which can carry
     // a token into history, events and the extension (N-3).
     let title = crate::core::flight_recorder::redact_url(&url);
@@ -911,6 +945,8 @@ pub async fn restore_recovery(
             None,
             None,
             None,
+            None,
+            None,
         )
         .await
         {
@@ -1293,4 +1329,24 @@ pub async fn get_download_queue(app: tauri::AppHandle) -> Vec<crate::core::queue
     let state = app.state::<crate::AppState>();
     let queue = state.download_queue.lock().await;
     crate::core::queue::redacted_for_display(queue.get_state())
+}
+
+#[cfg(test)]
+mod subtitle_lang_tests {
+    use super::subtitle_lang_args;
+
+    #[test]
+    fn plain_language_lists_become_subtitle_flags() {
+        let args = subtitle_lang_args(" en,pt-BR ").unwrap();
+        assert_eq!(args[3], "en,pt-BR");
+        assert!(args.contains(&"--write-sub".to_string()));
+    }
+
+    #[test]
+    fn anything_else_is_ignored() {
+        assert!(subtitle_lang_args("").is_none());
+        assert!(subtitle_lang_args("--exec rm").is_none());
+        assert!(subtitle_lang_args("-en").is_none());
+        assert!(subtitle_lang_args("en; ls").is_none());
+    }
 }

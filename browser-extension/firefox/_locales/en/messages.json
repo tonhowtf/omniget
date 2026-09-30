@@ -283,5 +283,14 @@
   },
   "popup_manifest_gone": {
     "message": "That playlist was found in a page that has since reloaded — open it again"
+  },
+  "context_menu_download": {
+    "message": "Download with OmniGet"
+  },
+  "context_menu_download_page": {
+    "message": "Download this page with OmniGet"
+  },
+  "context_menu_download_selection": {
+    "message": "Download the links in the selection with OmniGet"
   }
 }

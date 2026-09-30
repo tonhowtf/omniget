@@ -283,5 +283,14 @@
   },
   "popup_manifest_gone": {
     "message": "Esa lista se encontró en una página que ya se recargó: ábrela de nuevo"
+  },
+  "context_menu_download": {
+    "message": "Descargar con OmniGet"
+  },
+  "context_menu_download_page": {
+    "message": "Descargar esta página con OmniGet"
+  },
+  "context_menu_download_selection": {
+    "message": "Descargar los enlaces de la selección con OmniGet"
   }
 }
