@@ -32,6 +32,14 @@
       enabled: getSettings()?.video?.enabled ?? true,
     },
     {
+      id: "global",
+      icon: "global",
+      title: $t("global_dl.title") as string,
+      descKey: "superpowers.global_desc",
+      href: "/global",
+      enabled: true,
+    },
+    {
       id: "league",
       icon: "league",
       title: "League of Legends",

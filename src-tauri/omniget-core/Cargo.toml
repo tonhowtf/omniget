@@ -38,6 +38,8 @@ hex = "0.4"
 once_cell = "1"
 thiserror = "1"
 qrcode = { version = "0.14", default-features = false, features = ["svg"] }
+rquickjs = { version = "0.14", features = ["classes", "properties"] }
+tokio-tungstenite = { version = "0.30.0", default-features = false, features = ["connect"] }
 zip = { version = "2", default-features = false, features = ["deflate"] }
 tar = "0.4"
 flate2 = "1"

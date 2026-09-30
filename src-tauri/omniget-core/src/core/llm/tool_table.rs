@@ -389,6 +389,7 @@ fn build() -> Vec<ToolEntry> {
         entry("preview_screenshot", "PNG screenshot of the preview page; returns {path, width, height}. Shows the preview for a moment when it is hidden.", obj(json!({"threadId":{"type":"string"}}), &[]), ToolImpl::Host, "code", Local),
     ];
     all.extend(crate::core::washmybelly::tools::entries());
+    all.extend(crate::core::global_dl::tools::entries());
     all
 }
 

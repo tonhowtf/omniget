@@ -20,6 +20,7 @@ pub mod events;
 pub mod extension_manifest;
 pub mod ffmpeg;
 pub mod ffmpeg_ops;
+pub mod global_dl;
 pub mod filename;
 pub mod guard;
 pub mod hls_downloader;

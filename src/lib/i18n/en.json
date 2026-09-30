@@ -7519,7 +7519,8 @@
     "open_settings": "Open Settings",
     "music_desc": "Your music library with a full player: synced lyrics, equalizer, volume leveling, radio, downloads and batch tools.",
     "washmybelly_desc": "Clean junk, uninstall apps for real, tame what opens at login, privacy, battery and honest FPS numbers. Shows only what exists on this computer.",
-    "video_desc": "Movies, shows, courses and live TV in one player. Numbered lessons with progress, notes, transcripts and flashcards; Jellyfin, IPTV and add-ons as sources."
+    "video_desc": "Movies, shows, courses and live TV in one player. Numbered lessons with progress, notes, transcripts and flashcards; Jellyfin, IPTV and add-ons as sources.",
+    "global_desc": "Log in, browse and download from any site: a browser OmniGet controls, a media sniffer on every tab and connectors for whole collections."
   },
   "usage_tray": {
     "menu": {
@@ -10423,5 +10424,50 @@
       "skip": "Skip for now",
       "title": "Choose a folder to start"
     }
+  },
+  "global_dl": {
+    "title": "Global Downloader",
+    "subtitle": "A browser OmniGet controls. Log in, open any page, and download what it plays or what a connector finds.",
+    "browser_open": "Browser open",
+    "browser_closed": "Browser closed",
+    "browser_downloading": "Downloading Chromium…",
+    "open_browser": "Open browser",
+    "close_browser": "Close browser",
+    "starting": "Starting…",
+    "url_placeholder": "Type a URL to open in a new tab",
+    "open_tab": "Open tab",
+    "resolve": "Resolve",
+    "no_browser_hint": "No Chrome, Edge, Brave or Chromium found. Opening the browser downloads Chrome for Testing once (about 150 MB).",
+    "browser_will_use": "Uses {{name}} with a separate OmniGet profile. Your normal browser is not touched.",
+    "tabs": "Tabs",
+    "no_tabs": "No tabs yet. Open the browser or type a URL above.",
+    "media": "Media",
+    "focus": "Bring to front",
+    "close_tab": "Close tab",
+    "sniffed": "Media found",
+    "all_tabs": "All tabs",
+    "clear": "Clear",
+    "no_media": "Play a video or open a file in a tab and it shows up here.",
+    "download": "Download",
+    "connectors": "Connectors",
+    "add_connector": "Add folder",
+    "no_connectors": "No connectors. Without one, a page resolves to the media its tab loaded plus the page itself for yt-dlp.",
+    "remove": "Remove",
+    "no_tree": "Resolve a tab to see what can be downloaded from it.",
+    "via_connector": "connector {{name}}",
+    "via_sniffer": "sniffer",
+    "items_count": "{{count}} items",
+    "drm_count": "{{count}} with DRM (skipped)",
+    "logs": "Logs",
+    "toggle": "Expand or collapse",
+    "folder": "Folder",
+    "best_quality": "Best quality",
+    "download_selected": "Download {{count}}",
+    "jobs": "Downloads",
+    "clear_finished": "Clear finished",
+    "cancel": "Cancel",
+    "job_summary": "{{done}} done · {{skipped}} already there · {{drm}} DRM · {{failed}} failed",
+    "options": "Options",
+    "save": "Save"
   }
 }

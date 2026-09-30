@@ -9,6 +9,7 @@ pub mod central;
 pub mod channels;
 pub mod company;
 pub mod dedupe;
+pub mod global_dl;
 pub mod diagnostics;
 pub mod downloads;
 pub mod integration;
