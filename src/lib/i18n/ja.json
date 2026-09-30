@@ -10423,5 +10423,38 @@
       "skip": "今はスキップ",
       "title": "フォルダを選んで開始"
     }
+  },
+  "connect": {
+    "request_title": "{{client}} が OmniGet への接続を求めています",
+    "request_code_hint": "接続を求めたツールにも同じコードが表示されています：",
+    "scope_downloads": "ダウンロードを開始し、自分が始めたものを確認する",
+    "scope_agents": "このフォルダでAIエージェントをバックグラウンドで実行する",
+    "scope_approvals": "それらのエージェントの権限確認にあなたの代わりに答える",
+    "scope_approvals_hint": "オフ：OmniGet が毎回あなたに確認します。",
+    "request_hint": "{{client}} に接続を頼んだ直後の場合だけ許可してください。",
+    "deny": "許可しない",
+    "allow": "許可",
+    "connecting": "接続中…",
+    "done_title": "{{client}} が接続されました",
+    "done_hint": "{{client}} に戻ってください。OmniGet を認識させるには再起動が必要な場合があります。",
+    "close": "閉じる",
+    "tools_title": "AIツールを接続",
+    "tools_intro": "Claude Code、Codex、Gemini CLI などのツールに OmniGet の機能（ダウンロード、エージェント、ミッション）を渡します。",
+    "state_connected": "接続済み",
+    "state_found": "インストール済み・未接続",
+    "state_missing": "このコンピュータに見つかりません",
+    "state_skill": "自分で接続できます",
+    "connect": "接続",
+    "reconnect": "再接続",
+    "none_found": "このコンピュータにAIコーディングツールが見つかりませんでした。",
+    "skill_title": "ツールの中から接続",
+    "skill_intro": "ツールに omniget-connect スキルを追加します。「OmniGet に接続して」と頼むだけで済みます。",
+    "skill_install": "{{count}} 個のツールに追加",
+    "skill_reinstall": "もう一度追加",
+    "skill_done": "{{count}} 個のツールに追加しました",
+    "skill_partial": "{{ok}} 個のツールに追加しました。追加できなかったもの：{{failed}}",
+    "prompt_title": "または、これを任意のAIツールに貼り付けてください",
+    "show_all": "{{count}} 個のツールをすべて表示",
+    "show_installed": "インストール済みのツールのみ表示"
   }
 }

@@ -10423,5 +10423,38 @@
       "skip": "Plus tard",
       "title": "Choisis un dossier pour commencer"
     }
+  },
+  "connect": {
+    "request_title": "{{client}} veut se connecter à OmniGet",
+    "request_code_hint": "L’outil qui l’a demandé affiche le même code :",
+    "scope_downloads": "Lancer des téléchargements et voir ceux qu’il a lancés",
+    "scope_agents": "Exécuter vos agents IA en arrière-plan dans ce dossier",
+    "scope_approvals": "Répondre à votre place aux demandes d’autorisation de ces agents",
+    "scope_approvals_hint": "Désactivé : OmniGet vous demande à chaque fois.",
+    "request_hint": "N’autorisez que si vous venez de demander à {{client}} de se connecter.",
+    "deny": "Ne pas autoriser",
+    "allow": "Autoriser",
+    "connecting": "Connexion…",
+    "done_title": "{{client}} est connecté",
+    "done_hint": "Revenez à {{client}}. Il faudra peut-être le redémarrer pour qu’il voie OmniGet.",
+    "close": "Fermer",
+    "tools_title": "Connectez vos outils d’IA",
+    "tools_intro": "Donnez à Claude Code, Codex, Gemini CLI et d’autres outils les fonctions d’OmniGet : téléchargements, vos agents et missions.",
+    "state_connected": "Connecté",
+    "state_found": "Installé, non connecté",
+    "state_missing": "Introuvable sur cet ordinateur",
+    "state_skill": "se connecte tout seul",
+    "connect": "Connecter",
+    "reconnect": "Reconnecter",
+    "none_found": "Aucun outil de code avec IA n’a été trouvé sur cet ordinateur.",
+    "skill_title": "Se connecter depuis l’outil",
+    "skill_intro": "Ajoute la skill omniget-connect à vos outils : il suffit de leur demander « connecte-toi à OmniGet ».",
+    "skill_install": "Ajouter à {{count}} outils",
+    "skill_reinstall": "Ajouter à nouveau",
+    "skill_done": "Ajoutée à {{count}} outils",
+    "skill_partial": "Ajoutée à {{ok}} outils. Impossible dans : {{failed}}",
+    "prompt_title": "Ou collez ceci dans n’importe quel outil d’IA",
+    "show_all": "Afficher les {{count}} outils",
+    "show_installed": "Afficher seulement les outils installés"
   }
 }

@@ -1,4 +1,27 @@
-/// The PATH every spawned tool gets: managed `bin/`, Homebrew, `~/.local/bin`.
+/// Per-user install folders of the agent CLIs (the same list the agentkit
+/// detector searches). An app opened from the Finder or a desktop launcher
+/// inherits no shell PATH, so without these `claude`, `codex`, `node` and
+/// `npm` installed by their own installers are "not installed".
+#[cfg(not(windows))]
+fn user_bin_dirs() -> Vec<String> {
+    let Some(home) = dirs::home_dir() else {
+        return Vec::new();
+    };
+    [
+        ".local/bin",
+        ".npm-global/bin",
+        ".bun/bin",
+        ".cargo/bin",
+        ".volta/bin",
+        ".opencode/bin",
+    ]
+    .iter()
+    .map(|d| home.join(d).display().to_string())
+    .collect()
+}
+
+/// The PATH every spawned tool gets: managed `bin/`, the per-user install
+/// folders, Homebrew and `/usr/local/bin`, then the inherited PATH.
 pub fn enhanced_path() -> Option<String> {
     use std::sync::OnceLock;
     static CACHED: OnceLock<Option<String>> = OnceLock::new();
@@ -11,6 +34,9 @@ pub fn enhanced_path() -> Option<String> {
             #[allow(unused_mut)]
             let mut extra_dirs: Vec<String> = vec![bin_dir.display().to_string()];
 
+            #[cfg(not(windows))]
+            extra_dirs.extend(user_bin_dirs());
+
             #[cfg(target_os = "macos")]
             {
                 extra_dirs.push("/opt/homebrew/bin".into());
@@ -18,12 +44,7 @@ pub fn enhanced_path() -> Option<String> {
             }
 
             #[cfg(target_os = "linux")]
-            {
-                if let Some(home) = dirs::home_dir() {
-                    extra_dirs.push(home.join(".local").join("bin").display().to_string());
-                }
-                extra_dirs.push("/usr/local/bin".into());
-            }
+            extra_dirs.push("/usr/local/bin".into());
 
             Some(format!("{}{}{}", extra_dirs.join(sep), sep, current))
         })

@@ -77,9 +77,11 @@ bash claude-plugin/omniget/scripts/keys.sh check
 | `/omniget:research <url> [--backend B]` | Caption + transcript distilled into a Markdown note with `[mm:ss]` references |
 | `/omniget:setup` | Install missing tools + `omniget-cli` (confirm once), check API keys; `--update` refreshes them |
 | `/omniget:doctor` | Report available tools, models, and keys, plus how to add the missing ones |
+| `/omniget:connect` | Connect Claude Code to the OmniGet desktop app: you click Allow in OmniGet and it adds the `omniget` MCP server for you |
 
 The two skills (`omniget-fetch`, `omniget-transcribe`) trigger on their own when a
-media URL is pasted with a request, so the slash commands are optional.
+media URL is pasted with a request, so the slash commands are optional. The
+`omniget-connect` skill does the same when you ask Claude to connect to or set up OmniGet.
 
 A third skill, `omniget-agents`, only acts when you explicitly ask Claude to hand a
 task to one of your OmniGet agents (the desktop app must be running). It starts the

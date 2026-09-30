@@ -100,7 +100,7 @@ fn slug(s: &str) -> String {
 
 /// Id of the account that uses the CLI's default profile (terminal login),
 /// created as `<cli>-terminal` (writes allowed unless `plan`) the first time.
-fn terminal_account(
+pub(crate) fn terminal_account(
     llm: &crate::llm_manager::LlmManager,
     cli: &str,
     permission: Option<&str>,

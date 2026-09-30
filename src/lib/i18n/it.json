@@ -10423,5 +10423,38 @@
       "skip": "Salta per ora",
       "title": "Scegli una cartella per iniziare"
     }
+  },
+  "connect": {
+    "request_title": "{{client}} vuole connettersi a OmniGet",
+    "request_code_hint": "Lo strumento che l’ha chiesto mostra lo stesso codice:",
+    "scope_downloads": "Avviare download e vedere quelli che ha avviato",
+    "scope_agents": "Eseguire i tuoi agenti IA in background in questa cartella",
+    "scope_approvals": "Rispondere al posto tuo alle richieste di permesso di quegli agenti",
+    "scope_approvals_hint": "Disattivato: OmniGet te lo chiede ogni volta.",
+    "request_hint": "Consenti solo se hai appena chiesto a {{client}} di connettersi.",
+    "deny": "Non consentire",
+    "allow": "Consenti",
+    "connecting": "Connessione…",
+    "done_title": "{{client}} è connesso",
+    "done_hint": "Torna a {{client}}. Potrebbe servire un riavvio per vedere OmniGet.",
+    "close": "Chiudi",
+    "tools_title": "Collega i tuoi strumenti di IA",
+    "tools_intro": "Dai a Claude Code, Codex, Gemini CLI e ad altri strumenti le funzioni di OmniGet: download, i tuoi agenti e le missioni.",
+    "state_connected": "Connesso",
+    "state_found": "Installato, non connesso",
+    "state_missing": "Non trovato su questo computer",
+    "state_skill": "si connette da solo",
+    "connect": "Connetti",
+    "reconnect": "Connetti di nuovo",
+    "none_found": "Nessuno strumento di programmazione con IA trovato su questo computer.",
+    "skill_title": "Connettersi dall’interno dello strumento",
+    "skill_intro": "Aggiunge la skill omniget-connect ai tuoi strumenti, così basta chiedere «connettiti a OmniGet».",
+    "skill_install": "Aggiungi a {{count}} strumenti",
+    "skill_reinstall": "Aggiungi di nuovo",
+    "skill_done": "Aggiunta a {{count}} strumenti",
+    "skill_partial": "Aggiunta a {{ok}} strumenti. Non possibile in: {{failed}}",
+    "prompt_title": "Oppure incolla questo in qualsiasi strumento di IA",
+    "show_all": "Mostra tutti i {{count}} strumenti",
+    "show_installed": "Mostra solo quelli installati"
   }
 }

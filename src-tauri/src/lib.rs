@@ -18,6 +18,7 @@ pub mod approvals;
 pub mod bridge_tokens;
 pub mod commands;
 pub mod company;
+pub mod connect;
 pub mod cookies;
 pub mod core;
 pub mod extension_storage;
@@ -1270,6 +1271,12 @@ pub fn run() {
             commands::llm::keys::tool_mcp_clients,
             commands::llm::keys::tool_mcp_client_snippets,
             commands::llm::keys::tool_mcp_client_create,
+            connect::connect_pending,
+            connect::connect_answer,
+            connect::connect_tools,
+            connect::connect_tool,
+            connect::connect_install_skill,
+            connect::connect_prompt,
             commands::llm::keys::tool_mcp_client_revoke,
             commands::llm::keys::tool_mcp_root_grant,
             commands::llm::keys::tool_mcp_root_revoke,

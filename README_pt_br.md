@@ -107,16 +107,17 @@ What are my OmniGet agents working on, and is any of them waiting for my approva
 
 ### Configure em um minuto
 
-1. No OmniGet, abra **LLM → MCP → Seu endereço** e ligue o servidor.
-2. Crie uma conexão para o seu cliente e marque o que ele pode fazer: só ler a fila, ou também adicionar, pausar e cancelar downloads, ler arquivos prontos ou dar trabalho para os seus agentes. Cada conexão tem o próprio token.
-3. Copie o trecho que a página mostra para o seu cliente. Para o Claude Code é um comando só, com o endereço que a página mostra:
+Com o OmniGet aberto, peça à sua ferramenta. Cole isto no Claude Code, Codex, Gemini CLI, Cursor ou outro agente:
 
-```bash
-read -rs OMNIGET_MCP_TOKEN && export OMNIGET_MCP_TOKEN
-claude mcp add --transport http --scope project omniget <address from the page> --header 'Authorization: Bearer ${OMNIGET_MCP_TOKEN}'
+```text
+Connect to OmniGet: run curl -s "http://127.0.0.1:47720/connect" and follow the steps.
 ```
 
-O token nunca vai na linha de comando, então ele fica fora do histórico do shell. Cursor, VS Code, Codex e Goose recebem um bloco de configuração. O Claude Desktop usa o adaptador `omniget-mcp`, que vem em toda release.
+O OmniGet vem para a frente com o nome da ferramenta e um código curto. Confira se a ferramenta mostra o mesmo código, escolha se ela pode rodar seus agentes de IA na pasta de onde pediu e clique em **Permitir**. O OmniGet escreve o servidor `omniget` na configuração da própria ferramenta, então o token nunca passa pelo chat. Reinicie a ferramenta e as ferramentas do OmniGet estão lá.
+
+- O plugin do Claude Code faz o mesmo com `/omniget:connect`.
+- **LLM → MCP → Seu endereço → Conectar de dentro da ferramenta** adiciona a skill `omniget-connect` a todas as ferramentas de IA que encontrar, e aí basta pedir "conecte ao OmniGet".
+- Prefere clicar? A mesma página lista as ferramentas de IA instaladas no computador, cada uma com um botão **Conectar**. As conexões manuais, com um token por cliente, as permissões que você marcar e os trechos de configuração para Cursor, VS Code, Codex, Goose e Claude Desktop, continuam lá.
 
 ### O que um agente pode fazer
 
