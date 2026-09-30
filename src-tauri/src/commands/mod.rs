@@ -49,6 +49,7 @@ pub mod stream_links;
 pub mod trim_preview;
 pub mod tv_library;
 pub mod teams;
+pub mod telegram;
 pub mod video;
 pub mod video_ops;
 pub mod washmybelly;

@@ -794,6 +794,18 @@ fn default_caption_locale() -> String {
 pub struct TelegramSettings {
     pub concurrent_downloads: u32,
     pub fix_file_extensions: bool,
+    /// `/telegram` superpower switch.
+    #[serde(default = "default_telegram_enabled")]
+    pub enabled: bool,
+    /// The engine's own settings object (download folder, threads, sync).
+    /// The network setup lives in `<data>/telegram/network.json`, owned by
+    /// the connection manager.
+    #[serde(default)]
+    pub prefs: serde_json::Value,
+}
+
+fn default_telegram_enabled() -> bool {
+    true
 }
 
 impl Default for TelegramSettings {
@@ -801,6 +813,8 @@ impl Default for TelegramSettings {
         Self {
             concurrent_downloads: 3,
             fix_file_extensions: true,
+            enabled: default_telegram_enabled(),
+            prefs: serde_json::Value::Object(Default::default()),
         }
     }
 }

@@ -19,6 +19,7 @@ pub mod orchestration_config;
 pub mod output_schemas;
 pub mod policy;
 pub mod teams;
+pub mod telegram;
 pub mod washmybelly;
 pub mod worker;
 
@@ -1680,7 +1681,9 @@ mod tests {
         let list = tools();
         let legacy = list
             .iter()
-            .filter(|t| !t.name.starts_with("wmb_") && !t.name.starts_with("city_"))
+            .filter(|t| {
+                !t.name.starts_with("wmb_") && !t.name.starts_with("city_") && !t.name.starts_with("tg_")
+            })
             .count();
         assert_eq!(legacy, 45, "a tabela mudou de tamanho");
         assert_eq!(list.len(), table.len());

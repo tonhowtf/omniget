@@ -86,6 +86,8 @@ export type AppSettings = {
   telegram: {
     concurrent_downloads: number;
     fix_file_extensions: boolean;
+    /** `/telegram` superpower switch. */
+    enabled?: boolean;
   };
   rpc: {
     enabled: boolean;

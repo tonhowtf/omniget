@@ -68,6 +68,10 @@ pub const SCOPES: &[&str] = &[
     "catalog",
     "system_read",
     "system_change",
+    // /telegram: reading chats, and acting (downloads, auto-save rules, and
+    // writes to the account, which the person approves one by one).
+    "telegram_read",
+    "telegram_write",
     // Item 2.2: answering an owned mission's permission questions. Never part
     // of any default: the person ticks it explicitly (the MCP connections
     // card says what it allows).
@@ -284,6 +288,13 @@ pub fn scope(name: &str) -> Option<&'static str> {
         n if n.starts_with("wmb_") => "system_read",
         "city_inspect" | "city_validate" | "city_render" | "city_codegeo" => "city_read",
         "city_propose" | "city_apply" | "city_found" => "city_write",
+        // /telegram: the write tools additionally wait for the person to
+        // approve each call in the OmniGet window.
+        "tg_download" | "tg_watch_add" | "tg_watch_update" | "tg_watch_remove" | "tg_watch_run"
+        | "tg_send_message" | "tg_send_files" | "tg_forward" | "tg_delete_messages" => {
+            "telegram_write"
+        }
+        n if n.starts_with("tg_") => "telegram_read",
         _ => return None,
     })
 }

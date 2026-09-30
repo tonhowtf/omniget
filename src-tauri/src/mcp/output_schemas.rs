@@ -35,6 +35,7 @@ pub fn for_tool(name: &str) -> Option<Value> {
         .or_else(|| super::artifact_access::output_schema(name))
         .or_else(|| super::catalog_output_schema(name))
         .or_else(|| super::washmybelly::output_schema(name))
+        .or_else(|| super::telegram::output_schema(name))
         .or_else(|| super::memory::output_schema(name))
         .or_else(|| omniget_core::core::city3d::tools::output_schema(name))
         .or_else(|| super::meetings::output_schema(name))

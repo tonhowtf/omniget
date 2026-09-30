@@ -13,5 +13,6 @@ pub mod launch;
 pub mod meetings;
 pub mod splash;
 pub mod teams;
+pub mod tg;
 pub mod usage;
 pub mod wmb;

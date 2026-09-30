@@ -74,6 +74,33 @@ sysinfo = "0.39.6"
 roxmltree = "0.21.1"
 serde_yaml = "0.9.34"
 xxhash-rust = { version = "0.8.18", features = ["xxh3"] }
+# core/telegram: the connection layer (MTProto obfuscation and fake TLS,
+# Shadowsocks AEAD/2022, Trojan) speaks these protocols itself.
+ctr = "0.9"
+aes-gcm = "0.10"
+chacha20poly1305 = "0.10"
+hkdf = "0.12"
+blake3 = "1"
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12", "logging"] }
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12", "logging"] }
+webpki-roots = "1"
+ring = "0.17"
+crc32fast = "1"
+num-bigint = "0.4"
+# core/telegram client: MTProto via grammers (patched 0.8, see the
+# workspace [patch.crates-io]); all traffic goes through our own bridge.
+grammers-client = { version = "0.8", features = ["proxy"] }
+grammers-session = "0.8"
+grammers-tl-types = "0.8"
+grammers-mtsender = { version = "0.8", features = ["proxy"] }
+os_info = "3"
+sys-locale = "0.3"
+async-stream = "0.3"
+bytes = "1"
+dashmap = "6"
+cipher = "0.4"
+filetime = "0.2"
+axum = { version = "0.8", default-features = false, features = ["http1", "json", "tokio", "query"] }
 
 [target.'cfg(windows)'.dependencies]
 # Job Object of the CLI turns (`core::process::ProcessTreeGuard`): the only

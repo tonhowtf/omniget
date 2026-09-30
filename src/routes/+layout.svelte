@@ -171,6 +171,7 @@
   let ConfirmCloseDialog = $state<any>(null);
   let WmbApprovalPrompt = $state<any>(null);
   let ConnectPrompt = $state<any>(null);
+  let TelegramApprovalPrompt = $state<any>(null);
   let ShortcutsDialog = $state<any>(null);
   let LegalDialog = $state<any>(null);
   let RecoveryDialog = $state<any>(null);
@@ -227,6 +228,9 @@
     });
     import("$components/llm/mcp/ConnectPrompt.svelte").then((m) => {
       ConnectPrompt = m.default;
+    });
+    import("$lib/telegram/ApprovalPrompt.svelte").then((m) => {
+      TelegramApprovalPrompt = m.default;
     });
     import("$components/dialog/ConfirmCloseDialog.svelte").then((m) => {
       ConfirmCloseDialog = m.default;
@@ -513,6 +517,9 @@
 {/if}
 {#if ConnectPrompt}
   <ConnectPrompt />
+{/if}
+{#if TelegramApprovalPrompt && (getSettings()?.telegram?.enabled ?? true)}
+  <TelegramApprovalPrompt />
 {/if}
 {#if ConfirmCloseDialog}
   <ConfirmCloseDialog />

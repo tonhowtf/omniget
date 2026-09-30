@@ -391,6 +391,7 @@ fn build() -> Vec<ToolEntry> {
     all.extend(crate::core::washmybelly::tools::entries());
     all.extend(crate::core::city3d::tools::entries());
     all.extend(crate::core::global_dl::tools::entries());
+    all.extend(crate::core::telegram::tools::entries());
     all
 }
 
@@ -453,12 +454,15 @@ mod tests {
         let t = table();
         let legacy = t
             .iter()
-            .filter(|e| !e.name.starts_with("wmb_") && !e.name.starts_with("city_"))
+            .filter(|e| {
+                !e.name.starts_with("wmb_") && !e.name.starts_with("city_") && !e.name.starts_with("tg_")
+            })
             .count();
         assert_eq!(legacy, 45, "the table lost or gained a tool");
+        let tg = crate::core::telegram::tools::all_names().len();
         assert_eq!(
             t.len(),
-            legacy + 34 + 7,
+            legacy + 34 + 7 + tg,
             "washmybelly has 34 tools, the city 7"
         );
         let names: std::collections::HashSet<_> = t.iter().map(|e| e.name).collect();
