@@ -1,263 +1,149 @@
 <script lang="ts">
-  import { goto } from "$app/navigation";
   import { t } from "$lib/i18n";
-  import { showToast } from "$lib/stores/toast-store.svelte";
-  import RichPresencePanel from "./RichPresencePanel.svelte";
-  import SettingsDrillBack from "./SettingsDrillBack.svelte";
-  import SettingsDrillItem from "./SettingsDrillItem.svelte";
-  import {
-    getSettings,
-    saveSettings as updateSettings,
-    changeTheme,
-    changeLanguage,
-    CORE_THEMES,
-    MORE_THEMES,
-    MORE_THEME_IDS,
-  } from "./settings-helpers";
+  import { PRESETS as WORKSPACE_PRESETS } from "$lib/stores/workspace-design.svelte";
+  import SettingGroup from "./rebrand/SettingGroup.svelte";
+  import SettingRow from "./rebrand/SettingRow.svelte";
+  import WorkspaceAppearance from "./WorkspaceAppearance.svelte";
+  import { getSettings, saveSettings as updateSettings, MORE_THEMES } from "./settings-helpers";
 
-  let { searchActive = false, section = "" }: { searchActive?: boolean; section?: string } = $props();
+  // One theme authority: mode (System/Light/Dark) and style (OmniGet, the workspace
+  // presets and the named themes under "More themes") both live in AppSettings.appearance.
+  const OMNIGET_PRESET = "omniget-desktop";
+  const MODES = [
+    { id: "system", labelKey: "settings.rebrand.appearance.system" },
+    { id: "light", labelKey: "settings.rebrand.appearance.light" },
+    { id: "dark", labelKey: "settings.rebrand.appearance.dark" },
+  ] as const;
 
   let settings = $derived(getSettings());
-  let selectedInMore = $derived(MORE_THEME_IDS.has(settings?.appearance?.theme ?? ""));
-  let moreThemesOpen = $state(false);
-  let rpcDrillOpen = $derived(section === "rpc");
-  /** The Flatpak limit of "agents in the background" only concerns Linux (3.2). */
-  const onLinux = typeof navigator !== "undefined" && /linux/i.test(navigator.userAgent);
-
+  let mode = $derived(settings?.appearance?.mode ?? "system");
+  let preset = $derived(settings?.appearance?.preset ?? OMNIGET_PRESET);
+  let knownPreset = $derived(
+    preset === OMNIGET_PRESET || WORKSPACE_PRESETS.some((p) => p.id === preset) || MORE_THEMES.some((p) => p.id === preset),
+  );
+  let isWorkspacePreset = $derived(WORKSPACE_PRESETS.some((p) => p.id === preset));
+  let systemDark = $state(false);
   $effect(() => {
-    if (selectedInMore) moreThemesOpen = true;
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const sync = () => { systemDark = media.matches; };
+    sync();
+    media.addEventListener("change", sync);
+    return () => media.removeEventListener("change", sync);
   });
+  let resolvedMode = $derived<"light" | "dark">(mode === "system" ? (systemDark ? "dark" : "light") : mode);
 
+  function setMode(next: string) {
+    if (next !== mode) void updateSettings({ appearance: { mode: next } });
+  }
+
+  function setPreset(e: Event) {
+    const select = e.target as HTMLSelectElement;
+    const next = select.value;
+    void updateSettings({ appearance: { preset: next } }).then((saved) => {
+      // A rejected change must not leave the select showing an unsaved value.
+      if (!saved) select.value = getSettings()?.appearance?.preset ?? OMNIGET_PRESET;
+    });
+  }
+
+  function onModeKey(e: KeyboardEvent) {
+    const keys = ["ArrowRight", "ArrowDown", "ArrowLeft", "ArrowUp"];
+    if (!keys.includes(e.key)) return;
+    e.preventDefault();
+    const rtl = (e.currentTarget as HTMLElement).closest("[dir=rtl]") !== null;
+    const forward = e.key === "ArrowDown" || (e.key === "ArrowRight") !== rtl;
+    const index = MODES.findIndex((m) => m.id === mode);
+    const next = MODES[(index + (forward ? 1 : MODES.length - 1)) % MODES.length];
+    setMode(next.id);
+    queueMicrotask(() => document.getElementById(`settings-appearance-mode-${next.id}`)?.focus());
+  }
 </script>
 
+{#snippet toggle(id: string, describedBy: string | undefined, on: boolean, onclick: () => void)}
+  <button {id} type="button" class="toggle" class:on role="switch" aria-checked={on} aria-labelledby={`${id}-label`} aria-describedby={describedBy} {onclick}><span class="toggle-knob"></span></button>
+{/snippet}
+
 {#if settings}
-  <section class="section">
-    <h5 class="section-title">{$t('settings.general.title')}</h5>
-    <div class="card">
-      <div class="setting-row" data-setting-key="settings.general.start_with_system">
-        <div class="setting-col">
-          <span class="setting-label">{$t('settings.general.start_with_system')}</span>
-          <span class="setting-path">{$t('settings.general.start_with_system_desc')}</span>
-        </div>
-        <button
-          class="toggle"
-          class:on={settings.start_with_system}
-          onclick={() => updateSettings({ start_with_system: !settings.start_with_system })}
-          role="switch"
-          aria-checked={settings.start_with_system}
-          aria-label={$t('settings.general.start_with_system') as string}
-        >
-          <span class="toggle-knob"></span>
-        </button>
-      </div>
-      <div class="divider"></div>
-      <div class="setting-row" data-setting-key="settings.general.start_minimized">
-        <div class="setting-col">
-          <span class="setting-label">{$t('settings.general.start_minimized')}</span>
-          <span class="setting-path">{$t('settings.general.start_minimized_desc')}</span>
-        </div>
-        <button
-          class="toggle"
-          class:on={settings.start_minimized}
-          onclick={() => updateSettings({ start_minimized: !settings.start_minimized })}
-          role="switch"
-          aria-checked={settings.start_minimized}
-          aria-label={$t('settings.general.start_minimized') as string}
-        >
-          <span class="toggle-knob"></span>
-        </button>
-      </div>
-      <div class="divider"></div>
-      <div class="setting-row" data-setting-key="settings.general.exit_on_close">
-        <div class="setting-col">
-          <span class="setting-label">{$t('settings.general.exit_on_close')}</span>
-          <span class="setting-path">{$t('settings.general.exit_on_close_desc')}</span>
-        </div>
-        <button
-          class="toggle"
-          class:on={settings.exit_on_close}
-          onclick={() => updateSettings({ exit_on_close: !settings.exit_on_close })}
-          role="switch"
-          aria-checked={settings.exit_on_close}
-          aria-label={$t('settings.general.exit_on_close') as string}
-        >
-          <span class="toggle-knob"></span>
-        </button>
-      </div>
-      <div class="divider"></div>
-      <div class="setting-row" data-setting-key="settings.general.run_in_background">
-        <div class="setting-col">
-          <span class="setting-label">{$t('settings.general.run_in_background')}</span>
-          <span class="setting-path">{$t('settings.general.run_in_background_desc')}</span>
-          {#if onLinux}
-            <span class="setting-path">{$t('settings.general.run_in_background_flatpak')}</span>
-          {/if}
-        </div>
-        <button
-          class="toggle"
-          class:on={settings.run_in_background}
-          onclick={() => updateSettings({ run_in_background: !settings.run_in_background })}
-          role="switch"
-          aria-checked={settings.run_in_background}
-          aria-label={$t('settings.general.run_in_background') as string}
-        >
-          <span class="toggle-knob"></span>
-        </button>
-      </div>
-    </div>
-  </section>
-
-  <section class="section">
-    <h5 class="section-title">{$t('settings.appearance.accessibility_title')}</h5>
-    <div class="card">
-      <div class="setting-row" data-setting-key="settings.appearance.reduce_motion">
-        <div class="setting-col">
-          <span class="setting-label">{$t('settings.appearance.reduce_motion')}</span>
-          <span class="setting-path">{$t('settings.appearance.reduce_motion_desc')}</span>
-        </div>
-        <button
-          class="toggle"
-          class:on={settings.accessibility?.reduce_motion}
-          onclick={() => updateSettings({ accessibility: { reduce_motion: !settings.accessibility?.reduce_motion } })}
-          role="switch"
-          aria-checked={settings.accessibility?.reduce_motion ?? false}
-          aria-label={$t('settings.appearance.reduce_motion') as string}
-        >
-          <span class="toggle-knob"></span>
-        </button>
-      </div>
-      <div class="divider"></div>
-      <div class="setting-row" data-setting-key="settings.appearance.reduce_transparency">
-        <div class="setting-col">
-          <span class="setting-label">{$t('settings.appearance.reduce_transparency')}</span>
-          <span class="setting-path">{$t('settings.appearance.reduce_transparency_desc')}</span>
-        </div>
-        <button
-          class="toggle"
-          class:on={settings.accessibility?.reduce_transparency}
-          onclick={() => updateSettings({ accessibility: { reduce_transparency: !settings.accessibility?.reduce_transparency } })}
-          role="switch"
-          aria-checked={settings.accessibility?.reduce_transparency ?? false}
-          aria-label={$t('settings.appearance.reduce_transparency') as string}
-        >
-          <span class="toggle-knob"></span>
-        </button>
-      </div>
-    </div>
-  </section>
-
-  <section class="section">
-    <h5 class="section-title">{$t('settings.appearance.title')}</h5>
-    <div class="card" data-setting-key="settings.appearance.theme">
-      <div class="setting-row">
-        <span class="setting-label">{$t('settings.appearance.theme')}</span>
-      </div>
-      <div class="theme-grid">
-        {#each CORE_THEMES as theme (theme.id)}
+  <SettingGroup id="theme" title={$t("settings.appearance.theme")}>
+    <div class="setting-mode-row" data-setting-key="settings.appearance.theme">
+      <span class="mode-label" id="settings-appearance-mode-label">{$t("settings.appearance.theme")}</span>
+      <div class="segmented" role="radiogroup" aria-labelledby="settings-appearance-mode-label" tabindex="-1" onkeydown={onModeKey}>
+        {#each MODES as item (item.id)}
           <button
-            class="theme-card"
-            class:active={settings.appearance.theme === theme.id}
-            aria-pressed={settings.appearance.theme === theme.id}
-            onclick={() => changeTheme(theme.id)}
-          >
-            {#if theme.colors}
-              <div class="theme-preview">
-                <div class="preview-bg" style:background="{theme.colors[0]}">
-                  <div class="preview-text" style:color="{theme.colors[1]}">Aa</div>
-                  <div class="preview-accent" style:background="{theme.colors[2]}"></div>
-                </div>
-              </div>
-            {:else}
-              <div class="theme-preview system-preview">
-                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
-              </div>
-            {/if}
-            <span class="theme-name">{theme.labelKey ? $t(theme.labelKey) : theme.label}</span>
-          </button>
+            type="button"
+            role="radio"
+            id={`settings-appearance-mode-${item.id}`}
+            data-setting-key={`design.${item.id}`}
+            aria-checked={mode === item.id}
+            tabindex={mode === item.id ? 0 : -1}
+            onclick={() => setMode(item.id)}
+          >{$t(item.labelKey)}</button>
         {/each}
       </div>
-      {#if !moreThemesOpen}
-        <button type="button" class="more-themes-toggle" onclick={() => { moreThemesOpen = true; }}>
-          {$t("settings.appearance.more_themes")}
-        </button>
-      {:else}
-        <div class="more-themes">
-          <div class="theme-grid">
-            {#each MORE_THEMES as theme (theme.id)}
-              <button
-                class="theme-card"
-                class:active={settings.appearance.theme === theme.id}
-                aria-pressed={settings.appearance.theme === theme.id}
-                onclick={() => changeTheme(theme.id)}
-              >
-                <div class="theme-preview">
-                  <div class="preview-bg" style:background="{theme.colors[0]}">
-                    <div class="preview-text" style:color="{theme.colors[1]}">Aa</div>
-                    <div class="preview-accent" style:background="{theme.colors[2]}"></div>
-                  </div>
-                </div>
-                <span class="theme-name">{theme.label}</span>
-              </button>
+    </div>
+
+    <SettingRow id="settings-appearance-style" label={$t("design.title")} settingKey="settings.appearance.more_themes" status="appearance.preset">
+      {#snippet control({ id, describedBy })}
+        <select {id} class="select" aria-describedby={describedBy} value={preset} onchange={setPreset}>
+          <option value={OMNIGET_PRESET}>OmniGet</option>
+          {#if !knownPreset}<option value={preset}>{preset}</option>{/if}
+          <optgroup label={$t("settings.appearance.more_themes")}>
+            {#each WORKSPACE_PRESETS as item (item.id)}
+              <option value={item.id}>{item.name}</option>
             {/each}
-          </div>
-        </div>
-      {/if}
-      <div class="divider"></div>
-      <div class="setting-row">
-        <label class="setting-label" for="settings-language">{$t('settings.appearance.language')}</label>
-        <select data-setting-key="settings.appearance.language" id="settings-language" class="select" value={settings.appearance.language} onchange={changeLanguage}>
-          <option value="en">{$t('settings.appearance.lang_en')}</option>
-		  <option value="ru">{$t('settings.appearance.lang_ru')}</option>
-          <option value="pt">{$t('settings.appearance.lang_pt')}</option>
-          <option value="zh">{$t('settings.appearance.lang_zh')}</option>
-          <option value="zh-TW">{$t('settings.appearance.lang_zh_tw')}</option>
-          <option value="ja">{$t('settings.appearance.lang_ja')}</option>
-          <option value="it">{$t('settings.appearance.lang_it')}</option>
-          <option value="fr">{$t('settings.appearance.lang_fr')}</option>
-          <option value="es">{$t('settings.appearance.lang_es')}</option>
-          <option value="el">{$t('settings.appearance.lang_el')}</option>
-          <option value="fa">{$t('settings.appearance.lang_fa')}</option>
-          <option value="lo">{$t('settings.appearance.lang_lo')}</option>
+            {#each MORE_THEMES as item (item.id)}
+              <option value={item.id}>{item.label}</option>
+            {/each}
+          </optgroup>
         </select>
-      </div>
-    </div>
-  </section>
-
-  <section class="section">
-    <div class="card">
-      <div class="setting-row" data-setting-key="settings.general.reset_hints">
-        <div class="setting-col">
-          <span class="setting-label">{$t('settings.general.reset_hints')}</span>
-          <span class="setting-path">{$t('settings.general.reset_hints_desc')}</span>
-        </div>
-        <button
-          class="button"
-          onclick={() => {
-            const keys = Object.keys(localStorage).filter((k) => k.startsWith('hint_dismissed_'));
-            for (const k of keys) localStorage.removeItem(k);
-            showToast('info', $t('settings.general.hints_restored') as string);
-          }}
-        >{$t('settings.general.restore')}</button>
-      </div>
-    </div>
-  </section>
-
-  {#if searchActive || rpcDrillOpen}
-    {#if rpcDrillOpen && !searchActive}
-      <SettingsDrillBack
-        title={$t('settings.rpc.title')}
-        hint={$t('settings.rpc.desc')}
-        onBack={() => { void goto("/settings?tab=appearance"); }}
-      />
+      {/snippet}
+    </SettingRow>
+    {#if isWorkspacePreset}
+      <WorkspaceAppearance {preset} mode={resolvedMode} />
     {/if}
-    <div id="settings-section-rpc"><RichPresencePanel /></div>
-  {:else}
-    <nav class="settings-drill-list">
-      <SettingsDrillItem
-        title={$t('settings.rpc.title')}
-        hint={$t('settings.rpc.desc')}
-        onclick={() => { void goto("/settings?tab=appearance&section=rpc"); }}
-      />
-    </nav>
-  {/if}
+  </SettingGroup>
+
+  <SettingGroup id="accessibility" title={$t("settings.appearance.accessibility_title")}>
+    <SettingRow id="settings-reduce-motion" label={$t("settings.appearance.reduce_motion")} help={$t("settings.appearance.reduce_motion_desc")}
+      settingKey="settings.appearance.reduce_motion" status="accessibility.reduce_motion">
+      {#snippet control({ id, describedBy })}
+        {@render toggle(id, describedBy, settings.accessibility?.reduce_motion ?? false,
+          () => updateSettings({ accessibility: { reduce_motion: !settings.accessibility?.reduce_motion } }))}
+      {/snippet}
+    </SettingRow>
+    <SettingRow id="settings-reduce-transparency" label={$t("settings.appearance.reduce_transparency")} help={$t("settings.appearance.reduce_transparency_desc")}
+      settingKey="settings.appearance.reduce_transparency" status="accessibility.reduce_transparency">
+      {#snippet control({ id, describedBy })}
+        {@render toggle(id, describedBy, settings.accessibility?.reduce_transparency ?? false,
+          () => updateSettings({ accessibility: { reduce_transparency: !settings.accessibility?.reduce_transparency } }))}
+      {/snippet}
+    </SettingRow>
+  </SettingGroup>
 {/if}
+
+<style>
+  .setting-mode-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2) var(--space-3);
+    min-block-size: 40px;
+    padding-block: var(--space-2);
+  }
+  .mode-label { font-size: 13px; line-height: 20px; color: var(--text); }
+  .segmented { display: inline-flex; flex-wrap: wrap; gap: var(--space-1); }
+  .segmented button {
+    min-block-size: 32px;
+    padding-inline: var(--space-3);
+    border: 1px solid var(--separator);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--text);
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .segmented button[aria-checked="true"] { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-text, var(--accent)); }
+  .segmented button:focus-visible { outline: var(--focus-ring); outline-offset: var(--focus-ring-offset, 2px); }
+  .setting-mode-row + :global(.setting-row) { border-block-start: 1px solid var(--separator); }
+</style>

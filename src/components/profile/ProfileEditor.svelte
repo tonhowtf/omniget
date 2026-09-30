@@ -17,7 +17,12 @@
     setSkin,
   } from "$lib/stores/profile-store.svelte";
 
-  let { onsaved }: { onsaved?: () => void } = $props();
+  // `embedded`: inside a Settings group (SettingsProfile), which already draws
+  // the section, so the editor drops its own card.
+  let { onsaved, embedded = false }: { onsaved?: () => void; embedded?: boolean } = $props();
+  const uid = $props.id();
+  const nickId = `profile-nickname-${uid}`;
+  const nickHintId = `${nickId}-hint`;
 
   let profile = $derived(getProfile());
   let draft = $state<string | null>(null);
@@ -50,20 +55,21 @@
   }
 </script>
 
-<div class="card">
+<div class:card={!embedded} class="profile-editor" data-setting-key="profile.nickname">
   <div class="setting-row">
     <div class="setting-col">
-      <span class="setting-label">{$t("profile.nickname_label")}</span>
-      <span class="setting-path">{$t("profile.nickname_desc")}</span>
+      <label class="setting-label" for={nickId}>{$t("profile.nickname_label")}</label>
+      <span class="setting-path" id={nickHintId}><bdi>{$t("profile.nickname_desc")}</bdi></span>
     </div>
     <div class="nick-controls">
       <input
         type="text"
+        id={nickId}
+        aria-describedby={nickHintId}
         class="input-text nick-input"
         maxlength={NICKNAME_MAX}
         value={value}
         placeholder={$t("profile.nickname_placeholder") as string}
-        aria-label={$t("profile.nickname_label") as string}
         aria-invalid={value.length > 0 && normalized === null}
         oninput={(e) => { draft = (e.target as HTMLInputElement).value; }}
         onkeydown={(e) => { if (e.key === "Enter") save(); }}
@@ -77,7 +83,7 @@
   <div class="setting-row skin-row">
     <div class="setting-col">
       <span class="setting-label">{$t("profile.skin_label")}</span>
-      <span class="setting-path">{$t("profile.skin_desc")}</span>
+      <span class="setting-path"><bdi>{$t("profile.skin_desc")}</bdi></span>
     </div>
     <SkinPicker {tint} disabled={saving} onpick={pickTint} />
   </div>
@@ -93,13 +99,31 @@
   .nick-controls {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: var(--space-2);
-    flex-shrink: 0;
+    flex: 0 1 auto;
+    min-width: 0;
   }
 
   .nick-input {
     width: 220px;
-    max-width: 44vw;
+    max-width: 100%;
+  }
+
+  .profile-editor .setting-row {
+    flex-wrap: wrap;
+  }
+
+  /* Help text wraps instead of ending in an ellipsis (the global .setting-path clips). */
+  .profile-editor .setting-col {
+    flex: 1 1 14rem;
+  }
+
+  .profile-editor .setting-path {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    overflow-wrap: anywhere;
   }
 
   .skin-row {

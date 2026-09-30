@@ -1,8 +1,10 @@
 <script lang="ts">
   import { t } from "$lib/i18n";
   import { getSettings, updateSettings, toggleBool } from "../settings-helpers";
+  import SettingGroup from "../rebrand/SettingGroup.svelte";
+  import SettingRow from "../rebrand/SettingRow.svelte";
 
-  let { embedded = false }: { embedded?: boolean } = $props();
+  type ControlArgs = { id: string; describedBy: string | undefined };
 
   let settings = $derived(getSettings());
 
@@ -12,89 +14,41 @@
   }
 </script>
 
-{#if settings}
-  {#if !embedded}
-    <div class="settings-section-head section-title">
-      <h5 class="section-title">{$t('settings.download.section_subtitles')}</h5>
-      <p class="settings-section-hint">{$t('settings.download.section_subtitles_desc')}</p>
-    </div>
-  {/if}
+{#snippet sw(c: ControlArgs, label: string, on: boolean, onclick: () => void)}
+  <button type="button" class="toggle" class:on id={c.id} aria-label={label} aria-describedby={c.describedBy} role="switch" aria-checked={on} {onclick}><span class="toggle-knob"></span></button>
+{/snippet}
 
-  <div class="card">
-    <div class="setting-row">
-      <div class="setting-col">
-        <span class="setting-label">{$t('settings.download.download_subtitles')}</span>
-        <span class="setting-path">{$t('settings.download.download_subtitles_desc')}</span>
-      </div>
-      <button class="toggle" class:on={settings.download.download_subtitles} onclick={() => toggleBool("download", "download_subtitles", settings.download.download_subtitles)} role="switch" aria-checked={settings.download.download_subtitles} aria-label={$t('settings.download.download_subtitles') as string}><span class="toggle-knob"></span></button>
-    </div>
-    {#if settings.download.download_subtitles}
-      <div class="divider"></div>
-      <div class="setting-row">
-        <div class="setting-col">
-          <span class="setting-label">{$t('settings.download.include_auto_subtitles')}</span>
-          <span class="setting-path">{$t('settings.download.include_auto_subtitles_desc')}</span>
-        </div>
-        <button class="toggle" class:on={settings.download.include_auto_subtitles} onclick={() => toggleBool("download", "include_auto_subtitles", settings.download.include_auto_subtitles)} role="switch" aria-checked={settings.download.include_auto_subtitles} aria-label={$t('settings.download.include_auto_subtitles') as string}><span class="toggle-knob"></span></button>
-      </div>
-      <div class="divider"></div>
-      <div class="setting-row">
-        <div class="setting-col">
-          <span class="setting-label">{$t('settings.download.caption_locale')}</span>
-          <span class="setting-path">{$t('settings.download.caption_locale_desc')}</span>
-        </div>
-        <select class="select" value={settings.download.caption_locale} onchange={changeCaptionLocale}>
-          <option value="en">English</option>
-          <option value="pt">Português</option>
-          <option value="es">Español</option>
-          <option value="fr">Français</option>
-          <option value="it">Italiano</option>
-          <option value="ja">日本語</option>
-          <option value="zh-Hans">简体中文</option>
-          <option value="zh-Hant">繁體中文</option>
-          <option value="el">Ελληνικά</option>
-        </select>
-      </div>
-      <div class="divider"></div>
-      <div class="setting-row">
-        <div class="setting-col">
-          <span class="setting-label">{$t('settings.download.keep_vtt')}</span>
-          <span class="setting-path">{$t('settings.download.keep_vtt_desc')}</span>
-        </div>
-        <button class="toggle" class:on={settings.download.keep_vtt} onclick={() => toggleBool("download", "keep_vtt", settings.download.keep_vtt)} role="switch" aria-checked={settings.download.keep_vtt} aria-label={$t('settings.download.keep_vtt') as string}><span class="toggle-knob"></span></button>
-      </div>
+{#if settings}
+  {@const d = settings.download}
+  <SettingGroup id="subtitles" title={$t("settings.rebrand.downloads.subtitles")}>
+    <SettingRow id="dl-download-subtitles" label={$t("settings.download.download_subtitles")} help={$t("settings.download.download_subtitles_desc")} settingKey="settings.download.download_subtitles" status="download.download_subtitles">
+      {#snippet control(c)}{@render sw(c, $t("settings.download.download_subtitles"), d.download_subtitles, () => toggleBool("download", "download_subtitles", d.download_subtitles))}{/snippet}
+    </SettingRow>
+    {#if d.download_subtitles}
+      <SettingRow id="dl-include-auto-subtitles" label={$t("settings.download.include_auto_subtitles")} help={$t("settings.download.include_auto_subtitles_desc")} settingKey="settings.download.include_auto_subtitles" status="download.include_auto_subtitles">
+        {#snippet control(c)}{@render sw(c, $t("settings.download.include_auto_subtitles"), d.include_auto_subtitles, () => toggleBool("download", "include_auto_subtitles", d.include_auto_subtitles))}{/snippet}
+      </SettingRow>
+      <SettingRow id="dl-caption-locale" label={$t("settings.download.caption_locale")} help={$t("settings.download.caption_locale_desc")} settingKey="settings.download.caption_locale" status="download.caption_locale">
+        {#snippet control(c)}
+          <select class="select" id={c.id} aria-describedby={c.describedBy} value={d.caption_locale} onchange={changeCaptionLocale}>
+            <option value="en">English</option>
+            <option value="pt">Português</option>
+            <option value="es">Español</option>
+            <option value="fr">Français</option>
+            <option value="it">Italiano</option>
+            <option value="ja">日本語</option>
+            <option value="zh-Hans">简体中文</option>
+            <option value="zh-Hant">繁體中文</option>
+            <option value="el">Ελληνικά</option>
+          </select>
+        {/snippet}
+      </SettingRow>
+      <SettingRow id="dl-keep-vtt" label={$t("settings.download.keep_vtt")} help={$t("settings.download.keep_vtt_desc")} settingKey="settings.download.keep_vtt" status="download.keep_vtt">
+        {#snippet control(c)}{@render sw(c, $t("settings.download.keep_vtt"), d.keep_vtt, () => toggleBool("download", "keep_vtt", d.keep_vtt))}{/snippet}
+      </SettingRow>
     {/if}
-    <div class="divider"></div>
-    <div class="setting-row">
-      <div class="setting-col">
-        <span class="setting-label">{$t('settings.download.translate_metadata')}</span>
-        <span class="setting-path">{$t('settings.download.translate_metadata_desc')}</span>
-      </div>
-      <button class="toggle" class:on={settings.download.translate_metadata} onclick={() => toggleBool("download", "translate_metadata", settings.download.translate_metadata)} role="switch" aria-checked={settings.download.translate_metadata} aria-label={$t('settings.download.translate_metadata') as string}><span class="toggle-knob"></span></button>
-    </div>
-    <div class="divider"></div>
-    <div class="setting-row">
-      <div class="setting-col">
-        <span class="setting-label">{$t('settings.download.embed_metadata')}</span>
-        <span class="setting-path">{$t('settings.download.embed_metadata_desc')}</span>
-      </div>
-      <button class="toggle" class:on={settings.download.embed_metadata} onclick={() => toggleBool("download", "embed_metadata", settings.download.embed_metadata)} role="switch" aria-checked={settings.download.embed_metadata} aria-label={$t('settings.download.embed_metadata') as string}><span class="toggle-knob"></span></button>
-    </div>
-    <div class="divider"></div>
-    <div class="setting-row">
-      <div class="setting-col">
-        <span class="setting-label">{$t('settings.download.embed_thumbnail')}</span>
-        <span class="setting-path">{$t('settings.download.embed_thumbnail_desc')}</span>
-      </div>
-      <button class="toggle" class:on={settings.download.embed_thumbnail} onclick={() => toggleBool("download", "embed_thumbnail", settings.download.embed_thumbnail)} role="switch" aria-checked={settings.download.embed_thumbnail} aria-label={$t('settings.download.embed_thumbnail') as string}><span class="toggle-knob"></span></button>
-    </div>
-    <div class="divider"></div>
-    <div class="setting-row">
-      <div class="setting-col">
-        <span class="setting-label">{$t('settings.download.write_nfo_sidecar')}</span>
-        <span class="setting-path">{$t('settings.download.write_nfo_sidecar_desc')}</span>
-      </div>
-      <button class="toggle" class:on={settings.download.write_nfo_sidecar} onclick={() => toggleBool("download", "write_nfo_sidecar", settings.download.write_nfo_sidecar)} role="switch" aria-checked={settings.download.write_nfo_sidecar} aria-label={$t('settings.download.write_nfo_sidecar') as string}><span class="toggle-knob"></span></button>
-    </div>
-  </div>
+    <SettingRow id="dl-translate-metadata" label={$t("settings.download.translate_metadata")} help={$t("settings.download.translate_metadata_desc")} settingKey="settings.download.translate_metadata" status="download.translate_metadata">
+      {#snippet control(c)}{@render sw(c, $t("settings.download.translate_metadata"), d.translate_metadata, () => toggleBool("download", "translate_metadata", d.translate_metadata))}{/snippet}
+    </SettingRow>
+  </SettingGroup>
 {/if}

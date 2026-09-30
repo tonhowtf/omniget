@@ -4,6 +4,7 @@ use serde::Serialize;
 
 use crate::core::queue::{self, emit_queue_state_from_state};
 use crate::core::url_parser;
+use crate::models::settings::AppSettings;
 use crate::platforms::Platform;
 use crate::storage::config;
 use crate::AppState;
@@ -422,9 +423,7 @@ pub async fn download_from_url_with_args(
             settings.advanced.max_concurrent_segments as usize,
         );
         let mut q = download_queue.lock().await;
-        q.max_concurrent = settings.advanced.max_concurrent_downloads.max(1);
-        q.stagger_delay_ms = settings.advanced.stagger_delay_ms;
-        q.default_max_retries = settings.advanced.max_retries;
+        queue_policy_into(&mut q, &settings);
         if q.has_url(&url) {
             tracing::debug!("[perf] download_from_url took {:?}", _timer_start.elapsed());
             return Err("Download already in progress for this URL".to_string());
@@ -577,9 +576,7 @@ pub async fn download_with_custom_args(
     {
         let settings = config::load_settings(&app);
         let mut q = download_queue.lock().await;
-        q.max_concurrent = settings.advanced.max_concurrent_downloads.max(1);
-        q.stagger_delay_ms = settings.advanced.stagger_delay_ms;
-        q.default_max_retries = settings.advanced.max_retries;
+        queue_policy_into(&mut q, &settings);
         if q.has_url(&url) {
             return Err("Download already in progress for this URL".to_string());
         }
@@ -1089,6 +1086,31 @@ pub fn parse_batch_file(path: String) -> Result<Vec<String>, String> {
         }
     }
     Ok(urls)
+}
+
+/// The queue's share of the settings: concurrency, stagger and retries.
+fn queue_policy_into(q: &mut queue::DownloadQueue, settings: &AppSettings) {
+    q.max_concurrent = settings.advanced.max_concurrent_downloads.max(1);
+    q.stagger_delay_ms = settings.advanced.stagger_delay_ms;
+    q.default_max_retries = settings.advanced.max_retries;
+}
+
+/// The `downloads.queue` settings effect: updates the running queue's
+/// policy and the keep-awake guard. It never starts, creates or retries a
+/// download; queued items move on the scheduler's next pass as usual.
+pub fn apply_queue_policy(app: &tauri::AppHandle, settings: &AppSettings) {
+    use tauri::Manager;
+    let queue = app.state::<AppState>().download_queue.clone();
+    let active = tauri::async_runtime::block_on(async {
+        let mut q = queue.lock().await;
+        queue_policy_into(&mut q, settings);
+        q.active_count()
+    });
+    if !settings.advanced.prevent_sleep {
+        crate::core::awake::sync(false);
+    } else if active > 0 {
+        crate::core::awake::sync(true);
+    }
 }
 
 #[tauri::command]

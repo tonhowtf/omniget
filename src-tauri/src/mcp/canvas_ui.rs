@@ -465,7 +465,8 @@ pub fn settings_set(app: &AppHandle, key: &str, value: Value) -> Result<Value, S
     for k in key.rsplit('.') {
         patch = json!({ k: patch });
     }
-    crate::commands::settings::update_settings(app.clone(), patch.to_string())?;
+    crate::commands::settings::update_settings(app.clone(), patch.to_string())
+        .map_err(|e| serde_json::to_string(&e).unwrap_or_else(|_| "SETTING_INVALID".into()))?;
     let after = serde_json::to_value(crate::storage::config::load_settings(app))
         .map_err(|e| e.to_string())?;
     let now = at_path(&after, key).cloned().unwrap_or(Value::Null);

@@ -1,37 +1,51 @@
 <script lang="ts">
   import { t } from "$lib/i18n";
   import ContextHint from "$components/hints/ContextHint.svelte";
-  import { getSettings, updateSettings, toggleBool } from "../settings-helpers";
+  import { getSettings, toggleBool } from "../settings-helpers";
+  import { createSettingsDraft } from "$lib/stores/settings-drafts.svelte";
+  import SettingGroup from "../rebrand/SettingGroup.svelte";
+  import SettingRow from "../rebrand/SettingRow.svelte";
+  import SettingsSaveBar from "../rebrand/SettingsSaveBar.svelte";
 
-  let { embedded = false }: { embedded?: boolean } = $props();
+  type ControlArgs = { id: string; describedBy: string | undefined };
+  type BindingField = "hotkey_binding" | "music_hotkey_binding";
+
+  // "clipboard" is the primary paste detection; "hotkeys" is the advanced
+  // group with the global shortcuts.
+  let { part = "clipboard" }: { part?: "clipboard" | "hotkeys" } = $props();
 
   let settings = $derived(getSettings());
 
-  let hotkeyInput = $state("");
-  let hotkeyTimer: ReturnType<typeof setTimeout> | null = null;
-  let hotkeyMode = $state<"record" | "type">("record");
-  let hotkeyRecording = $state(false);
-  let musicHotkeyInput = $state("");
-  let musicHotkeyTimer: ReturnType<typeof setTimeout> | null = null;
-  let musicHotkeyMode = $state<"record" | "type">("record");
-  let musicHotkeyRecording = $state(false);
-
-  $effect(() => {
-    if (settings) {
-      hotkeyInput = settings.download.hotkey_binding;
-      musicHotkeyInput = settings.download.music_hotkey_binding;
-    }
+  // Shortcut bindings are a draft: recording or typing a key only changes the
+  // form, and "Save changes" registers them. The enable switches autosave.
+  const hotkeys = createSettingsDraft({
+    id: "hotkeys",
+    read: (s) => ({
+      hotkey_binding: s.download.hotkey_binding,
+      music_hotkey_binding: s.download.music_hotkey_binding,
+    }),
+    toPatch: (d) => ({
+      download: {
+        hotkey_binding: d.hotkey_binding.trim(),
+        music_hotkey_binding: d.music_hotkey_binding.trim(),
+      },
+    }),
   });
 
-  function handleHotkeyInput(e: Event) {
-    const value = (e.target as HTMLInputElement).value;
-    hotkeyInput = value;
-    if (hotkeyTimer) clearTimeout(hotkeyTimer);
-    hotkeyTimer = setTimeout(async () => {
-      if (value.trim()) {
-        await updateSettings({ download: { hotkey_binding: value } });
-      }
-    }, 800);
+  let modes = $state<Record<BindingField, "record" | "type">>({ hotkey_binding: "record", music_hotkey_binding: "record" });
+  let recording = $state<BindingField | null>(null);
+
+  // An empty binding would unregister the shortcut silently: keep the form
+  // unsaved until an enabled shortcut has keys.
+  let bindingMissing = $derived(
+    !!settings &&
+      ((settings.download.hotkey_enabled && !(hotkeys.value.hotkey_binding ?? "").trim()) ||
+        (settings.download.music_hotkey_enabled && !(hotkeys.value.music_hotkey_binding ?? "").trim())),
+  );
+
+  function saveHotkeys() {
+    if (bindingMissing) return;
+    void hotkeys.save();
   }
 
   function mapKeyName(key: string): string | null {
@@ -48,15 +62,16 @@
 
   // O WebKit do macOS não dá foco a um `<button>` ao clicar, então o keydown
   // nunca chegava e o gravador ficava preso em "Pressione as teclas…".
-  function startRecording(e: MouseEvent) {
+  function startRecording(field: BindingField, e: MouseEvent) {
+    recording = field;
     (e.currentTarget as HTMLButtonElement | null)?.focus();
   }
 
-  function handleHotkeyKeyDown(e: KeyboardEvent) {
+  function handleRecordKeyDown(field: BindingField, e: KeyboardEvent) {
     e.preventDefault();
     e.stopPropagation();
     if (e.key === "Escape") {
-      hotkeyRecording = false;
+      recording = null;
       return;
     }
     if (["Control", "Shift", "Alt", "Meta"].includes(e.key)) return;
@@ -67,149 +82,89 @@
     if (e.shiftKey) parts.push("Shift");
     if (e.altKey) parts.push("Alt");
     parts.push(keyName);
-    const value = parts.join("+");
-    hotkeyInput = value;
-    hotkeyRecording = false;
-    updateSettings({ download: { hotkey_binding: value } });
+    hotkeys.value[field] = parts.join("+");
+    recording = null;
   }
 
-  function handleMusicHotkeyInput(e: Event) {
-    const value = (e.target as HTMLInputElement).value;
-    musicHotkeyInput = value;
-    if (musicHotkeyTimer) clearTimeout(musicHotkeyTimer);
-    musicHotkeyTimer = setTimeout(async () => {
-      if (value.trim()) {
-        await updateSettings({ download: { music_hotkey_binding: value } });
-      }
-    }, 800);
-  }
-
-  function handleMusicHotkeyKeyDown(e: KeyboardEvent) {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.key === "Escape") {
-      musicHotkeyRecording = false;
-      return;
-    }
-    if (["Control", "Shift", "Alt", "Meta"].includes(e.key)) return;
-    const keyName = mapKeyName(e.key);
-    if (!keyName) return;
-    const parts: string[] = [];
-    if (e.ctrlKey || e.metaKey) parts.push("CmdOrCtrl");
-    if (e.shiftKey) parts.push("Shift");
-    if (e.altKey) parts.push("Alt");
-    parts.push(keyName);
-    const value = parts.join("+");
-    musicHotkeyInput = value;
-    musicHotkeyRecording = false;
-    updateSettings({ download: { music_hotkey_binding: value } });
-  }
-
-  function changeMusicAudioFormat(e: Event) {
-    const value = (e.target as HTMLSelectElement).value;
-    updateSettings({ download: { music_audio_format: value } });
+  function setMode(field: BindingField, mode: "record" | "type") {
+    modes = { ...modes, [field]: mode };
+    recording = null;
   }
 </script>
 
-{#if settings}
-  {#if !embedded}
-    <div class="settings-section-head section-title">
-      <h5 class="section-title">{$t('settings.download.section_clipboard_hotkeys')}</h5>
-      <p class="settings-section-hint">{$t('settings.download.section_clipboard_hotkeys_desc')}</p>
-    </div>
-  {/if}
+{#snippet sw(c: ControlArgs, label: string, on: boolean, onclick: () => void)}
+  <button type="button" class="toggle" class:on id={c.id} aria-label={label} aria-describedby={c.describedBy} role="switch" aria-checked={on} {onclick}><span class="toggle-knob"></span></button>
+{/snippet}
 
-  <div class="card">
-    <div class="setting-row">
-      <div class="setting-col">
-        <span class="setting-label">{$t('settings.download.clipboard_detection')} <ContextHint text={$t('hints.clipboard') as string} dismissKey="clipboard" /></span>
-        <span class="setting-path">{$t('settings.download.clipboard_detection_desc')}</span>
-      </div>
-      <button class="toggle" class:on={settings.download.clipboard_detection} onclick={() => toggleBool("download", "clipboard_detection", settings.download.clipboard_detection)} role="switch" aria-checked={settings.download.clipboard_detection} aria-label={$t('settings.download.clipboard_detection') as string}><span class="toggle-knob"></span></button>
+{#snippet binding(c: ControlArgs, field: BindingField)}
+  <div class="hotkey-controls">
+    <div class="hotkey-mode-switch" role="group" aria-label={$t("settings.download.hotkey_binding")}>
+      <button type="button" class="hotkey-mode-btn" class:active={modes[field] === "record"} aria-pressed={modes[field] === "record"} onclick={() => setMode(field, "record")}>{$t("settings.download.hotkey_record")}</button>
+      <button type="button" class="hotkey-mode-btn" class:active={modes[field] === "type"} aria-pressed={modes[field] === "type"} onclick={() => setMode(field, "type")}>{$t("settings.download.hotkey_type")}</button>
     </div>
-    <div class="divider"></div>
-    <div class="setting-row">
-      <div class="setting-col">
-        <span class="setting-label">{$t('settings.download.auto_download_on_paste')}</span>
-        <span class="setting-path">{$t('settings.download.auto_download_on_paste_desc')}</span>
-      </div>
-      <button class="toggle" class:on={settings.download.auto_download_on_paste} onclick={() => toggleBool("download", "auto_download_on_paste", settings.download.auto_download_on_paste)} role="switch" aria-checked={settings.download.auto_download_on_paste} aria-label={$t('settings.download.auto_download_on_paste') as string}><span class="toggle-knob"></span></button>
-    </div>
-    <div class="divider"></div>
-    <div class="setting-row">
-      <div class="setting-col">
-        <span class="setting-label">{$t('settings.download.hotkey_enabled')} <ContextHint text={$t('hints.hotkey') as string} dismissKey="hotkey" /></span>
-        <span class="setting-path">{$t('settings.download.hotkey_enabled_desc')}</span>
-      </div>
-      <button class="toggle" class:on={settings.download.hotkey_enabled} onclick={() => toggleBool("download", "hotkey_enabled", settings.download.hotkey_enabled)} role="switch" aria-checked={settings.download.hotkey_enabled} aria-label={$t('settings.download.hotkey_enabled') as string}><span class="toggle-knob"></span></button>
-    </div>
-    {#if settings.download.hotkey_enabled}
-      <div class="divider"></div>
-      <div class="setting-row hotkey-row">
-        <span class="setting-label">{$t('settings.download.hotkey_binding')}</span>
-        <div class="hotkey-controls">
-          <div class="hotkey-mode-switch">
-            <button class="hotkey-mode-btn" class:active={hotkeyMode === 'record'} onclick={() => { hotkeyMode = 'record'; hotkeyRecording = false; }}>{$t('settings.download.hotkey_record')}</button>
-            <button class="hotkey-mode-btn" class:active={hotkeyMode === 'type'} onclick={() => { hotkeyMode = 'type'; hotkeyRecording = false; }}>{$t('settings.download.hotkey_type')}</button>
-          </div>
-          {#if hotkeyMode === 'type'}
-            <input type="text" class="input-hotkey" value={hotkeyInput} oninput={handleHotkeyInput} spellcheck="false" />
-          {:else}
-            <button class="input-hotkey hotkey-record-btn" class:recording={hotkeyRecording} onclick={(e) => { hotkeyRecording = true; startRecording(e); }} onkeydown={hotkeyRecording ? handleHotkeyKeyDown : undefined} onblur={() => { hotkeyRecording = false; }}>
-              {hotkeyRecording ? $t('settings.download.hotkey_press') : (hotkeyInput || $t('settings.download.hotkey_press'))}
-            </button>
-          {/if}
-        </div>
-      </div>
-      <div class="divider"></div>
-      <div class="setting-row">
-        <div class="setting-col">
-          <span class="setting-label">{$t('settings.download.copy_to_clipboard_on_hotkey')}</span>
-          <span class="setting-path">{$t('settings.download.copy_to_clipboard_on_hotkey_desc')}</span>
-        </div>
-        <button class="toggle" class:on={settings.download.copy_to_clipboard_on_hotkey} onclick={() => toggleBool("download", "copy_to_clipboard_on_hotkey", settings.download.copy_to_clipboard_on_hotkey)} role="switch" aria-checked={settings.download.copy_to_clipboard_on_hotkey} aria-label={$t('settings.download.copy_to_clipboard_on_hotkey') as string}><span class="toggle-knob"></span></button>
-      </div>
+    {#if modes[field] === "type"}
+      <input id={c.id} aria-describedby={c.describedBy} type="text" class="input-hotkey" dir="ltr" bind:value={hotkeys.value[field]} spellcheck="false" />
+    {:else}
+      <button
+        id={c.id}
+        aria-describedby={c.describedBy}
+        type="button"
+        class="input-hotkey hotkey-record-btn"
+        class:recording={recording === field}
+        onclick={(e) => startRecording(field, e)}
+        onkeydown={recording === field ? (e) => handleRecordKeyDown(field, e) : undefined}
+        onblur={() => { if (recording === field) recording = null; }}
+      >
+        {recording === field ? $t("settings.download.hotkey_press") : (hotkeys.value[field] || $t("settings.download.hotkey_press"))}
+      </button>
     {/if}
-    <div class="divider"></div>
-    <div class="setting-row">
-      <div class="setting-col">
-        <span class="setting-label">{$t('settings.download.music_hotkey_enabled')}</span>
-        <span class="setting-path">{$t('settings.download.music_hotkey_enabled_desc')}</span>
-      </div>
-      <button class="toggle" class:on={settings.download.music_hotkey_enabled} onclick={() => toggleBool("download", "music_hotkey_enabled", settings.download.music_hotkey_enabled)} role="switch" aria-checked={settings.download.music_hotkey_enabled} aria-label={$t('settings.download.music_hotkey_enabled') as string}><span class="toggle-knob"></span></button>
-    </div>
-    {#if settings.download.music_hotkey_enabled}
-      <div class="divider"></div>
-      <div class="setting-row hotkey-row">
-        <span class="setting-label">{$t('settings.download.music_hotkey_binding')}</span>
-        <div class="hotkey-controls">
-          <div class="hotkey-mode-switch">
-            <button class="hotkey-mode-btn" class:active={musicHotkeyMode === 'record'} onclick={() => { musicHotkeyMode = 'record'; musicHotkeyRecording = false; }}>{$t('settings.download.hotkey_record')}</button>
-            <button class="hotkey-mode-btn" class:active={musicHotkeyMode === 'type'} onclick={() => { musicHotkeyMode = 'type'; musicHotkeyRecording = false; }}>{$t('settings.download.hotkey_type')}</button>
-          </div>
-          {#if musicHotkeyMode === 'type'}
-            <input type="text" class="input-hotkey" value={musicHotkeyInput} oninput={handleMusicHotkeyInput} spellcheck="false" />
-          {:else}
-            <button class="input-hotkey hotkey-record-btn" class:recording={musicHotkeyRecording} onclick={(e) => { musicHotkeyRecording = true; startRecording(e); }} onkeydown={musicHotkeyRecording ? handleMusicHotkeyKeyDown : undefined} onblur={() => { musicHotkeyRecording = false; }}>
-              {musicHotkeyRecording ? $t('settings.download.hotkey_press') : (musicHotkeyInput || $t('settings.download.hotkey_press'))}
-            </button>
-          {/if}
-        </div>
-      </div>
-    {/if}
-    <div class="divider"></div>
-    <div class="setting-row">
-      <div class="setting-col">
-        <span class="setting-label">{$t('settings.download.music_audio_format')}</span>
-        <span class="setting-path">{$t('settings.download.music_audio_format_desc')}</span>
-      </div>
-      <select class="select" value={settings.download.music_audio_format} onchange={changeMusicAudioFormat}>
-        <option value="m4a">M4A (AAC)</option>
-        <option value="mp3">MP3</option>
-        <option value="flac">FLAC (lossless)</option>
-        <option value="opus">Opus</option>
-        <option value="wav">WAV</option>
-      </select>
-    </div>
   </div>
+{/snippet}
+
+{#if settings}
+  {@const d = settings.download}
+  {#if part === "clipboard"}
+    <SettingGroup id="clipboard" title={$t("settings.download.section_clipboard_hotkeys")}>
+      <SettingRow id="dl-clipboard-detection" label={$t("settings.download.clipboard_detection")} help={$t("settings.download.clipboard_detection_desc")} settingKey="settings.download.clipboard_detection" status="download.clipboard_detection">
+        {#snippet control(c)}
+          <span class="hint-slot"><ContextHint text={$t("hints.clipboard") as string} dismissKey="clipboard" /></span>
+          {@render sw(c, $t("settings.download.clipboard_detection"), d.clipboard_detection, () => toggleBool("download", "clipboard_detection", d.clipboard_detection))}
+        {/snippet}
+      </SettingRow>
+      <SettingRow id="dl-auto-download-on-paste" label={$t("settings.download.auto_download_on_paste")} help={$t("settings.download.auto_download_on_paste_desc")} settingKey="settings.download.auto_download_on_paste" status="download.auto_download_on_paste">
+        {#snippet control(c)}{@render sw(c, $t("settings.download.auto_download_on_paste"), d.auto_download_on_paste, () => toggleBool("download", "auto_download_on_paste", d.auto_download_on_paste))}{/snippet}
+      </SettingRow>
+    </SettingGroup>
+  {:else}
+    <SettingGroup id="hotkeys" title={$t("shortcuts.title")} description={$t("settings.download.section_clipboard_hotkeys_desc")} advanced>
+      <SettingRow id="dl-hotkey-enabled" label={$t("settings.download.hotkey_enabled")} help={$t("settings.download.hotkey_enabled_desc")} settingKey="settings.download.hotkey_enabled" status="download.hotkey_enabled">
+        {#snippet control(c)}
+          <span class="hint-slot"><ContextHint text={$t("hints.hotkey") as string} dismissKey="hotkey" /></span>
+          {@render sw(c, $t("settings.download.hotkey_enabled"), d.hotkey_enabled, () => toggleBool("download", "hotkey_enabled", d.hotkey_enabled))}
+        {/snippet}
+      </SettingRow>
+      {#if d.hotkey_enabled}
+        <SettingRow id="dl-hotkey-binding" label={$t("settings.download.hotkey_binding")} settingKey="settings.download.hotkey_binding" status="download.hotkey_binding">
+          {#snippet control(c)}{@render binding(c, "hotkey_binding")}{/snippet}
+        </SettingRow>
+        <SettingRow id="dl-copy-to-clipboard-on-hotkey" label={$t("settings.download.copy_to_clipboard_on_hotkey")} help={$t("settings.download.copy_to_clipboard_on_hotkey_desc")} settingKey="settings.download.copy_to_clipboard_on_hotkey" status="download.copy_to_clipboard_on_hotkey">
+          {#snippet control(c)}{@render sw(c, $t("settings.download.copy_to_clipboard_on_hotkey"), d.copy_to_clipboard_on_hotkey, () => toggleBool("download", "copy_to_clipboard_on_hotkey", d.copy_to_clipboard_on_hotkey))}{/snippet}
+        </SettingRow>
+      {/if}
+      <SettingRow id="dl-music-hotkey-enabled" label={$t("settings.download.music_hotkey_enabled")} help={$t("settings.download.music_hotkey_enabled_desc")} settingKey="settings.download.music_hotkey_enabled" status="download.music_hotkey_enabled">
+        {#snippet control(c)}{@render sw(c, $t("settings.download.music_hotkey_enabled"), d.music_hotkey_enabled, () => toggleBool("download", "music_hotkey_enabled", d.music_hotkey_enabled))}{/snippet}
+      </SettingRow>
+      {#if d.music_hotkey_enabled}
+        <SettingRow id="dl-music-hotkey-binding" label={$t("settings.download.music_hotkey_binding")} settingKey="settings.download.music_hotkey_binding" status="download.music_hotkey_binding">
+          {#snippet control(c)}{@render binding(c, "music_hotkey_binding")}{/snippet}
+        </SettingRow>
+      {/if}
+      <SettingsSaveBar dirty={hotkeys.dirty} saving={hotkeys.saving} error={hotkeys.error} onSave={saveHotkeys} onDiscard={() => { recording = null; hotkeys.discard(); }} />
+    </SettingGroup>
+  {/if}
 {/if}
+
+<style>
+  .hint-slot { display: inline-flex; margin-inline-end: var(--space-2); }
+  .hotkey-controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--space-2); min-inline-size: 0; inline-size: 100%; }
+</style>

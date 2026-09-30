@@ -29,6 +29,7 @@ use omniget_core::core::mcp::types::{
     name_is_secret, secret_ref, valid_id, McpServerConfig, Transport, SECRET_NS,
 };
 use omniget_core::core::mcp::{McpError, McpRegistry, ToolDef};
+use omniget_core::core::secrets::SecretStore;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tauri::State;
@@ -318,18 +319,110 @@ pub async fn llm_mcp_list() -> Result<Vec<McpServerRowDto>, String> {
 pub async fn llm_mcp_upsert(config: McpServerConfig) -> Result<Vec<McpServerRowDto>, String> {
     let reg = need_registry()?;
     let stored = reg.get(&config.id);
-    let mut config = merge_kept(config, stored.as_ref());
+    let config = merge_kept(config, stored.as_ref());
     validate(&config)?;
-    // `extract_secrets` (f3-mcp-core) swaps every literal credential for a
-    // `secret:<id>` reference and hands the pairs over; the vault write has to
-    // succeed before the config is saved, or a reference would point at
-    // nothing and the server would stop connecting.
-    for (id, value) in config.extract_secrets() {
-        omniget_core::core::secrets::set(SECRET_NS, &id, &value)
-            .map_err(|e| format!("{ERR_SECRET}: {e}"))?;
-    }
-    reg.upsert(config).await.map_err(err)?;
+    upsert_with_rollback(&ProcessVault, config, |config| {
+        let reg = reg.clone();
+        async move { reg.upsert(config).await.map(|_| ()).map_err(err) }
+    })
+    .await?;
     Ok(rows(&reg).await)
+}
+
+// ── Vault writes with an undo ───────────────────────────────────────────
+
+/// The vault of the process: the store installed at boot (keychain or the
+/// encrypted file, `crate::secrets::AppSecretStore`), or the core's own file
+/// store in a headless run that never installed one.
+struct ProcessVault;
+
+impl SecretStore for ProcessVault {
+    fn get(&self, namespace: &str, account: &str) -> Result<Option<String>, String> {
+        omniget_core::core::secrets::get(namespace, account)
+    }
+
+    fn set(&self, namespace: &str, account: &str, value: &str) -> Result<(), String> {
+        omniget_core::core::secrets::set(namespace, account, value)
+    }
+
+    fn delete(&self, namespace: &str, account: &str) -> Result<(), String> {
+        omniget_core::core::secrets::delete(namespace, account)
+    }
+}
+
+/// What each credential id held before an upsert wrote it: `None` = nothing.
+type SecretUndo = Vec<(String, Option<String>)>;
+
+/// Saves one server with its credentials, all or nothing.
+///
+/// `extract_secrets` (f3-mcp-core) swaps every literal credential for a
+/// `secret:<id>` reference and hands the pairs over; the vault writes have to
+/// succeed before `register` saves the config, or a reference would point at
+/// nothing and the server would stop connecting. When `register` fails after
+/// the vault took the new values, every id gets its previous value back (or is
+/// deleted when it had none), so the saved config and the vault keep agreeing.
+/// `register` only ever sees references: a vault that refuses a write fails
+/// the upsert instead of letting the literal reach `mcp-servers.json`.
+async fn upsert_with_rollback<F, Fut>(
+    vault: &dyn SecretStore,
+    mut config: McpServerConfig,
+    register: F,
+) -> Result<(), String>
+where
+    F: FnOnce(McpServerConfig) -> Fut,
+    Fut: std::future::Future<Output = Result<(), String>>,
+{
+    let pairs = config.extract_secrets();
+    let undo = write_secrets(vault, &pairs)?;
+    if let Err(error) = register(config).await {
+        restore_secrets(vault, undo);
+        return Err(error);
+    }
+    Ok(())
+}
+
+/// Writes `pairs` into the MCP namespace, remembering what each id held. The
+/// first failure undoes the writes already made and answers [`ERR_SECRET`].
+fn write_secrets(
+    vault: &dyn SecretStore,
+    pairs: &[(String, String)],
+) -> Result<SecretUndo, String> {
+    let mut undo: SecretUndo = Vec::with_capacity(pairs.len());
+    for (id, value) in pairs {
+        // A previous value we cannot read is a previous value we could not put
+        // back, so the write does not happen at all.
+        let previous = match vault.get(SECRET_NS, id) {
+            Ok(previous) => previous,
+            Err(e) => {
+                restore_secrets(vault, undo);
+                return Err(format!("{ERR_SECRET}: {e}"));
+            }
+        };
+        let written = vault.set(SECRET_NS, id, value);
+        // Recorded even when the write failed: a store may have changed half
+        // of its state before answering, and putting the old value back is
+        // harmless when it did not.
+        undo.push((id.clone(), previous));
+        if let Err(e) = written {
+            restore_secrets(vault, undo);
+            return Err(format!("{ERR_SECRET}: {e}"));
+        }
+    }
+    Ok(undo)
+}
+
+/// Puts every id back to what [`write_secrets`] found, newest first. A restore
+/// that fails is logged by id only (never the value) and the others still run.
+fn restore_secrets(vault: &dyn SecretStore, undo: SecretUndo) {
+    for (id, previous) in undo.into_iter().rev() {
+        let restored = match previous {
+            Some(value) => vault.set(SECRET_NS, &id, &value),
+            None => vault.delete(SECRET_NS, &id),
+        };
+        if let Err(e) = restored {
+            tracing::warn!("[mcp] could not restore the secret {id:?} after a failed save: {e}");
+        }
+    }
 }
 
 /// Removes a server and stops its process.
@@ -961,6 +1054,183 @@ mod tests {
         let error = result.error.expect("a failure must carry its error");
         assert!(error.code.starts_with("ERR_MCP_"), "{}", error.code);
         assert!(reg.connected().await.is_empty());
+    }
+
+    // ── Vault rollback (a fake vault; no keychain, no global store) ──────
+
+    /// An in-memory vault that can be told to refuse writes to one account.
+    #[derive(Default)]
+    struct FakeVault {
+        entries: std::sync::Mutex<BTreeMap<(String, String), String>>,
+        refuse_set: Option<String>,
+    }
+
+    impl FakeVault {
+        fn with(self, account: &str, value: &str) -> Self {
+            self.entries.lock().unwrap().insert(
+                (SECRET_NS.to_string(), account.to_string()),
+                value.to_string(),
+            );
+            self
+        }
+
+        fn value(&self, account: &str) -> Option<String> {
+            self.entries
+                .lock()
+                .unwrap()
+                .get(&(SECRET_NS.to_string(), account.to_string()))
+                .cloned()
+        }
+    }
+
+    impl SecretStore for FakeVault {
+        fn get(&self, namespace: &str, account: &str) -> Result<Option<String>, String> {
+            Ok(self
+                .entries
+                .lock()
+                .unwrap()
+                .get(&(namespace.to_string(), account.to_string()))
+                .cloned())
+        }
+
+        fn set(&self, namespace: &str, account: &str, value: &str) -> Result<(), String> {
+            if self.refuse_set.as_deref() == Some(account) {
+                return Err("the fake vault is locked".into());
+            }
+            self.entries.lock().unwrap().insert(
+                (namespace.to_string(), account.to_string()),
+                value.to_string(),
+            );
+            Ok(())
+        }
+
+        fn delete(&self, namespace: &str, account: &str) -> Result<(), String> {
+            self.entries
+                .lock()
+                .unwrap()
+                .remove(&(namespace.to_string(), account.to_string()));
+            Ok(())
+        }
+    }
+
+    fn two_secret_server() -> McpServerConfig {
+        let mut config = with_headers(&[
+            ("Authorization", "Bearer synthetic-new"),
+            ("X-Api-Key", "synthetic-key"),
+        ]);
+        config.id = "fx".into();
+        config
+    }
+
+    const AUTH_ID: &str = "fx-header-authorization";
+    const KEY_ID: &str = "fx-header-x_api_key";
+
+    #[tokio::test]
+    async fn a_saved_upsert_writes_every_secret_and_registers_only_references() {
+        let vault = FakeVault::default();
+        let seen = std::sync::Mutex::new(None);
+        upsert_with_rollback(&vault, two_secret_server(), |config| {
+            *seen.lock().unwrap() = Some(config);
+            async { Ok(()) }
+        })
+        .await
+        .unwrap();
+        assert_eq!(
+            vault.value(AUTH_ID).as_deref(),
+            Some("Bearer synthetic-new")
+        );
+        assert_eq!(vault.value(KEY_ID).as_deref(), Some("synthetic-key"));
+        let registered = seen.lock().unwrap().take().unwrap();
+        let on_disk = serde_json::to_string(&registered).unwrap();
+        assert!(!on_disk.contains("synthetic-new"));
+        assert!(!on_disk.contains("synthetic-key"));
+        assert_eq!(
+            headers_of(&registered)["Authorization"],
+            format!("secret:{AUTH_ID}")
+        );
+    }
+
+    /// The defect of the audit: the vault took the new token, the registry
+    /// refused the config, and the old token was gone for good.
+    #[tokio::test]
+    async fn a_registration_that_fails_puts_every_previous_secret_back() {
+        let vault = FakeVault::default().with(AUTH_ID, "Bearer synthetic-old");
+        let result = upsert_with_rollback(&vault, two_secret_server(), |_| async {
+            Err("ERR_MCP_SPAWN: could not write mcp-servers.json".to_string())
+        })
+        .await;
+        assert!(result.unwrap_err().starts_with("ERR_MCP_SPAWN"));
+        // The id that had a value gets it back; the one that had none is gone.
+        assert_eq!(
+            vault.value(AUTH_ID).as_deref(),
+            Some("Bearer synthetic-old")
+        );
+        assert_eq!(vault.value(KEY_ID), None);
+    }
+
+    /// The second write is refused: the first one is undone and the registry
+    /// is never asked, so no literal can reach the file on the way out.
+    #[tokio::test]
+    async fn a_vault_that_refuses_one_write_undoes_the_others_and_skips_the_save() {
+        let vault = FakeVault {
+            refuse_set: Some(KEY_ID.into()),
+            ..FakeVault::default()
+        }
+        .with(AUTH_ID, "Bearer synthetic-old");
+        let called = std::sync::atomic::AtomicBool::new(false);
+        let result = upsert_with_rollback(&vault, two_secret_server(), |_| {
+            called.store(true, std::sync::atomic::Ordering::SeqCst);
+            async { Ok(()) }
+        })
+        .await;
+        assert!(result.unwrap_err().starts_with(ERR_SECRET));
+        assert!(!called.load(std::sync::atomic::Ordering::SeqCst));
+        assert_eq!(
+            vault.value(AUTH_ID).as_deref(),
+            Some("Bearer synthetic-old")
+        );
+        assert_eq!(vault.value(KEY_ID), None);
+    }
+
+    /// The same rollback against a real registry whose file cannot be
+    /// written: the vault, the list in memory and the disk all keep the old
+    /// state, and the token never lands in the config file.
+    #[tokio::test]
+    async fn a_registry_that_cannot_save_leaves_the_vault_and_the_list_as_they_were() {
+        let dir = std::env::temp_dir().join(format!(
+            "omniget-mcp-rollback-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        // The config's parent is a regular file, so the save fails at
+        // `create_dir_all` without playing with permissions.
+        std::fs::write(dir.join("blocked"), b"file").unwrap();
+        let reg = Arc::new(McpRegistry::at(
+            dir.join("blocked").join("mcp-servers.json"),
+        ));
+        let vault = FakeVault::default().with(AUTH_ID, "Bearer synthetic-old");
+
+        let result = upsert_with_rollback(&vault, two_secret_server(), |config| {
+            let reg = reg.clone();
+            async move { reg.upsert(config).await.map(|_| ()).map_err(err) }
+        })
+        .await;
+        assert!(result.unwrap_err().starts_with("ERR_MCP_"));
+        assert_eq!(
+            vault.value(AUTH_ID).as_deref(),
+            Some("Bearer synthetic-old")
+        );
+        assert_eq!(vault.value(KEY_ID), None);
+        assert!(
+            reg.get("fx").is_none(),
+            "a server the disk refused is listed"
+        );
+        assert!(!dir.join("blocked").join("mcp-servers.json").exists());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[tokio::test]

@@ -4,6 +4,9 @@
   import { listen } from "@tauri-apps/api/event";
   import { t } from "$lib/i18n";
   import { showToast } from "$lib/stores/toast-store.svelte";
+  import SettingGroup from "./rebrand/SettingGroup.svelte";
+  import SettingRow from "./rebrand/SettingRow.svelte";
+  import SettingsEmptyState from "./rebrand/SettingsEmptyState.svelte";
 
   type BridgeInfo = {
     enabled: boolean;
@@ -25,7 +28,7 @@
     loadError = false;
     try {
       info = await invoke<BridgeInfo>("get_bridge_info");
-    } catch (e: any) {
+    } catch {
       loadError = true;
     } finally {
       loading = false;
@@ -42,8 +45,8 @@
           ? ($t("settings.bridge.copied_url") as string)
           : ($t("settings.bridge.copied_token") as string)
       );
-    } catch (e: any) {
-      showToast("error", typeof e === "string" ? e : (e.message ?? String(e)));
+    } catch {
+      showToast("error", $t("common.error") as string);
     }
   }
 
@@ -57,7 +60,7 @@
       pairResult = "none";
       showToast("success", $t("settings.bridge.rotated") as string);
     } catch (e: any) {
-      showToast("error", typeof e === "string" ? e : (e.message ?? String(e)));
+      showToast("error", $t("common.error") as string);
     } finally {
       rotating = false;
     }
@@ -95,8 +98,8 @@
           stopPairTimer();
         }
       }, 1000);
-    } catch (e: any) {
-      showToast("error", typeof e === "string" ? e : (e.message ?? String(e)));
+    } catch {
+      showToast("error", $t("settings.bridge.pair_unavailable") as string);
     }
   }
 
@@ -133,127 +136,113 @@
   onMount(refresh);
 </script>
 
-<section class="section" data-setting-key="settings.bridge.title">
-  <h5 class="section-title">{$t("settings.bridge.title")}</h5>
-  <div class="card">
-    <p class="bridge-intro">{$t("settings.bridge.intro")}</p>
-
-    {#if loading}
-      <div class="setting-row">
-        <span class="setting-label">{$t("common.loading")}</span>
-      </div>
-    {:else if loadError}
-      <div class="setting-row" role="alert">
-        <span>{$t("settings.bridge.load_failed")}</span>
-        <button class="bridge-action" onclick={refresh}>{$t("error.remedy.retry")}</button>
-      </div>
-    {:else if !info || !info.enabled || info.port === 0 || !info.token}
-      <div class="setting-row">
-        <span class="setting-label">{$t("settings.bridge.unavailable")}</span>
-      </div>
-    {:else}
-      <div class="setting-row">
-        <div class="setting-col">
-          <span class="setting-label">{$t("settings.bridge.pair_label")}</span>
-          {#if pairing}
-            <span class="setting-hint">
-              {$t("settings.bridge.pair_active", { secs: pairSecondsLeft })}
-            </span>
-          {:else if pairResult === "success"}
-            <span class="setting-hint pair-success" role="status">
-              {$t("settings.bridge.pair_success")}
-            </span>
-          {:else if pairResult === "expired"}
-            <span class="setting-hint pair-expired" role="status">
-              {$t("settings.bridge.pair_expired")}
-            </span>
-          {:else}
-            <span class="setting-hint">{$t("settings.bridge.pair_hint")}</span>
-          {/if}
-        </div>
-        <button
-          class="bridge-action primary"
-          type="button"
-          disabled={pairing || rotating}
-          onclick={startPairing}
-        >
-          {pairing ? $t("settings.bridge.pair_waiting") : $t("settings.bridge.pair")}
-        </button>
-      </div>
-      <div class="divider"></div>
-      <div class="setting-row">
-        <div class="setting-col">
-          <span class="setting-label">{$t("settings.bridge.endpoint_label")}</span>
-          <span class="setting-hint">{info.url}</span>
-        </div>
-        <button class="bridge-action" type="button" onclick={() => copy(info!.url, "url")}>
-          {$t("settings.bridge.copy")}
-        </button>
-      </div>
-      <div class="divider"></div>
-      <div class="setting-row">
-        <div class="setting-col">
-          <span class="setting-label">{$t("settings.bridge.token_label")}</span>
-          <span class="setting-hint token-display">
-            {revealed ? info.token : maskedToken(info.token)}
-          </span>
-        </div>
-        <div class="bridge-actions">
+<SettingGroup id="extension" title={$t("settings.bridge.title")} description={$t("settings.bridge.intro")}>
+  {#if loading && !info}
+    <p class="bridge-state" role="status" aria-busy="true">{$t("settings.rebrand.state.loading")}</p>
+  {:else if loadError}
+    <SettingsEmptyState error title={$t("settings.bridge.load_failed")} onRetry={() => void refresh()} />
+  {:else if !info || !info.enabled || info.port === 0 || !info.token}
+    <SettingsEmptyState title={$t("settings.bridge.unavailable")} />
+  {:else}
+    <div data-setting-key="settings.browser_ext.title">
+      <SettingRow id="bridge-pair" label={$t("settings.bridge.pair_label")} help={$t("settings.bridge.pair_hint")} settingKey="settings.bridge.pair_label">
+        {#snippet control(c)}
           <button
-            class="bridge-action"
+            class="bridge-action primary"
             type="button"
-            onclick={() => (revealed = !revealed)}
+            id={c.id}
+            aria-describedby={[c.describedBy, "bridge-pair-state"].filter(Boolean).join(" ")}
+            disabled={pairing || rotating}
+            onclick={startPairing}
           >
-            {revealed ? $t("settings.bridge.hide") : $t("settings.bridge.reveal")}
+            {pairing ? $t("settings.bridge.pair_waiting") : $t("settings.bridge.pair")}
           </button>
-          <button
-            class="bridge-action"
-            type="button"
-            onclick={() => copy(info!.token, "token")}
-          >
+        {/snippet}
+      </SettingRow>
+      <p class="bridge-state" id="bridge-pair-state" role="status">
+        {#if pairing}
+          {$t("settings.bridge.pair_active", { secs: pairSecondsLeft })}
+        {:else if pairResult === "success"}
+          <span class="pair-success">{$t("settings.bridge.pair_success")}</span>
+        {:else if pairResult === "expired"}
+          <span class="pair-expired">{$t("settings.bridge.pair_expired")}</span>
+        {/if}
+      </p>
+    </div>
+  {/if}
+</SettingGroup>
+
+{#if info && info.enabled && info.port !== 0 && info.token && !loadError}
+  <!-- Endpoint, token and rotation are technical details: collapsed by default. -->
+  <SettingGroup id="extension-details" title={$t("settings.rebrand.category.advanced")} advanced>
+    <SettingRow id="bridge-endpoint" label={$t("settings.bridge.endpoint_label")} settingKey="settings.bridge.endpoint_label">
+      {#snippet control(c)}
+        <div class="bridge-value">
+          <output id={c.id} class="bridge-mono" dir="ltr">{info!.url}</output>
+          <button class="bridge-action" type="button" aria-describedby={c.id} onclick={() => copy(info!.url, "url")}>
             {$t("settings.bridge.copy")}
           </button>
         </div>
-      </div>
-      <div class="divider"></div>
-      <div class="setting-row">
-        <div class="setting-col">
-          <span class="setting-label">{$t("settings.bridge.rotate_label")}</span>
-          <span class="setting-hint">{$t("settings.bridge.rotate_hint")}</span>
+      {/snippet}
+    </SettingRow>
+    <SettingRow id="bridge-token" label={$t("settings.bridge.token_label")} settingKey="settings.bridge.token_label">
+      {#snippet control(c)}
+        <div class="bridge-value">
+          <output id={c.id} class="bridge-mono token-display" dir="ltr">{revealed ? info!.token : maskedToken(info!.token)}</output>
+          <div class="bridge-actions">
+            <button class="bridge-action" type="button" aria-pressed={revealed} onclick={() => (revealed = !revealed)}>
+              {revealed ? $t("settings.bridge.hide") : $t("settings.bridge.reveal")}
+            </button>
+            <button class="bridge-action" type="button" onclick={() => copy(info!.token, "token")}>
+              {$t("settings.bridge.copy")}
+            </button>
+          </div>
         </div>
+      {/snippet}
+    </SettingRow>
+    <SettingRow id="bridge-rotate" label={$t("settings.bridge.rotate_label")} help={$t("settings.bridge.rotate_hint")} settingKey="settings.bridge.rotate_label">
+      {#snippet control(c)}
         <button
           class="bridge-action danger"
           type="button"
+          id={c.id}
+          aria-describedby={c.describedBy}
+          aria-expanded={confirmRotation}
+          aria-controls="bridge-rotation-confirm-group"
           disabled={rotating || pairing}
           onclick={() => { confirmRotation = true; }}
         >
           {rotating ? $t("settings.bridge.rotating") : $t("settings.bridge.rotate")}
         </button>
-      </div>
-      {#if confirmRotation}
-        <div class="rotation-confirm" role="group" aria-labelledby="bridge-rotation-confirm">
-          <p id="bridge-rotation-confirm">{$t("settings.bridge.rotate_confirm")}</p>
-          <div class="bridge-actions">
-            <button class="bridge-action" disabled={rotating} onclick={() => { confirmRotation = false; }}>{$t("common.cancel")}</button>
-            <button class="bridge-action danger" disabled={rotating || pairing} onclick={rotate}>
-              {rotating ? $t("settings.bridge.rotating") : $t("settings.bridge.rotate_confirm_action")}
-            </button>
-          </div>
+      {/snippet}
+    </SettingRow>
+    {#if confirmRotation}
+      <div class="rotation-confirm" id="bridge-rotation-confirm-group" role="group" aria-labelledby="bridge-rotation-confirm">
+        <p id="bridge-rotation-confirm">{$t("settings.bridge.rotate_confirm")}</p>
+        <div class="bridge-actions">
+          <button class="bridge-action" type="button" disabled={rotating} onclick={() => { confirmRotation = false; }}>{$t("common.cancel")}</button>
+          <button class="bridge-action danger" type="button" disabled={rotating || pairing} onclick={rotate}>
+            {rotating ? $t("settings.bridge.rotating") : $t("settings.bridge.rotate_confirm_action")}
+          </button>
         </div>
-      {/if}
+      </div>
     {/if}
-  </div>
-</section>
+  </SettingGroup>
+{/if}
 
 <style>
   .rotation-confirm { margin-top: 12px; padding: 12px; border: 1px solid var(--border); border-radius: var(--border-radius); }
   .rotation-confirm p { margin: 0 0 8px; line-height: 1.5; }
 
-  .bridge-intro {
-    margin: 0 0 12px;
+  .bridge-state { margin: 0; font-size: 12px; line-height: 18px; color: var(--text-muted); }
+  .bridge-state:empty { display: none; }
+  .bridge-value { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; min-inline-size: 0; inline-size: 100%; }
+  .bridge-mono {
+    min-inline-size: 0;
+    overflow-wrap: anywhere;
+    font-size: 12px;
+    font-family: var(--font-mono, ui-monospace, monospace);
     color: var(--text-muted);
-    font-size: 13px;
-    line-height: 1.5;
   }
   .pair-success {
     color: var(--success);

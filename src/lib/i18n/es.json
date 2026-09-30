@@ -2309,6 +2309,7 @@
       "unsaved": "Estos ajustes no están guardados. La prueba los guardará antes de ejecutarse; guárdalos antes de resumir.",
       "saving": "Guardando…",
       "provider_endpoint": "Custom endpoint (local or remote)",
+      "connection_kind": "Connection type: {{kind}}",
       "connection_key": "Connection API key",
       "remove_key": "Remove saved key",
       "keep_key": "Keep saved key",
@@ -2458,6 +2459,103 @@
     },
     "world": {
       "pet_load_failed": "Could not check desktop pet availability. Try again."
+    },
+    "rebrand": {
+      "title": "Ajustes",
+      "category": {
+        "general": "General",
+        "appearance": "Apariencia",
+        "downloads": "Descargas",
+        "ai": "IA y agentes",
+        "integrations": "Integraciones",
+        "advanced": "Avanzado"
+      },
+      "search": {
+        "label": "Buscar ajustes",
+        "placeholder": "Busca por nombre o tarea",
+        "clear": "Borrar búsqueda",
+        "results": "Resultados: {{count}}",
+        "empty": "No se encontraron ajustes",
+        "empty_hint": "Prueba otra palabra o elige una categoría."
+      },
+      "navigation": {
+        "back": "Volver",
+        "back_settings": "Volver a ajustes"
+      },
+      "disclosure": {
+        "show_advanced": "Mostrar opciones avanzadas",
+        "hide_advanced": "Ocultar opciones avanzadas"
+      },
+      "state": {
+        "loading": "Cargando…",
+        "saving": "Guardando…",
+        "saved": "Guardado",
+        "save_failed": "No se pudo guardar. Tus cambios siguen aquí.",
+        "retry": "Reintentar",
+        "pending_apply": "Guardado. Pendiente de aplicar.",
+        "retry_apply": "Reintentar aplicación",
+        "unavailable": "No disponible",
+        "next_task": "Se aplica a la próxima tarea.",
+        "restart_required": "Reinicia OmniGet para aplicar."
+      },
+      "form": {
+        "save": "Guardar cambios",
+        "discard": "Descartar cambios",
+        "draft": "Borrador sin guardar",
+        "unsaved_title": "Tienes cambios sin guardar",
+        "stay": "Seguir editando",
+        "discard_confirm": "¿Descartar este borrador?"
+      },
+      "reset": {
+        "section_title": "¿Restablecer {{name}}?",
+        "section_body": "Solo las preferencias de esta sección volverán a sus valores predeterminados.",
+        "section_action": "Restablecer esta sección",
+        "app_title": "¿Restablecer las preferencias de la aplicación?",
+        "app_body": "Las preferencias de la aplicación volverán a sus valores predeterminados.",
+        "app_action": "Restablecer preferencias de la aplicación",
+        "kept": "Se conservarán las cuentas, claves, el historial, las descargas y las autorizaciones de acceso."
+      },
+      "dialog": {
+        "confirm": "Confirmar",
+        "cancel": "Cancelar"
+      },
+      "appearance": {
+        "system": "Seguir el sistema",
+        "light": "Claro",
+        "dark": "Oscuro",
+        "custom_font": "Fuente personalizada",
+        "font_hint": "Elige una fuente instalada en este dispositivo."
+      },
+      "connection": {
+        "local": "Conexión local",
+        "local_hint": "Elige un servidor disponible en este equipo.",
+        "test": "Probar conexión",
+        "test_cost_notice": "La prueba envía una solicitud por la conexión seleccionada y puede consumir cuota o créditos.",
+        "unknown": "Sin probar",
+        "verified": "Conexión verificada",
+        "error": "Falló la prueba de conexión"
+      },
+      "downloads": {
+        "quality": "Calidad",
+        "remove": "Eliminar",
+        "best_available": "Mejor disponible",
+        "audio": "Audio",
+        "video": "Vídeo",
+        "output": "Archivos y carpetas",
+        "subtitles": "Subtítulos y metadatos"
+      },
+      "llm": {
+        "routines": "Rutinas",
+        "tasks": "Tareas",
+        "usage_performance": "Uso y rendimiento"
+      },
+      "permissions": {
+        "agent_scope": "Se aplica solo a {{name}}.",
+        "inherited": "Heredada de la política de la aplicación.",
+        "view_policy": "Ver política de la aplicación",
+        "customize": "Personalizar para este agente",
+        "use_inherited": "Usar política heredada"
+      }
     }
   },
   "omnibox": {

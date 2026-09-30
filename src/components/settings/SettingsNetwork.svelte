@@ -1,144 +1,117 @@
 <script lang="ts">
-  import { onDestroy } from "svelte";
   import { t } from "$lib/i18n";
-  import { getSettings, updateSettings, saveSettings, toggleBool, changeNumber } from "./settings-helpers";
+  import { createSettingsDraft } from "$lib/stores/settings-drafts.svelte";
+  import SettingRow from "./rebrand/SettingRow.svelte";
+  import SettingsSaveBar from "./rebrand/SettingsSaveBar.svelte";
 
-  let settings = $derived(getSettings());
+  // Proxy is a transactional form (Save/Discard). The password never comes back
+  // from the backend: `has_password` only says one is stored, and the draft carries
+  // a keep/set/remove operation that lives in memory until it is saved.
 
-  let proxySaveError = $state(false);
-  let proxyHost = $state("");
-  let proxyUsername = $state("");
-  let proxyPassword = $state("");
+  type ProxyDraft = {
+    enabled: boolean;
+    proxy_type: string;
+    host: string;
+    port: number;
+    username: string;
+    password: string;
+    passwordOp: "keep" | "set" | "remove";
+    hasPassword: boolean;
+  };
 
-  type ProxyField = "host" | "username" | "password";
-  let proxyTimer: ReturnType<typeof setTimeout> | null = null;
-  let pendingProxy = $state<Partial<Record<ProxyField, string>>>({});
-  let proxySavePromise: Promise<void> | null = null;
-  let proxySaveRequested = false;
-
-  $effect(() => {
-    if (settings) {
-      if (!("host" in pendingProxy)) proxyHost = settings.proxy?.host ?? "";
-      if (!("username" in pendingProxy)) proxyUsername = settings.proxy?.username ?? "";
-      if (!("password" in pendingProxy)) proxyPassword = settings.proxy?.password ?? "";
-    }
+  const draft = createSettingsDraft<ProxyDraft & Record<string, unknown>>({
+    id: "proxy",
+    read: (s) => ({
+      enabled: s.proxy?.enabled ?? false,
+      proxy_type: s.proxy?.proxy_type ?? "http",
+      host: s.proxy?.host ?? "",
+      port: s.proxy?.port ?? 8080,
+      username: s.proxy?.username ?? "",
+      password: "",
+      passwordOp: "keep",
+      hasPassword: s.proxy?.has_password ?? false,
+    }),
+    toPatch: (d) => ({
+      proxy: { enabled: d.enabled, proxy_type: d.proxy_type, host: d.host.trim(), port: d.port, username: d.username },
+    }),
+    secretOperations: (d) => ({
+      proxyPassword: d.passwordOp === "set" ? { op: "set", value: d.password } : { op: d.passwordOp },
+    }),
   });
 
-  function flushProxyFields(): Promise<void> {
-    if (proxyTimer) clearTimeout(proxyTimer);
-    proxyTimer = null;
-    proxySaveRequested = true;
-    if (proxySavePromise) return proxySavePromise;
-    proxySavePromise = (async () => {
-      while (proxySaveRequested) {
-        proxySaveRequested = false;
-        const snapshot = { ...pendingProxy };
-        if (!Object.keys(snapshot).length) continue;
-        try {
-          await updateSettings({ proxy: snapshot });
-          for (const field of Object.keys(snapshot) as ProxyField[]) {
-            if (pendingProxy[field] === snapshot[field]) delete pendingProxy[field];
-          }
-          proxySaveError = false;
-        } catch {
-          proxySaveError = true;
-          return;
-        }
-      }
-    })().finally(() => { proxySavePromise = null; });
-    return proxySavePromise;
-  }
+  let form = $state<HTMLFormElement | null>(null);
+  let proxy = $derived(draft.value);
 
-  function queueProxyField(field: ProxyField, value: string) {
-    pendingProxy[field] = value;
-    if (proxyTimer) clearTimeout(proxyTimer);
-    proxyTimer = setTimeout(() => { void flushProxyFields(); }, 800);
-  }
-
-  onDestroy(() => { void flushProxyFields(); });
-
-  async function changeProxyType(e: Event) {
-    const input = e.target as HTMLSelectElement;
-    if (!await saveSettings({ proxy: { proxy_type: input.value } })) {
-      input.value = getSettings()?.proxy?.proxy_type ?? "http";
-    }
-  }
-
-  function handleProxyHost(e: Event) {
+  function onPassword(e: Event) {
     const value = (e.target as HTMLInputElement).value;
-    proxyHost = value;
-    queueProxyField("host", value);
+    draft.value.password = value;
+    draft.value.passwordOp = value ? "set" : "keep";
   }
 
-  function handleProxyUsername(e: Event) {
-    const value = (e.target as HTMLInputElement).value;
-    proxyUsername = value;
-    queueProxyField("username", value);
-  }
-
-  function handleProxyPassword(e: Event) {
-    const value = (e.target as HTMLInputElement).value;
-    proxyPassword = value;
-    queueProxyField("password", value);
+  function save() {
+    // Port 1–65535 and a host are required only while the proxy is on.
+    if (form && !form.reportValidity()) return;
+    void draft.save();
   }
 </script>
 
-{#if settings}
-<section class="section" data-setting-key="settings.proxy.title">
-  <h5 class="section-title">{$t('settings.proxy.title')}</h5>
-  <div class="card">
-    <div class="setting-row">
-      <div class="setting-col">
-        <span class="setting-label">{$t('settings.proxy.enabled')}</span>
-      </div>
-      <button
-        class="toggle"
-        class:on={settings.proxy?.enabled}
-        onclick={() => toggleBool("proxy", "enabled", settings.proxy?.enabled ?? false)}
-        role="switch"
-        aria-checked={settings.proxy?.enabled ?? false}
-        aria-label={$t('settings.proxy.enabled') as string}
-      >
-        <span class="toggle-knob"></span>
-      </button>
-    </div>
-    {#if settings.proxy?.enabled}
-      <div class="divider"></div>
-      <div class="setting-row" data-setting-key="settings.proxy.type">
-        <label class="setting-label" for="settings-proxy-type">{$t('settings.proxy.type')}</label>
-        <select id="settings-proxy-type" class="select" value={settings.proxy?.proxy_type ?? 'http'} onchange={changeProxyType}>
+<form class="network-form" bind:this={form} novalidate onsubmit={(e) => { e.preventDefault(); save(); }}>
+  <SettingRow id="settings-proxy-enabled" label={$t("settings.proxy.enabled")} settingKey="settings.proxy.enabled">
+    {#snippet control({ id, describedBy })}
+      <button {id} type="button" class="toggle" class:on={proxy.enabled} role="switch" aria-checked={proxy.enabled} aria-labelledby={`${id}-label`} aria-describedby={describedBy}
+        onclick={() => { draft.value.enabled = !proxy.enabled; }}><span class="toggle-knob"></span></button>
+    {/snippet}
+  </SettingRow>
+
+  {#if proxy.enabled}
+    <SettingRow id="settings-proxy-type" label={$t("settings.proxy.type")} settingKey="settings.proxy.type">
+      {#snippet control({ id, describedBy })}
+        <select {id} class="select" aria-describedby={describedBy} bind:value={draft.value.proxy_type}>
           <option value="http">HTTP</option>
           <option value="https">HTTPS</option>
           <option value="socks5">SOCKS5</option>
         </select>
-      </div>
-      <div class="divider"></div>
-      <div class="setting-row" data-setting-key="settings.proxy.host">
-        <label class="setting-label" for="settings-proxy-host">{$t('settings.proxy.host')}</label>
-        <input type="text" class="input-text" id="settings-proxy-host" value={proxyHost} oninput={handleProxyHost} onchange={() => flushProxyFields()} placeholder="127.0.0.1" spellcheck="false" />
-      </div>
-      <div class="divider"></div>
-      <div class="setting-row" data-setting-key="settings.proxy.port">
-        <label class="setting-label" for="settings-proxy-port">{$t('settings.proxy.port')}</label>
-        <input id="settings-proxy-port" type="number" class="input-number" min="1" max="65535" value={settings.proxy?.port ?? 8080} onchange={(e) => changeNumber("proxy", "port", e)} />
-      </div>
-      <div class="divider"></div>
-      <div class="setting-row" data-setting-key="settings.proxy.username">
-        <label class="setting-label" for="settings-proxy-username">{$t('settings.proxy.username')}</label>
-        <input type="text" class="input-text" id="settings-proxy-username" value={proxyUsername} oninput={handleProxyUsername} onchange={() => flushProxyFields()} placeholder="" spellcheck="false" />
-      </div>
-      <div class="divider"></div>
-      <div class="setting-row" data-setting-key="settings.proxy.password">
-        <label class="setting-label" for="settings-proxy-password">{$t('settings.proxy.password')}</label>
-        <input type="password" class="input-text" id="settings-proxy-password" value={proxyPassword} oninput={handleProxyPassword} onchange={() => flushProxyFields()} placeholder="" />
-      </div>
-    {/if}
-  </div>
-  {#if proxySaveError}
-    <div role="alert">
-      <p>{$t('settings.proxy.save_failed')}</p>
-      <button class="button" onclick={() => { void flushProxyFields(); }}>{$t('error.remedy.retry')}</button>
-    </div>
+      {/snippet}
+    </SettingRow>
+    <SettingRow id="settings-proxy-host" label={$t("settings.proxy.host")} settingKey="settings.proxy.host">
+      {#snippet control({ id, describedBy })}
+        <input {id} type="text" class="input-text" dir="ltr" spellcheck="false" autocomplete="off" required placeholder="127.0.0.1"
+          aria-describedby={describedBy} bind:value={draft.value.host} />
+      {/snippet}
+    </SettingRow>
+    <SettingRow id="settings-proxy-port" label={$t("settings.proxy.port")} settingKey="settings.proxy.port">
+      {#snippet control({ id, describedBy })}
+        <input {id} type="number" class="input-number" dir="ltr" min="1" max="65535" step="1" required
+          aria-describedby={describedBy} bind:value={draft.value.port} />
+      {/snippet}
+    </SettingRow>
+    <SettingRow id="settings-proxy-username" label={$t("settings.proxy.username")} settingKey="settings.proxy.username">
+      {#snippet control({ id, describedBy })}
+        <input {id} type="text" class="input-text" dir="ltr" spellcheck="false" autocomplete="off"
+          aria-describedby={describedBy} bind:value={draft.value.username} />
+      {/snippet}
+    </SettingRow>
+    <SettingRow id="settings-proxy-password" label={$t("settings.proxy.password")} settingKey="settings.proxy.password">
+      {#snippet control({ id, describedBy })}
+        <span class="password-field">
+          <input {id} type="password" class="input-text" dir="ltr" autocomplete="new-password" aria-describedby={describedBy}
+            placeholder={proxy.hasPassword && proxy.passwordOp === "keep" ? "••••••••" : ""}
+            value={proxy.password} oninput={onPassword} />
+          {#if proxy.hasPassword && proxy.passwordOp !== "remove"}
+            <button type="button" class="btn btn-secondary btn-sm" onclick={() => { draft.value.password = ""; draft.value.passwordOp = "remove"; }}>
+              {$t("settings.rebrand.downloads.remove")}
+            </button>
+          {/if}
+        </span>
+      {/snippet}
+    </SettingRow>
   {/if}
-</section>
-{/if}
+
+  <SettingsSaveBar dirty={draft.dirty} saving={draft.saving} error={draft.error} onSave={save} onDiscard={() => draft.discard()} />
+</form>
+
+<style>
+  .network-form { display: flex; flex-direction: column; min-inline-size: 0; }
+  .password-field { display: flex; align-items: center; gap: var(--space-2); inline-size: 100%; }
+  .password-field input { flex: 1 1 auto; min-inline-size: 0; }
+</style>

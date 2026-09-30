@@ -2309,6 +2309,7 @@
       "unsaved": "這些設定尚未儲存。測試前會先儲存；摘要前請先儲存設定。",
       "saving": "正在保存…",
       "provider_endpoint": "Custom endpoint (local or remote)",
+      "connection_kind": "Connection type: {{kind}}",
       "connection_key": "Connection API key",
       "remove_key": "Remove saved key",
       "keep_key": "Keep saved key",
@@ -2458,6 +2459,103 @@
     },
     "world": {
       "pet_load_failed": "Could not check desktop pet availability. Try again."
+    },
+    "rebrand": {
+      "title": "设置",
+      "category": {
+        "general": "常规",
+        "appearance": "外观",
+        "downloads": "下载",
+        "ai": "AI 与智能体",
+        "integrations": "集成",
+        "advanced": "高级"
+      },
+      "search": {
+        "label": "搜索设置",
+        "placeholder": "按名称或任务搜索",
+        "clear": "清除搜索",
+        "results": "搜索结果：{{count}}",
+        "empty": "未找到设置",
+        "empty_hint": "请换个词搜索，或选择分类。"
+      },
+      "navigation": {
+        "back": "返回",
+        "back_settings": "返回设置"
+      },
+      "disclosure": {
+        "show_advanced": "显示高级选项",
+        "hide_advanced": "隐藏高级选项"
+      },
+      "state": {
+        "loading": "加载中…",
+        "saving": "保存中…",
+        "saved": "已保存",
+        "save_failed": "无法保存。更改仍保留在此处。",
+        "retry": "重试",
+        "pending_apply": "已保存，等待应用。",
+        "retry_apply": "重新应用",
+        "unavailable": "不可用",
+        "next_task": "将应用于下一个任务。",
+        "restart_required": "重启 OmniGet 以应用。"
+      },
+      "form": {
+        "save": "保存更改",
+        "discard": "放弃更改",
+        "draft": "未保存的草稿",
+        "unsaved_title": "有未保存的更改",
+        "stay": "继续编辑",
+        "discard_confirm": "放弃此草稿？"
+      },
+      "reset": {
+        "section_title": "重置{{name}}？",
+        "section_body": "仅将此部分的偏好设置恢复为默认值。",
+        "section_action": "重置此部分",
+        "app_title": "重置应用偏好设置？",
+        "app_body": "应用偏好设置将恢复为默认值。",
+        "app_action": "重置应用偏好设置",
+        "kept": "账户、密钥、历史记录、下载和访问授权将保留。"
+      },
+      "dialog": {
+        "confirm": "确认",
+        "cancel": "取消"
+      },
+      "appearance": {
+        "system": "跟随系统",
+        "light": "浅色",
+        "dark": "深色",
+        "custom_font": "自定义字体",
+        "font_hint": "选择此设备上已安装的字体。"
+      },
+      "connection": {
+        "local": "本地连接",
+        "local_hint": "选择此计算机上可用的服务器。",
+        "test": "测试连接",
+        "test_cost_notice": "测试会通过所选连接发送请求，可能消耗配额或点数。",
+        "unknown": "未测试",
+        "verified": "连接已验证",
+        "error": "连接测试失败"
+      },
+      "downloads": {
+        "quality": "画质",
+        "remove": "移除",
+        "best_available": "最佳可用画质",
+        "audio": "音频",
+        "video": "视频",
+        "output": "文件和文件夹",
+        "subtitles": "字幕和元数据"
+      },
+      "llm": {
+        "routines": "例行任务",
+        "tasks": "任务",
+        "usage_performance": "使用情况与性能"
+      },
+      "permissions": {
+        "agent_scope": "仅适用于{{name}}。",
+        "inherited": "继承自应用策略。",
+        "view_policy": "查看应用策略",
+        "customize": "为此智能体自定义",
+        "use_inherited": "使用继承的策略"
+      }
     }
   },
   "omnibox": {

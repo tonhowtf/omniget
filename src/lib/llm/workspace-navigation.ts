@@ -2,31 +2,37 @@
  * Legacy URLs remain stable; only the active destination exposes its tools.
  * Roadmap 3.9: "Work" gathers everything an agent is doing for you (the
  * unified list first, then each kind's own page), and the pages visited
- * less often sit under "More" instead of the primary tabs.
+ * less often sit under "More" instead of the primary tabs. Configure is not a
+ * tab: it links to Settings (AI and agents), while the existing managers keep
+ * their URLs and show their own tools when opened.
  */
+export const LLM_SETTINGS_HREF = '/settings?tab=ai';
+
 export const LLM_DESTINATIONS = [
-  { id: 'threads', href: '/llm/threads', routes: ['/llm/threads'], tools: [] },
-  { id: 'work', href: '/llm/work', routes: ['/llm/work', '/llm/jobs', '/llm/loops', '/llm/missions', '/llm/arena'], tools: [
-    { href: '/llm/work', key: 'llm.work.nav' }, { href: '/llm/jobs', key: 'llm.workspace.tasks' }, { href: '/llm/loops', key: 'llm.workspace.loops' },
-    { href: '/llm/missions', key: 'mission.nav' }, { href: '/llm/arena', key: 'llm.tab.arena' },
+  { id: 'threads', href: '/llm/threads', primary: true, routes: ['/llm/threads'], tools: [] },
+  { id: 'work', href: '/llm/work', primary: true, routes: ['/llm/work', '/llm/jobs', '/llm/loops', '/llm/missions', '/llm/arena', '/llm/summaries'], tools: [
+    { href: '/llm/work', key: 'llm.work.nav' }, { href: '/llm/jobs', key: 'settings.rebrand.llm.tasks' }, { href: '/llm/loops', key: 'settings.rebrand.llm.routines' },
+    { href: '/llm/missions', key: 'mission.nav' }, { href: '/llm/arena', key: 'llm.tab.arena' }, { href: '/llm/summaries', key: 'settings.ai.summarize_title' },
   ] },
-  { id: 'chat', href: '/llm', routes: ['/llm'], tools: [] },
-  { id: 'agents', href: '/llm/roster', routes: ['/llm/roster', '/llm/memory'], tools: [
-    { href: '/llm/roster', key: 'llm.workspace.agents' }, { href: '/llm/memory', key: 'assist.memory.nav' },
+  { id: 'chat', href: '/llm', primary: true, routes: ['/llm'], tools: [] },
+  { id: 'agents', href: '/llm/roster', primary: true, routes: ['/llm/roster', '/llm/memory', '/llm/skills'], tools: [
+    { href: '/llm/roster', key: 'llm.workspace.agents' }, { href: '/llm/memory', key: 'assist.memory.nav' }, { href: '/llm/skills', key: 'llm.tab.skills' },
   ] },
-  { id: 'company', href: '/llm/company', routes: ['/llm/company'], tools: [], label: 'company.nav' },
-  { id: 'catalog', href: '/llm/catalog', routes: ['/llm/catalog', '/llm/installed', '/llm/catalog/wizard'], tools: [
+  { id: 'company', href: '/llm/company', primary: true, routes: ['/llm/company'], tools: [], label: 'company.nav' },
+  { id: 'catalog', href: '/llm/catalog', primary: true, routes: ['/llm/catalog', '/llm/installed', '/llm/catalog/wizard'], tools: [
     { href: '/llm/catalog', key: 'llm.workspace.catalog' }, { href: '/llm/installed', key: 'llm.workspace.installed' }, { href: '/llm/catalog/wizard', key: 'llm.workspace.wizard' },
   ] },
-  { id: 'tools', href: '/llm/tools', routes: ['/llm/tools'], tools: [] },
-  { id: 'configure', href: '/llm/accounts', routes: ['/llm/accounts', '/llm/models', '/llm/mcp', '/llm/skills'], tools: [
-    { href: '/llm/accounts', key: 'llm.tab.accounts' }, { href: '/llm/models', key: 'llm.tab.models' }, { href: '/llm/mcp', key: 'llm.tab.mcp' }, { href: '/llm/skills', key: 'llm.tab.skills' },
+  { id: 'tools', href: '/llm/tools', primary: true, routes: ['/llm/tools'], tools: [] },
+  { id: 'configure', href: LLM_SETTINGS_HREF, primary: false, routes: ['/llm/accounts', '/llm/models', '/llm/mcp'], tools: [
+    { href: '/llm/accounts', key: 'llm.tab.accounts' }, { href: '/llm/models', key: 'llm.tab.models' }, { href: '/llm/mcp', key: 'llm.tab.mcp' },
   ] },
-  { id: 'more', href: '/llm/observatory', routes: ['/llm/observatory', '/llm/usage', '/llm/sessions', '/llm/retro', '/llm/reading', '/llm/remote'], tools: [
-    { href: '/llm/observatory', key: 'llm.workspace.performance' }, { href: '/llm/usage', key: 'llm.workspace.usage' }, { href: '/llm/sessions', key: 'llm.workspace.sessions' },
+  { id: 'more', href: '/llm/observatory', primary: true, routes: ['/llm/observatory', '/llm/usage', '/llm/sessions', '/llm/retro', '/llm/reading', '/llm/remote'], tools: [
+    { href: '/llm/observatory', key: 'settings.rebrand.llm.usage_performance' }, { href: '/llm/usage', key: 'llm.workspace.usage' }, { href: '/llm/sessions', key: 'llm.workspace.sessions' },
     { href: '/llm/retro', key: 'llm.workspace.retro' }, { href: '/llm/reading', key: 'assist.reading.nav' }, { href: '/llm/remote', key: 'llm.workspace.remote' },
   ] },
 ] as const;
+
+export const LLM_PRIMARY_DESTINATIONS = LLM_DESTINATIONS.filter(d => d.primary);
 
 /** Old addresses that now land elsewhere (the page itself redirects too). */
 export const LLM_REDIRECTS: Record<string, string> = { '/llm/local': '/llm/models' };

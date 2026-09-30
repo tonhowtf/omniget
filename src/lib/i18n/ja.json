@@ -2309,6 +2309,7 @@
       "unsaved": "設定はまだ保存されていません。テストの前に保存されます。要約する前に設定を保存してください。",
       "saving": "保存中…",
       "provider_endpoint": "Custom endpoint (local or remote)",
+      "connection_kind": "Connection type: {{kind}}",
       "connection_key": "Connection API key",
       "remove_key": "Remove saved key",
       "keep_key": "Keep saved key",
@@ -2458,6 +2459,103 @@
     },
     "world": {
       "pet_load_failed": "Could not check desktop pet availability. Try again."
+    },
+    "rebrand": {
+      "title": "設定",
+      "category": {
+        "general": "一般",
+        "appearance": "外観",
+        "downloads": "ダウンロード",
+        "ai": "AIとエージェント",
+        "integrations": "連携",
+        "advanced": "詳細設定"
+      },
+      "search": {
+        "label": "設定を検索",
+        "placeholder": "名前や操作で検索",
+        "clear": "検索をクリア",
+        "results": "検索結果：{{count}}件",
+        "empty": "設定が見つかりません",
+        "empty_hint": "別の言葉で検索するか、カテゴリを選んでください。"
+      },
+      "navigation": {
+        "back": "戻る",
+        "back_settings": "設定に戻る"
+      },
+      "disclosure": {
+        "show_advanced": "詳細オプションを表示",
+        "hide_advanced": "詳細オプションを非表示"
+      },
+      "state": {
+        "loading": "読み込み中…",
+        "saving": "保存中…",
+        "saved": "保存しました",
+        "save_failed": "保存できませんでした。変更内容はこの画面に残っています。",
+        "retry": "再試行",
+        "pending_apply": "保存済みです。適用を待っています。",
+        "retry_apply": "適用を再試行",
+        "unavailable": "利用できません",
+        "next_task": "次のタスクから適用されます。",
+        "restart_required": "適用するにはOmniGetを再起動してください。"
+      },
+      "form": {
+        "save": "変更を保存",
+        "discard": "変更を破棄",
+        "draft": "未保存の下書き",
+        "unsaved_title": "未保存の変更があります",
+        "stay": "編集を続ける",
+        "discard_confirm": "この下書きを破棄しますか？"
+      },
+      "reset": {
+        "section_title": "{{name}}をリセットしますか？",
+        "section_body": "このセクションの設定だけが初期値に戻ります。",
+        "section_action": "このセクションをリセット",
+        "app_title": "アプリの設定をリセットしますか？",
+        "app_body": "アプリの設定が初期値に戻ります。",
+        "app_action": "アプリの設定をリセット",
+        "kept": "アカウント、キー、履歴、ダウンロード、アクセス許可は保持されます。"
+      },
+      "dialog": {
+        "confirm": "確認",
+        "cancel": "キャンセル"
+      },
+      "appearance": {
+        "system": "システムに合わせる",
+        "light": "ライト",
+        "dark": "ダーク",
+        "custom_font": "カスタムフォント",
+        "font_hint": "このデバイスにインストールされたフォントを選んでください。"
+      },
+      "connection": {
+        "local": "ローカル接続",
+        "local_hint": "このコンピュータで利用できるサーバーを選んでください。",
+        "test": "接続をテスト",
+        "test_cost_notice": "テストでは選択した接続にリクエストを送り、利用枠やクレジットを消費する場合があります。",
+        "unknown": "未テスト",
+        "verified": "接続を確認しました",
+        "error": "接続テストに失敗しました"
+      },
+      "downloads": {
+        "quality": "画質",
+        "remove": "削除",
+        "best_available": "利用可能な最高品質",
+        "audio": "音声",
+        "video": "動画",
+        "output": "ファイルとフォルダ",
+        "subtitles": "字幕とメタデータ"
+      },
+      "llm": {
+        "routines": "ルーチン",
+        "tasks": "タスク",
+        "usage_performance": "使用状況とパフォーマンス"
+      },
+      "permissions": {
+        "agent_scope": "{{name}}にのみ適用されます。",
+        "inherited": "アプリのポリシーから継承しています。",
+        "view_policy": "アプリのポリシーを表示",
+        "customize": "このエージェント用に設定",
+        "use_inherited": "継承したポリシーを使用"
+      }
     }
   },
   "omnibox": {

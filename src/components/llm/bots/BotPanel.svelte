@@ -21,8 +21,15 @@
   import BotMemoryPanel from "$components/llm/memory/BotMemoryPanel.svelte";
   import ReadingPanel from "$components/llm/reading/ReadingPanel.svelte";
   import BotLearning from "./BotLearning.svelte";
+  import { focusWhenReady } from "$lib/settings-navigation";
+  import { ROSTER_SECTION_IDS, rosterSectionSelector } from "$lib/destination-targets";
 
-  let { botId, conversationId = null }: { botId: string; conversationId?: string | null } = $props();
+  let { botId, conversationId = null, focusSection = null }: {
+    botId: string;
+    conversationId?: string | null;
+    /** From `/llm/roster?bot=<id>&section=…`: reveal and focus that block of this bot only. */
+    focusSection?: "skills" | "learning" | null;
+  } = $props();
 
   let view = $state<BotView | null>(null);
   let report = $state<CapabilityReport | null>(null);
@@ -57,6 +64,14 @@
     // Forced: a skill installed elsewhere (the reading panel, the Skills page)
     // must show up here to be linked, not wait for a stale session cache.
     untrack(() => { void loadSkills(true); void loadRoster(); void refresh(); });
+  });
+
+  // The blocks exist only once the bot has loaded; focusWhenReady waits for them.
+  $effect(() => {
+    void botId;
+    const selector = rosterSectionSelector(focusSection);
+    if (!selector) return;
+    return focusWhenReady(selector, { timeoutMs: 8000 });
   });
 
   async function run(fn: () => Promise<unknown>) {
@@ -179,8 +194,8 @@
       <p class="hint">{$t("assist.bots.connection_keeps")}</p>
     </div>
 
-    <div class="block">
-      <h3>{$t("assist.bots.skills.title")}</h3>
+    <div class="block" id={ROSTER_SECTION_IDS.skills} tabindex="-1" aria-labelledby="bot-skills-title">
+      <h3 id="bot-skills-title">{$t("assist.bots.skills.title")}</h3>
       {#if report?.skills.length}
         <ul class="skills">
           {#each report.skills as s (s.skill)}
@@ -233,7 +248,7 @@
 
     <div class="block"><BotMemoryPanel {botId} /></div>
     <div class="block"><ReadingPanel {botId} /></div>
-    <div class="block"><BotLearning {botId} /></div>
+    <div class="block" id={ROSTER_SECTION_IDS.learning} tabindex="-1"><BotLearning {botId} reveal={focusSection === "learning"} /></div>
   {/if}
 </section>
 
@@ -241,7 +256,7 @@
   .bot-panel { display: flex; flex-direction: column; gap: 16px; max-width: 820px; width: 100%; }
   header h2 { margin: 0 0 4px; font-size: 20px; }
   h3 { margin: 0; font-size: 15px; }
-  .block { border: 1px solid var(--separator); border-radius: var(--radius-sm); padding: 14px; display: flex; flex-direction: column; gap: 12px; }
+  .block { scroll-margin-top: 16px; border: 1px solid var(--separator); border-radius: var(--radius-sm); padding: 14px; display: flex; flex-direction: column; gap: 12px; }
   .hint { margin: 0; color: var(--text-muted); font-size: 13px; line-height: 1.5; }
   .field { display: flex; flex-direction: column; gap: 6px; }
   .caps, .skills, .reads { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
@@ -262,5 +277,5 @@
   .small { font-size: 12px; margin: 0; }
   .link { color: var(--accent-text); font-size: 13px; }
   .error { color: var(--error, #b42318); margin: 0; overflow-wrap: anywhere; }
-  .button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, summary:focus-visible { outline: var(--focus-ring, 2px solid var(--accent-text)); outline-offset: 2px; }
+  .button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, summary:focus-visible, .block:focus-visible { outline: var(--focus-ring, 2px solid var(--accent-text)); outline-offset: 2px; }
 </style>

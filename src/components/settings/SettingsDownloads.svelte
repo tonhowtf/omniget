@@ -1,71 +1,45 @@
 <script lang="ts">
-  import { goto } from "$app/navigation";
   import { t } from "$lib/i18n";
   import { getSettings } from "./settings-helpers";
-  import SettingsDrillBack from "./SettingsDrillBack.svelte";
-  import SettingsDrillItem from "./SettingsDrillItem.svelte";
   import OutputSection from "./downloads/OutputSection.svelte";
   import QualitySection from "./downloads/QualitySection.svelte";
   import SubtitlesSection from "./downloads/SubtitlesSection.svelte";
   import ClipboardHotkeysSection from "./downloads/ClipboardHotkeysSection.svelte";
   import PlatformOptionsSection from "./downloads/PlatformOptionsSection.svelte";
+  import SettingsCookies from "./SettingsCookies.svelte";
+  import SettingsChannels from "./SettingsChannels.svelte";
+  import SettingsRules from "./SettingsRules.svelte";
 
-  let { searchActive = false, section = "" }: { searchActive?: boolean; section?: string } = $props();
-
-  type DownloadDrill = "output" | "quality" | "subtitles" | "hotkeys" | "platforms";
+  // `section` and `searchActive` are kept for callers of the old drill-down
+  // panel; every group is now rendered in place and the shell focuses
+  // `settings-group-<section>` (collapsed groups open on `settings-reveal`).
+  let {}: { searchActive?: boolean; section?: string } = $props();
 
   let settings = $derived(getSettings());
-
-  const DRILL_ITEMS: { id: DownloadDrill; titleKey: string; hintKey: string }[] = [
-    { id: "output", titleKey: "settings.download.section_output", hintKey: "settings.download.section_output_desc" },
-    { id: "quality", titleKey: "settings.download.section_quality", hintKey: "settings.download.section_quality_desc" },
-    { id: "subtitles", titleKey: "settings.download.section_subtitles", hintKey: "settings.download.section_subtitles_desc" },
-    { id: "hotkeys", titleKey: "settings.download.section_clipboard_hotkeys", hintKey: "settings.download.section_clipboard_hotkeys_desc" },
-    { id: "platforms", titleKey: "settings.download.section_per_platform", hintKey: "settings.download.section_per_platform_desc" },
-  ];
-
-  let subView = $derived(DRILL_ITEMS.some(item => item.id === section) ? section as DownloadDrill : null);
-
 </script>
 
 {#if settings}
-  {#if searchActive}
-    <section class="section"><OutputSection /></section>
-    <section class="section"><QualitySection /></section>
-    <section class="section"><SubtitlesSection /></section>
-    <section class="section"><ClipboardHotkeysSection /></section>
-    <section class="section"><PlatformOptionsSection /></section>
-  {:else if subView === null}
-    <nav class="settings-drill-list" aria-label={$t('settings.cat_downloads')}>
-      {#each DRILL_ITEMS as item (item.id)}
-        <SettingsDrillItem
-          title={$t(item.titleKey)}
-          hint={$t(item.hintKey)}
-          onclick={() => { void goto(`/settings?tab=downloads&section=${item.id}`); }}
-        />
-      {/each}
-    </nav>
-  {:else}
-    {@const active = DRILL_ITEMS.find((i) => i.id === subView)}
-    {#if active}
-      <SettingsDrillBack
-        title={$t(active.titleKey)}
-        hint={$t(active.hintKey)}
-        onBack={() => { void goto("/settings?tab=downloads"); }}
-      />
-    {/if}
-    <section class="section" id={`settings-section-${subView}`}>
-      {#if subView === "output"}
-        <OutputSection embedded />
-      {:else if subView === "quality"}
-        <QualitySection embedded />
-      {:else if subView === "subtitles"}
-        <SubtitlesSection embedded />
-      {:else if subView === "hotkeys"}
-        <ClipboardHotkeysSection embedded />
-      {:else if subView === "platforms"}
-        <PlatformOptionsSection embedded />
-      {/if}
-    </section>
-  {/if}
+  <div class="settings-downloads">
+    <!-- Primary: where files go, which quality, subtitles and paste detection. -->
+    <OutputSection part="files" />
+    <QualitySection part="quality" />
+    <SubtitlesSection />
+    <ClipboardHotkeysSection part="clipboard" />
+
+    <!-- Advanced groups, collapsed until opened, searched or linked. -->
+    <OutputSection part="output" />
+    <QualitySection part="presets" />
+    <ClipboardHotkeysSection part="hotkeys" />
+    <SettingsCookies />
+    <SettingsChannels />
+    <SettingsRules />
+    <PlatformOptionsSection />
+  </div>
+{:else}
+  <p class="settings-downloads-loading" role="status" aria-busy="true">{$t("settings.rebrand.state.loading")}</p>
 {/if}
+
+<style>
+  .settings-downloads { display: flex; flex-direction: column; min-inline-size: 0; }
+  .settings-downloads-loading { margin: 0; font-size: 13px; color: var(--text-muted); }
+</style>

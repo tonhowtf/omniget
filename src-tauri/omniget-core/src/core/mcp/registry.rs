@@ -147,7 +147,7 @@ impl McpRegistry {
         }
         // Belt and braces: never write a config that still holds a literal.
         cfg.validate()?;
-        let changed = {
+        let (changed, previous) = {
             let mut guard = self
                 .configs
                 .write()
@@ -155,20 +155,41 @@ impl McpRegistry {
             match guard.iter().position(|c| c.id == cfg.id) {
                 Some(i) => {
                     let differs = guard[i] != cfg;
-                    guard[i] = cfg.clone();
-                    differs
+                    let previous = std::mem::replace(&mut guard[i], cfg.clone());
+                    (differs, Some(previous))
                 }
                 None => {
                     guard.push(cfg.clone());
-                    false
+                    (false, None)
                 }
             }
         };
         if changed {
             self.disconnect(&cfg.id).await;
         }
-        self.save()?;
+        if let Err(error) = self.save() {
+            // The file still holds the old list, so the memory has to as well:
+            // otherwise the next list or connect would use a server the disk
+            // never accepted, with references the caller may be rolling back.
+            self.restore(&cfg.id, previous);
+            return Err(error);
+        }
         Ok(cfg)
+    }
+
+    /// Puts one entry back the way it was before a failed [`Self::upsert`].
+    fn restore(&self, id: &str, previous: Option<McpServerConfig>) {
+        let Ok(mut guard) = self.configs.write() else {
+            return;
+        };
+        match (guard.iter().position(|c| c.id == id), previous) {
+            (Some(i), Some(previous)) => guard[i] = previous,
+            (Some(i), None) => {
+                guard.remove(i);
+            }
+            (None, Some(previous)) => guard.push(previous),
+            (None, None) => {}
+        }
     }
 
     /// Removes a server, stops its process and forgets its secrets. `false`
@@ -422,6 +443,32 @@ mod tests {
         let err = reg.upsert(http_config("Bad Id")).await.unwrap_err();
         assert_eq!(err.code, super::super::error::ERR_MCP_SPAWN);
         assert!(reg.list().is_empty());
+    }
+
+    /// A save that fails leaves the list the way the disk has it: a new
+    /// server is not listed, a replaced one keeps its old config.
+    #[tokio::test]
+    async fn a_failed_save_does_not_leave_the_new_config_in_memory() {
+        let dir = temp_dir("save-fails");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join(CONFIG_FILE);
+        let reg = McpRegistry::at(&path);
+        reg.upsert(http_config("a")).await.unwrap();
+        // The config path's parent becomes a regular file, so every later save
+        // fails at `create_dir_all` without touching permissions.
+        let blocked = McpRegistry::at(dir.join("not-a-dir").join(CONFIG_FILE));
+        std::fs::write(dir.join("not-a-dir"), b"file").unwrap();
+        *blocked.configs.write().unwrap() = reg.list();
+
+        let mut renamed = http_config("a");
+        renamed.name = "renamed".into();
+        assert!(blocked.upsert(renamed).await.is_err());
+        assert_eq!(blocked.get("a").unwrap().name, "a");
+
+        assert!(blocked.upsert(http_config("b")).await.is_err());
+        assert!(blocked.get("b").is_none());
+        assert_eq!(blocked.list().len(), 1);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[tokio::test]

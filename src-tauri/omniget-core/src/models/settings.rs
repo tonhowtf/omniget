@@ -1046,6 +1046,26 @@ pub struct AppearanceSettings {
     /// Sidebar shown as an icon-only rail.
     #[serde(default)]
     pub sidebar_collapsed: bool,
+    /// Schema 3: `system`, `light` or `dark`. `None` on a profile written
+    /// before schema 3; the public DTO derives it from `theme` until the
+    /// appearance import sets it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mode: Option<String>,
+    /// Schema 3: `omniget-desktop`, a legacy workspace preset id or a named
+    /// theme id ("More styles"). `None` until set, like `mode`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub preset: Option<String>,
+    /// The original `theme` of the profile when the appearance import ran.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub legacy_theme: Option<String>,
+    /// 0 = the appearance import never committed; 1 = imported. Only the
+    /// repository's import writes it.
+    #[serde(default, skip_serializing_if = "is_zero_u32")]
+    pub migration_version: u32,
+}
+
+fn is_zero_u32(v: &u32) -> bool {
+    *v == 0
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1455,12 +1475,18 @@ impl AppSettings {
     ///
     /// v2 (0.10.0): the World left the experimental flag. Installs from before
     /// have `world.enabled: false` on disk and would never see `/world`.
+    ///
+    /// v3 (settings redesign): only adds optional appearance fields, which
+    /// stay unset until the appearance import commits them
+    /// (`appearance.migration_version`). Nothing is removed or reset.
     pub fn migrate(&mut self) -> bool {
-        if self.schema_version >= 2 {
+        if self.schema_version >= SETTINGS_SCHEMA_VERSION {
             return false;
         }
-        self.world.enabled = true;
-        self.schema_version = 2;
+        if self.schema_version < 2 {
+            self.world.enabled = true;
+        }
+        self.schema_version = SETTINGS_SCHEMA_VERSION;
         true
     }
 }
@@ -1468,11 +1494,15 @@ impl AppSettings {
 impl Default for AppSettings {
     fn default() -> Self {
         Self {
-            schema_version: 2,
+            schema_version: SETTINGS_SCHEMA_VERSION,
             appearance: AppearanceSettings {
                 theme: "system".into(),
                 language: "en".into(),
                 sidebar_collapsed: false,
+                mode: None,
+                preset: None,
+                legacy_theme: None,
+                migration_version: 0,
             },
             download: DownloadSettings {
                 default_output_dir: dirs::download_dir().unwrap_or_else(|| PathBuf::from(".")),
@@ -1574,6 +1604,11 @@ impl Default for AppSettings {
         }
     }
 }
+
+pub use v3::*;
+
+#[path = "settings_v3.rs"]
+mod v3;
 
 #[cfg(test)]
 mod backcompat_tests {

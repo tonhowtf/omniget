@@ -16,7 +16,8 @@
   import { invoke } from "@tauri-apps/api/core";
   import { onDestroy } from "svelte";
 
-  let { botId }: { botId: string } = $props();
+  // `reveal`: a deep link (`section=learning`) opens the block; it only reads.
+  let { botId, reveal = false }: { botId: string; reveal?: boolean } = $props();
 
   interface Policy { min_dev_cases: number; min_holdout_cases: number; min_dev_gain: number; no_holdout_regression: boolean; unknown_blocks: boolean }
   interface Settings { bot_id: string; enabled: boolean; auto_promote_local: boolean; policy: Policy }
@@ -99,6 +100,10 @@
   $effect(() => {
     void botId;
     if (open) void load();
+  });
+
+  $effect(() => {
+    if (reveal) open = true;
   });
 
   async function act(fn: () => Promise<unknown>, done?: string) {
@@ -534,9 +539,9 @@
                   {#each CHECK_KINDS as k (k)}<option value={k}>{$t(`assist.learning.check.${k}`)}</option>{/each}
                 </select>
                 {#if ck.kind === "no_terms" || ck.kind === "json_keys"}
-                  <textarea class="input grow" rows="2" bind:value={ck.a} placeholder={$t("assist.learning.one_per_line")}></textarea>
+                  <textarea class="input grow" rows="2" bind:value={ck.a} placeholder={$t("assist.learning.one_per_line")} aria-label={$t(`assist.learning.check.${ck.kind}`)}></textarea>
                 {:else if ck.kind !== "max_chars"}
-                  <input class="input grow" type="text" bind:value={ck.a} placeholder={ck.kind === "contains" || ck.kind === "excludes" ? $t("assist.learning.check_text") : $t("assist.learning.check_pattern")} />
+                  <input class="input grow" type="text" bind:value={ck.a} placeholder={ck.kind === "contains" || ck.kind === "excludes" ? $t("assist.learning.check_text") : $t("assist.learning.check_pattern")} aria-label={$t(`assist.learning.check.${ck.kind}`)} />
                 {/if}
                 {#if ck.kind === "count_lines"}
                   <input class="input tiny" type="number" min="0" bind:value={ck.min} placeholder="min" aria-label="min" />

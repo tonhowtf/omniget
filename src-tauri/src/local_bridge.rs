@@ -167,21 +167,14 @@ async fn bind_listener(preferred: u16) -> std::io::Result<(u16, TcpListener)> {
 /// Ensure `settings.bridge.{token,port}` are populated and persisted.
 /// Returns the resolved (token, port) pair to use for this run.
 fn ensure_bridge_settings(app: &AppHandle, bound_port: u16) -> anyhow::Result<(String, u16)> {
-    let mut settings = config::load_settings(app);
-    let mut dirty = false;
-
-    if settings.bridge.token.trim().is_empty() {
-        settings.bridge.token = generate_token();
-        dirty = true;
-    }
-    if settings.bridge.port != bound_port {
+    // Through the settings repository, in one transaction with the latest
+    // file: an unchanged token and port write nothing.
+    let settings = config::update_settings(app, |settings| {
+        if settings.bridge.token.trim().is_empty() {
+            settings.bridge.token = generate_token();
+        }
         settings.bridge.port = bound_port;
-        dirty = true;
-    }
-
-    if dirty {
-        config::save_settings(app, &settings)?;
-    }
+    })?;
 
     Ok((settings.bridge.token, settings.bridge.port))
 }

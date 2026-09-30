@@ -366,7 +366,6 @@ pub fn run() {
     builder
         .manage(state)
         .plugin(tauri_plugin_shell::init())
-        .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -536,7 +535,9 @@ pub fn run() {
                     },
                 ));
             }
-            let settings = storage::config::load_settings(app.handle());
+            // The one owner of settings.json: opened (and its profile lock
+            // taken) before anything reads or writes the settings.
+            let settings = storage::settings_repository::global().settings();
             core::http_client::init_proxy(settings.proxy.clone());
             core::http_fetcher::set_global_max_concurrent_segments(
                 settings.advanced.max_concurrent_segments as usize,
@@ -837,6 +838,10 @@ pub fn run() {
             tray::setup(app.handle())?;
             usage_tray::setup(app.handle());
             hotkey::register_from_settings(app.handle());
+            // From here on, confirmed settings changes reach the running app
+            // through the effects registry (after the boot code above
+            // applied the loaded settings).
+            storage::settings_effects::install(app.handle().clone());
 
             // Migration: drop the manifests / binary copies the previous
             // native-messaging code left under `~/.config/...` so Chrome and
@@ -1565,6 +1570,12 @@ pub fn run() {
             commands::settings::get_settings,
             commands::settings::update_settings,
             commands::settings::reset_settings,
+            commands::settings::settings_get_v3,
+            commands::settings::settings_patch_v3,
+            commands::settings::settings_reset_v3,
+            commands::settings::settings_retry_effect_v3,
+            commands::settings::settings_import_appearance_v3,
+            commands::settings::get_updater_proxy_url,
             commands::settings::mark_onboarding_complete,
             commands::settings::mark_legal_acknowledged,
             commands::rpc::rpc_test_connection,
@@ -1910,12 +1921,14 @@ pub fn run() {
             limits_strip::commands::limits_strip_set_expanded,
             usage_tray::usage_tray_view,
             usage_tray::usage_tray_toggle_account,
+            usage_tray::usage_tray_set,
             usage_tray::usage_tray_refresh,
             usage_tray::usage_tray_open_claude,
             usage_tray::usage_tray_open_app,
             usage_tray::usage_tray_resize,
             usage_tray::usage_tray_open_panel,
             usage_tray::usage_tray_close_panel,
+            usage_tray::usage_tray_sync_strings,
             usage_tray::usage_tray_sync_strings,
             commands::llm::keys::tool_ai_keys_openrouter_pkce,
             // Rodada 3: Fase 3 (MCP, skills) e Fase 4 (contas)

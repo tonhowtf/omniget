@@ -90,6 +90,35 @@ fn state() -> MutexGuard<'static, State> {
         .unwrap_or_else(|e| e.into_inner())
 }
 
+/// Serialises every change of the prefs from read to publish, so two changes
+/// at once (a menu click and a panel switch) cannot both start from the same
+/// copy and the second one silently drop the first. Separate from [`state`]
+/// so readers never wait for a file write.
+fn writer() -> MutexGuard<'static, ()> {
+    static W: OnceLock<Mutex<()>> = OnceLock::new();
+    W.get_or_init(|| Mutex::new(()))
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+}
+
+/// Applies `change` to a copy of the prefs, has `save` write it, and only then
+/// makes it the prefs in memory. A save that fails leaves memory as the disk
+/// has it and answers the error, so nothing shows a choice that a restart
+/// would lose. Returns the prefs before and after.
+fn update_prefs(
+    change: impl FnOnce(&mut TrayPrefs),
+    save: impl FnOnce(&TrayPrefs) -> Result<(), String>,
+) -> Result<(TrayPrefs, TrayPrefs), String> {
+    let _writing = writer();
+    let before = state().prefs.clone();
+    let mut next = before.clone();
+    change(&mut next);
+    let next = next.sane();
+    save(&next)?;
+    state().prefs = next.clone();
+    Ok((before, next))
+}
+
 // ---------------------------------------------------------------------------
 // Strings: the menu is native, so the frontend pushes the translations
 // (same pattern as `sync_tray_strings`). English is the fallback.
@@ -172,9 +201,15 @@ fn catalog(prefs: &TrayPrefs) -> Vec<CatalogItem> {
 
 /// Called once from the app's setup, after the main tray exists.
 pub fn setup(app: &AppHandle) {
-    let mut p = prefs::load();
+    let loaded = prefs::load();
+    let mut p = loaded.clone();
     if p.seed_from(&crate::limits_strip::prefs::load()) {
-        let _ = prefs::save(&p);
+        // Seeded only once it is on disk; otherwise keep what the file says
+        // and seed again on the next launch.
+        if let Err(e) = prefs::save(&p) {
+            tracing::warn!("usage tray: could not save the seeded accounts: {e}");
+            p = loaded;
+        }
     }
     let on = p.enabled;
     state().prefs = p;
@@ -204,14 +239,8 @@ fn apply_enabled(app: &AppHandle, on: bool) {
     crate::tray::set_usage_toggle(on);
 }
 
-pub fn set_enabled(app: &AppHandle, on: bool) {
-    let p = {
-        let mut g = state();
-        g.prefs.enabled = on;
-        g.prefs.clone()
-    };
-    let _ = prefs::save(&p);
-    apply_enabled(app, on);
+pub fn set_enabled(app: &AppHandle, on: bool) -> Result<(), String> {
+    commit(app, |p| p.enabled = on)
 }
 
 fn build_tray(app: &AppHandle) -> tauri::Result<()> {
@@ -344,17 +373,25 @@ fn rebuild_menu(app: &AppHandle) {
     }
 }
 
-/// Saves the prefs, tells the engine which rings to read, redraws.
-fn commit(app: &AppHandle, p: TrayPrefs) {
-    let p = p.sane();
-    let _ = prefs::save(&p);
-    let (on, ids) = (p.enabled, p.accounts.clone());
-    state().prefs = p;
-    if on {
-        engine::set_tray(app, true, ids);
+/// Saves the prefs, then tells the engine which rings to read and redraws.
+/// A failed save changes nothing at runtime: the menu's check mark is put back
+/// to what is saved and the error goes to the caller.
+fn commit(app: &AppHandle, change: impl FnOnce(&mut TrayPrefs)) -> Result<(), String> {
+    let (before, p) = match update_prefs(change, prefs::save) {
+        Ok(done) => done,
+        Err(e) => {
+            crate::tray::set_usage_toggle(state().prefs.enabled);
+            return Err(e);
+        }
+    };
+    if p.enabled != before.enabled {
+        apply_enabled(app, p.enabled);
+    } else if p.enabled {
+        engine::set_tray(app, true, p.accounts.clone());
     }
     rebuild_menu(app);
     republish(app);
+    Ok(())
 }
 
 /// Every menu id with [`MENU_PREFIX`] lands here, from `crate::tray`.
@@ -376,51 +413,53 @@ fn handle_menu(app: &AppHandle, id: &str) {
     let Some(rest) = id.strip_prefix(MENU_PREFIX) else {
         return;
     };
-    let mut p = state().prefs.clone();
-    match rest {
-        "toggle" => {
-            let on = !p.enabled;
-            set_enabled(app, on);
-        }
+    // A menu click has nobody to answer: a save that failed is logged, and
+    // `commit` already left memory and the menu as they were.
+    let saved = match rest {
+        "toggle" => commit(app, |p| p.enabled = !p.enabled),
         "hide" => set_enabled(app, false),
-        "open" => crate::tray::show_window(app),
+        "open" => {
+            crate::tray::show_window(app);
+            Ok(())
+        }
         "refresh" => {
             refresh(app);
+            Ok(())
         }
-        "pct" => {
-            p.percent_text = !p.percent_text;
-            commit(app, p);
-        }
-        "color" => {
-            p.colored = !p.colored;
-            commit(app, p);
-        }
+        "pct" => commit(app, |p| p.percent_text = !p.percent_text),
+        "color" => commit(app, |p| p.colored = !p.colored),
         "add" => {
             if let Err(e) = open_terminal(None, true) {
                 tracing::warn!("usage tray: {e}");
             }
+            Ok(())
         }
         other => {
             if let Some(acct) = other.strip_prefix("acct:") {
-                p.toggle_account(acct);
-                commit(app, p);
+                commit(app, |p| p.toggle_account(acct))
             } else if let Some(v) = other.strip_prefix("shows:").and_then(Shows::parse) {
-                p.shows = v;
-                commit(app, p);
+                commit(app, |p| p.shows = v)
             } else if let Some((w, c)) = other
                 .strip_prefix("thr:")
                 .and_then(|t| t.split_once('-'))
-                .and_then(|(w, c)| Some((w.parse().ok()?, c.parse().ok()?)))
+                .and_then(|(w, c)| Some((w.parse::<u8>().ok()?, c.parse::<u8>().ok()?)))
             {
-                p.warn = w;
-                p.critical = c;
-                commit(app, p);
-            } else if let Some(ring) = other.strip_prefix("claude:") {
-                if let Err(e) = open_terminal(Some(ring), false) {
-                    tracing::warn!("usage tray: {e}");
+                commit(app, |p| {
+                    p.warn = w;
+                    p.critical = c;
+                })
+            } else {
+                if let Some(ring) = other.strip_prefix("claude:") {
+                    if let Err(e) = open_terminal(Some(ring), false) {
+                        tracing::warn!("usage tray: {e}");
+                    }
                 }
+                Ok(())
             }
         }
+    };
+    if let Err(e) = saved {
+        tracing::warn!("usage tray: the change was not saved: {e}");
     }
 }
 
@@ -751,10 +790,42 @@ fn panel_snapshot(p: TrayPrefs) -> Panel {
 
 #[tauri::command]
 pub async fn usage_tray_toggle_account(app: AppHandle, id: String) -> Result<(), String> {
-    let mut p = state().prefs.clone();
-    p.toggle_account(&id);
-    commit(&app, p);
-    Ok(())
+    commit(&app, |p| p.toggle_account(&id))
+}
+
+/// `enabled`, `shows`, `percent_text`, `colored`, `warn`, `critical`.
+/// One save for the whole patch; when it fails the answer is the error and the
+/// prefs in memory, the icon and the menu stay as they were.
+#[tauri::command]
+pub async fn usage_tray_set(app: AppHandle, patch: serde_json::Value) -> Result<TrayPrefs, String> {
+    commit(&app, |p| apply_patch(p, &patch))?;
+    Ok(state().prefs.clone())
+}
+
+/// The fields `usage_tray_set` accepts; anything else in `patch` is ignored.
+fn apply_patch(p: &mut TrayPrefs, patch: &serde_json::Value) {
+    if let Some(v) = patch
+        .get("shows")
+        .and_then(|v| v.as_str())
+        .and_then(Shows::parse)
+    {
+        p.shows = v;
+    }
+    if let Some(v) = patch.get("percent_text").and_then(|v| v.as_bool()) {
+        p.percent_text = v;
+    }
+    if let Some(v) = patch.get("colored").and_then(|v| v.as_bool()) {
+        p.colored = v;
+    }
+    if let Some(v) = patch.get("warn").and_then(|v| v.as_u64()) {
+        p.warn = v.min(100) as u8;
+    }
+    if let Some(v) = patch.get("critical").and_then(|v| v.as_u64()) {
+        p.critical = v.min(100) as u8;
+    }
+    if let Some(v) = patch.get("enabled").and_then(|v| v.as_bool()) {
+        p.enabled = v;
+    }
 }
 
 #[tauri::command]
@@ -790,7 +861,7 @@ pub async fn usage_tray_resize(app: AppHandle, height: f64) -> Result<(), String
 #[tauri::command]
 pub async fn usage_tray_open_panel(app: AppHandle) -> Result<(), String> {
     if !state().prefs.enabled {
-        set_enabled(&app, true);
+        set_enabled(&app, true)?;
     }
     show_panel(&app, None);
     Ok(())
@@ -862,6 +933,110 @@ mod tests {
         ] {
             assert!(!english(key).is_empty(), "{key}");
         }
+    }
+}
+
+/// Saving before publishing, with a writer that fails on purpose and with a
+/// directory that cannot hold the file. The shared `state()` is put back at
+/// the end of each test.
+#[cfg(test)]
+mod persistence_tests {
+    use super::*;
+
+    /// One test at a time owns the shared prefs.
+    fn with_prefs<T>(start: TrayPrefs, body: impl FnOnce() -> T) -> T {
+        static TURN: Mutex<()> = Mutex::new(());
+        let _turn = TURN.lock().unwrap_or_else(|e| e.into_inner());
+        let saved = std::mem::replace(&mut state().prefs, start);
+        let out = body();
+        state().prefs = saved;
+        out
+    }
+
+    #[test]
+    fn a_failed_save_publishes_nothing_and_answers_the_error() {
+        let start = TrayPrefs {
+            colored: false,
+            percent_text: true,
+            ..TrayPrefs::default()
+        };
+        with_prefs(start.clone(), || {
+            let result = update_prefs(
+                |p| {
+                    apply_patch(
+                        p,
+                        &serde_json::json!({ "colored": true, "percent_text": false }),
+                    )
+                },
+                |_| Err("ERR_USAGE_TRAY_STORE: disk full".to_string()),
+            );
+            assert_eq!(result.unwrap_err(), "ERR_USAGE_TRAY_STORE: disk full");
+            assert_eq!(state().prefs, start, "memory changed without a save");
+        });
+    }
+
+    #[test]
+    fn memory_changes_only_after_the_writer_confirms() {
+        with_prefs(TrayPrefs::default(), || {
+            let seen_during_save = std::cell::Cell::new(None);
+            let (before, after) = update_prefs(
+                |p| apply_patch(p, &serde_json::json!({ "shows": "weekly" })),
+                |next| {
+                    assert_eq!(next.shows, Shows::Weekly);
+                    seen_during_save.set(Some(state().prefs.shows));
+                    Ok(())
+                },
+            )
+            .unwrap();
+            assert_eq!(seen_during_save.get(), Some(Shows::Session));
+            assert_eq!(before.shows, Shows::Session);
+            assert_eq!(after.shows, Shows::Weekly);
+            assert_eq!(state().prefs.shows, Shows::Weekly);
+        });
+    }
+
+    /// The real writer, pointed at a "directory" that is a regular file.
+    #[test]
+    fn a_directory_that_cannot_hold_the_file_keeps_memory_and_disk_as_they_were() {
+        let root = std::env::temp_dir().join(format!(
+            "omniget-usage-tray-blocked-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ));
+        std::fs::create_dir_all(&root).unwrap();
+        let blocked = root.join("limits");
+        std::fs::write(&blocked, b"not a directory").unwrap();
+
+        let start = TrayPrefs {
+            accounts: vec!["claude".into()],
+            ..TrayPrefs::default()
+        };
+        with_prefs(start.clone(), || {
+            let result = update_prefs(
+                |p| p.toggle_account("codex:work"),
+                |next| prefs::save_in(&blocked, next),
+            );
+            assert!(result.unwrap_err().starts_with("ERR_USAGE_TRAY_STORE"));
+            assert_eq!(state().prefs, start);
+        });
+        assert_eq!(std::fs::read(&blocked).unwrap(), b"not a directory");
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn a_patch_touches_only_the_fields_it_names() {
+        let mut p = TrayPrefs::default();
+        apply_patch(
+            &mut p,
+            &serde_json::json!({ "warn": 70, "enabled": false, "seeded": true, "accounts": ["x"] }),
+        );
+        assert_eq!(p.warn, 70);
+        assert!(!p.enabled);
+        assert!(!p.seeded, "seeded stays internal");
+        assert!(p.accounts.is_empty());
     }
 }
 

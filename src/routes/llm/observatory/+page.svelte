@@ -103,7 +103,7 @@
 <div class="observatory">
   <header class="page-head">
     <div>
-      <h1 class="page-title">{$t("llm.observatory.title")}</h1>
+      <h1 class="page-title">{$t("settings.rebrand.llm.usage_performance")}</h1>
       <p class="page-lede">{$t("llm.observatory.lede")}</p>
     </div>
     <div class="segmented">

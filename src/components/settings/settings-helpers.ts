@@ -1,15 +1,22 @@
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { updateSettings, getSettings, type AppSettings } from "$lib/stores/settings-store.svelte";
-import { loadTranslations, locale, t } from "$lib/i18n";
+import { t } from "$lib/i18n";
 import { get } from "svelte/store";
 import { showToast } from "$lib/stores/toast-store.svelte";
 import { parseSettingNumber } from "$lib/settings-search";
+import { failureShownInline } from "$lib/stores/settings-status-surfaces";
 
-/** Use for event handlers that cannot present a field-specific persistence error. */
+/**
+ * Autosave from an event handler. A failure is announced once: by the field's inline
+ * SettingStatus when every changed field has one mounted, otherwise by a toast.
+ */
 export async function saveSettings(partial: Record<string, unknown>): Promise<AppSettings | null> {
   try { return await updateSettings(partial); }
-  catch { showToast("error", get(t)("settings.save_failed")); return null; }
+  catch {
+    if (!failureShownInline(partial)) showToast("error", get(t)("settings.save_failed"));
+    return null;
+  }
 }
 
 
@@ -35,17 +42,15 @@ export async function chooseFolder() {
   }
 }
 
+/** Core modes (system/light/dark) and named themes both go through mode/preset. */
 export async function changeTheme(value: string) {
   await saveSettings({ appearance: { theme: value } });
 }
 
+/** The store applies the confirmed language through the layout's locale applier. */
 export async function changeLanguage(e: Event) {
   const value = (e.target as HTMLSelectElement).value;
-  if (!await saveSettings({ appearance: { language: value } })) return;
-  try {
-    await loadTranslations(value, "/settings");
-    locale.set(value);
-  } catch { showToast("error", get(t)("settings.save_failed")); }
+  await saveSettings({ appearance: { language: value } });
 }
 
 export async function toggleBool(section: string, key: string, current: boolean) {

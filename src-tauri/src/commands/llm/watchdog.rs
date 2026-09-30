@@ -67,7 +67,12 @@ pub fn limits(app: &AppHandle) -> Limits {
 /// Pushes the settings into the runtime and the broker. Called once when the
 /// LLM stack is wired, and again on every change.
 pub fn install(app: &AppHandle) {
-    let l = limits(app);
+    install_with(app, &config::load_settings(app).llm);
+}
+
+/// [`install`] for a given snapshot: the settings effect `llm.watchdog`.
+pub fn install_with(app: &AppHandle, settings: &LlmSettings) {
+    let l = limits_from(settings);
     let llm = app.state::<AppState>().llm.clone();
     llm.set_watchdog(l.watchdog);
     llm.set_ask_timeout(l.ask_chat);
@@ -143,10 +148,14 @@ pub fn merge(mut s: LlmSettings, input: &WatchdogInput) -> LlmSettings {
 
 #[tauri::command]
 pub async fn llm_watchdog_set(app: AppHandle, config: WatchdogInput) -> Result<Value, String> {
-    let mut current = config::load_settings(&app);
-    current.llm = merge(current.llm, &config);
-    config::save_settings(&app, &current).map_err(|e| format!("Save: {e}"))?;
-    install(&app);
+    let current = config::update_settings(&app, |current| {
+        current.llm = merge(current.llm.clone(), &config);
+    })
+    .map_err(|e| format!("Save: {e}"))?;
+    // The `llm.watchdog` effect pushes the limits; answer once it ran.
+    crate::storage::settings_effects::settle(&[
+        crate::storage::settings_effects::EffectId::LlmWatchdog,
+    ]);
     Ok(view(&current.llm))
 }
 

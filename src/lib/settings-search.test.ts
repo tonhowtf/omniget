@@ -2,6 +2,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import en from "./i18n/en.json";
 import pt from "./i18n/pt.json";
 import { SETTINGS_SEARCH_INDEX, parseSettingNumber, searchSettings, settingsEntryUrl } from "./settings-search";
+import { SETTINGS_CATEGORIES, SETTINGS_SECTIONS } from "./settings-navigation";
 
 const mocks = vi.hoisted(() => ({ update: vi.fn(), invoke: vi.fn(), toast: vi.fn() }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: mocks.invoke }));
@@ -14,6 +15,7 @@ vi.mock("$lib/i18n", () => ({
   loadTranslations: vi.fn(),
 }));
 import { changeNumber, saveSettings } from "../components/settings/settings-helpers";
+import { registerStatusSurface } from "./stores/settings-status-surfaces";
 
 function translator(dictionary: unknown) {
   return (key: string) => {
@@ -33,13 +35,38 @@ describe("settings search", () => {
   });
 
   it("finds channels and rules independently of their card markup", () => {
-    expect(searchSettings("channel", translate).some(entry => entry.category === "channels")).toBe(true);
+    expect(searchSettings("channel", translate).some(entry => entry.category === "downloads" && entry.section === "channels")).toBe(true);
     expect(searchSettings("rule", translate).some(entry => entry.section === "rules")).toBe(true);
   });
 
-  it("includes the advanced League and Music sections", () => {
-    expect(SETTINGS_SEARCH_INDEX.some(entry => entry.key === "league.settings_auto_accept" && entry.section === "league")).toBe(true);
-    expect(SETTINGS_SEARCH_INDEX.some(entry => entry.key === "music.settings_enable" && entry.section === "music")).toBe(true);
+  it("files League and Music under Integrations", () => {
+    expect(SETTINGS_SEARCH_INDEX.some(entry => entry.key === "league.settings_auto_accept" && entry.category === "integrations" && entry.section === "league")).toBe(true);
+    expect(SETTINGS_SEARCH_INDEX.some(entry => entry.key === "music.settings_enable" && entry.category === "integrations" && entry.section === "music")).toBe(true);
+  });
+
+  it("files every entry under one of the six categories and a known section", () => {
+    for (const entry of SETTINGS_SEARCH_INDEX) {
+      expect(SETTINGS_CATEGORIES).toContain(entry.category);
+      if (entry.section) expect(SETTINGS_SECTIONS[entry.category], entry.key).toContain(entry.section);
+    }
+  });
+
+  it("indexes controls that live inside collapsed disclosures", () => {
+    expect(searchSettings("SponsorBlock", translate).some(entry => entry.section === "sites")).toBe(true);
+    expect(searchSettings(translate("llm.limits.enable"), translate).some(entry => entry.section === "limits-strip")).toBe(true);
+  });
+
+  it("indexes label keys only, never values, paths or secrets", () => {
+    const values = (key: string) => (key === "settings.proxy.password" ? "Password" : translate(key));
+    // A secret-looking or path-looking query only matches when a label says so.
+    expect(searchSettings("/Users/someone/Downloads", values)).toEqual([]);
+    expect(searchSettings("sk-ant-api03", values)).toEqual([]);
+    for (const entry of SETTINGS_SEARCH_INDEX) expect(entry.key).toMatch(/^[a-z_]+(\.[a-z0-9_]+)+$/);
+  });
+
+  it("sends moved summary entries to their own route and keeps the setting", () => {
+    const entry = SETTINGS_SEARCH_INDEX.find(item => item.key === "settings.ai.history");
+    expect(entry && settingsEntryUrl(entry)).toBe("/llm/summaries?section=history&setting=settings.ai.history");
   });
 
   it("uses localized words and ignores accents and case", () => {
@@ -59,6 +86,7 @@ describe("settings search", () => {
       expect(translate(entry.key), entry.key).not.toBe(entry.key);
       expect(translate(entry.sectionKey), entry.sectionKey).not.toBe(entry.sectionKey);
       const url = new URL(settingsEntryUrl(entry), "https://omniget.invalid");
+      if (entry.href) { expect(url.searchParams.get("setting")).toBe(entry.key); continue; }
       expect(url.pathname).toBe("/settings");
       expect(url.searchParams.get("setting")).toBe(entry.key);
       expect(url.searchParams.get("tab")).toBe(entry.category);
@@ -105,6 +133,19 @@ describe("numeric settings and persistence feedback", () => {
     mocks.update.mockRejectedValue(new Error("private backend path or token"));
     expect(await saveSettings({ appearance: { theme: "dark" } })).toBeNull();
     expect(mocks.toast).toHaveBeenCalledWith("error", "settings.save_failed");
+  });
+
+  it("announces a failed save once: inline when every field has a mounted status, toast otherwise", async () => {
+    mocks.update.mockRejectedValue(new Error("unavailable"));
+    const unregister = registerStatusSurface("appearance.language");
+    expect(await saveSettings({ appearance: { language: "pt" } })).toBeNull();
+    expect(mocks.toast).not.toHaveBeenCalled();
+    // One field without an inline status still gets the toast.
+    await saveSettings({ appearance: { language: "pt", sidebar_collapsed: true } });
+    expect(mocks.toast).toHaveBeenCalledOnce();
+    unregister();
+    await saveSettings({ appearance: { language: "pt" } });
+    expect(mocks.toast).toHaveBeenCalledTimes(2);
   });
 
   it("does not update the live download limit after a failed save", async () => {

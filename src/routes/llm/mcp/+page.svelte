@@ -10,8 +10,12 @@
    * Budget: opening the tab reads the saved config and nothing else. No
    * connection, no process, no timer until a button is pressed.
    */
-  import { onMount } from "svelte";
+  import { onMount, untrack } from "svelte";
+  import { replaceState } from "$app/navigation";
+  import { page } from "$app/state";
   import { t } from "$lib/i18n";
+  import { focusWhenReady, parseMcpTarget } from "$lib/settings-navigation";
+  import { mcpModeHref, mcpSectionSelector } from "$lib/destination-targets";
   import {
     MCP_REGISTRY,
     blankServer,
@@ -45,7 +49,9 @@
 
   type View = { kind: "list" } | { kind: "form"; config: McpServerConfig } | { kind: "grants"; id: string };
 
-  let half = $state<"server" | "client">("client");
+  // `?mode=server` selects the half; client is the default and has no param.
+  let target = $derived(parseMcpTarget(page.url.searchParams));
+  let half = $state<"server" | "client">(untrack(() => parseMcpTarget(page.url.searchParams).mode));
   let view = $state<View>({ kind: "list" });
   let importText = $state("");
   /** Servers from one pasted config still waiting to be reviewed. */
@@ -65,12 +71,33 @@
     void loadRoster();
   });
 
+  // A link (or back/forward) changed the query: follow it. Opening only
+  // reveals: no server start, no grant, no budget, no media run.
+  $effect(() => {
+    const mode = target.mode;
+    untrack(() => { half = mode; });
+  });
+
+  $effect(() => {
+    const selector = target.mode === "server" ? mcpSectionSelector(target.section) : null;
+    if (!selector) return;
+    // ServerConnections mounts only after the endpoint status arrives.
+    return focusWhenReady(selector, { timeoutMs: 8000 });
+  });
+
+  function setHalf(next: "server" | "client") {
+    half = next;
+    // `page.url` is not updated by replaceState: read the live address.
+    const href = mcpModeHref(new URL(location.href), next);
+    if (href) replaceState(href, page.state);
+  }
+
   function edit(row: McpServerRow) {
     view = { kind: "form", config: structuredClone($state.snapshot(row.config)) as McpServerConfig };
   }
 
   function install(entry: McpRegistryEntry) {
-    half = "client";
+    setHalf("client");
     view = { kind: "form", config: templateOf(entry) };
   }
 
@@ -132,7 +159,7 @@
         class:active={half === "client"}
         role="tab"
         aria-selected={half === "client"}
-        onclick={() => (half = "client")}
+        onclick={() => setHalf("client")}
       >
         {$t("llm.mcp.half_client")}
       </button>
@@ -142,7 +169,7 @@
         class:active={half === "server"}
         role="tab"
         aria-selected={half === "server"}
-        onclick={() => (half = "server")}
+        onclick={() => setHalf("server")}
       >
         {$t("llm.mcp.half_server")}
       </button>

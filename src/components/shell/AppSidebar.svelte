@@ -28,6 +28,54 @@
 
   const shortcutLabel = isMac() ? "⌃⌘S" : "Ctrl+Shift+S";
 
+  // Settings and LLM carry their own navigation column. Below 1180px the global
+  // list steps down to the 64px rail there, for as long as the route is open.
+  // This never writes `sidebar_collapsed`: leaving the route or widening the
+  // window brings the saved preference back. Expanding opens it as a drawer.
+  const AUTO_COLLAPSE_BELOW = 1180;
+  let viewportWidth = $state(typeof window === "undefined" ? AUTO_COLLAPSE_BELOW : window.innerWidth);
+  let denseRoute = $derived(/^\/(settings|llm)(\/|$)/.test(page.url.pathname));
+  let autoCollapsed = $derived(!collapsed && denseRoute && viewportWidth < AUTO_COLLAPSE_BELOW);
+  let drawerOpen = $state(false);
+  let drawer = $derived(autoCollapsed && drawerOpen);
+  let railCollapsed = $derived(collapsed || (autoCollapsed && !drawerOpen));
+  let collapseButton = $state<HTMLButtonElement | null>(null);
+  let aside = $state<HTMLElement | null>(null);
+
+  $effect(() => {
+    if (!autoCollapsed) drawerOpen = false;
+  });
+  // A new route closes the drawer (links inside it navigate).
+  $effect(() => {
+    void page.url.pathname;
+    drawerOpen = false;
+  });
+
+  function closeDrawer(returnFocus: boolean) {
+    if (!drawerOpen) return;
+    drawerOpen = false;
+    if (returnFocus) collapseButton?.focus();
+  }
+
+  function onToggle() {
+    if (autoCollapsed) {
+      drawerOpen = !drawerOpen;
+      return;
+    }
+    onToggleCollapsed?.();
+  }
+
+  function onWindowKeydown(event: KeyboardEvent) {
+    if (drawer && event.key === "Escape" && !event.defaultPrevented) {
+      event.preventDefault();
+      closeDrawer(true);
+    }
+  }
+
+  function onWindowPointerdown(event: PointerEvent) {
+    if (drawer && aside && !aside.contains(event.target as Node)) closeDrawer(false);
+  }
+
   // Rail tooltip. Native `title` waits ~1s and cannot be styled, so the rail
   // draws its own: 400 ms before the first one, then instant while the pointer
   // moves along the column (the "warm" window), like macOS toolbars.
@@ -37,7 +85,7 @@
   let warm = false;
 
   function showTip(event: MouseEvent | FocusEvent, text: string) {
-    if (!collapsed) return;
+    if (!railCollapsed) return;
     const el = event.currentTarget as HTMLElement;
     const place = () => {
       const r = el.getBoundingClientRect();
@@ -57,7 +105,7 @@
   }
 
   $effect(() => {
-    if (!collapsed) tip = null;
+    if (!railCollapsed) tip = null;
   });
 
 
@@ -88,7 +136,7 @@
     class="mac-nav-item"
     class:help-link={item.href === "/help"}
     class:active
-    title={collapsed ? undefined : title}
+    title={railCollapsed ? undefined : title}
     aria-label={item.badge === "downloads" && badgeCount > 0 ? `${title} (${badgeLabel})` : title}
     aria-current={active ? "page" : undefined}
     onmouseenter={(e) => showTip(e, title)}
@@ -96,7 +144,7 @@
     onfocus={(e) => showTip(e, title)}
     onblur={hideTip}
   >
-    <NavIcon icon={item.icon} size={collapsed ? 30 : 26} {active} />
+    <NavIcon icon={item.icon} size={railCollapsed ? 30 : 26} {active} />
     <span class="mac-nav-label">{title}{#if item.href === "/help"}<small>{$t("nav.help_subtitle")}</small>{/if}</span>
     {#if item.badge === "downloads" && badgeCount > 0}
       <span class="mac-nav-badge live">{badgeLabel}</span>
@@ -104,7 +152,17 @@
   </a>
 {/snippet}
 
-<aside class="mac-source-list" class:collapsed aria-label={$t("nav.section_primary")}>
+<svelte:window bind:innerWidth={viewportWidth} onkeydown={onWindowKeydown} onpointerdown={onWindowPointerdown} />
+
+{#if drawer}<div class="sidebar-drawer-spacer" aria-hidden="true"></div>{/if}
+<aside
+  bind:this={aside}
+  class="mac-source-list"
+  class:collapsed={railCollapsed}
+  class:auto-collapsed={autoCollapsed && !drawerOpen}
+  class:sidebar-drawer={drawer}
+  aria-label={$t("nav.section_primary")}
+>
   <div class="mac-source-list-drag" data-tauri-drag-region></div>
 
   <div class="sidebar-navigation">
@@ -125,10 +183,11 @@
   <button
     type="button"
     class="mac-sidebar-collapse"
-    onclick={() => onToggleCollapsed?.()}
-    aria-label={collapsed ? $t("nav.expand_sidebar") : $t("nav.collapse_sidebar")}
-    aria-keyshortcuts={isMac() ? "Control+Meta+S" : "Control+Shift+S"}
-    aria-expanded={!collapsed}
+    bind:this={collapseButton}
+    onclick={onToggle}
+    aria-label={railCollapsed ? $t("nav.expand_sidebar") : $t("nav.collapse_sidebar")}
+    aria-keyshortcuts={autoCollapsed ? undefined : isMac() ? "Control+Meta+S" : "Control+Shift+S"}
+    aria-expanded={!railCollapsed}
     onmouseenter={(e) => showTip(e, `${$t("nav.expand_sidebar")} ${shortcutLabel}`)}
     onmouseleave={hideTip}
     onfocus={(e) => showTip(e, `${$t("nav.expand_sidebar")} ${shortcutLabel}`)}
@@ -137,7 +196,7 @@
     <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
       <rect x="2.5" y="3.5" width="15" height="13" rx="3" />
       <path d="M7.5 3.5v13" />
-      {#if collapsed}
+      {#if railCollapsed}
         <path d="M11 8l2 2-2 2" />
       {:else}
         <path d="M13 8l-2 2 2 2" />
@@ -185,6 +244,23 @@
     padding: 1px 5px;
     border-radius: var(--radius-xs);
     background: var(--fill-2);
+  }
+  /* Temporary rail on Settings/LLM below 1180px: same look as the saved
+     collapsed state, scoped to this element so the preference is untouched. */
+  .auto-collapsed { --sidebar-width: 64px; }
+  .auto-collapsed .mac-nav-label,
+  .auto-collapsed .mac-nav-badge { display: none; }
+  .auto-collapsed .mac-nav-section-header { font-size: 0; min-height: 0; height: 1px; width: 24px; margin: 0 auto var(--space-2); padding: 0; background: var(--separator, var(--content-border)); }
+  .auto-collapsed .mac-nav-item { justify-content: center; padding: 0; height: 44px; }
+  .sidebar-drawer-spacer { width: 64px; min-width: 64px; flex-shrink: 0; }
+  .sidebar-drawer {
+    --sidebar-width: 224px;
+    position: fixed;
+    inset-block: 0;
+    inset-inline-start: 0;
+    z-index: 900;
+    background: var(--surface);
+    box-shadow: 0 8px 28px rgba(var(--shadow-ink), 0.28);
   }
   .collapsed .mac-sidebar-collapse { justify-content: center; padding: 0; }
   .collapsed .mac-sidebar-collapse-label,

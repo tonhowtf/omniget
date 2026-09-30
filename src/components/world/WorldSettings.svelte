@@ -11,6 +11,8 @@
   import { t } from "$lib/i18n";
   import { getSettings, updateSettings } from "$lib/stores/settings-store.svelte";
   import { showToast } from "$lib/stores/toast-store.svelte";
+  import SettingGroup from "$components/settings/rebrand/SettingGroup.svelte";
+  import SettingRow from "$components/settings/rebrand/SettingRow.svelte";
 
   type Tier = 0 | 1 | 2 | 3;
   const TIERS: Tier[] = [0, 1, 2, 3];
@@ -52,7 +54,9 @@
       });
       lowered = null;
     } catch (error) {
-      showToast("error", `${$t("world.error")} ${String(error)}`);
+      // The renderer's error text is diagnostic, not user copy.
+      console.warn("[world] calibration failed", error);
+      showToast("error", $t("world.error") as string);
     } finally {
       calibrating = false;
     }
@@ -78,76 +82,52 @@
   });
 </script>
 
-<section class="settings-section" id="settings-world">
-  <h5 class="section-title">{$t("world.settings.title")}</h5>
-  <p class="section-desc">{$t("world.settings.desc")}</p>
-
-  <div class="card">
-    <div class="setting-row">
-      <div class="setting-col">
-        <span class="setting-label">{$t("world.settings.enabled")}</span>
-        <span class="setting-path">{$t("world.settings.enabled_desc")}</span>
-      </div>
+<SettingGroup id="world" title={$t("world.settings.title")} description={$t("world.settings.desc")}>
+  <SettingRow id="world-enabled" label={$t("world.settings.enabled")} help={$t("world.settings.enabled_desc")} settingKey="world.settings.enabled" status="world.enabled">
+    {#snippet control(c)}
       <button
+        type="button"
         class="toggle"
         class:on={enabled}
+        id={c.id}
+        aria-describedby={c.describedBy}
         onclick={toggleEnabled}
         role="switch"
         aria-checked={enabled}
         aria-label={$t("world.settings.enabled") as string}
       ><span class="toggle-knob"></span></button>
-    </div>
+    {/snippet}
+  </SettingRow>
+</SettingGroup>
 
-    <div class="divider"></div>
-
-    <div class="setting-row">
-      <div class="setting-col">
-        <span class="setting-label">{$t("world.settings.tier_measured")}</span>
-        <span class="setting-path">
-          {#if measured === null}
-            {$t("world.settings.never_measured")}
-          {:else}
-            {tierLabel(measured)}{#if medianMs !== null} · {medianMs.toFixed(1)} ms{/if}{#if measuredVersion} · v{measuredVersion}{/if}
-          {/if}
-        </span>
-      </div>
-      <button class="btn btn-secondary" onclick={recalibrate} disabled={calibrating}>
+<SettingGroup id="world-advanced" title={$t("settings.rebrand.category.advanced")} advanced>
+  <SettingRow id="world-recalibrate" label={$t("world.settings.tier_measured")} help={measured === null ? ($t("world.settings.never_measured") as string) : `${tierLabel(measured)}${medianMs !== null ? ` · ${medianMs.toFixed(1)} ms` : ""}${measuredVersion ? ` · v${measuredVersion}` : ""}`} settingKey="world.settings.tier_measured">
+    {#snippet control(c)}
+      <button type="button" class="btn btn-secondary" id={c.id} aria-describedby={c.describedBy} onclick={recalibrate} disabled={calibrating} aria-busy={calibrating}>
         {calibrating ? $t("world.settings.recalibrating") : $t("world.settings.recalibrate")}
       </button>
-    </div>
+    {/snippet}
+  </SettingRow>
 
-    <div class="divider"></div>
-
-    <div class="setting-row">
-      <div class="setting-col">
-        <span class="setting-label">{$t("world.settings.tier_pinned")}</span>
-        <span class="setting-path">{$t("world.settings.tier_pinned_desc")}</span>
-      </div>
-      <select class="input-text select" value={pinned === null ? "auto" : String(pinned)} onchange={(e) => pin((e.target as HTMLSelectElement).value)}>
+  <SettingRow id="world-tier-pinned" label={$t("world.settings.tier_pinned")} help={$t("world.settings.tier_pinned_desc")} settingKey="world.settings.tier_pinned" status="world.tier_override">
+    {#snippet control(c)}
+      <select id={c.id} aria-describedby={c.describedBy} class="input-text select" value={pinned === null ? "auto" : String(pinned)} onchange={(e) => pin((e.target as HTMLSelectElement).value)}>
         <option value="auto">{$t("world.settings.tier_auto")}</option>
         {#each TIERS as tier (tier)}
           <option value={String(tier)}>{tierLabel(tier)}</option>
         {/each}
       </select>
-    </div>
+    {/snippet}
+  </SettingRow>
 
-    {#if lowered !== null}
-      <div class="divider"></div>
-      <div class="setting-row">
-        <div class="setting-col">
-          <span class="setting-label">{$t("world.settings.tier_lowered")}</span>
-          <span class="setting-path">{tierLabel(lowered)}</span>
-        </div>
-      </div>
-    {/if}
+  {#if lowered !== null}
+    <p class="world-lowered" role="status">
+      <strong>{$t("world.settings.tier_lowered")}</strong> {tierLabel(lowered)}
+    </p>
+  {/if}
 
-  </div>
-</section>
+</SettingGroup>
 
 <style>
-  .section-desc {
-    margin: 0 0 12px;
-    color: var(--text-secondary);
-    font-size: 13px;
-  }
+  .world-lowered { margin: 0; padding-block: var(--space-2); font-size: 12px; line-height: 18px; color: var(--text-muted); }
 </style>

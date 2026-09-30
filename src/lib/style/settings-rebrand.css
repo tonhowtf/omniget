@@ -1,0 +1,115 @@
+/*
+ * Settings rebrand tokens (docs/settings-rebrand/06-spec-redesign.md).
+ *
+ * `--sr-*` are the canonical semantic tokens. With the default
+ * `omniget-desktop` preset they carry the table values and the legacy source
+ * tokens of app.css point at them. Workspace presets and named themes keep
+ * their own palettes: there the `--sr-*` tokens derive from the legacy
+ * aliases, so new components read correctly under any saved style.
+ */
+
+:root {
+  /* Radii: control 6, group 10, dialog 14. */
+  --sr-radius-control: 6px;
+  --sr-radius-group: 10px;
+  --sr-radius-dialog: 14px;
+
+  /* Motion: 120 ms for color/opacity, 160 ms for disclosure. */
+  --sr-duration-color: 120ms;
+  --sr-duration-disclosure: 160ms;
+  --sr-motion-shift: 1;
+
+  --sr-font-ui: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --sr-font-code: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* Fallback derivation for every theme/preset other than omniget-desktop. */
+  --sr-canvas: var(--bg);
+  --sr-surface: var(--surface);
+  --sr-surface-hover: var(--surface-hi);
+  --sr-text: var(--text);
+  --sr-muted: var(--text-muted);
+  --sr-border: var(--border);
+  --sr-control-border: color-mix(in srgb, var(--text) 45%, transparent);
+  --sr-accent: var(--accent-text);
+  --sr-on-accent: var(--on-accent);
+  --sr-accent-soft: var(--accent-soft);
+  --sr-danger: var(--error);
+  --sr-success: var(--success);
+  --sr-focus: var(--accent-text);
+  --sr-shadow-popover: 0 8px 28px #00000050;
+}
+
+:root[data-preset="omniget-desktop"][data-theme="light"] {
+  --sr-canvas: #F6F7F9;
+  --sr-surface: #FFFFFF;
+  --sr-surface-hover: #ECEEF2;
+  --sr-text: #20242B;
+  --sr-muted: #59616F;
+  --sr-border: #D8DDE5;
+  --sr-control-border: #7B8493;
+  --sr-accent: #AE4600;
+  --sr-on-accent: #FFFFFF;
+  --sr-accent-soft: #FFF0E4;
+  --sr-danger: #B3261E;
+  --sr-success: #176A3A;
+  --sr-focus: #005FCC;
+  --sr-shadow-popover: 0 8px 28px #00000020;
+}
+
+:root[data-preset="omniget-desktop"][data-theme="dark"] {
+  --sr-canvas: #181A1F;
+  --sr-surface: #202329;
+  --sr-surface-hover: #2B2F37;
+  --sr-text: #F3F4F6;
+  --sr-muted: #B4BBC7;
+  --sr-border: #454D5B;
+  --sr-control-border: #8792A3;
+  --sr-accent: #FFAE70;
+  --sr-on-accent: #251507;
+  --sr-accent-soft: #3E2A1D;
+  --sr-danger: #FFAAA3;
+  --sr-success: #88D5A8;
+  --sr-focus: #88BBFF;
+  --sr-shadow-popover: 0 8px 28px #00000050;
+}
+
+/* Legacy sources of app.css follow the canonical tokens in the Omniget style. */
+:root[data-preset="omniget-desktop"][data-theme="light"],
+:root[data-preset="omniget-desktop"][data-theme="dark"] {
+  --primary: var(--sr-canvas);
+  --pane: var(--sr-canvas);
+  --surface-src: var(--sr-surface);
+  --surface-hi-src: var(--sr-surface-hover);
+  --secondary: var(--sr-text);
+  --tertiary: var(--sr-muted);
+  --text-muted: var(--sr-muted);
+  --sidebar-bg: var(--sr-surface-hover);
+  --content-border: var(--sr-border);
+  --input-border: var(--sr-control-border);
+  --popup-bg: var(--sr-surface);
+  --accent: var(--sr-accent);
+  --accent-text: var(--sr-accent);
+  --on-accent: var(--sr-on-accent);
+  --accent-soft: var(--sr-accent-soft);
+  --cta: var(--sr-accent);
+  --cta-hover: color-mix(in srgb, var(--sr-accent) 90%, var(--sr-text));
+  --cta-press: color-mix(in srgb, var(--sr-accent) 82%, var(--sr-text));
+  --on-cta: var(--sr-on-accent);
+  --success: var(--sr-success);
+  --error: var(--sr-danger);
+  --focus-ring: solid 2px var(--sr-focus);
+}
+
+/* Reduced motion from the OS OR the app preference: no displacement, no pulse. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --sr-duration-color: 0.01ms;
+    --sr-duration-disclosure: 0.01ms;
+    --sr-motion-shift: 0;
+  }
+}
+[data-reduce-motion="true"] {
+  --sr-duration-color: 0.01ms;
+  --sr-duration-disclosure: 0.01ms;
+  --sr-motion-shift: 0;
+}

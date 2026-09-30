@@ -2309,6 +2309,7 @@
       "unsaved": "這些設定尚未儲存。測試前會先儲存；摘要前請先儲存設定。",
       "saving": "正在儲存…",
       "provider_endpoint": "Custom endpoint (local or remote)",
+      "connection_kind": "Connection type: {{kind}}",
       "connection_key": "Connection API key",
       "remove_key": "Remove saved key",
       "keep_key": "Keep saved key",
@@ -2458,6 +2459,103 @@
     },
     "world": {
       "pet_load_failed": "Could not check desktop pet availability. Try again."
+    },
+    "rebrand": {
+      "title": "設定",
+      "category": {
+        "general": "一般",
+        "appearance": "外觀",
+        "downloads": "下載",
+        "ai": "AI 與代理程式",
+        "integrations": "整合",
+        "advanced": "進階"
+      },
+      "search": {
+        "label": "搜尋設定",
+        "placeholder": "依名稱或工作搜尋",
+        "clear": "清除搜尋",
+        "results": "搜尋結果：{{count}}",
+        "empty": "找不到設定",
+        "empty_hint": "請換個詞搜尋，或選擇分類。"
+      },
+      "navigation": {
+        "back": "返回",
+        "back_settings": "返回設定"
+      },
+      "disclosure": {
+        "show_advanced": "顯示進階選項",
+        "hide_advanced": "隱藏進階選項"
+      },
+      "state": {
+        "loading": "載入中…",
+        "saving": "儲存中…",
+        "saved": "已儲存",
+        "save_failed": "無法儲存。變更仍保留在此處。",
+        "retry": "重試",
+        "pending_apply": "已儲存，等待套用。",
+        "retry_apply": "重新套用",
+        "unavailable": "無法使用",
+        "next_task": "將套用至下一個工作。",
+        "restart_required": "重新啟動 OmniGet 以套用。"
+      },
+      "form": {
+        "save": "儲存變更",
+        "discard": "捨棄變更",
+        "draft": "尚未儲存的草稿",
+        "unsaved_title": "有尚未儲存的變更",
+        "stay": "繼續編輯",
+        "discard_confirm": "要捨棄此草稿嗎？"
+      },
+      "reset": {
+        "section_title": "要重設{{name}}嗎？",
+        "section_body": "只會將此區段的偏好設定還原為預設值。",
+        "section_action": "重設此區段",
+        "app_title": "要重設應用程式偏好設定嗎？",
+        "app_body": "應用程式偏好設定將還原為預設值。",
+        "app_action": "重設應用程式偏好設定",
+        "kept": "帳號、金鑰、歷史記錄、下載和存取授權都會保留。"
+      },
+      "dialog": {
+        "confirm": "確認",
+        "cancel": "取消"
+      },
+      "appearance": {
+        "system": "跟隨系統",
+        "light": "淺色",
+        "dark": "深色",
+        "custom_font": "自訂字型",
+        "font_hint": "選擇已安裝在此裝置上的字型。"
+      },
+      "connection": {
+        "local": "本機連線",
+        "local_hint": "選擇此電腦上可用的伺服器。",
+        "test": "測試連線",
+        "test_cost_notice": "測試會透過所選連線傳送請求，可能消耗配額或點數。",
+        "unknown": "尚未測試",
+        "verified": "連線已驗證",
+        "error": "連線測試失敗"
+      },
+      "downloads": {
+        "quality": "畫質",
+        "remove": "移除",
+        "best_available": "最佳可用畫質",
+        "audio": "音訊",
+        "video": "影片",
+        "output": "檔案與資料夾",
+        "subtitles": "字幕與中繼資料"
+      },
+      "llm": {
+        "routines": "例行工作",
+        "tasks": "工作",
+        "usage_performance": "使用情況與效能"
+      },
+      "permissions": {
+        "agent_scope": "僅適用於{{name}}。",
+        "inherited": "繼承自應用程式原則。",
+        "view_policy": "檢視應用程式原則",
+        "customize": "為此代理程式自訂",
+        "use_inherited": "使用繼承的原則"
+      }
     }
   },
   "omnibox": {

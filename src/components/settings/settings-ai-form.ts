@@ -84,3 +84,87 @@ export function clearSavedAiSettingsDraft(savedDraft: AiSettingsDraft): void {
     retainedDraft = null;
   }
 }
+
+/**
+ * Provider switch: only the draft fields the new provider no longer shows are
+ * cleared. A pending "remove saved key" is dropped with its hidden field, so a
+ * saved key is never deleted by a control the user can no longer see.
+ */
+export function switchAiProvider(draft: AiSettingsDraft, next: AiProvider): AiSettingsDraft {
+  if (next === draft.provider) return { ...draft };
+  const out = { ...draft, provider: next };
+  if (next === "openai" || next === "anthropic") out.localBaseUrl = "";
+  if (next !== "openai" && next !== "local") {
+    out.openaiKey = "";
+    out.removeOpenaiKey = false;
+  }
+  if (next !== "anthropic") {
+    out.anthropicKey = "";
+    out.removeAnthropicKey = false;
+  }
+  return out;
+}
+
+export type AiInvoke = <T>(command: string, args?: Record<string, unknown>) => Promise<T>;
+export type AiConnectionStatus = "unknown" | "verified" | "error";
+
+// Result of the last explicit test, bound to the saved connection it ran on.
+// Any later save makes it "unknown" again: a filled form is never "verified".
+let lastTest: { fingerprint: string; ok: boolean } | null = null;
+
+function fingerprint(config: AiConfigView): string {
+  return JSON.stringify([config.provider, config.kind, config.model, config.local_base_url, config.has_openai_key, config.has_anthropic_key]);
+}
+
+export function aiConnectionStatus(saved: AiConfigView | null): AiConnectionStatus {
+  if (!saved || saved.provider === "none" || !lastTest || lastTest.fingerprint !== fingerprint(saved)) return "unknown";
+  return lastTest.ok ? "verified" : "error";
+}
+
+export function resetAiConnectionStatus(): void {
+  lastTest = null;
+}
+
+/** Local read only: never contacts the provider. */
+export function loadAiConnection(invoke: AiInvoke): Promise<AiConfigView> {
+  return invoke<AiConfigView>("ai_get_config");
+}
+
+/** Persists the draft. A confirmed save forgets any earlier test result. */
+export async function saveAiConnection(invoke: AiInvoke, draft: AiSettingsDraft): Promise<AiConfigView> {
+  const result = await invoke<AiConfigView>("ai_set_config", aiSettingsPayload(draft));
+  lastTest = null;
+  clearSavedAiSettingsDraft(draft);
+  return result;
+}
+
+export type AiTestOutcome =
+  | { kind: "save_failed"; error: unknown }
+  | { kind: "ok"; saved: AiConfigView | null }
+  | { kind: "test_failed"; saved: AiConfigView | null; error: unknown };
+
+/**
+ * Explicit test. A dirty draft is saved first and the provider is contacted
+ * only once that save is confirmed; a failed save never reaches `ai_test`.
+ */
+export async function testAiConnection(
+  invoke: AiInvoke,
+  opts: { dirty: boolean; draft: AiSettingsDraft; saved: AiConfigView | null },
+): Promise<AiTestOutcome> {
+  let saved = opts.saved;
+  if (opts.dirty) {
+    try {
+      saved = await saveAiConnection(invoke, opts.draft);
+    } catch (error) {
+      return { kind: "save_failed", error };
+    }
+  }
+  try {
+    await invoke<string>("ai_test");
+    if (saved) lastTest = { fingerprint: fingerprint(saved), ok: true };
+    return { kind: "ok", saved };
+  } catch (error) {
+    if (saved) lastTest = { fingerprint: fingerprint(saved), ok: false };
+    return { kind: "test_failed", saved, error };
+  }
+}

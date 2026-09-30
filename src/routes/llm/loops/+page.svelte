@@ -167,12 +167,12 @@
   }
 </script>
 
-<svelte:head><title>{$t("llm.tab.loops")}</title></svelte:head>
+<svelte:head><title>{$t("settings.rebrand.llm.routines")}</title></svelte:head>
 
 <div class="page page-wide loops-page">
   <header class="page-head">
     <div>
-      <h1 class="page-title">{$t("llm.tab.loops")}</h1>
+      <h1 class="page-title">{$t("settings.rebrand.llm.routines")}</h1>
       <p class="page-lede">{$t("llm.loops.lede")}</p>
     </div>
   </header>
@@ -266,7 +266,7 @@
   </details>
 
   <section class="stack">
-    <h2 class="section-header-title">{$t("llm.loops.list_title")}</h2>
+    <h2 class="section-header-title">{$t("settings.rebrand.llm.routines")}</h2>
     {#if loops.length === 0}
       <p class="hint">{$t("llm.loops.empty")}</p>
     {:else}

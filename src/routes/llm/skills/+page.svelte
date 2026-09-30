@@ -116,7 +116,7 @@
       {$t("llm.skills.install_title")}
     </button>
   </header>
-  <SurfaceGuide text={$t("llm.surface.skills_hint")} href="/help?article=skills#guide" />
+  <SurfaceGuide text={$t("llm.surface.skills_hint")} href="/help?article=skills#guide" collapsed />
 
   {#if !isSkillsAvailable()}
     <p class="notice" role="status">{$t("llm.skills.err_unavailable")}</p>
