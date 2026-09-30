@@ -283,5 +283,14 @@
   },
   "popup_manifest_gone": {
     "message": "Quella playlist veniva da una pagina poi ricaricata — riaprila"
+  },
+  "context_menu_download": {
+    "message": "Scarica con OmniGet"
+  },
+  "context_menu_download_page": {
+    "message": "Scarica questa pagina con OmniGet"
+  },
+  "context_menu_download_selection": {
+    "message": "Scarica i link della selezione con OmniGet"
   }
 }

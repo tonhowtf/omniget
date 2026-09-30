@@ -252,6 +252,9 @@ impl PlatformDownloader for GalleryDlDownloader {
         let reader_task = tokio::spawn(async move {
             let mut lines = BufReader::new(stdout).lines();
             let mut count: u64 = 0;
+            // gallery-dl prints the path of every file it saves (a skipped one
+            // starts with `#`); those paths are the result of the run.
+            let mut saved: Vec<PathBuf> = Vec::new();
             let mut last_emit = std::time::Instant::now();
             while let Ok(Some(line)) = lines.next_line().await {
                 let trimmed = line.trim();
@@ -259,13 +262,14 @@ impl PlatformDownloader for GalleryDlDownloader {
                     continue;
                 }
                 count += 1;
+                saved.push(PathBuf::from(trimmed));
                 if last_emit.elapsed() >= std::time::Duration::from_millis(250) {
                     let pct = ((count as f64 / (count as f64 + 4.0)) * 100.0).min(95.0);
                     let _ = progress_tx.send(ProgressUpdate::percent(pct)).await;
                     last_emit = std::time::Instant::now();
                 }
             }
-            count
+            saved
         });
 
         let stderr_task = tokio::spawn(async move {
@@ -288,7 +292,7 @@ impl PlatformDownloader for GalleryDlDownloader {
             }
         };
 
-        let _ = reader_task.await;
+        let saved = reader_task.await.unwrap_or_default();
         let stderr_content = stderr_task.await.unwrap_or_default();
 
         if !status.success() {
@@ -308,7 +312,13 @@ impl PlatformDownloader for GalleryDlDownloader {
             return Err(anyhow!(detail));
         }
 
-        let (file_path, total_bytes) = collect_new_files(&opts.output_dir, started_at);
+        // gallery-dl stamps each file with the server's Last-Modified date, so
+        // an mtime check alone calls a fresh album "nothing new". Trust the
+        // paths it printed, and only fall back to mtimes when it printed none.
+        let (file_path, total_bytes) = match collect_saved_files(&saved, &opts.output_dir) {
+            Some(found) => found,
+            None => collect_new_files(&opts.output_dir, started_at),
+        };
         if total_bytes == 0 {
             return Err(anyhow!(
                 "gallery-dl completed but downloaded no new files (already archived or empty gallery)"
@@ -323,6 +333,25 @@ impl PlatformDownloader for GalleryDlDownloader {
             duration_seconds: 0.0,
             torrent_id: None,
         })
+    }
+}
+
+/// Sizes the files gallery-dl reported saving. `None` when none of them exists.
+fn collect_saved_files(saved: &[PathBuf], dir: &Path) -> Option<(PathBuf, u64)> {
+    let found: Vec<(&PathBuf, u64)> = saved
+        .iter()
+        .filter_map(|p| {
+            std::fs::metadata(p)
+                .ok()
+                .filter(|m| m.is_file())
+                .map(|m| (p, m.len()))
+        })
+        .collect();
+    let total: u64 = found.iter().map(|(_, len)| len).sum();
+    match found.as_slice() {
+        [] => None,
+        [(only, _)] => Some(((*only).clone(), total)),
+        _ => Some((dir.to_path_buf(), total)),
     }
 }
 
@@ -364,7 +393,35 @@ fn collect_new_files(dir: &Path, since: SystemTime) -> (PathBuf, u64) {
 
 #[cfg(test)]
 mod tests {
-    use super::{is_bulk_media_url, is_gallery_url};
+    use super::{collect_saved_files, is_bulk_media_url, is_gallery_url};
+
+    #[test]
+    fn counts_the_files_gallery_dl_printed_even_with_old_mtimes() {
+        let dir = std::env::temp_dir().join(format!("omniget-gdl-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let a = dir.join("a.jpg");
+        let b = dir.join("b.png");
+        std::fs::write(&a, [0u8; 10]).unwrap();
+        std::fs::write(&b, [0u8; 5]).unwrap();
+        // gallery-dl sets the server's Last-Modified (years ago) on each file.
+        let old = std::time::SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1_300_000_000);
+        for p in [&a, &b] {
+            std::fs::File::options()
+                .write(true)
+                .open(p)
+                .unwrap()
+                .set_modified(old)
+                .unwrap();
+        }
+        let (path, total) =
+            collect_saved_files(&[a.clone(), b.clone(), dir.join("gone.jpg")], &dir).unwrap();
+        assert_eq!(total, 15);
+        assert_eq!(path, dir);
+        let (path, total) = collect_saved_files(std::slice::from_ref(&a), &dir).unwrap();
+        assert_eq!((path, total), (a.clone(), 10));
+        assert!(collect_saved_files(&[dir.join("gone.jpg")], &dir).is_none());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn matches_curated_gallery_hosts() {

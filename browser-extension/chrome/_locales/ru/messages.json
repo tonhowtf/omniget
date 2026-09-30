@@ -283,5 +283,14 @@
   },
   "popup_manifest_gone": {
     "message": "Плейлист был найден на странице, которая перезагрузилась — откройте её снова"
+  },
+  "context_menu_download": {
+    "message": "Скачать через OmniGet"
+  },
+  "context_menu_download_page": {
+    "message": "Скачать эту страницу через OmniGet"
+  },
+  "context_menu_download_selection": {
+    "message": "Скачать ссылки из выделения через OmniGet"
   }
 }

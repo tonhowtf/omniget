@@ -283,5 +283,14 @@
   },
   "popup_manifest_gone": {
     "message": "Η λίστα βρέθηκε σε σελίδα που έχει φορτώσει ξανά — ανοίξτε την πάλι"
+  },
+  "context_menu_download": {
+    "message": "Λήψη με το OmniGet"
+  },
+  "context_menu_download_page": {
+    "message": "Λήψη αυτής της σελίδας με το OmniGet"
+  },
+  "context_menu_download_selection": {
+    "message": "Λήψη των συνδέσμων της επιλογής με το OmniGet"
   }
 }

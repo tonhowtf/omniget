@@ -29,6 +29,7 @@ pub mod http_client;
 pub mod http_fetcher;
 pub mod hwaccel;
 pub mod impersonation;
+pub mod live_record;
 pub mod llm;
 pub mod log_hook;
 pub mod mcp;

@@ -283,5 +283,14 @@
   },
   "popup_manifest_gone": {
     "message": "該播放清單來自已重新載入的頁面，請重新開啟"
+  },
+  "context_menu_download": {
+    "message": "用 OmniGet 下載"
+  },
+  "context_menu_download_page": {
+    "message": "用 OmniGet 下載此頁面"
+  },
+  "context_menu_download_selection": {
+    "message": "用 OmniGet 下載所選文字中的連結"
   }
 }

@@ -246,6 +246,10 @@ pub async fn download_video(
             base_args.push("-x".to_string());
             base_args.push("--audio-format".to_string());
             base_args.push(target_fmt.to_string());
+            // Sem isto o yt-dlp reencoda na qualidade 5 (MP3 VBR ~130 kbps);
+            // 0 é a melhor VBR, o padrão do gydl (benchmark 30/09).
+            base_args.push("--audio-quality".to_string());
+            base_args.push("0".to_string());
         }
     }
 

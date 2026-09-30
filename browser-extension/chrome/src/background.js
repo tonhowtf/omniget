@@ -12,7 +12,7 @@ import {
   shouldSkipDeepSearch,
 } from "./deep-search-toggle.js";
 import { loadH264State, isH264Enabled, isBlock60, setH264 } from "./h264-toggle.js";
-import { registerContextMenu, getContextMenuId } from "./context-menu.js";
+import { registerContextMenu, isContextMenuId, urlsForMenuClick } from "./context-menu.js";
 import { openOmnigetScheme } from "./send-via-scheme.js";
 import { isSyntheticManifestUrl } from "./synthetic-manifest.js";
 import {
@@ -155,19 +155,25 @@ chrome.runtime.onInstalled.addListener(async (details) => {
 });
 
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
-  if (info.menuItemId !== getContextMenuId()) return;
+  if (!isContextMenuId(info.menuItemId)) return;
 
-  const url = info.linkUrl || info.srcUrl;
-  if (!url) return;
+  const urls = urlsForMenuClick(info);
+  if (urls.length === 0) return;
 
-  const result = await handleSendToApp({
-    type: "sendToOmniGet",
-    url,
-    platform: "generic",
-    referer: tab?.url || "",
-  });
+  let sent = 0;
+  for (const url of urls) {
+    const detected = detectSupportedMediaUrl(url);
+    const result = await handleSendToApp({
+      type: "sendToOmniGet",
+      url,
+      platform: detected?.supported ? detected.platform : "generic",
+      referer: tab?.url || "",
+      skipPageMeta: url !== tab?.url,
+    });
+    if (result.ok) sent++;
+  }
 
-  if (result.ok) {
+  if (sent > 0) {
     actionFeedback.showSuccessBadge(tab?.id);
   }
 });
@@ -373,11 +379,15 @@ async function handleSendToApp(msg) {
 
   let pageTitle = "";
   let pageThumbnail = "";
-  try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    pageTitle = tab?.title || "";
-    pageThumbnail = tab?.favIconUrl || "";
-  } catch {}
+  // A link picked out of selected text points somewhere else: the tab's
+  // title and icon would name it wrongly until the app reads the real ones.
+  if (!msg.skipPageMeta) {
+    try {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      pageTitle = tab?.title || "";
+      pageThumbnail = tab?.favIconUrl || "";
+    } catch {}
+  }
 
   let cookies = null;
   try {
