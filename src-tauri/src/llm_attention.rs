@@ -96,10 +96,36 @@ pub struct AttentionTarget {
     pub agent: String,
 }
 
+/// Prefix of the ids of a canvas node target (C2): `job_id` and
+/// `conversation_id` are both `canvas:<node id>`, so the cooldown is per node
+/// and the canvas front reports a focused node as the conversation
+/// `canvas:<node id>` (`llm_ui_focus`).
+pub const CANVAS_PREFIX: &str = "canvas:";
+
+impl AttentionTarget {
+    /// A node of the canvas (terminal or native agent), named as on the canvas.
+    pub fn canvas_node(node_id: &str, name: &str) -> Self {
+        Self {
+            job_id: format!("{CANVAS_PREFIX}{node_id}"),
+            conversation_id: format!("{CANVAS_PREFIX}{node_id}"),
+            agent: name.to_string(),
+        }
+    }
+
+    /// The canvas node this target is about, if it is one.
+    pub fn canvas_node_id(&self) -> Option<&str> {
+        self.job_id.strip_prefix(CANVAS_PREFIX)
+    }
+}
+
 /// True when the focused window already shows this job.
 pub fn suppressed(focus: &UiFocus, target: &AttentionTarget) -> bool {
     if !focus.focused {
         return false;
+    }
+    // A canvas node: only when that node is the focused one on the canvas.
+    if target.canvas_node_id().is_some() {
+        return focus.conversation_id.as_deref() == Some(target.conversation_id.as_str());
     }
     // The jobs page lists every job with its question inline.
     if focus.path.trim_end_matches('/') == "/llm/jobs" {
@@ -253,6 +279,29 @@ impl Attention {
             fill(&s.expired_title, &values),
             fill(&s.expired_body, &values),
         )
+    }
+
+    /// A canvas node needs the human (a permission, a question, a delivery
+    /// that did not take): after the delay, if `still` holds and the node is
+    /// not the focused one, one notification. Must run inside a tokio runtime.
+    pub fn node_needs_you(
+        self: &Arc<Self>,
+        target: AttentionTarget,
+        what: String,
+        still: Arc<dyn Fn() -> bool + Send + Sync>,
+    ) -> tokio::task::JoinHandle<bool> {
+        let this = self.clone();
+        let delay = *self.delay.read().unwrap_or_else(|e| e.into_inner());
+        tokio::spawn(async move {
+            tokio::time::sleep(delay).await;
+            if !still() {
+                return false;
+            }
+            let s = this.strings();
+            let title = fill(&s.needs_you_title, &[("agent", target.agent.as_str())]);
+            let body: String = what.trim().chars().take(180).collect();
+            this.deliver(&target, title, body)
+        })
     }
 
     /// A background job (or Loop) ended: `detail` is the first line of its

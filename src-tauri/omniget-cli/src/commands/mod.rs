@@ -2,6 +2,7 @@ pub mod agent;
 pub mod agentkit;
 pub mod audit;
 pub mod batch;
+pub mod canvas;
 pub mod claude;
 pub mod common;
 pub mod company;

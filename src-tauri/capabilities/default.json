@@ -13,6 +13,7 @@
     "updater:default",
     "process:allow-restart",
     "core:window:allow-start-dragging",
-    "core:window:allow-set-fullscreen"
+    "core:window:allow-set-fullscreen",
+    "core:window:allow-set-title"
   ]
 }

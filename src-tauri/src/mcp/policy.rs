@@ -297,6 +297,8 @@ pub fn scope(name: &str) -> Option<&'static str> {
         }
         n if n.starts_with("tg_") => "telegram_read",
         "read_library_search" | "read_book_get" | "read_book_text" | "read_updates" => "library",
+        // The World canvas: reads under app_observe, changes under app_control.
+        n if super::canvas::owns(n) => return super::canvas::scope(n),
         _ => return None,
     })
 }

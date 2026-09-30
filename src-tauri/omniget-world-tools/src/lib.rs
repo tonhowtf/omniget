@@ -12,7 +12,6 @@
 
 pub mod check;
 pub mod fixture;
-pub mod house_check;
 pub mod pack;
 pub mod png;
 pub mod schema;

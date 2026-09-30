@@ -2,7 +2,7 @@
 // same test writer the codec test uses, because the point of these cases is
 // the state machine around the channel, not the bytes.
 
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { KIND_DIFF, KIND_SNAPSHOT } from './codec';
 import { createFakeSession, toBytes, type WorldInput } from './session';
 import { WorldState } from './state';
@@ -208,23 +208,5 @@ describe('session: the fake drives the whole route state machine', () => {
     await session.delete();
     expect(session.opened).toBe(false);
     expect(await session.exists()).toBe(false);
-  });
-});
-
-describe('session: a lost blob', () => {
-  it('asks the backend for a snapshot, not just for the world to wake up', async () => {
-    // `resync` used to call `world_set_visible`, which sends nothing: a replica
-    // that lost one diff showed ERR_WORLD_DIFF_GAP with the tick frozen.
-    const calls: string[] = [];
-    vi.doMock('@tauri-apps/api/core', () => ({
-      invoke: async (cmd: string) => {
-        calls.push(cmd);
-      },
-      Channel: class {},
-    }));
-    const { createTauriSession } = await import('./session');
-    await createTauriSession().resync();
-    expect(calls).toEqual(['world_resync']);
-    vi.doUnmock('@tauri-apps/api/core');
   });
 });

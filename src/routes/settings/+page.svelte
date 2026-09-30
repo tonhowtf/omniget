@@ -26,6 +26,7 @@
   import SettingsChannels from "$components/settings/SettingsChannels.svelte";
   import SettingsAI from "$components/settings/SettingsAI.svelte";
   import SettingsWorld from "$components/settings/SettingsWorld.svelte";
+  import SettingsCanvas from "$components/settings/SettingsCanvas.svelte";
 
   let settings = $derived(getSettings());
   let updateInfo = $derived(getUpdateInfo());
@@ -249,6 +250,7 @@
               <SettingsAI />
             {:else if activeCategory === "world"}
               <SettingsWorld />
+              <SettingsCanvas />
             {:else if activeCategory === "advanced"}
               <div id="settings-section-rules"><SettingsRules /></div>
               <div id="settings-section-storage"><SettingsStorage /></div>

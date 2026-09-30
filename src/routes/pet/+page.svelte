@@ -46,6 +46,7 @@
     terminalRequestId,
     type PendingAsk,
   } from "$lib/omni/tool-ask-queue";
+  import { balloonOf, type CompanionBalloon } from "$lib/omni/companion-balloon";
 
   /** Logical size of the window; must match `PET_W`/`PET_H` in Rust. */
   const BOX = 200;
@@ -62,6 +63,9 @@
   const EVENT_TOOL_ASK = "llm://tool-ask";
   const EVENT_TURN = "llm://turn";
   const EVENT_TOOL_RESOLVED = "omni://tool-resolved";
+  /** Omni as the canvas companion: a summary of what an agent just did. */
+  const EVENT_COMPANION = "canvas://companion";
+  const EVENT_COMPANION_DISMISS = "canvas://companion-dismiss";
 
   let canvas: HTMLCanvasElement | undefined = $state();
   let ctx: CanvasRenderingContext2D | null = null;
@@ -94,6 +98,38 @@
   /** The one animation timer. Null means the pet is at rest and costs nothing. */
   let frameTimer: ReturnType<typeof setTimeout> | null = null;
   let bubbleTimer: ReturnType<typeof setTimeout> | null = null;
+
+  /** The companion's latest summary, until it expires, is acted on or dismissed. */
+  let companion = $state<CompanionBalloon | null>(null);
+  let companionTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function showCompanion(b: CompanionBalloon | null) {
+    if (companionTimer !== null) {
+      clearTimeout(companionTimer);
+      companionTimer = null;
+    }
+    companion = b;
+    if (!b) return;
+    mood = b.mood;
+    play(b.clip);
+    companionTimer = setTimeout(() => {
+      companion = null;
+      companionTimer = null;
+    }, b.ms);
+  }
+
+  /** Sends chip `index` to the agent (paste + Enter), or just dismisses. */
+  async function companionAct(index: number | null) {
+    const b = companion;
+    if (!b) return;
+    showCompanion(null);
+    try {
+      if (index === null) await invoke("canvas_companion_dismiss", { id: b.id });
+      else await invoke("canvas_companion_act", { id: b.id, index, text: null });
+    } catch (e) {
+      say(String(e).slice(0, 80));
+    }
+  }
 
   function now(): number {
     return performance.now();
@@ -339,6 +375,19 @@
           setAsks(acceptAsk(asks, event.payload));
         }),
       );
+      // Omni as the canvas companion: an agent finished, is blocked or failed.
+      keep(
+        await listen(EVENT_COMPANION, (event) => {
+          const b = balloonOf(event.payload, (k, v) => $t(k, v) as string);
+          if (b) showCompanion(b);
+        }),
+      );
+      keep(
+        await listen(EVENT_COMPANION_DISMISS, (event) => {
+          const p = event.payload as { id?: unknown } | null;
+          if (companion && p?.id === companion.id) showCompanion(null);
+        }),
+      );
       // Opened in the middle of a turn: catch up on what is already waiting.
       try {
         const waiting = (await invoke("llm_tool_asks_pending")) as unknown[];
@@ -384,6 +433,8 @@
       disposed = true;
       if (frameTimer !== null) clearTimeout(frameTimer);
       if (bubbleTimer !== null) clearTimeout(bubbleTimer);
+      if (companionTimer !== null) clearTimeout(companionTimer);
+      companionTimer = null;
       frameTimer = null;
       bubbleTimer = null;
       for (const stop of unlisteners) stop();
@@ -404,6 +455,7 @@
 <!-- The drag region is the whole window: the pet is grabbed anywhere. -->
 <div
   class="pet"
+  class:compact={!!companion && !ask}
   data-tauri-drag-region
   role="presentation"
   oncontextmenu={onContextMenu}
@@ -445,6 +497,23 @@
         </button>
       {/if}
     </div>
+  {:else if companion}
+    <!-- The companion's summary: short text and up to three steps to send. -->
+    <div class="bubble companion" role="status" style="--mood: {MOOD_TINT[companion.mood]}">
+      <div class="companion-head">
+        <span class="companion-name">{companion.name}</span>{#if companion.via}<span class="companion-via">{companion.via}</span>{/if}
+        <button
+          type="button"
+          class="companion-x"
+          aria-label={$t("canvas.companion.dismiss", { default: "Dismiss" }) as string}
+          onclick={() => void companionAct(null)}>✕</button
+        >
+      </div>
+      <span class="companion-text">{companion.text}</span>
+      {#each companion.chips as chip, i (i)}
+        <button type="button" class="chip" onclick={() => void companionAct(i)}>{chip}</button>
+      {/each}
+    </div>
   {:else if line}
     <div class="bubble" style="--mood: {MOOD_TINT[mood]}">{line}</div>
   {/if}
@@ -453,7 +522,7 @@
     bind:this={canvas}
     class="sprite"
     data-agent-renderer="pet"
-    style="width: {BOX}px; height: {BOX}px"
+    style="width: {companion && !ask ? BOX / 2 : BOX}px; height: {companion && !ask ? BOX / 2 : BOX}px"
     aria-label={$t("pet.a11y.canvas") as string}
     onclick={() => (ask ? (askOpen = !askOpen) : play("wave"))}
   ></canvas>
@@ -555,6 +624,98 @@
     max-height: none;
     pointer-events: auto;
     cursor: default;
+  }
+
+  /*
+   * Companion summary: the sprite shrinks to half size in the bottom-right
+   * corner and the balloon takes the space above it, its tail pointing at
+   * Omni, so the text never sits on top of the character.
+   */
+  .pet.compact .sprite {
+    inset: auto;
+    right: 0;
+    bottom: 0;
+  }
+
+  .bubble.companion {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    top: 4px;
+    left: 4px;
+    right: 4px;
+    max-height: 128px;
+    overflow: visible;
+    text-align: left;
+    pointer-events: auto;
+    cursor: default;
+    font-size: 11px;
+  }
+
+  .bubble.companion::after {
+    content: "";
+    position: absolute;
+    right: 44px;
+    bottom: -6px;
+    width: 10px;
+    height: 10px;
+    transform: rotate(45deg);
+    background: inherit;
+    box-shadow: inset -1px -1px 0 0 color-mix(in srgb, var(--mood, #8e8e93) 55%, transparent);
+  }
+
+  .companion-text {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+    line-height: 1.25;
+  }
+
+  .companion-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 4px;
+  }
+
+  .companion-name {
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .companion-x,
+  .chip {
+    appearance: none;
+    border: 0;
+    color: inherit;
+    cursor: default;
+    font: inherit;
+  }
+
+  .companion-x {
+    background: transparent;
+    padding: 0 2px;
+    opacity: 0.7;
+  }
+
+  .chip {
+    text-align: left;
+    padding: 2px 6px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.14);
+    font-size: 10px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .chip:hover {
+    background: rgba(255, 255, 255, 0.24);
   }
 
   .ask-title {
@@ -678,5 +839,10 @@
 
   .menu button.danger {
     color: #ff6961;
+  }
+  .companion-via {
+    margin-left: 6px;
+    font-size: 10px;
+    opacity: 0.7;
   }
 </style>

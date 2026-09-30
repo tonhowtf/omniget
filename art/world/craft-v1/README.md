@@ -7,8 +7,7 @@ Sete assets produzidos para a direção solicitada, inspirada em dioramas de pap
 - `art/world/craft-v1-src`: fontes prontas para empacotar, com sete repinturas, quinze assets originais preservados e cinco novos tipos de objetos.
 - `static/world/tiles/craft-v1`: atlas de 27 frames, uma página de 512×512, **1 MiB RGBA8** sem mipmaps. Os 22 contratos originais são preservados; cinco novos tipos de objetos têm footprints e pivôs próprios.
 - `src/lib/world/assets.ts`: tema artesanal selecionado ao carregar o mundo, sem alterar o hash do mapa salvo.
-- `static/world/yard-v1.json`: fazendinha com seis canteiros, cinco árvores, sete cercas, flores e galpão; `house-yard-v1.json`: composição com a casa e marker de câmera.
-- `/world/yard`: prévia navegável do cenário composto no renderer real. Sem sessão de simulação, agentes fictícios ou alteração de saves. A página `/world` contém o link.
+- `static/world/yard-v1.json`: fazendinha com seis canteiros, cinco árvores, sete cercas, flores e galpão.
 
 A casa normal recebe o novo tema. O quintal composto está disponível como prévia; **não foi feita migração da simulação dos mundos existentes para o mapa ampliado**. A aparência não altera o agendamento de trabalho. O renderer atual é isométrico (pisos 64×32); o preparador projeta as texturas para o losango e mantém o alpha de cobertura do piso original.
 

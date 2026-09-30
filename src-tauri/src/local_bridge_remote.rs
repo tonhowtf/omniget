@@ -18,6 +18,12 @@
 //! single-use ticket minted with the bearer (`POST /remote/api/ws-ticket`),
 //! since browsers cannot put headers on a WebSocket.
 //!
+//! The canvas (`crate::canvas::remote`) adds `/remote/canvas/` and
+//! `/remote/api/canvas/*` on the same listener and devices, and a second way
+//! to pair: a 6-digit code typed on the phone (5 min, single use, one live
+//! at a time), throttled per address and globally; a global lockout burns
+//! the live code.
+//!
 //! Scopes: `read` sees threads, timelines, diffs and outside sessions;
 //! `drive` can also send a message, answer an approval or a question, and
 //! interrupt a turn. Nothing else is dispatchable from a phone.
@@ -58,6 +64,15 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{broadcast, mpsc, watch};
 use tokio_tungstenite::tungstenite::{self, Message};
 
+pub mod tls;
+
+/// TLS identity of the remote listener (pin), for `/api/info` and pairing.
+pub fn tls_info() -> Value {
+    tls::info()
+}
+
+type TlsConn = tokio_rustls::server::TlsStream<TcpStream>;
+
 /// Default port of the remote listener (the local bridge uses 47720..47730).
 pub const DEFAULT_PORT: u16 = 47740;
 /// Default HTTPS port `tailscale serve` publishes on (443 is often taken).
@@ -66,6 +81,10 @@ pub const DEFAULT_TAILSCALE_HTTPS_PORT: u16 = 8443;
 pub const PAIR_TTL_SECS: i64 = 600;
 /// Lifetime of a WebSocket ticket.
 pub const TICKET_TTL_SECS: i64 = 60;
+/// Lifetime of a 6-digit pairing code (canvas remote, typed on the phone).
+pub const CODE_TTL_SECS: i64 = 300;
+/// Failed pairings one address may make inside the window.
+const PAIR_FAIL_PER_IP: usize = 5;
 /// UI event: devices, access log or listener state changed.
 pub const EVENT_REMOTE: &str = "remote://changed";
 
@@ -213,6 +232,9 @@ pub struct RemoteConfig {
     /// `https://<machine>.<tailnet>.ts.net[:port]` once `tailscale serve`
     /// was turned on from here.
     pub tailscale_serve_url: Option<String>,
+    /// "Private network only": connections from a public address are closed
+    /// before any byte is read (see [`private_peer`]).
+    pub private_only: bool,
 }
 
 impl Default for RemoteConfig {
@@ -223,6 +245,7 @@ impl Default for RemoteConfig {
             port: DEFAULT_PORT,
             tailscale_https_port: DEFAULT_TAILSCALE_HTTPS_PORT,
             tailscale_serve_url: None,
+            private_only: false,
         }
     }
 }
@@ -269,7 +292,12 @@ pub struct RemoteStatus {
     pub pending_pairs: u32,
     pub tailscale_https_port: u16,
     pub tailscale_serve_url: Option<String>,
+    pub private_only: bool,
+    /// Last connection "Private network only" refused: `ip` and when.
+    pub last_refused: Option<Value>,
     pub last_error: Option<String>,
+    /// HTTPS on the same port: `{pin, pinHex, algorithm}` of the certificate.
+    pub tls: Value,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -288,6 +316,19 @@ struct PendingPair {
     scope: Scope,
     label: Option<String>,
     expires_ms: i64,
+    /// A short 6-digit code (typed by hand) instead of a QR secret: only
+    /// one lives at a time, and a pairing lockout invalidates it.
+    code: bool,
+}
+
+/// A 6-digit pairing code, shown once in the app.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PairCode {
+    pub code: String,
+    pub scope: Scope,
+    pub label: Option<String>,
+    pub expires_at: String,
 }
 
 struct Ticket {
@@ -347,6 +388,7 @@ pub struct RemoteHub {
     tickets: Mutex<HashMap<String, Ticket>>,
     log: Mutex<VecDeque<AccessEntry>>,
     pair_failures: Mutex<VecDeque<i64>>,
+    ip_failures: Mutex<HashMap<String, VecDeque<i64>>>,
     connections: Mutex<HashMap<String, u32>>,
     running: Mutex<Option<Running>>,
     last_error: Mutex<Option<String>>,
@@ -448,6 +490,7 @@ impl RemoteHub {
             tickets: Mutex::new(HashMap::new()),
             log: Mutex::new(log),
             pair_failures: Mutex::new(VecDeque::new()),
+            ip_failures: Mutex::new(HashMap::new()),
             connections: Mutex::new(HashMap::new()),
             running: Mutex::new(None),
             last_error: Mutex::new(None),
@@ -520,6 +563,7 @@ impl RemoteHub {
                 scope,
                 label: label.clone(),
                 expires_ms,
+                code: false,
             });
         }
         let url = format!("{base}/remote/#pair={secret}&scope={}", scope.as_str());
@@ -531,6 +575,38 @@ impl RemoteHub {
             label,
             expires_at: iso_of_ms(expires_ms),
         })
+    }
+
+    /// A one-time 6-digit code for `scope` (5 min). Replaces the previous
+    /// code; QR secrets stay. Six digits are guessable, so the pairing
+    /// throttle (per address and global) applies and a global lockout
+    /// drops the code (the Maestri Wire rule, study 94/95).
+    pub fn create_code_pairing(&self, scope: Scope, label: Option<String>) -> PairCode {
+        let n: u32 = rand::random_range(0..1_000_000);
+        let code = format!("{n:06}");
+        let expires_ms = now_ms() + CODE_TTL_SECS * 1000;
+        let label = label
+            .map(|l| l.trim().chars().take(60).collect::<String>())
+            .filter(|l| !l.is_empty());
+        {
+            let mut p = self.pending.lock().unwrap();
+            let now = now_ms();
+            p.retain(|x| x.expires_ms > now && !x.code);
+            p.push(PendingPair {
+                secret_hash: hash_secret(&code),
+                scope,
+                label: label.clone(),
+                expires_ms,
+                code: true,
+            });
+        }
+        self.notify("pairing");
+        PairCode {
+            code,
+            scope,
+            label,
+            expires_at: iso_of_ms(expires_ms),
+        }
     }
 
     pub fn cancel_pairings(&self) -> u32 {
@@ -557,7 +633,7 @@ impl RemoteHub {
         ip: &str,
         user_agent: Option<String>,
     ) -> Result<(String, DeviceView), (StatusCode, &'static str)> {
-        if self.pair_locked() {
+        if self.pair_locked() || self.ip_locked(ip) {
             return Err((StatusCode::TOO_MANY_REQUESTS, "too many failed pairings"));
         }
         let hash = hash_secret(secret);
@@ -572,6 +648,17 @@ impl RemoteHub {
         };
         let Some(pending) = found else {
             self.pair_failures.lock().unwrap().push_back(now_ms());
+            self.ip_failures
+                .lock()
+                .unwrap()
+                .entry(ip.to_string())
+                .or_default()
+                .push_back(now_ms());
+            if self.pair_locked() {
+                // Global lockout: the short code is burned, a new one must
+                // be shown in the app.
+                self.pending.lock().unwrap().retain(|x| !x.code);
+            }
             return Err((StatusCode::UNAUTHORIZED, "invalid or expired pairing code"));
         };
         let token = crate::local_bridge::generate_token();
@@ -595,6 +682,41 @@ impl RemoteHub {
         self.save_devices();
         self.notify("paired");
         Ok((token, view))
+    }
+
+    /// Seconds until pairing opens again for `ip` (the oldest failure that
+    /// keeps it locked leaves the window); the `Retry-After` of a 429.
+    fn pair_retry_secs(&self, ip: &str) -> u64 {
+        let now = now_ms();
+        let wait = |q: &VecDeque<i64>, limit: usize| -> i64 {
+            if q.len() < limit {
+                return 0;
+            }
+            // Unlocks when len drops below the limit.
+            let k = q.len() - limit;
+            q.get(k).map(|t| t + PAIR_FAIL_WINDOW_MS - now).unwrap_or(0)
+        };
+        let global = wait(&self.pair_failures.lock().unwrap(), PAIR_FAIL_MAX);
+        let per_ip = self
+            .ip_failures
+            .lock()
+            .unwrap()
+            .get(ip)
+            .map(|q| wait(q, PAIR_FAIL_PER_IP))
+            .unwrap_or(0);
+        (global.max(per_ip).max(1000) as u64).div_ceil(1000)
+    }
+
+    fn ip_locked(&self, ip: &str) -> bool {
+        let mut m = self.ip_failures.lock().unwrap();
+        let cutoff = now_ms() - PAIR_FAIL_WINDOW_MS;
+        m.retain(|_, q| {
+            while q.front().is_some_and(|t| *t < cutoff) {
+                q.pop_front();
+            }
+            !q.is_empty()
+        });
+        m.get(ip).is_some_and(|q| q.len() >= PAIR_FAIL_PER_IP)
     }
 
     fn view_of(&self, d: &DeviceRecord) -> DeviceView {
@@ -817,7 +939,10 @@ impl RemoteHub {
             pending_pairs: pending,
             tailscale_https_port: cfg.tailscale_https_port,
             tailscale_serve_url: cfg.tailscale_serve_url,
+            private_only: cfg.private_only,
+            last_refused: LAST_REFUSED.lock().unwrap().clone(),
             last_error: self.last_error.lock().unwrap().clone(),
+            tls: tls::info(),
         }
     }
 
@@ -857,6 +982,7 @@ impl RemoteHub {
             stop: stop_rx.clone(),
         };
         let (tx, rx) = mpsc::channel::<(TcpStream, SocketAddr)>(64);
+        let (tls_tx, tls_rx) = mpsc::channel::<(TlsConn, SocketAddr)>(64);
         let accept_ctx = ctx.clone();
         let mut accept_stop = stop_rx.clone();
         tokio::spawn(async move {
@@ -865,9 +991,16 @@ impl RemoteHub {
                     _ = accept_stop.changed() => break,
                     r = listener.accept() => match r {
                         Ok((stream, peer)) => {
+                            if accept_ctx.hub.config().private_only && !private_peer(peer.ip()) {
+                                tracing::info!("[remote] private network only: refused {}", peer.ip());
+                                *LAST_REFUSED.lock().unwrap() = Some(json!({ "ip": peer.ip().to_string(), "atMs": now_ms() }));
+                                drop(stream);
+                                continue;
+                            }
                             let tx = tx.clone();
+                            let tls_tx = tls_tx.clone();
                             let ctx = accept_ctx.clone();
-                            tokio::spawn(async move { route_connection(stream, peer, tx, ctx).await });
+                            tokio::spawn(async move { route_connection(stream, peer, tx, tls_tx, ctx).await });
                         }
                         Err(e) => {
                             tracing::debug!("[remote] accept failed: {e}");
@@ -878,6 +1011,22 @@ impl RemoteHub {
             }
         });
         let router = http_router(ctx);
+        {
+            let tls_router = router.clone();
+            let mut tls_stop = stop_rx.clone();
+            tokio::spawn(async move {
+                let listener = TlsListener {
+                    rx: tls_rx,
+                    local: addr,
+                };
+                let svc = tls_router.into_make_service_with_connect_info::<Peer>();
+                let _ = axum::serve(listener, svc)
+                    .with_graceful_shutdown(async move {
+                        let _ = tls_stop.changed().await;
+                    })
+                    .await;
+            });
+        }
         let mut serve_stop = stop_rx;
         tokio::spawn(async move {
             let listener = SplitListener { rx, local: addr };
@@ -926,6 +1075,13 @@ impl RemoteHub {
         self.cfg.lock().unwrap().enabled = false;
         self.save_config();
         self.notify("stopped");
+    }
+
+    /// "Private network only" on/off (saved; applies to the next connection).
+    pub fn set_private_only(&self, on: bool) {
+        self.cfg.lock().unwrap().private_only = on;
+        self.save_config();
+        self.notify("config");
     }
 
     pub fn set_tailscale_serve(&self, url: Option<String>, https_port: Option<u16>) {
@@ -1003,6 +1159,30 @@ pub fn base_for(ip: IpAddr, port: u16) -> String {
     match ip {
         IpAddr::V4(v4) => format!("http://{v4}:{port}"),
         IpAddr::V6(v6) => format!("http://[{v6}]:{port}"),
+    }
+}
+
+static LAST_REFUSED: std::sync::Mutex<Option<Value>> = std::sync::Mutex::new(None);
+
+/// An address of a private network: loopback, RFC 1918, CGNAT 100.64/10
+/// (Tailscale lives there), link-local (`.local` peers) and IPv6 ULA
+/// fc00::/7 (Tailscale's fd7a:115c::/32) or link-local fe80::/10.
+pub fn private_peer(ip: IpAddr) -> bool {
+    match ip {
+        IpAddr::V4(v4) => {
+            let o = v4.octets();
+            v4.is_loopback()
+                || v4.is_private()
+                || v4.is_link_local()
+                || (o[0] == 100 && (64..128).contains(&o[1]))
+        }
+        IpAddr::V6(v6) => {
+            if let Some(v4) = v6.to_ipv4_mapped() {
+                return private_peer(IpAddr::V4(v4));
+            }
+            let s0 = v6.segments()[0];
+            v6.is_loopback() || (s0 & 0xfe00) == 0xfc00 || (s0 & 0xffc0) == 0xfe80
+        }
     }
 }
 
@@ -1107,6 +1287,34 @@ struct SplitListener {
     local: SocketAddr,
 }
 
+/// HTTPS connections of the same port (TLS already accepted).
+struct TlsListener {
+    rx: mpsc::Receiver<(TlsConn, SocketAddr)>,
+    local: SocketAddr,
+}
+
+impl Listener for TlsListener {
+    type Io = TlsConn;
+    type Addr = SocketAddr;
+
+    async fn accept(&mut self) -> (Self::Io, Self::Addr) {
+        match self.rx.recv().await {
+            Some(pair) => pair,
+            None => std::future::pending().await,
+        }
+    }
+
+    fn local_addr(&self) -> std::io::Result<Self::Addr> {
+        Ok(self.local)
+    }
+}
+
+impl axum::extract::connect_info::Connected<IncomingStream<'_, TlsListener>> for Peer {
+    fn connect_info(stream: IncomingStream<'_, TlsListener>) -> Self {
+        Peer(*stream.remote_addr())
+    }
+}
+
 impl Listener for SplitListener {
     type Io = TcpStream;
     type Addr = SocketAddr;
@@ -1125,7 +1333,7 @@ impl Listener for SplitListener {
 }
 
 #[derive(Clone, Copy, Debug)]
-struct Peer(SocketAddr);
+pub(crate) struct Peer(pub(crate) SocketAddr);
 
 impl axum::extract::connect_info::Connected<IncomingStream<'_, SplitListener>> for Peer {
     fn connect_info(stream: IncomingStream<'_, SplitListener>) -> Self {
@@ -1137,6 +1345,7 @@ async fn route_connection(
     stream: TcpStream,
     peer: SocketAddr,
     tx: mpsc::Sender<(TcpStream, SocketAddr)>,
+    tls_tx: mpsc::Sender<(TlsConn, SocketAddr)>,
     ctx: Ctx,
 ) {
     const WS_PREFIX: &[u8] = b"GET /remote/ws";
@@ -1145,6 +1354,18 @@ async fn route_connection(
     for _ in 0..100 {
         match tokio::time::timeout(Duration::from_secs(10), stream.peek(&mut buf)).await {
             Ok(Ok(0)) | Ok(Err(_)) | Err(_) => return,
+            // A TLS ClientHello: HTTPS with the pinned certificate.
+            Ok(Ok(_)) if buf[0] == 0x16 => {
+                let Ok(acceptor) = tls::acceptor() else {
+                    return;
+                };
+                if let Ok(Ok(s)) =
+                    tokio::time::timeout(Duration::from_secs(10), acceptor.accept(stream)).await
+                {
+                    let _ = tls_tx.send((s, peer)).await;
+                }
+                return;
+            }
             Ok(Ok(n)) => {
                 if n >= WS_PREFIX.len() || buf[..n].contains(&b'\n') {
                     is_ws = buf[..n].starts_with(WS_PREFIX);
@@ -1365,6 +1586,41 @@ async fn pump_events(ws: WsStream, auth: WsAuth, ctx: &Ctx) -> Result<(), String
 #[derive(Clone)]
 struct LoggedDevice(String, String);
 
+/// A paired device as the canvas routes (`crate::canvas::remote`) see it.
+#[derive(Debug, Clone)]
+pub(crate) struct RemoteDevice {
+    pub id: String,
+    pub name: String,
+    pub scope: Scope,
+}
+
+/// The device of the request's bearer (process-wide hub), with its last
+/// use bumped; `None` = 401.
+pub(crate) fn device_of(headers: &HeaderMap, peer: &Peer) -> Option<RemoteDevice> {
+    let token = bearer_of(headers)?;
+    let d = hub().authenticate(token, &peer.0.ip().to_string())?;
+    Some(RemoteDevice {
+        id: d.id,
+        name: d.name,
+        scope: d.scope,
+    })
+}
+
+/// Tags a response with the device for the access log.
+pub(crate) fn tag_device(mut r: Response, d: &RemoteDevice) -> Response {
+    r.extensions_mut()
+        .insert(LoggedDevice(d.id.clone(), d.name.clone()));
+    r
+}
+
+pub(crate) fn fail_response(
+    status: StatusCode,
+    code: &str,
+    message: impl Into<String>,
+) -> Response {
+    fail(status, code, message)
+}
+
 fn fail(status: StatusCode, code: &str, message: impl Into<String>) -> Response {
     (
         status,
@@ -1441,6 +1697,7 @@ fn http_router(ctx: Ctx) -> Router {
         .route("/remote/api/sessions/{tool}/{id}", get(api_session_get))
         .route("/remote/api/approvals", get(api_approvals))
         .route("/remote/api/approvals/{id}", post(api_approval_respond))
+        .merge(crate::canvas::remote::routes::<Ctx>())
         .fallback(|| async { unauthorized() })
         .layer(middleware::from_fn_with_state(ctx.clone(), access_log))
         .with_state(ctx)
@@ -1552,12 +1809,22 @@ async fn api_pair(
         .redeem_pairing(&body.secret, body.name, &peer.0.ip().to_string(), ua)
     {
         Ok((token, device)) => {
-            let mut r = Json(json!({ "token": token, "device": device })).into_response();
+            let mut r = Json(json!({ "token": token, "device": device, "tls": tls::info() }))
+                .into_response();
             r.extensions_mut()
                 .insert(LoggedDevice(device.id.clone(), device.name.clone()));
             r
         }
-        Err((status, msg)) => fail(status, "pair_failed", msg),
+        Err((status, msg)) => {
+            let mut r = fail(status, "pair_failed", msg);
+            if status == StatusCode::TOO_MANY_REQUESTS {
+                let secs = ctx.hub.pair_retry_secs(&peer.0.ip().to_string());
+                if let Ok(v) = HeaderValue::from_str(&secs.to_string()) {
+                    r.headers_mut().insert(header::RETRY_AFTER, v);
+                }
+            }
+            r
+        }
     }
 }
 
@@ -2152,6 +2419,33 @@ pub fn ssh_info(local_port: Option<u16>, host: Option<String>) -> SshInfo {
 mod tests {
     use super::*;
 
+    #[test]
+    fn private_network_only_accepts_lan_cgnat_loopback_and_link_local() {
+        for ok in [
+            "127.0.0.1",
+            "10.1.2.3",
+            "172.20.0.5",
+            "192.168.1.9",
+            "100.101.1.2",
+            "169.254.3.4",
+            "::1",
+            "fd7a:115c:a1e0::1",
+            "fe80::1",
+            "::ffff:192.168.0.2",
+        ] {
+            assert!(private_peer(ok.parse().unwrap()), "{ok}");
+        }
+        for bad in [
+            "8.8.8.8",
+            "100.128.0.1",
+            "172.32.0.1",
+            "2001:db8::1",
+            "::ffff:1.1.1.1",
+        ] {
+            assert!(!private_peer(bad.parse().unwrap()), "{bad}");
+        }
+    }
+
     fn tmp_hub() -> (Arc<RemoteHub>, PathBuf) {
         let dir = std::env::temp_dir().join(format!("omniget-remote-test-{}", random_hex(6)));
         (RemoteHub::new(Some(dir.clone())), dir)
@@ -2251,16 +2545,64 @@ mod tests {
     #[test]
     fn failed_pairings_lock_out() {
         let (h, dir) = tmp_hub();
-        for _ in 0..PAIR_FAIL_MAX {
+        // Spread over addresses so the global limit, not the per-address
+        // one, is what trips.
+        for i in 0..PAIR_FAIL_MAX {
             assert_eq!(
-                h.redeem_pairing("bad", None, "ip", None).unwrap_err().0,
+                h.redeem_pairing("bad", None, &format!("ip{i}"), None)
+                    .unwrap_err()
+                    .0,
                 StatusCode::UNAUTHORIZED
             );
         }
         assert_eq!(
-            h.redeem_pairing("bad", None, "ip", None).unwrap_err().0,
+            h.redeem_pairing("bad", None, "other", None).unwrap_err().0,
             StatusCode::TOO_MANY_REQUESTS
         );
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn six_digit_codes_are_throttled_and_burned_on_lockout() {
+        let (h, dir) = tmp_hub();
+        let c = h.create_code_pairing(Scope::Read, Some("phone".into()));
+        assert_eq!(c.code.len(), 6);
+        assert!(c.code.chars().all(|ch| ch.is_ascii_digit()));
+        // A new code replaces the old one.
+        let c2 = h.create_code_pairing(Scope::Drive, None);
+        let wrong = if c.code == c2.code {
+            "x"
+        } else {
+            c.code.as_str()
+        };
+        assert_eq!(
+            h.redeem_pairing(wrong, None, "a", None).unwrap_err().0,
+            StatusCode::UNAUTHORIZED
+        );
+        // Per-address throttle.
+        for _ in 1..PAIR_FAIL_PER_IP {
+            let _ = h.redeem_pairing("000000x", None, "a", None);
+        }
+        assert_eq!(
+            h.redeem_pairing(&c2.code, None, "a", None).unwrap_err().0,
+            StatusCode::TOO_MANY_REQUESTS
+        );
+        // Another address still pairs, with the server-side scope.
+        let (_, dev) = h.redeem_pairing(&c2.code, None, "b", None).unwrap();
+        assert_eq!(dev.scope, Scope::Drive);
+        // Single use.
+        assert!(h.redeem_pairing(&c2.code, None, "c", None).is_err());
+        // A global lockout burns the live code.
+        let c3 = h.create_code_pairing(Scope::Read, None);
+        for i in 0..PAIR_FAIL_MAX {
+            let _ = h.redeem_pairing("nope", None, &format!("z{i}"), None);
+        }
+        assert!(!h
+            .pending
+            .lock()
+            .unwrap()
+            .iter()
+            .any(|p| p.secret_hash == hash_secret(&c3.code)));
         let _ = std::fs::remove_dir_all(dir);
     }
 

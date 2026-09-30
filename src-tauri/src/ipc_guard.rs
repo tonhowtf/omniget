@@ -19,8 +19,10 @@ const PREVIEW_COMMANDS: &[&str] = &["preview_report", "debug_report"];
 pub fn allowed(label: &str, command: &str) -> bool {
     match label {
         // The app's own windows (the menu bar usage panel included).
-        "main" | "pet" | "limits-strip" | "usage-panel" => true,
+        "main" | "pet" | "limits-strip" | "usage-panel" | "omni" => true,
         l if l.starts_with("preview-") => PREVIEW_COMMANDS.contains(&command),
+        // Canvas portals: the injected automation script only reports back.
+        l if l.starts_with("portal-") => command == "canvas_portal_report" || command == "debug_report",
         // Login windows load third-party sites; the app reads their cookies
         // and navigation from Rust, it never needs a call from the page.
         l if l.starts_with("auth-") => command == "debug_report",
@@ -76,6 +78,7 @@ mod tests {
             crate::commands::pet::WINDOW_LABEL,
             crate::limits_strip::commands::WINDOW_LABEL,
             crate::usage_tray::PANEL_LABEL,
+            crate::canvas::companion::OMNI_WINDOW,
         ] {
             assert!(allowed(l, "usage_tray_view"), "{l}");
         }

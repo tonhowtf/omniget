@@ -5,59 +5,51 @@
    * Three modes, and the first two are the CI's:
    *   ?bench=selftest  the renderer's own reproducible measurement
    *   ?bench=<name>    the world bench of `.github/workflows/world-bench.yml`
-   *   ?demo=1          the world, with the residents put to work by scripted
-   *                    jobs (`&agents=8` for a crowded house); what the README
-   *                    films and what the owner looks at to see agents working
-   *   (no query)       the world itself, in `WorldCanvas`
+   *   (no query)       the world itself: the agent canvas, or the city
    *
    * The bench modes keep a bare canvas of their own: they measure the renderer
-   * and the IPC, and a HUD, a session and a house map would measure something
-   * else. Everything under `$lib/world` is imported dynamically from here, so
-   * an app that never opens this route never downloads, parses or runs a byte
-   * of the world.
+   * and the IPC, and a HUD, a session and a map would measure something else.
+   * Everything under `$lib/world` is imported dynamically from here, so an app
+   * that never opens this route never downloads, parses or runs a byte of the
+   * world.
    */
   import { onMount } from "svelte";
   import { page } from "$app/stores";
   import { t } from "$lib/i18n";
   import { getSettings } from "$lib/stores/settings-store.svelte";
-  import WorldCanvas from "$components/world/WorldCanvas.svelte";
-  import HousePanel from "$components/world/HousePanel.svelte";
+  import Canvas from "$components/canvas/Canvas.svelte";
+  import { lastWorkspaceId } from "$lib/canvas/palette/navigate";
   import CityCanvas from "$components/world/CityCanvas.svelte";
   import CityPanel, { type EditorHandoff } from "$components/world/CityPanel.svelte";
-  import ActivityPanel from "$components/world/ActivityPanel.svelte";
-  import type { AgentRow } from "$lib/world/activity";
   import { showToast } from "$lib/stores/toast-store.svelte";
 
   // The world is opt-in (`settings.world.enabled`, off by default). The nav
   // item is already hidden in that case, but the route can still be reached by
-  // its URL, and mounting the canvas would be the one thing that asks the
-  // backend to build a world. The bench modes are exempt: they measure the
-  // renderer and never touch the simulation.
+  // its URL. The bench modes are exempt: they measure the renderer and never
+  // touch the world.
   let enabled = $derived(getSettings()?.world?.enabled ?? true);
 
-  // Home, or a visit to someone's open house. Changing it remounts the canvas,
-  // which is what closes one session and opens the other.
-  let visit = $state<{ code: string; server: string | null } | null>(null);
   // The city: the persistent world on an OmniDisc instance. Set, it replaces
-  // the house on screen; the house keeps ticking in the backend meanwhile.
+  // the canvas on screen.
   let cityMode = $state<{ city: string; server: string | null } | null>(null);
   let cityState = $state<{ region: string; ent: number; tick: number; interior: boolean } | null>(null);
   let cityRef = $state<{ say: (ent: number, text: string) => void; goTo: (tile: [number, number]) => Promise<void>; refreshFinishes: () => void } | null>(null);
   let cityDiag = $state<{ fps: number; tier: number; backend: string; connection: string; error: string }>({ fps: 0, tier: 0, backend: "", connection: "online", error: "" });
 
-  // Two places, one route: the house that runs on this machine, and the city
-  // on the server. The last one chosen comes back; nothing connects until the
-  // user presses a button in the city tab.
+  // Two places, one route: the agent canvas on this machine, and the city on
+  // the server. The last one chosen comes back (any other stored value, like
+  // the old "home", means the canvas); nothing connects until the user presses
+  // a button in the city tab.
   const PLACE_KEY = "omniget.world.place";
-  function readPlace(): "home" | "city" {
+  function readPlace(): "canvas" | "city" {
     try {
-      return localStorage.getItem(PLACE_KEY) === "city" ? "city" : "home";
+      return localStorage.getItem(PLACE_KEY) === "city" ? "city" : "canvas";
     } catch {
-      return "home";
+      return "canvas";
     }
   }
-  let place = $state<"home" | "city">(readPlace());
-  function choosePlace(next: "home" | "city"): void {
+  let place = $state<"canvas" | "city">(readPlace());
+  function choosePlace(next: "canvas" | "city"): void {
     place = next;
     try {
       localStorage.setItem(PLACE_KEY, next);
@@ -68,34 +60,6 @@
   let cityPanelRef = $state<{ refreshHome: () => void; clearTool: () => void; selectionChanged: (id: string | null) => void; editorChanged: () => void; inspect: (ent: number | null) => void } | null>(null);
   let cityCrop = $state("carrot");
   let cityEdit = $state<EditorHandoff | null>(null);
-  let canvasRef = $state<{ say: (ent: number, text: string) => void; focus: (ent: number) => void; frameHouse: () => void } | null>(null);
-  let residents = $state<AgentRow[]>([]);
-  let residentsReady = $state(false);
-  let demoBusy = $state(false);
-
-  /** Scripted jobs on a scripted provider: the house at work, no token spent. */
-  async function runDemo(agents?: number): Promise<void> {
-    if (demoBusy) return;
-    demoBusy = true;
-    try {
-      const { invoke } = await import("@tauri-apps/api/core");
-      await invoke("world_demo", { agents: agents ?? null });
-      // The posts are in different rooms: the whole house is the shot.
-      canvasRef?.frameHouse();
-      // The button comes back when the scripted turns are about over.
-      setTimeout(() => (demoBusy = false), 22_000);
-    } catch (e) {
-      demoBusy = false;
-      showToast("error", e instanceof Error ? e.message : String(e));
-    }
-  }
-
-  function onCanvasReady(): void {
-    const params = $page.url.searchParams;
-    if (params.get("demo") !== "1" || visit) return;
-    const n = Number(params.get("agents"));
-    void runDemo(Number.isInteger(n) && n > 0 ? n : undefined);
-  }
 
   let benchCanvas = $state<HTMLCanvasElement | null>(null);
   let mode = $state<"world" | "bench">("world");
@@ -130,17 +94,17 @@
   });
 </script>
 
-<div class="world-page">
+<div class="world-page" class:fill={mode === "world" && enabled && !cityMode && place === "canvas"}>
   <header class="world-head">
     <h1>{$t("world.title")}</h1>
     <p class="world-sub">{$t("world.subtitle")}</p>
     {#if mode === "world" && enabled && !cityMode}
       <div class="places" role="tablist" aria-label={$t("world.places") as string}>
-        <button type="button" role="tab" id="tab-home" aria-controls="panel-place" aria-selected={place === "home"} class:active={place === "home"} onclick={() => choosePlace("home")}>
-          <strong>{$t("world.place_home")}</strong><span>{$t("world.place_home_hint")}</span>
+        <button type="button" role="tab" id="tab-canvas" aria-controls="panel-place" aria-selected={place === "canvas"} class:active={place === "canvas"} onclick={() => choosePlace("canvas")}>
+          {$t("world.tab.canvas")}
         </button>
-        <button type="button" role="tab" id="tab-city" aria-controls="panel-place" aria-selected={place === "city"} class:active={place === "city"} onclick={() => choosePlace("city")}>
-          <strong>{$t("world.place_city")}</strong><span>{$t("world.place_city_hint")}</span>
+        <button type="button" role="tab" id="tab-city" aria-controls="panel-place" aria-selected={place === "city"} class:active={place === "city"} title={$t("world.place_city_hint") as string} onclick={() => choosePlace("city")}>
+          {$t("world.tab.city")}
         </button>
       </div>
     {/if}
@@ -215,45 +179,14 @@
         city={null}
         where={null}
         onenter={(c) => {
-          visit = null;
           cityMode = c;
         }}
         onleave={() => (cityMode = null)}
       />
     </div>
   {:else if enabled}
-    <div id="panel-place" role="tabpanel" aria-labelledby="tab-home" class="place-home">
-      <div class="world-main">
-        {#key visit?.code ?? "home"}
-          <WorldCanvas
-            bind:this={canvasRef}
-            {visit}
-            followAll={demoBusy}
-            onagents={(list) => { residents = list; residentsReady = true; }}
-            onready={onCanvasReady}
-            onvisitfailed={(error) => {
-              showToast("error", error);
-              visit = null;
-            }}
-          />
-        {/key}
-        {#if !visit}
-          <ActivityPanel
-            agents={residents}
-            loading={!residentsReady}
-            {demoBusy}
-            onfocus={(ent) => canvasRef?.focus(ent)}
-            ondemo={() => void runDemo()}
-          />
-        {/if}
-      </div>
-      <HousePanel
-        visiting={visit !== null}
-        onvisit={(v) => (visit = v)}
-        onleave={() => (visit = null)}
-        onsay={(ent, text) => canvasRef?.say(ent, text)}
-      />
-      <a class="yard-link" href="/world/yard">{$t("world.yard.title")} →</a>
+    <div id="panel-place" role="tabpanel" aria-labelledby="tab-canvas" class="place-canvas">
+      <Canvas workspaceId={lastWorkspaceId()} />
     </div>
   {:else}
     <p class="world-off">{$t("world.disabled")}</p>
@@ -272,37 +205,36 @@
     align-items: flex-start;
     gap: 1rem;
   }
-  .place-home {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
+  /* The canvas takes every pixel the shell gives the route. */
+  .world-page.fill {
+    flex: 1;
+    min-height: 0;
+    box-sizing: border-box;
+  }
+  .place-canvas {
+    position: relative;
+    flex: 1;
+    min-height: 24rem;
+    border-radius: 12px;
+    overflow: hidden;
   }
   .places {
-    display: flex;
-    gap: 0.5rem;
+    display: inline-flex;
+    gap: 0.25rem;
     margin-top: 0.8rem;
-    flex-wrap: wrap;
+    padding: 0.2rem;
+    border-radius: 10px;
+    background: rgba(127, 127, 127, 0.1);
   }
   .places button {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.15rem;
-    min-width: 12rem;
-    flex: 1 1 12rem;
-    max-width: 22rem;
-    padding: 0.55rem 0.8rem;
-    border-radius: 12px;
-    border: 1px solid rgba(127, 127, 127, 0.3);
-    background: rgba(127, 127, 127, 0.08);
+    padding: 0.35rem 0.9rem;
+    border-radius: 8px;
+    border: 1px solid transparent;
+    background: transparent;
     color: inherit;
     font: inherit;
-    text-align: left;
+    font-size: 0.85rem;
     cursor: pointer;
-  }
-  .places button span {
-    font-size: 0.78rem;
-    opacity: 0.7;
   }
   .places button.active {
     border-color: var(--accent, #0a84ff);
@@ -341,12 +273,6 @@
   .world-head h1 {
     margin: 0;
     font-size: 1.4rem;
-  }
-  .yard-link {
-    display: inline-block;
-    margin-top: .6rem;
-    color: #bc965d;
-    font-size: .85rem;
   }
   .world-sub {
     margin: 0.25rem 0 0;

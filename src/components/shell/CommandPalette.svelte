@@ -69,6 +69,10 @@
       closeCommandPalette();
       return;
     }
+    // Arrows and Enter act only while focus is in the palette: a key typed
+    // into a terminal of the canvas must never run a navigation entry.
+    const active = document.activeElement;
+    if (active && active !== document.body && !active.closest(".mac-command-palette")) return;
     if (e.key === "ArrowDown") {
       e.preventDefault();
       moveCommandPaletteSelection(1, filtered.length);

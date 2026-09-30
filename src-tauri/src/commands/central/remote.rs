@@ -29,6 +29,16 @@ pub async fn remote_start(
     remote::start_for_app(&app, &bind_ip, port).await
 }
 
+/// "Private network only": refuse connections from public addresses
+/// (only loopback, LAN, CGNAT/Tailscale and link-local get in).
+#[tauri::command]
+pub async fn remote_private_only_set(app: AppHandle, on: bool) -> Result<RemoteStatus, String> {
+    let h = remote::hub();
+    h.set_app(&app);
+    h.set_private_only(on);
+    Ok(h.status())
+}
+
 #[tauri::command]
 pub async fn remote_stop(app: AppHandle) -> Result<RemoteStatus, String> {
     let h = remote::hub();

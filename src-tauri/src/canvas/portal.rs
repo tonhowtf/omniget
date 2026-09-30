@@ -1,0 +1,516 @@
+//! Canvas RPC of the portals (`omniget canvas portal <verb>`). An agent drives
+//! only the portals corded to its node, directly or through a chain of
+//! portal↔portal cords (Maestri's "chained portals"). Nothing else: no
+//! portal by id from an unconnected node, no JS from outside the canvas.
+//!
+//! `evaluate` runs arbitrary JS in the page. Allowed on an `isolated` portal
+//! (its own cookie jar) for any corded agent; on a `workspace`/`global`
+//! portal (shared logins) only when the caller's cord carries the `eval` (or
+//! `raw`) permission. Study 94: a logged-in portal plus an agent is the risk.
+//!
+//! Methods (args → result):
+//! - `portal.list {}` → `{portals: [{nodeId, name, url, title, open, scope, kind}]}`
+//! - `portal.open {portal?, url?, name?, width?, height?}` → state. No corded
+//!   portal named: creates one right of the caller, corded to it.
+//! - `portal.snapshot {portal?, maxNodes?, maxChars?, includeHtml?}` → tree with `@eN`
+//! - `portal.click {portal?, selector, double?}`; selector `@eN`, CSS, `text=`, `x,y`
+//! - `portal.fill {portal?, selector, text, submit?}` / `portal.type` (appends)
+//! - `portal.press {portal?, key, selector?}`
+//! - `portal.evaluate {portal?, code}`
+//! - `portal.navigate {portal?, url}` / `portal.back {portal?, action?: back|forward|reload}`
+//! - `portal.resize {portal?, width, height}` (page viewport, resizes the node)
+//! - `portal.ua {portal?, preset? | value? | reset?}`
+//! - `portal.screenshot {portal?}` → `{path, width, height, bytes}`
+//! - `portal.console {portal?, level?, limit?, clear?}`
+
+use std::collections::{HashSet, VecDeque};
+
+use omniget_core::core::canvas::model::{CanvasNode, FloorDoc, NodeKind};
+use omniget_core::core::canvas::ops::Op;
+use omniget_core::core::canvas::{layout, model, store};
+use serde_json::{json, Value};
+use tauri::AppHandle;
+
+use super::rpc::{NodeCtx, RpcResult};
+use crate::portal::{self, automation, Scope};
+
+/// A portal the caller may drive, with the perms of the cord that reaches it.
+#[derive(Debug, Clone)]
+struct Reach {
+    node_id: String,
+    name: String,
+    url: Option<String>,
+    kind: String,
+    scope: Scope,
+    perms: Vec<String>,
+}
+
+fn portal_name(n: &CanvasNode) -> String {
+    n.data_str("name")
+        .or(n.title.as_deref())
+        .map(String::from)
+        .filter(|s| !s.trim().is_empty())
+        .or_else(|| {
+            n.data_str("url")
+                .and_then(|u| url::Url::parse(u).ok())
+                .and_then(|u| u.host_str().map(String::from))
+        })
+        .unwrap_or_else(|| "Portal".into())
+}
+
+/// Portals reachable from `from`: cords to portal nodes, then portal↔portal
+/// cords from those. The perms are the ones of the first cord (the caller's).
+fn reachable(doc: &FloorDoc, from: &str) -> Vec<Reach> {
+    let is_portal = |id: &str| doc.node(id).is_some_and(|n| n.kind == NodeKind::Portal);
+    let mut out = Vec::new();
+    let mut seen: HashSet<String> = HashSet::new();
+    let mut queue: VecDeque<(String, Vec<String>)> = VecDeque::new();
+    for c in doc.connections.iter().filter(|c| c.touches(from)) {
+        if let Some(other) = c.other_end(from) {
+            if is_portal(other) && seen.insert(other.to_string()) {
+                queue.push_back((other.to_string(), c.perms.clone()));
+            }
+        }
+    }
+    while let Some((id, perms)) = queue.pop_front() {
+        let Some(n) = doc.node(&id) else { continue };
+        out.push(Reach {
+            node_id: id.clone(),
+            name: portal_name(n),
+            url: n.data_str("url").map(String::from),
+            kind: n.data_str("portalKind").unwrap_or("web").to_string(),
+            scope: Scope::parse(n.data_str("storageScope")),
+            perms: perms.clone(),
+        });
+        for c in doc.connections.iter().filter(|c| c.touches(&id)) {
+            if let Some(other) = c.other_end(&id) {
+                if other != from && is_portal(other) && seen.insert(other.to_string()) {
+                    queue.push_back((other.to_string(), perms.clone()));
+                }
+            }
+        }
+    }
+    out
+}
+
+/// Picks the target: `portal` = node id or name (case-insensitive); absent =
+/// the only corded portal.
+fn pick<'a>(list: &'a [Reach], want: Option<&str>) -> Result<&'a Reach, String> {
+    let names = || {
+        list.iter()
+            .map(|r| format!("\"{}\"", r.name))
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
+    match want.map(str::trim).filter(|w| !w.is_empty()) {
+        Some(w) => list
+            .iter()
+            .find(|r| r.node_id == w)
+            .or_else(|| list.iter().find(|r| r.name.eq_ignore_ascii_case(w)))
+            .ok_or_else(|| {
+                if list.is_empty() {
+                    "PORTAL_NOT_CONNECTED: no portal is corded to you; ask the user to connect one, or call portal.open with a url".to_string()
+                } else {
+                    format!("PORTAL_NOT_CONNECTED: no corded portal named \"{w}\"; corded portals: {}", names())
+                }
+            }),
+        None => match list {
+            [] => Err("PORTAL_NOT_CONNECTED: no portal is corded to you; ask the user to connect one, or call portal.open with a url".into()),
+            [one] => Ok(one),
+            _ => Err(format!("PORTAL_AMBIGUOUS: several corded portals, pass `portal`: {}", names())),
+        },
+    }
+}
+
+fn arg<'a>(a: &'a Value, k: &str) -> Option<&'a str> {
+    a.get(k)
+        .and_then(|v| v.as_str())
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+}
+
+fn may_eval(r: &Reach) -> bool {
+    r.scope == Scope::Isolated || r.perms.iter().any(|p| p == "eval" || p == "raw")
+}
+
+fn app_handle() -> Result<AppHandle, String> {
+    portal::app().ok_or_else(|| {
+        "PORTAL_NOT_READY: the canvas has not started yet; open the World canvas once".into()
+    })
+}
+
+fn reach_of(ctx: &NodeCtx) -> Result<Vec<Reach>, String> {
+    super::doc::host()
+        .store()
+        .read(&ctx.workspace_id, &ctx.floor_id, |d| {
+            reachable(d, &ctx.node_id)
+        })
+}
+
+/// Canvas RPC methods owned by this module (see `super::rpc`).
+pub async fn rpc(ctx: &NodeCtx, method: &str, args: Value) -> RpcResult {
+    let verb = method.strip_prefix("portal.")?;
+    Some(run(ctx, verb, args).await)
+}
+
+async fn run(ctx: &NodeCtx, verb: &str, a: Value) -> Result<Value, String> {
+    let list = reach_of(ctx)?;
+    if verb == "list" {
+        let portals: Vec<Value> = list
+            .iter()
+            .map(|r| {
+                let st = portal::host().state(&r.node_id);
+                json!({
+                    "nodeId": r.node_id,
+                    "name": r.name,
+                    "kind": r.kind,
+                    "url": st.as_ref().map(|s| s.url.clone()).or(r.url.clone()),
+                    "title": st.as_ref().map(|s| s.title.clone()),
+                    "open": st.is_some(),
+                    "scope": r.scope.as_str(),
+                    "canEvaluate": may_eval(r),
+                })
+            })
+            .collect();
+        return Ok(json!({ "portals": portals }));
+    }
+    let app = app_handle()?;
+    if verb == "open" {
+        return open(&app, ctx, &list, &a).await;
+    }
+    let target = pick(&list, arg(&a, "portal"))?.clone();
+    if target.kind != "web" {
+        return Err(format!(
+            "PORTAL_UNSUPPORTED: {} portals are coming soon",
+            target.kind
+        ));
+    }
+    let node = target.node_id.as_str();
+    if OWNER_VERBS.contains(&verb) {
+        return Err(format!(
+            "PORTAL_OWNER_ONLY: portal.{verb} is for the user (portal menu or MCP), not agents"
+        ));
+    }
+    if !KNOWN_VERBS.contains(&verb) {
+        return Err(format!("unknown canvas method `portal.{verb}`"));
+    }
+    if verb == "evaluate" && !may_eval(&target) {
+        return Err(format!(
+            "PORTAL_EVAL_DENIED: \"{}\" shares its logins ({} storage); evaluate needs the `eval` permission on your cord. Use snapshot/click/fill instead, or ask the user to grant it.",
+            target.name,
+            target.scope.as_str()
+        ));
+    }
+    let by = store::agent_origin(&ctx.node_id);
+    drive(&app, &ctx.workspace_id, &ctx.floor_id, node, &by, verb, a).await
+}
+
+/// Verbs `drive` answers.
+pub const KNOWN_VERBS: &[&str] = &[
+    "snapshot",
+    "click",
+    "fill",
+    "type",
+    "press",
+    "evaluate",
+    "navigate",
+    "back",
+    "resize",
+    "ua",
+    "screenshot",
+    "console",
+    "hover",
+    "scroll",
+    "select",
+    "check",
+    "uncheck",
+    "text",
+    "html",
+    "wait",
+    "trust",
+    "mute",
+    "unmute",
+    "copy_screenshot",
+    "inspect",
+];
+
+/// Verbs only the owner's MCP client may use (accepting a certificate, the
+/// clipboard, the inspector); an agent's RPC is refused.
+pub const OWNER_VERBS: &[&str] = &["trust", "copy_screenshot", "inspect"];
+
+/// One automation verb on a web portal node, on behalf of `by` (an agent
+/// origin, or `mcp` for the owner's MCP client). The caller has already
+/// checked that `by` may drive this portal (and evaluate in it).
+pub async fn drive(
+    app: &AppHandle,
+    ws: &str,
+    floor: &str,
+    node: &str,
+    by: &str,
+    verb: &str,
+    a: Value,
+) -> Result<Value, String> {
+    if !KNOWN_VERBS.contains(&verb) {
+        return Err(format!("unknown canvas method `portal.{verb}`"));
+    }
+    automation::ensure_open(app, node)?;
+    portal::driving(app, node, by, verb);
+    let out = match verb {
+        "snapshot" => automation::snapshot(app, node, &a).await,
+        "click" => automation::click(app, node, &a).await,
+        "fill" => automation::fill(app, node, &a).await,
+        "type" => automation::type_text(app, node, &a).await,
+        "press" => automation::press(app, node, &a).await,
+        "evaluate" => automation::evaluate(app, node, &a).await,
+        "console" => automation::console(app, node, &a).await,
+        "hover" | "scroll" | "select" | "check" | "uncheck" | "text" | "html" | "wait" => {
+            automation::element(app, node, verb, &a).await
+        }
+        "navigate" => {
+            let url = arg(&a, "url").ok_or("PORTAL_ARGS: url is required")?;
+            portal::navigate(app, node, url).await.map(|s| json!(s))
+        }
+        "back" => {
+            let action = arg(&a, "action").unwrap_or("back");
+            if !matches!(action, "back" | "forward" | "reload") {
+                return Err("PORTAL_ARGS: action is back, forward or reload".into());
+            }
+            portal::history(app, node, action).await.map(|s| json!(s))
+        }
+        "resize" => resize(app, ws, floor, by, node, &a),
+        "ua" => user_agent(app, ws, floor, by, node, &a).await,
+        "trust" => portal::trust_cert(app, node).await.map(|s| json!(s)),
+        "mute" | "unmute" => {
+            let m = verb == "mute";
+            let op = Op::update_node(node, json!({ "data": { "muted": m } }));
+            super::doc::host()
+                .store()
+                .apply(ws, floor, vec![op], by, None)?;
+            portal::set_muted(app, node, m).await.map(|s| json!(s))
+        }
+        "copy_screenshot" => {
+            crate::commands::canvas::portal::canvas_portal_copy_screenshot(
+                app.clone(),
+                node.to_string(),
+            )
+            .await
+        }
+        "inspect" => portal::open_inspector(app, node).map(|_| json!({ "inspector": true })),
+        "screenshot" => portal::screenshot(app, node).await.map(|c| {
+            json!({ "path": c.path, "width": c.width, "height": c.height, "bytes": c.bytes, "page": portal::state_json(node) })
+        }),
+        _ => unreachable!(),
+    };
+    // Second ping after the action: the canvas refreshes the dormant snapshot.
+    portal::driving(app, node, by, &format!("{verb}:done"));
+    out
+}
+
+/// `portal.open`: a corded portal (by `portal`, or the only one) is loaded
+/// (and navigated to `url`); with none corded and a `url`, a new portal node
+/// is created right of the caller and corded to it.
+async fn open(app: &AppHandle, ctx: &NodeCtx, list: &[Reach], a: &Value) -> Result<Value, String> {
+    let url = arg(a, "url");
+    let existing = match arg(a, "portal") {
+        Some(_) => Some(pick(list, arg(a, "portal"))?.clone()),
+        None if url.is_none() => Some(pick(list, None)?.clone()),
+        None => None,
+    };
+    let node_id = match existing {
+        Some(r) => {
+            if r.kind != "web" {
+                return Err(format!(
+                    "PORTAL_UNSUPPORTED: {} portals are coming soon",
+                    r.kind
+                ));
+            }
+            r.node_id
+        }
+        None => create(ctx, url.unwrap_or_default(), a)?,
+    };
+    automation::ensure_open(app, &node_id)?;
+    portal::driving(app, &node_id, &store::agent_origin(&ctx.node_id), "open");
+    let st = match url {
+        Some(u) => portal::navigate(app, &node_id, u).await?,
+        None => portal::host()
+            .state(&node_id)
+            .ok_or("PORTAL_OPEN: session vanished")?,
+    };
+    Ok(json!({ "nodeId": node_id, "page": st }))
+}
+
+fn create(ctx: &NodeCtx, url: &str, a: &Value) -> Result<String, String> {
+    let u = portal::normalize_url(url)?;
+    let w = a
+        .get("width")
+        .and_then(|v| v.as_f64())
+        .unwrap_or(800.0)
+        .clamp(240.0, 4096.0);
+    let h = a
+        .get("height")
+        .and_then(|v| v.as_f64())
+        .map(|h| h + automation::NODE_HEADER)
+        .unwrap_or(600.0)
+        .clamp(180.0, 4096.0);
+    let st = super::doc::host().store();
+    let (ws, floor) = (ctx.workspace_id.as_str(), ctx.floor_id.as_str());
+    let spot = st.read(ws, floor, |d| {
+        let near = d.node(&ctx.node_id).map(|n| model::Point {
+            x: n.x + n.w + 40.0,
+            y: n.y,
+        });
+        let z = d.nodes.iter().map(|n| n.z).fold(0.0, f64::max) + 1.0;
+        (layout::free_spot_in(d, w, h, near, &[]), z)
+    })?;
+    let id = model::new_id();
+    let name = arg(a, "name")
+        .map(String::from)
+        .or_else(|| u.host_str().map(String::from));
+    let mut data = json!({ "url": u.to_string(), "portalKind": "web", "storageScope": "isolated" });
+    if let Some(n) = &name {
+        data["name"] = json!(n);
+    }
+    let node: CanvasNode = serde_json::from_value(json!({
+        "id": id, "kind": "portal", "x": spot.0.x, "y": spot.0.y, "w": w, "h": h, "z": spot.1,
+        "title": name, "data": data,
+    }))
+    .map_err(|e| format!("PORTAL_CREATE: {e}"))?;
+    let cord: model::Connection = serde_json::from_value(json!({
+        "id": model::new_id(), "from": ctx.node_id, "to": id, "kind": "portal", "perms": [],
+    }))
+    .map_err(|e| format!("PORTAL_CREATE: {e}"))?;
+    st.apply(
+        ws,
+        floor,
+        vec![Op::AddNode { node }, Op::AddConnection { connection: cord }],
+        &store::agent_origin(&ctx.node_id),
+        None,
+    )?;
+    Ok(id)
+}
+
+/// Page viewport = `width × height` CSS px; the node grows to match.
+fn resize(
+    app: &AppHandle,
+    ws: &str,
+    floor: &str,
+    by: &str,
+    node: &str,
+    a: &Value,
+) -> Result<Value, String> {
+    let w = a
+        .get("width")
+        .and_then(|v| v.as_f64())
+        .ok_or("PORTAL_ARGS: width is required")?;
+    let h = a
+        .get("height")
+        .and_then(|v| v.as_f64())
+        .ok_or("PORTAL_ARGS: height is required")?;
+    let (w, h) = (w.clamp(100.0, 4096.0), h.clamp(100.0, 4096.0));
+    let op = Op::update_node(node, json!({ "w": w, "h": h + automation::NODE_HEADER }));
+    super::doc::host()
+        .store()
+        .apply(ws, floor, vec![op], by, None)?;
+    portal::set_viewport(app, node, w, h)?;
+    Ok(json!({ "width": w, "height": h, "page": portal::state_json(node) }))
+}
+
+/// `{preset}` (ios, android, firefox-android, edge-android, chrome, firefox,
+/// edge, safari, desktop), `{value}` (a raw UA) or `{reset: true}`.
+async fn user_agent(
+    app: &AppHandle,
+    ws: &str,
+    floor: &str,
+    by: &str,
+    node: &str,
+    a: &Value,
+) -> Result<Value, String> {
+    let ua: Option<String> = if a.get("reset").and_then(|v| v.as_bool()) == Some(true) {
+        None
+    } else if let Some(v) = arg(a, "value") {
+        if v.len() > 512 {
+            return Err("PORTAL_ARGS: user agent longer than 512 chars".into());
+        }
+        Some(v.to_string())
+    } else {
+        match arg(a, "preset") {
+            Some("desktop") | Some("default") => None,
+            Some(p) => Some(
+                portal::user_agent_preset(p)
+                    .ok_or_else(|| format!("PORTAL_ARGS: unknown preset `{p}`"))?
+                    .to_string(),
+            ),
+            None => return Err("PORTAL_ARGS: preset, value or reset is required".into()),
+        }
+    };
+    let op = Op::update_node(
+        node,
+        json!({ "data": { "userAgent": ua.clone().map(Value::String).unwrap_or(Value::Null) } }),
+    );
+    super::doc::host()
+        .store()
+        .apply(ws, floor, vec![op], by, None)?;
+    let st = portal::set_user_agent(app, node, ua).await?;
+    Ok(json!(st))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn doc(v: Value) -> FloorDoc {
+        serde_json::from_value(v).unwrap()
+    }
+
+    fn n(id: &str, kind: &str, data: Value) -> Value {
+        json!({ "id": id, "kind": kind, "x": 0, "y": 0, "w": 10, "h": 10, "data": data })
+    }
+
+    fn c(id: &str, from: &str, to: &str, perms: Value) -> Value {
+        json!({ "id": id, "from": from, "to": to, "kind": "portal", "perms": perms })
+    }
+
+    #[test]
+    fn only_corded_portals_and_chains_are_reachable() {
+        let d = doc(json!({
+            "nodes": [
+                n("a", "agent", json!({"terminalId": "t", "agent": "claude"})),
+                n("b", "agent", json!({"terminalId": "u", "agent": "claude"})),
+                n("p1", "portal", json!({"portalKind": "web", "name": "Docs", "storageScope": "global"})),
+                n("p2", "portal", json!({"portalKind": "web"})),
+                n("p3", "portal", json!({"portalKind": "web"})),
+            ],
+            "connections": [
+                c("c1", "a", "p1", json!(["eval"])),
+                c("c2", "p1", "p2", json!([])),
+                c("c3", "b", "p3", json!([])),
+            ],
+        }));
+        let r = reachable(&d, "a");
+        let ids: Vec<&str> = r.iter().map(|x| x.node_id.as_str()).collect();
+        assert_eq!(ids, vec!["p1", "p2"]);
+        assert!(r.iter().all(|x| x.perms == vec!["eval".to_string()]));
+        assert!(may_eval(&r[0]));
+        assert!(reachable(&d, "b").iter().all(|x| x.node_id == "p3"));
+        assert!(pick(&r, Some("docs")).is_ok());
+        assert!(pick(&r, Some("p3")).is_err());
+        assert!(pick(&r, None).is_err());
+        let rb = reachable(&d, "b");
+        assert_eq!(pick(&rb, None).unwrap().node_id, "p3");
+        // p3 is isolated: evaluate allowed without the eval perm.
+        assert!(may_eval(&rb[0]));
+    }
+
+    #[test]
+    fn shared_storage_needs_the_eval_perm() {
+        let r = Reach {
+            node_id: "p".into(),
+            name: "P".into(),
+            url: None,
+            kind: "web".into(),
+            scope: Scope::Workspace,
+            perms: vec!["ask".into()],
+        };
+        assert!(!may_eval(&r));
+    }
+}

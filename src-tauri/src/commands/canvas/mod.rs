@@ -1,0 +1,18 @@
+//! Comandos Tauri do canvas.
+
+pub mod chat;
+pub mod clipboard;
+pub mod companion;
+pub mod cords;
+pub mod doc;
+pub mod files;
+pub mod floors;
+pub mod maestro;
+pub mod partituras;
+pub mod portal;
+pub mod remote;
+pub mod roles;
+pub mod routines;
+pub mod term;
+pub mod workspace_io;
+pub mod workspace_meta;

@@ -43,6 +43,7 @@ qrcode = { version = "0.14", default-features = false, features = ["svg"] }
 rquickjs = { version = "0.14", features = ["classes", "properties"] }
 tokio-tungstenite = { version = "0.30.0", default-features = false, features = ["connect"] }
 zip = { version = "2", default-features = false, features = ["deflate"] }
+shell-words = "1"
 tar = "0.4"
 flate2 = "1"
 quick-xml = "0.37"
@@ -109,6 +110,7 @@ scraper = "0.27"
 pulldown-cmark = { version = "0.13", default-features = false, features = ["html"] }
 encoding_rs = "0.8"
 chardetng = "0.1"
+alacritty_terminal = "0.26.0"
 
 [target.'cfg(windows)'.dependencies]
 # Job Object of the CLI turns (`core::process::ProcessTreeGuard`): the only

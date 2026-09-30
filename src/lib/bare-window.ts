@@ -6,7 +6,7 @@
  * every window at launch, so the tiny strip showed a clipped "Resume
  * downloads" button with a scrollbar until someone reloaded it.
  */
-export const BARE_WINDOW_ROUTES = ["/pet", "/limits-strip", "/usage-panel"] as const;
+export const BARE_WINDOW_ROUTES = ["/pet", "/limits-strip", "/usage-panel", "/omni"] as const;
 
 export function isBareWindow(pathname: string): boolean {
   const path = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;

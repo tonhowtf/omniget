@@ -137,6 +137,13 @@ enum Commands {
         #[command(subcommand)]
         command: commands::agentkit::AgentkitCommand,
     },
+    /// Cords of the OmniGet canvas: talk to the agents, notes and portals
+    /// wired to this terminal (`omniget canvas help`)
+    #[command(disable_help_flag = true)]
+    Canvas {
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
     /// Hooks OmniGet installs in a coding tool's turn (run by the tool, not by hand)
     #[command(hide = true)]
     Hook {
@@ -244,6 +251,9 @@ async fn main() -> anyhow::Result<()> {
                 args.extend(["--turn".to_string(), turn]);
             }
             std::process::exit(omniget_core::core::llm::claude_hooks::main_with_args(&args));
+        }
+        Commands::Canvas { args } => {
+            commands::canvas::execute(args, cli.json);
         }
         Commands::Guide { topic } => {
             commands::guide::execute(topic)?;

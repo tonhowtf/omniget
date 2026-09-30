@@ -57,6 +57,10 @@ pub struct AppSettings {
     pub world: WorldSettings,
     #[serde(default)]
     pub llm: LlmSettings,
+    /// The agent canvas (`/world` → Canvas): look, gestures, new-item
+    /// defaults, terminals, attention, sleep prevention and agent presets.
+    #[serde(default)]
+    pub canvas: CanvasSettings,
 }
 
 /// Settings of the `/llm` section that are not per-agent.
@@ -190,7 +194,7 @@ impl Default for LlmSettings {
     }
 }
 
-/// Settings of the agents' world (`/world`). Phase 6 only carries the render
+/// Settings of the agents' world (`/world`: the canvas and the city). The render
 /// tier: `tier_override` pins a tier by hand (None = automatic, i.e. measured),
 /// and the `tier_measured*` trio is the last calibration, kept so the UI can show
 /// it and so a version change can trigger a recalibration.
@@ -214,29 +218,363 @@ pub struct WorldSettings {
     pub measured_median_ms: Option<f64>,
     #[serde(default)]
     pub measured_app_version: Option<String>,
-    /// Lets the agents in the house think through the LLM stack (plan, reflect).
-    /// Off by default: it is the only part of the world that spends tokens.
-    #[serde(default)]
-    pub thinking: bool,
-    /// Minimum real seconds between two thoughts in the whole house.
-    #[serde(default = "default_think_interval_s")]
-    pub think_interval_s: u32,
-    /// Room server for open houses and visits (`wss://host/v1/room`). Empty =
-    /// the built-in default; a self-hosted `omniworld-server` goes here.
-    #[serde(default)]
-    pub room_server: String,
     /// OmniDisc instance that hosts the city (`/world/v1`). Empty means the
     /// public one, `https://chat.tonho.wtf`.
     #[serde(default)]
     pub city_server: String,
 }
 
-fn default_world_enabled() -> bool {
-    true
+/// Grid of the canvas: every stored frame and default size snaps to it.
+pub const CANVAS_GRID: f64 = 20.0;
+
+/// Settings of the agent canvas (Maestri's Settings → Canvas, General,
+/// Terminal, Notifications, Agents). Every field has a default, so an old
+/// settings file loads unchanged; `normalize` clamps and snaps what the user
+/// or an agent wrote.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct CanvasSettings {
+    /// `grid` (dots), `plain` or `transparent`.
+    pub background: String,
+    /// Zoom change per wheel notch and per ⌘+/⌘− (0.05–1).
+    pub zoom_step: f64,
+    /// Modifier that turns the wheel into zoom: `alt`, `ctrl` or `cmd`.
+    pub zoom_modifier: String,
+    /// Dragging with the right button pans the canvas.
+    pub right_drag_pan: bool,
+    /// Hovering a terminal, note, portal or tree gives it the keyboard.
+    pub focus_on_hover: bool,
+    /// `solid`, `dashed`, `corners`, `corner_dots` or `elevation`.
+    pub selection_style: String,
+    /// `opaque` or `glass`.
+    pub node_material: String,
+    /// `bezier`, `rope` or `circuit`.
+    pub cord_style: String,
+    /// `behind_nodes`, `avoid_nodes` or `circuit`.
+    pub rope_routing: String,
+    /// Spell check in notes, text blocks and the composer. Off by default:
+    /// notes are often code and paths, and system autocorrect mangles them.
+    pub spell_check: bool,
+    /// Agent of a new terminal made with ⌘T / the T tool: `shell`, a built-in
+    /// agent (`claude`, `codex`, ...) or the name of a preset.
+    pub default_agent: String,
+    pub defaults: CanvasDefaults,
+    pub terminal: CanvasTerminalSettings,
+    pub notifications: CanvasNotificationSettings,
+    pub power: CanvasPowerSettings,
+    /// "Bring your own agent": name → how to start it.
+    pub agent_presets: std::collections::BTreeMap<String, AgentPreset>,
+    /// Settings → Canvas → Shortcuts: action (`new_note`, `lift`, ...) →
+    /// combination (`mod+shift+y`); an empty string unbinds the action.
+    /// Actions left out keep their default key.
+    pub shortcuts: std::collections::BTreeMap<String, String>,
+    /// Settings → Canvas → Skills: where the canvas skill is installed.
+    pub skills: CanvasSkillSettings,
 }
 
-fn default_think_interval_s() -> u32 {
-    120
+/// Where the `omniget-canvas` skill goes for each agent (Maestri Settings →
+/// Skills). It always rides along with a canvas Claude session
+/// (`--plugin-dir <app data>/canvas/plugin`); a folder here also gets
+/// `<folder>/omniget-canvas/SKILL.md` when a terminal of that agent starts
+/// (`~/.claude/skills`, `~/.codex/skills`, a project's `.claude/skills`).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct CanvasSkillSettings {
+    /// agent (`claude`, `codex`, `gemini`, `opencode`) → skills folder; empty
+    /// = not installed there.
+    pub roots: std::collections::BTreeMap<String, String>,
+}
+
+impl Default for CanvasSkillSettings {
+    fn default() -> Self {
+        Self {
+            roots: ["claude", "codex", "gemini", "opencode"]
+                .into_iter()
+                .map(|a| (a.to_string(), String::new()))
+                .collect(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct CanvasDefaults {
+    pub note: CanvasNoteDefaults,
+    pub terminal: CanvasSizeDefault,
+    pub text: CanvasSizeDefault,
+    pub portal: CanvasSizeDefault,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct CanvasNoteDefaults {
+    /// `WxH` in canvas points, snapped to the grid.
+    pub size: String,
+    /// Font family of new notes; empty = the app font.
+    pub font: String,
+    /// `formatted` or `raw`.
+    pub render: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[serde(default)]
+pub struct CanvasSizeDefault {
+    /// `WxH`; empty = the node kind's own default.
+    pub size: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct CanvasTerminalSettings {
+    /// Empty = the app's mono font.
+    pub font_family: String,
+    /// 0 = automatic.
+    pub font_size: f64,
+    /// `system`, `dark`, `light` or a custom scheme id.
+    pub theme: String,
+    pub padding: CanvasPadding,
+    /// ⌥ sends Meta (ESC prefix) instead of typing layout characters.
+    pub option_as_meta: bool,
+    /// Kills a terminal's child process above this RSS (MB); 0 = off. The
+    /// shell itself is kept.
+    pub memory_limit_mb: u32,
+    /// When the stored shell is gone, start another available one.
+    pub shell_fallback: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Default)]
+#[serde(default)]
+pub struct CanvasPadding {
+    pub x: f64,
+    pub y: f64,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct CanvasNotificationSettings {
+    /// System notification when an agent needs attention (even in front).
+    pub attention: bool,
+    /// Red attention badge also on terminals that are not the Maestro.
+    pub badges_for_non_maestro: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct CanvasPowerSettings {
+    /// `never`, `always` or `while_working` (agents actually working).
+    pub prevent_sleep: String,
+}
+
+/// A user agent preset (Maestri presets / "bring your own agent").
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[serde(default)]
+pub struct AgentPreset {
+    /// Program to run (resolved on PATH).
+    pub command: String,
+    pub args: Vec<String>,
+    pub env: std::collections::BTreeMap<String, String>,
+    pub icon: Option<String>,
+    pub color: Option<String>,
+    pub maestro: bool,
+    pub start_in_chat_mode: bool,
+    /// Working directory; empty = the workspace's.
+    pub cwd: Option<String>,
+}
+
+impl Default for CanvasSettings {
+    fn default() -> Self {
+        Self {
+            background: "grid".into(),
+            zoom_step: 0.1,
+            zoom_modifier: "alt".into(),
+            right_drag_pan: false,
+            focus_on_hover: false,
+            selection_style: "solid".into(),
+            node_material: "opaque".into(),
+            cord_style: "bezier".into(),
+            rope_routing: "behind_nodes".into(),
+            spell_check: false,
+            default_agent: "shell".into(),
+            defaults: CanvasDefaults::default(),
+            terminal: CanvasTerminalSettings::default(),
+            notifications: CanvasNotificationSettings::default(),
+            power: CanvasPowerSettings::default(),
+            agent_presets: Default::default(),
+            shortcuts: Default::default(),
+            skills: Default::default(),
+        }
+    }
+}
+
+impl Default for CanvasNoteDefaults {
+    fn default() -> Self {
+        Self {
+            size: String::new(),
+            font: String::new(),
+            render: "formatted".into(),
+        }
+    }
+}
+
+impl Default for CanvasTerminalSettings {
+    fn default() -> Self {
+        Self {
+            font_family: String::new(),
+            font_size: 0.0,
+            theme: "system".into(),
+            padding: CanvasPadding::default(),
+            option_as_meta: false,
+            memory_limit_mb: 0,
+            shell_fallback: true,
+        }
+    }
+}
+
+impl Default for CanvasNotificationSettings {
+    fn default() -> Self {
+        Self {
+            attention: true,
+            badges_for_non_maestro: true,
+        }
+    }
+}
+
+impl Default for CanvasPowerSettings {
+    fn default() -> Self {
+        Self {
+            prevent_sleep: "while_working".into(),
+        }
+    }
+}
+
+/// `"333x211"` → `Some((340, 220))`: parsed and snapped to the grid (at least
+/// one cell). Empty or malformed → None.
+pub fn parse_canvas_size(s: &str) -> Option<(f64, f64)> {
+    let (w, h) = s.trim().split_once(['x', 'X', '×'])?;
+    let w: f64 = w.trim().parse().ok()?;
+    let h: f64 = h.trim().parse().ok()?;
+    if !(w.is_finite() && h.is_finite()) || w <= 0.0 || h <= 0.0 {
+        return None;
+    }
+    let snap = |v: f64| ((v / CANVAS_GRID).round().max(1.0) * CANVAS_GRID).min(20_000.0);
+    Some((snap(w), snap(h)))
+}
+
+fn snap_size(s: &mut String) {
+    *s = match parse_canvas_size(s) {
+        Some((w, h)) => format!("{w}x{h}"),
+        None => String::new(),
+    };
+}
+
+/// Lower-case, `camelCase`/`kebab-case` → `snake_case`, so `cornerDots`,
+/// `corner-dots` and `corner_dots` are one value.
+pub fn canvas_token(s: &str) -> String {
+    let mut out = String::new();
+    for (i, c) in s.trim().chars().enumerate() {
+        if c.is_ascii_uppercase() {
+            if i > 0 {
+                out.push('_');
+            }
+            out.push(c.to_ascii_lowercase());
+        } else if c == '-' || c == ' ' {
+            out.push('_');
+        } else {
+            out.push(c);
+        }
+    }
+    out
+}
+
+fn pick(v: &mut String, allowed: &[&str], default: &str) {
+    let t = canvas_token(v);
+    *v = if allowed.contains(&t.as_str()) {
+        t
+    } else {
+        default.to_string()
+    };
+}
+
+impl CanvasSettings {
+    pub const BACKGROUNDS: &'static [&'static str] = &["grid", "plain", "transparent"];
+    pub const ZOOM_MODIFIERS: &'static [&'static str] = &["alt", "ctrl", "cmd"];
+    pub const SELECTION_STYLES: &'static [&'static str] =
+        &["solid", "dashed", "corners", "corner_dots", "elevation"];
+    pub const MATERIALS: &'static [&'static str] = &["opaque", "glass"];
+    pub const CORD_STYLES: &'static [&'static str] = &["bezier", "rope", "circuit"];
+    pub const ROUTINGS: &'static [&'static str] = &["behind_nodes", "avoid_nodes", "circuit"];
+    pub const SLEEP_MODES: &'static [&'static str] = &["never", "always", "while_working"];
+
+    /// Clamps numbers, snaps sizes to the grid and resets unknown choices to
+    /// their default. Idempotent.
+    pub fn normalize(&mut self) {
+        let d = Self::default();
+        pick(&mut self.background, Self::BACKGROUNDS, &d.background);
+        if !self.zoom_step.is_finite() {
+            self.zoom_step = d.zoom_step;
+        }
+        self.zoom_step = (self.zoom_step.clamp(0.05, 1.0) * 100.0).round() / 100.0;
+        let m = canvas_token(&self.zoom_modifier);
+        self.zoom_modifier = match m.as_str() {
+            "option" | "opt" => "alt".into(),
+            "control" => "ctrl".into(),
+            "command" | "meta" | "primary" => "cmd".into(),
+            _ => m,
+        };
+        pick(
+            &mut self.zoom_modifier,
+            Self::ZOOM_MODIFIERS,
+            &d.zoom_modifier,
+        );
+        pick(
+            &mut self.selection_style,
+            Self::SELECTION_STYLES,
+            &d.selection_style,
+        );
+        pick(&mut self.node_material, Self::MATERIALS, &d.node_material);
+        pick(&mut self.cord_style, Self::CORD_STYLES, &d.cord_style);
+        pick(&mut self.rope_routing, Self::ROUTINGS, &d.rope_routing);
+        pick(
+            &mut self.power.prevent_sleep,
+            Self::SLEEP_MODES,
+            &d.power.prevent_sleep,
+        );
+        if self.default_agent.trim().is_empty() {
+            self.default_agent = d.default_agent;
+        }
+        snap_size(&mut self.defaults.note.size);
+        snap_size(&mut self.defaults.terminal.size);
+        snap_size(&mut self.defaults.text.size);
+        snap_size(&mut self.defaults.portal.size);
+        let r = canvas_token(&self.defaults.note.render);
+        self.defaults.note.render = if r == "raw" { r } else { "formatted".into() };
+        let t = &mut self.terminal;
+        if !t.font_size.is_finite() || t.font_size < 0.0 {
+            t.font_size = 0.0;
+        }
+        if t.font_size > 0.0 {
+            t.font_size = t.font_size.clamp(6.0, 48.0);
+        }
+        if t.theme.trim().is_empty() {
+            t.theme = "system".into();
+        }
+        t.padding.x = if t.padding.x.is_finite() {
+            t.padding.x.clamp(0.0, 64.0)
+        } else {
+            0.0
+        };
+        t.padding.y = if t.padding.y.is_finite() {
+            t.padding.y.clamp(0.0, 64.0)
+        } else {
+            0.0
+        };
+        self.agent_presets
+            .retain(|name, p| !name.trim().is_empty() && !p.command.trim().is_empty());
+    }
+}
+
+fn default_world_enabled() -> bool {
+    true
 }
 
 impl Default for WorldSettings {
@@ -249,9 +587,6 @@ impl Default for WorldSettings {
             tier_measured: None,
             measured_median_ms: None,
             measured_app_version: None,
-            thinking: false,
-            think_interval_s: default_think_interval_s(),
-            room_server: String::new(),
             city_server: String::new(),
         }
     }
@@ -1235,6 +1570,7 @@ impl Default for AppSettings {
             omnidisc: OmnidiscSettings::default(),
             world: WorldSettings::default(),
             llm: LlmSettings::default(),
+            canvas: CanvasSettings::default(),
         }
     }
 }
@@ -1242,6 +1578,36 @@ impl Default for AppSettings {
 #[cfg(test)]
 mod backcompat_tests {
     use super::*;
+
+    #[test]
+    fn canvas_settings_snap_and_reset_unknown_choices() {
+        assert_eq!(parse_canvas_size("333x211"), Some((340.0, 220.0)));
+        assert_eq!(parse_canvas_size("nope"), None);
+        let mut c = CanvasSettings {
+            selection_style: "cornerDots".into(),
+            cord_style: "spaghetti".into(),
+            zoom_step: 7.0,
+            zoom_modifier: "option".into(),
+            ..CanvasSettings::default()
+        };
+        c.defaults.note.size = "333x211".into();
+        c.power.prevent_sleep = "whileWorking".into();
+        c.normalize();
+        assert_eq!(c.selection_style, "corner_dots");
+        assert_eq!(c.cord_style, "bezier");
+        assert_eq!(c.zoom_step, 1.0);
+        assert_eq!(c.zoom_modifier, "alt");
+        assert_eq!(c.defaults.note.size, "340x220");
+        assert_eq!(c.power.prevent_sleep, "while_working");
+        let again = c.clone();
+        c.normalize();
+        assert_eq!(c, again);
+        // Old settings files load with the defaults.
+        let mut old = serde_json::to_value(AppSettings::default()).unwrap();
+        old.as_object_mut().unwrap().remove("canvas");
+        let s: AppSettings = serde_json::from_value(old).unwrap();
+        assert_eq!(s.canvas, CanvasSettings::default());
+    }
 
     #[test]
     fn an_install_from_before_the_world_gets_it_switched_on_once() {

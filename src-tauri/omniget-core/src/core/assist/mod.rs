@@ -10,7 +10,7 @@
 //!
 //! SQLite (`<llm>/assist.db`, [`db`]) is the canonical store of every entity
 //! here. Indexes (FTS) are derived and rebuildable. The project KB
-//! (`llm::kb`) and the World memory (`llm::brain`) stay separate on purpose.
+//! (`llm::kb`) stays separate on purpose.
 //!
 //! Tools the model can call live in [`tools`]: one registry, reached from the
 //! broker (native runtime, via `code_tools::current_turn`) and from the

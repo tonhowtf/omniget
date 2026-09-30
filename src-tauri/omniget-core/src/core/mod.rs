@@ -6,6 +6,7 @@ pub mod app_launch;
 pub mod asr;
 pub mod assist;
 pub mod binary_overrides;
+pub mod canvas;
 pub mod catalog;
 pub mod city3d;
 pub mod clipboard;
@@ -56,6 +57,7 @@ pub mod shell_words;
 pub mod skills;
 pub mod subtitle_merge;
 pub mod telegram;
+pub mod term;
 #[cfg(test)]
 pub mod test_env;
 pub mod threads;

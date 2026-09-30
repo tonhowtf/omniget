@@ -1,0 +1,15 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "omni",
+  "description": "Capability for Omni's floating window (⌘⇧O): what each agent just did, three next steps, and questions to Omni. It listens on `canvas://companion` and `canvas://companion-dismiss`; everything else goes through the canvas_companion_* and canvas_omni_window commands.",
+  "windows": ["omni"],
+  "permissions": [
+    "core:default",
+    "core:event:default",
+    "core:window:allow-start-dragging",
+    "core:window:allow-close",
+    "core:window:allow-hide",
+    "core:window:allow-show",
+    "core:window:allow-set-focus"
+  ]
+}

@@ -107,11 +107,10 @@ export type AppSettings = {
     city_backend?: "lite" | "3d" | null;
     measured_median_ms?: number | null;
     measured_app_version?: string | null;
-    thinking?: boolean;
-    think_interval_s?: number;
-    room_server?: string;
     city_server?: string;
   };
+  /** Agent canvas (Rust `CanvasSettings`); typed in `$lib/canvas/prefs.svelte`. */
+  canvas?: Record<string, unknown>;
   music?: {
     enabled?: boolean;
   };
