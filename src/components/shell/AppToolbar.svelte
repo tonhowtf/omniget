@@ -16,6 +16,7 @@
     if (path.startsWith("/about")) return $t("nav.about");
     if (path.startsWith("/league")) return $t("league.nav");
     if (path.startsWith("/music")) return $t("music.title");
+    if (path.startsWith("/read")) return $t("read.title");
     return "";
   });
 </script>

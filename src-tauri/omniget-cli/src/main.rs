@@ -94,6 +94,11 @@ enum Commands {
         #[arg(long, value_name = "SECONDS", help = "Keep refreshing every N seconds")]
         watch: Option<u64>,
     },
+    /// Books and manga: metadata, legal catalogs, OPDS, text to EPUB
+    Read {
+        #[command(subcommand)]
+        command: commands::read::ReadCommand,
+    },
     /// Import a cookies.txt file (Netscape format)
     ImportCookies {
         file: String,
@@ -158,6 +163,9 @@ async fn main() -> anyhow::Result<()> {
         }
         Commands::Usage { days, watch } => {
             commands::usage::execute(days, watch, cli.json).await?;
+        }
+        Commands::Read { command } => {
+            commands::read::execute(command, cli.json).await?;
         }
         Commands::ImportCookies {
             file,

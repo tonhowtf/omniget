@@ -17,7 +17,7 @@
     section?: string;
   } = $props();
 
-  type AdvancedDrill = "performance" | "torrent" | "expert" | "league" | "music" | "debug";
+  type AdvancedDrill = "performance" | "torrent" | "expert" | "league" | "music" | "read" | "debug";
 
   let settings = $derived(getSettings());
 
@@ -27,6 +27,7 @@
     { id: "expert", titleKey: "settings.advanced.section_expert", hintKey: "settings.advanced.section_expert_desc" },
     { id: "league", titleKey: "league.settings_title", hintKey: "league.settings_desc" },
     { id: "music", titleKey: "music.settings_title", hintKey: "music.settings_desc" },
+    { id: "read", titleKey: "read.settings_title", hintKey: "read.settings_desc" },
     { id: "debug", titleKey: "settings.advanced.section_debug", hintKey: "settings.advanced.section_debug_desc" },
   ];
 
@@ -188,6 +189,16 @@
             <span class="setting-path">{$t('music.settings_enable_desc')}</span>
           </div>
           <button class="toggle" class:on={settings.music?.enabled ?? true} onclick={() => updateSettings({ music: { enabled: !(settings.music?.enabled ?? true) } })} role="switch" aria-checked={settings.music?.enabled ?? true} aria-label={$t('music.settings_enable') as string}><span class="toggle-knob"></span></button>
+        </div>
+      </div>
+    {:else if subView === "read"}
+      <div class="card">
+        <div class="setting-row" data-setting-key="read.settings_enable">
+          <div class="setting-col">
+            <span class="setting-label">{$t('read.settings_enable')}</span>
+            <span class="setting-path">{$t('read.settings_enable_desc')}</span>
+          </div>
+          <button class="toggle" class:on={settings.read?.enabled ?? true} onclick={() => updateSettings({ read: { enabled: !(settings.read?.enabled ?? true) } })} role="switch" aria-checked={settings.read?.enabled ?? true} aria-label={$t('read.settings_enable') as string}><span class="toggle-knob"></span></button>
         </div>
       </div>
     {:else if subView === "debug"}

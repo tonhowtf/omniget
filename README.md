@@ -421,7 +421,9 @@ Extra abilities you switch on when you need them, in **Superpowers** in the side
 
 **Music** is a full music app for the songs on your computer. It indexes your music folders, plays with gapless or crossfade transitions, levels the volume between songs (ReplayGain 2.0), and has a 10-band equalizer and a live visualizer. It shows synced lyrics (your .lrc files, the ones inside the file, or found for you on LRCLIB) and plays internet radio from thousands of stations. Songs you download by link or search land straight in the library. Batch tools measure loudness, tempo and key, convert formats, rename files from their tags, find duplicates and spot fake lossless files with a spectrogram.
 
-The other is a **League of Legends** helper that reads your running client locally, with match scouting, live gold and levels, runes applied in one click and opt-in automation such as accepting matches. Nothing runs until you turn it on in **Settings → Advanced**.
+**Read** is a reading room for books, comics and manga. It indexes your EPUB, MOBI/AZW3, FB2, PDF, CBZ and TXT files and opens them in a reader with themes, fonts, columns or scrolling, highlights and notes, search, read-aloud, a dictionary, and an AI assistant that recaps the story so far without spoilers. Comics and manga read right to left, left to right, vertical or as a webtoon, one or two pages at a time. It gets free books from Project Gutenberg, Standard Ebooks and Open Library, follows manga on MangaDex and MANGA Plus with new-chapter alerts, and reads any OPDS catalog or a Suwayomi server you run. It converts formats, prepares comics for your Kindle or Kobo, sends books by USB or e-mail, shares your library with e-readers on your Wi-Fi over OPDS, and keeps your place in step with KOReader.
+
+The third is a **League of Legends** helper that reads your running client locally, with match scouting, live gold and levels, runes applied in one click and opt-in automation such as accepting matches. Nothing runs until you turn it on in **Settings → Advanced**.
 
 ## Everything else in the box
 

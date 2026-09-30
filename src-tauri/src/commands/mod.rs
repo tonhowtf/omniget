@@ -18,6 +18,7 @@ pub mod omnidisc;
 pub mod p2p;
 pub mod pet;
 pub mod profile;
+pub mod read;
 pub mod reencode;
 pub mod rpc;
 pub mod rules;

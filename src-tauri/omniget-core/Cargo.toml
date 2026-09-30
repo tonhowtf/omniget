@@ -54,6 +54,14 @@ tempfile = "=3.25.0"
 lofty = "0.25"
 ebur128 = "0.1"
 rustfft = "6"
+# core/read: EPUB/OPF/NCX, ComicInfo.xml and OPDS feeds.
+quick-xml = "0.38"
+# core/read: CSS selectors for declarative sources the user adds.
+scraper = "0.27"
+# core/read: TXT/Markdown to EPUB (charset detection, CommonMark).
+pulldown-cmark = { version = "0.13", default-features = false, features = ["html"] }
+encoding_rs = "0.8"
+chardetng = "0.1"
 
 [target.'cfg(windows)'.dependencies]
 # Job Object of the CLI turns (`core::process::ProcessTreeGuard`): the only

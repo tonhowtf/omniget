@@ -36,6 +36,8 @@ pub struct AppSettings {
     #[serde(default)]
     pub music: MusicSettings,
     #[serde(default)]
+    pub read: ReadSettings,
+    #[serde(default)]
     pub accessibility: AccessibilitySettings,
     #[serde(default)]
     pub omnidisc: OmnidiscSettings,
@@ -292,6 +294,27 @@ impl Default for MusicSettings {
     fn default() -> Self {
         Self {
             enabled: default_music_enabled(),
+        }
+    }
+}
+
+/// `/read` superpower. Reader preferences (fonts, themes, layout) are per
+/// device and live in the webview; library state is in `read.db`. Only the
+/// on/off switch is here.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReadSettings {
+    #[serde(default = "default_read_enabled")]
+    pub enabled: bool,
+}
+
+fn default_read_enabled() -> bool {
+    true
+}
+
+impl Default for ReadSettings {
+    fn default() -> Self {
+        Self {
+            enabled: default_read_enabled(),
         }
     }
 }
@@ -945,6 +968,7 @@ impl Default for AppSettings {
             bridge: BridgeSettings::default(),
             league: LeagueSettings::default(),
             music: MusicSettings::default(),
+            read: ReadSettings::default(),
             accessibility: AccessibilitySettings::default(),
             omnidisc: OmnidiscSettings::default(),
             world: WorldSettings::default(),

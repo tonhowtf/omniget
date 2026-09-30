@@ -111,6 +111,9 @@ export type AppSettings = {
   music?: {
     enabled?: boolean;
   };
+  read?: {
+    enabled?: boolean;
+  };
   league?: {
     enabled?: boolean;
     auto_accept?: boolean;

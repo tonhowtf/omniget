@@ -5,5 +5,6 @@ pub mod common;
 pub mod download;
 pub mod import_cookies;
 pub mod info;
+pub mod read;
 pub mod splash;
 pub mod usage;

@@ -45,6 +45,11 @@ pub fn tools(p: &Principal) -> Vec<ToolDef> {
     ]{
         if policy::allowed(p,name){list.push(ToolDef{name,description,input_schema:json!({"type":"object","properties":props,"required":required,"additionalProperties":false})});}
     }
+    for (name, description, props, required) in crate::commands::read::mcp::defs() {
+        if policy::allowed(p, name) {
+            list.push(ToolDef{name,description,input_schema:json!({"type":"object","properties":props,"required":required,"additionalProperties":false})});
+        }
+    }
     list.extend(
         super::orchestration::tools()
             .into_iter()
@@ -417,6 +422,9 @@ pub async fn call(app: &AppHandle, p: &Principal, name: &str, a: Value) -> Resul
             super::auth::call(app, p, name, &a).await?
         }
         "diagnostic_bundle_create" => super::bundle::create(app, p, id, &a).await?,
+        n if crate::commands::read::mcp::TOOLS.contains(&n) => {
+            crate::commands::read::mcp::call(n, &a).await?
+        }
         "artifact_access" => super::artifact_access::call(app, p, &a).await?,
         "download_history" => {
             let ids = policy::owned(p)?;

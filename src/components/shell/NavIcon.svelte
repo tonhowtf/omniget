@@ -24,6 +24,7 @@
     about: { glyph: "info", from: "#5AA9FF", to: "#1E6FE8" },
     league: { glyph: "sword", from: "#E8B84A", to: "#B8860B" },
     music: { glyph: "puzzle-piece", from: "#FF6B8B", to: "#E0245E" },
+    read: { glyph: "book-open-text", from: "#FFB86B", to: "#E0712A" },
     fallback: { glyph: "puzzle-piece", from: "#8E8E93", to: "#5C5C60" },
   };
 

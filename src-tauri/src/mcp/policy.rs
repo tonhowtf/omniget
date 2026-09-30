@@ -63,6 +63,7 @@ pub const SCOPES: &[&str] = &[
     "orchestration_control",
     "orchestration_create",
     "auth",
+    "library",
 ];
 pub fn create(name: String, scopes: Vec<String>) -> Result<ConnectionGrant, String> {
     if name.trim().is_empty()
@@ -217,6 +218,7 @@ pub fn scope(name: &str) -> Option<&'static str> {
         "missions_create" => "orchestration_create",
         "agents_derived_list" | "groups_get" => "orchestration_read",
         "agents_prepare" | "groups_prepare" | "group_tasks_create" => "orchestration_create",
+        "read_library_search" | "read_book_get" | "read_book_text" | "read_updates" => "library",
         _ => return None,
     })
 }

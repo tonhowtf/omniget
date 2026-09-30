@@ -81,7 +81,7 @@
   let reveal = $state(false);
   let snippets = $state<[string,string][]>([]);
   let client = $state(0);
-  const options = ["app_observe", "app_control", "app_capture", "discover", "enqueue", "control", "diagnostics", "artifacts", "history", "local_network", "transfer", "orchestration_read", "orchestration_control", "orchestration_create", "auth"];
+  const options = ["app_observe", "app_control", "app_capture", "discover", "enqueue", "control", "diagnostics", "artifacts", "history", "local_network", "transfer", "orchestration_read", "orchestration_control", "orchestration_create", "auth", "library"];
   async function chooseFolder() {
     const selected = await open({ directory: true, multiple: false });
     if (typeof selected === "string") folder = selected;

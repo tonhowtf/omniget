@@ -276,3 +276,6 @@ skills-lock.json
 
 # Local
 /estudos/
+
+# pdf.js runtime for the /read reader, copied from node_modules by scripts/setup-pdfjs.mjs
+/static/vendor/pdfjs/
