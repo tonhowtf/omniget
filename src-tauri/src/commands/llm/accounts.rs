@@ -219,34 +219,7 @@ pub struct LoginPlan {
 // Pure helpers (unit-tested)
 // ---------------------------------------------------------------------------
 
-/// Keep the chain in the user's order, drop ids that no longer exist and append
-/// accounts the chain never heard of, so a freshly created account is reachable
-/// without editing the order by hand.
-pub fn normalize_chain(chain: &[String], accounts: &[CliAccount]) -> Vec<String> {
-    let mut out: Vec<String> = Vec::with_capacity(accounts.len());
-    for id in chain {
-        if accounts.iter().any(|a| &a.id == id) && !out.contains(id) {
-            out.push(id.clone());
-        }
-    }
-    for a in accounts {
-        if !out.contains(&a.id) {
-            out.push(a.id.clone());
-        }
-    }
-    out
-}
-
-/// One-click switch: the account becomes the head of the chain, the rest keeps
-/// its relative order. An unknown id leaves the chain untouched.
-pub fn move_to_head(chain: &[String], id: &str) -> Vec<String> {
-    if !chain.iter().any(|c| c == id) {
-        return chain.to_vec();
-    }
-    let mut out = vec![id.to_string()];
-    out.extend(chain.iter().filter(|c| c.as_str() != id).cloned());
-    out
-}
+pub use omniget_core::core::llm::cli_runtime::accounts::{move_to_head, normalize_chain};
 
 /// `Claude Max · pessoal` + `claude` → `claude-claude-max-pessoal`, made unique
 /// against the ids already in use. The result always satisfies

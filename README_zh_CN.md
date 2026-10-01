@@ -332,8 +332,9 @@ Claude Code、Codex、Gemini CLI 和本地模型在桌面窗口里变成智能�
 命令行随每个版本发布。它和正在运行的应用通信，所以你在终端里启动的 Job 会出现在窗口里。
 
 ```bash
-omniget-cli claude                   # 用应用里的某个账号打开 Claude Code
-omniget-cli claude --list            # Claude 账号列表，带邮箱和套餐
+omniget-cli claude                   # 用主账号打开 Claude Code
+omniget-cli claude --list            # Claude 账号列表，带邮箱和套餐（★ = 主账号）
+omniget-cli claude --default work    # 把 "work" 设为主账号，终端和应用都生效
 omniget-cli usage --watch 60         # 每个 Claude Code 和 Codex 账号的 5 小时、7 天窗口和花费
 omniget-cli agent run "Fix the failing test in src/cart.js" --agent claude-code --workspace .
 omniget-cli agent loop "Make the tests pass" --workspace . --check "npm test" --rounds 5

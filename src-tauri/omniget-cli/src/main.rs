@@ -95,7 +95,7 @@ enum Commands {
     },
     /// Open Claude Code on one of the app's accounts (/llm → Accounts), skipping permission prompts
     Claude {
-        /// Account id or label (a unique prefix works); without it, asks when there are several
+        /// Account id, label or e-mail (a unique prefix works); without it, the main account (asks when there is none)
         account: Option<String>,
 
         #[arg(long, help = "List the Claude accounts (e-mail and plan) and exit")]
@@ -106,6 +106,21 @@ enum Commands {
             help = "Add a new account: log in with Claude Code and name it after the e-mail (or ACCOUNT)"
         )]
         add: bool,
+
+        #[arg(
+            long,
+            help = "Make ACCOUNT the main one, here and in the app (asks when ACCOUNT is missing); with --add, the new one"
+        )]
+        default: bool,
+
+        #[arg(long, help = "Ask which account to open even when there is a main one")]
+        pick: bool,
+
+        #[arg(
+            long,
+            help = "Remove ACCOUNT from OmniGet; its login folder stays on disk"
+        )]
+        remove: bool,
 
         #[arg(
             long,
@@ -281,11 +296,23 @@ async fn main() -> anyhow::Result<()> {
             account,
             list,
             add,
+            default,
+            pick,
+            remove,
             safe,
             no_splash,
             extra,
         } => {
-            commands::claude::execute(account, list, add, safe, no_splash, extra)?;
+            let flags = commands::claude::Flags {
+                list,
+                add,
+                default,
+                pick,
+                remove,
+                safe,
+                no_splash,
+            };
+            commands::claude::execute(account, flags, extra)?;
         }
         Commands::Usage { days, watch } => {
             commands::usage::execute(days, watch, cli.json).await?;

@@ -336,8 +336,9 @@ Claude Code, Codex, Gemini CLI и локальные модели становя
 Командная строка входит в каждый релиз. Она работает через запущенное приложение, поэтому задачи, запущенные из терминала, видны в окне.
 
 ```bash
-omniget-cli claude                   # открыть Claude Code на одном из аккаунтов приложения
-omniget-cli claude --list            # аккаунты Claude, с e-mail и тарифом
+omniget-cli claude                   # открыть Claude Code на основном аккаунте
+omniget-cli claude --list            # аккаунты Claude, с e-mail и тарифом (★ = основной)
+omniget-cli claude --default work    # сделать "work" основным аккаунтом, здесь и в приложении
 omniget-cli usage --watch 60         # окна 5 ч и 7 дней и траты по каждому аккаунту Claude Code и Codex
 omniget-cli agent run "Fix the failing test in src/cart.js" --agent claude-code --workspace .
 omniget-cli agent loop "Make the tests pass" --workspace . --check "npm test" --rounds 5

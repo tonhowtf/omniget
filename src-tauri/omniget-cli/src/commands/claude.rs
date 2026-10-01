@@ -15,7 +15,8 @@ use std::process::Command;
 
 use anyhow::{anyhow, bail, Context};
 use omniget_core::core::llm::cli_runtime::accounts::{
-    default_profile_dir, valid_id, AccountStore, CliAccount, CliKind, SandboxMode, SCRUB_ENV,
+    default_profile_dir, primary, set_primary, valid_id, AccountStore, CliAccount, CliKind,
+    SandboxMode, SCRUB_ENV,
 };
 use serde_json::Value;
 
@@ -34,6 +35,24 @@ pub(crate) fn claude_accounts() -> Vec<CliAccount> {
                 .collect()
         })
         .unwrap_or_default()
+}
+
+/// The main Claude account: the first one in the app's order (/llm → AI
+/// connections, "Use now"), set from here with `--default`.
+fn main_account() -> Option<CliAccount> {
+    AccountStore::default_store().and_then(|s| primary(&s, CliKind::Claude))
+}
+
+/// What `omniget claude` was asked to do besides opening an account.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Flags {
+    pub list: bool,
+    pub add: bool,
+    pub default: bool,
+    pub pick: bool,
+    pub remove: bool,
+    pub safe: bool,
+    pub no_splash: bool,
 }
 
 /// What `claude auth status` says about an account. Never holds a secret.
@@ -173,18 +192,21 @@ fn describe(a: &CliAccount, who: Option<&Identity>) -> String {
     if a.config_dir.as_os_str().is_empty() {
         s.push_str(" [perfil padrão do terminal]");
     } else if in_temp_dir(&a.config_dir) {
-        s.push_str(" [pasta temporária: pode sumir; recrie com --add]");
+        s.push_str(" [pasta temporária: pode sumir; recrie com --add --default]");
     }
     s
 }
 
 fn pick(accounts: &[CliAccount], who: &[Option<Identity>]) -> anyhow::Result<CliAccount> {
-    let last = last_path()
-        .and_then(|p| std::fs::read_to_string(p).ok())
-        .map(|s| s.trim().to_string());
+    // Enter keeps the main account; without one, the account picked last.
+    let preferred = main_account().map(|a| a.id).or_else(|| {
+        last_path()
+            .and_then(|p| std::fs::read_to_string(p).ok())
+            .map(|s| s.trim().to_string())
+    });
     let default = accounts
         .iter()
-        .position(|a| Some(&a.id) == last.as_ref())
+        .position(|a| Some(&a.id) == preferred.as_ref())
         .unwrap_or(0);
     let mut err = std::io::stderr();
     for (i, a) in accounts.iter().enumerate() {
@@ -247,7 +269,7 @@ pub fn slug(name: &str) -> String {
 
 /// `--add [name]`: new account in the app's own profiles dir, then Claude
 /// Code's login in it, then the account is named after who logged in.
-fn add(name: Option<String>) -> anyhow::Result<()> {
+fn add(name: Option<String>) -> anyhow::Result<Option<CliAccount>> {
     let store = AccountStore::default_store()
         .ok_or_else(|| anyhow!("pasta de dados do OmniGet não encontrada"))?;
     let taken: Vec<String> = store.list().iter().map(|a| a.id.clone()).collect();
@@ -311,60 +333,119 @@ fn add(name: Option<String>) -> anyhow::Result<()> {
                 "Use: omniget claude {}",
                 if name.is_some() { &id } else { &email }
             );
+            Ok(Some(account))
         }
         None => {
             println!(
                 "O login não foi concluído (saída {:?}). A conta {id} ficou criada; rode `omniget claude {id}` e use /login.",
                 status.code()
             );
+            Ok(None)
         }
+    }
+}
+
+/// An account by id, label, e-mail or unique prefix. E-mails are only asked
+/// for when the name did not match, so `omniget claude max` stays instant.
+fn resolve(accounts: &[CliAccount], query: &str) -> anyhow::Result<CliAccount> {
+    if let Some(a) = find(accounts, &[], query) {
+        return Ok(a.clone());
+    }
+    let emails: Vec<_> = identities(accounts)
+        .into_iter()
+        .map(|w| w.and_then(|i| i.email))
+        .collect();
+    find(accounts, &emails, query)
+        .cloned()
+        .ok_or_else(|| anyhow!("conta {query:?} não encontrada; veja `omniget claude --list`"))
+}
+
+/// `--default`: the account goes to the head of the app's order, so the app
+/// and a bare `omniget claude` both start on it.
+fn make_main(account: &CliAccount) -> anyhow::Result<()> {
+    let store = AccountStore::default_store()
+        .ok_or_else(|| anyhow!("pasta de dados do OmniGet não encontrada"))?;
+    set_primary(&store, &account.id).map_err(|e| anyhow!("{e:?}"))?;
+    let who = identity(account);
+    println!(
+        "Conta principal: {}",
+        describe(account, who.as_ref().filter(|i| i.logged_in))
+    );
+    println!("`omniget claude` abre nela sem perguntar, e o app tenta ela primeiro. Outra conta: omniget claude <conta>, ou --pick para escolher.");
+    Ok(())
+}
+
+/// `--remove`: forgets the account, like the app's remove button. The login
+/// folder stays, so nothing is logged out by accident.
+fn remove(account: &CliAccount) -> anyhow::Result<()> {
+    let store = AccountStore::default_store()
+        .ok_or_else(|| anyhow!("pasta de dados do OmniGet não encontrada"))?;
+    store.remove(&account.id).map_err(|e| anyhow!("{e:?}"))?;
+    println!("Removida: {} ({})", account.label, account.id);
+    if !account.config_dir.as_os_str().is_empty() {
+        println!(
+            "O login continua em {}; apague a pasta se não for usar mais.",
+            account.config_dir.display()
+        );
+    }
+    if let Some(next) = main_account() {
+        println!("Conta principal agora: {} ({})", next.label, next.id);
     }
     Ok(())
 }
 
-pub fn execute(
-    account: Option<String>,
-    list: bool,
-    add_account: bool,
-    safe: bool,
-    no_splash: bool,
-    extra: Vec<String>,
-) -> anyhow::Result<()> {
-    if add_account {
-        return add(account);
-    }
-    let accounts = claude_accounts();
-    if list {
-        if accounts.is_empty() {
-            println!("Nenhuma conta Claude cadastrada. Crie uma com `omniget claude --add` ou no app em /llm → Contas.");
-        }
-        for (a, who) in accounts.iter().zip(identities(&accounts)) {
-            println!("{}", describe(a, who.as_ref()));
+pub fn execute(account: Option<String>, flags: Flags, extra: Vec<String>) -> anyhow::Result<()> {
+    if flags.add {
+        let added = add(account)?;
+        if let (true, Some(a)) = (flags.default, added) {
+            make_main(&a)?;
         }
         return Ok(());
     }
-    let chosen: Option<CliAccount> = match (&account, accounts.len()) {
-        (Some(q), _) => {
-            let found = find(&accounts, &[], q).cloned();
-            let found = match found {
-                Some(a) => Some(a),
-                // Only ask who each account is when the name did not match,
-                // so `omniget claude max` stays instant.
-                None => {
-                    let emails: Vec<_> = identities(&accounts)
-                        .into_iter()
-                        .map(|w| w.and_then(|i| i.email))
-                        .collect();
-                    find(&accounts, &emails, q).cloned()
-                }
-            };
-            Some(found.ok_or_else(|| {
-                anyhow!("conta {q:?} não encontrada; veja `omniget claude --list`")
-            })?)
+    let accounts = claude_accounts();
+    if flags.list {
+        if accounts.is_empty() {
+            println!("Nenhuma conta Claude cadastrada. Crie uma com `omniget claude --add` ou no app em /llm → Contas.");
         }
+        let main = main_account().map(|a| a.id);
+        for (a, who) in accounts.iter().zip(identities(&accounts)) {
+            let mark = if Some(&a.id) == main.as_ref() {
+                "★"
+            } else {
+                " "
+            };
+            println!("{mark} {}", describe(a, who.as_ref()));
+        }
+        if main.is_some() {
+            println!("★ = conta principal (omniget claude --default <conta> troca)");
+        }
+        return Ok(());
+    }
+    if flags.default || flags.remove {
+        if accounts.is_empty() {
+            bail!("nenhuma conta Claude cadastrada; crie uma com `omniget claude --add`");
+        }
+        let target = match &account {
+            Some(q) => resolve(&accounts, q)?,
+            None if flags.remove => {
+                bail!("diga qual conta remover: omniget claude --remove <conta>")
+            }
+            None => pick(&accounts, &identities(&accounts))?,
+        };
+        return if flags.remove {
+            remove(&target)
+        } else {
+            make_main(&target)
+        };
+    }
+    let chosen: Option<CliAccount> = match (&account, accounts.len()) {
+        (Some(q), _) => Some(resolve(&accounts, q)?),
         (None, 0) => None,
         (None, 1) => Some(accounts[0].clone()),
-        (None, _) => Some(pick(&accounts, &identities(&accounts))?),
+        (None, _) => match main_account().filter(|_| !flags.pick) {
+            Some(main) => Some(main),
+            None => Some(pick(&accounts, &identities(&accounts))?),
+        },
     };
 
     if let Some(a) = &chosen {
@@ -374,13 +455,13 @@ pub fn execute(
         }
     }
     let mut cmd = claude_command(chosen.as_ref());
-    cmd.args(claude_args(safe, &extra));
+    cmd.args(claude_args(flags.safe, &extra));
     if let Some(a) = &chosen {
         if let Some(p) = last_path() {
             let _ = std::fs::write(p, &a.id);
         }
     }
-    let splash = !no_splash && std::env::var_os("OMNIGET_NO_SPLASH").is_none();
+    let splash = !flags.no_splash && std::env::var_os("OMNIGET_NO_SPLASH").is_none();
     if splash {
         // Claude Code's version and who is logged in, asked in parallel so the
         // splash costs one `claude` start, not two.

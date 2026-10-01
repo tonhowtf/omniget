@@ -332,8 +332,9 @@ A seção **LLM** abre na Central: um lugar só para configurar, pilotar e acomp
 A linha de comando vem em toda release. Ela conversa com o app aberto, então os jobs que você inicia no terminal aparecem na janela.
 
 ```bash
-omniget-cli claude                   # abre o Claude Code numa das contas do app
-omniget-cli claude --list            # as contas do Claude, com e-mail e plano
+omniget-cli claude                   # abre o Claude Code na sua conta principal
+omniget-cli claude --list            # as contas do Claude, com e-mail e plano (★ = principal)
+omniget-cli claude --default work    # faz de "work" a conta principal, aqui e no app
 omniget-cli usage --watch 60         # janelas de 5 h e de 7 dias e gastos, por conta do Claude Code e do Codex
 omniget-cli agent run "Fix the failing test in src/cart.js" --agent claude-code --workspace .
 omniget-cli agent loop "Make the tests pass" --workspace . --check "npm test" --rounds 5

@@ -410,6 +410,112 @@ pub fn default_profile_dir(id: &str) -> Option<PathBuf> {
     super::super::roster_store::llm_dir().map(|d| d.join("profiles").join(id))
 }
 
+/// `<app_data>/llm/accounts-ui.json`: the order the app tries accounts in
+/// (`chain`) and the rotation settings. Shared by the app and `omniget claude`.
+pub fn prefs_path() -> Option<PathBuf> {
+    super::super::roster_store::llm_dir().map(|d| d.join("accounts-ui.json"))
+}
+
+/// The saved chain, minus accounts that no longer exist and duplicates, plus
+/// accounts it does not know yet at the end (in store order).
+pub fn normalize_chain(chain: &[String], accounts: &[CliAccount]) -> Vec<String> {
+    let mut out: Vec<String> = Vec::with_capacity(accounts.len());
+    for id in chain {
+        if accounts.iter().any(|a| &a.id == id) && !out.contains(id) {
+            out.push(id.clone());
+        }
+    }
+    for a in accounts {
+        if !out.contains(&a.id) {
+            out.push(a.id.clone());
+        }
+    }
+    out
+}
+
+/// One-click switch: the account becomes the head of the chain, the rest keeps
+/// its relative order. An unknown id leaves the chain untouched.
+pub fn move_to_head(chain: &[String], id: &str) -> Vec<String> {
+    if !chain.iter().any(|c| c == id) {
+        return chain.to_vec();
+    }
+    let mut out = vec![id.to_string()];
+    out.extend(chain.iter().filter(|c| c.as_str() != id).cloned());
+    out
+}
+
+fn chain_of(prefs: &Value) -> Vec<String> {
+    prefs
+        .get("chain")
+        .and_then(Value::as_array)
+        .map(|c| {
+            c.iter()
+                .filter_map(|v| v.as_str().map(str::to_string))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// The main account of one CLI: the first enabled account of that kind in the
+/// saved chain (what the app's "Use now" sets). `None` while no chain was
+/// saved, so a fresh install keeps asking.
+pub fn primary_in(prefs: &Value, accounts: &[CliAccount], cli: CliKind) -> Option<CliAccount> {
+    chain_of(prefs).iter().find_map(|id| {
+        accounts
+            .iter()
+            .find(|a| &a.id == id && a.cli == cli && !a.disabled)
+            .cloned()
+    })
+}
+
+/// `prefs` with `id` at the head of its chain; every other key is kept.
+pub fn promote_in(prefs: &Value, accounts: &[CliAccount], id: &str) -> Value {
+    let chain = move_to_head(&normalize_chain(&chain_of(prefs), accounts), id);
+    let mut out = match prefs {
+        Value::Object(_) => prefs.clone(),
+        _ => Value::Object(Default::default()),
+    };
+    out["chain"] = Value::from(chain);
+    out
+}
+
+fn read_prefs(path: &Path) -> Value {
+    std::fs::read_to_string(path)
+        .ok()
+        .and_then(|t| serde_json::from_str(&t).ok())
+        .unwrap_or(Value::Null)
+}
+
+/// [`primary_in`] read from `accounts-ui.json`.
+pub fn primary(store: &AccountStore, cli: CliKind) -> Option<CliAccount> {
+    let prefs = read_prefs(&prefs_path()?);
+    primary_in(&prefs, &store.list(), cli)
+}
+
+/// Makes `id` the main account, here and in the app: it moves to the head of
+/// the chain in `accounts-ui.json`, written atomically.
+pub fn set_primary(store: &AccountStore, id: &str) -> Result<()> {
+    if store.get(id).is_none() {
+        return Err(AccountError::new(
+            ERR_CLI_NOT_FOUND,
+            format!("no account {id}"),
+        ));
+    }
+    let path =
+        prefs_path().ok_or_else(|| AccountError::new(ERR_CLI_IO, "no app data dir".to_string()))?;
+    let prefs = promote_in(&read_prefs(&path), &store.list(), id);
+    let text = serde_json::to_string_pretty(&prefs)
+        .map_err(|e| AccountError::new(ERR_CLI_IO, e.to_string()))?;
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|e| AccountError::new(ERR_CLI_IO, e.to_string()))?;
+    }
+    let tmp = path.with_extension("json.tmp");
+    std::fs::write(&tmp, text.as_bytes())
+        .map_err(|e| AccountError::new(ERR_CLI_IO, e.to_string()))?;
+    std::fs::rename(&tmp, &path).map_err(|e| AccountError::new(ERR_CLI_IO, e.to_string()))
+}
+
 /// Cached, atomically written account list. Same shape as `RosterStore`.
 pub struct AccountStore {
     path: PathBuf,
@@ -576,6 +682,40 @@ mod tests {
             disabled: false,
             sandbox: SandboxMode::default(),
         }
+    }
+
+    #[test]
+    fn the_primary_is_the_first_enabled_account_of_that_cli_in_the_chain() {
+        let dir = Path::new("/tmp");
+        let mut off = account("off", dir);
+        off.disabled = true;
+        let mut codex = account("codex", dir);
+        codex.cli = CliKind::Codex;
+        let accounts = vec![account("a", dir), account("b", dir), off, codex];
+        let prefs = serde_json::json!({ "chain": ["codex", "off", "ghost", "b", "a"] });
+        let p = primary_in(&prefs, &accounts, CliKind::Claude).unwrap();
+        assert_eq!(p.id, "b");
+        assert_eq!(
+            primary_in(&prefs, &accounts, CliKind::Codex).unwrap().id,
+            "codex"
+        );
+        // No saved chain yet: no primary, so `omniget claude` keeps asking.
+        assert!(primary_in(&Value::Null, &accounts, CliKind::Claude).is_none());
+    }
+
+    #[test]
+    fn promoting_moves_the_account_first_and_keeps_the_other_settings() {
+        let dir = Path::new("/tmp");
+        let accounts = vec![account("a", dir), account("b", dir), account("c", dir)];
+        let prefs = serde_json::json!({
+            "chain": ["c", "ghost", "a"],
+            "rotation": { "enabled": true, "threshold": 0.8 }
+        });
+        let out = promote_in(&prefs, &accounts, "a");
+        assert_eq!(out["chain"], serde_json::json!(["a", "c", "b"]));
+        assert_eq!(out["rotation"], prefs["rotation"]);
+        let fresh = promote_in(&Value::Null, &accounts, "b");
+        assert_eq!(fresh["chain"], serde_json::json!(["b", "a", "c"]));
     }
 
     #[test]
