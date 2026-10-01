@@ -296,18 +296,7 @@ pub fn tree_for_sniffed(id: u64) -> Result<Node, String> {
         "dash" => "dash",
         _ => "direct",
     };
-    let file = m
-        .url
-        .split(['?', '#'])
-        .next()
-        .and_then(|p| p.rsplit('/').next())
-        .unwrap_or("media")
-        .to_string();
-    let title = if m.page_title.is_empty() {
-        file
-    } else {
-        m.page_title.clone()
-    };
+    let title = super::connector::media_title(&m.url, &m.page_title);
     let mut tree = Node {
         title: "Sniffed".into(),
         kind: "folder".into(),

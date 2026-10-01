@@ -216,12 +216,20 @@ fn plan(node: &Node, dir: &Path, selected: &Option<HashSet<String>>, out: &mut V
             let src = child.source.clone().unwrap_or_default();
             let name = match &src.filename {
                 Some(f) => clip(f),
-                None => format!(
-                    "{:02} - {}.{}",
-                    n_item,
-                    clip(&child.title),
-                    ext_for(child, &src)
-                ),
+                None => {
+                    let title = clip(&child.title);
+                    let ext = ext_for(child, &src);
+                    // A title that already ends in the extension
+                    // (`dummy.pdf`) does not get it twice.
+                    if title
+                        .to_ascii_lowercase()
+                        .ends_with(&format!(".{}", ext.to_ascii_lowercase()))
+                    {
+                        format!("{:02} - {}", n_item, title)
+                    } else {
+                        format!("{:02} - {}.{}", n_item, title, ext)
+                    }
+                }
             };
             out.push(Planned {
                 node: child.clone(),

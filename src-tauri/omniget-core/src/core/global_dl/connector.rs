@@ -412,7 +412,14 @@ pub async fn resolve(
             tree.origin = Some(url.to_string());
             (tree, logs, Some(c.manifest.id))
         }
-        None => (generic_tree(url, tab_id.as_deref()), Vec::new(), None),
+        None => {
+            let title = page_title(url, tab_id.as_deref()).await;
+            (
+                generic_tree(url, tab_id.as_deref(), &title),
+                Vec::new(),
+                None,
+            )
+        }
     };
     tree.assign_ids("0");
     let (items, drm, _) = tree.counts();
@@ -426,13 +433,187 @@ pub async fn resolve(
     })
 }
 
-/// No connector: what the tab played, plus the page itself for yt-dlp.
-fn generic_tree(url: &str, tab_id: Option<&str>) -> Node {
-    let page_title = tab_id
-        .and_then(|t| browser::current().and_then(|b| b.tab(t)))
-        .map(|t| t.title)
+/// The tab's title, asked from the page when Chrome still reports the
+/// address (it does until the first title paints, and for some SPAs never
+/// updates it).
+async fn page_title(url: &str, tab_id: Option<&str>) -> String {
+    let Some(b) = browser::current() else {
+        return url.to_string();
+    };
+    let Some(tab) = tab_id.and_then(|t| b.tab(t)) else {
+        return url.to_string();
+    };
+    if !looks_like_address(&tab.title) {
+        return tab.title;
+    }
+    match b
+        .eval(&tab.id, "document.title", Duration::from_secs(3))
+        .await
+    {
+        Ok(Value::String(t)) if !t.trim().is_empty() => t.trim().to_string(),
+        _ if !tab.title.is_empty() => tab.title,
+        _ => url.to_string(),
+    }
+}
+
+fn looks_like_address(title: &str) -> bool {
+    let t = title.trim();
+    t.is_empty() || (!t.contains(' ') && (t.contains('/') || t.contains("://")))
+}
+
+/// File names players use for every stream, which say nothing about it.
+const GENERIC_STEMS: &[&str] = &[
+    "index",
+    "master",
+    "playlist",
+    "manifest",
+    "chunklist",
+    "video",
+    "audio",
+    "media",
+    "stream",
+    "full",
+    "default",
+    "main",
+    "output",
+    "prog_index",
+    "source",
+    "file",
+    "download",
+    "play",
+    "hls",
+    "dash",
+];
+
+/// A sniffed URL's file name, percent-decoded, split in (stem, extension).
+fn url_file(url: &str) -> (String, String) {
+    let path = url.split(['?', '#']).next().unwrap_or(url);
+    let last = path.rsplit('/').next().unwrap_or("");
+    let decoded = urlencoding::decode(last)
+        .map(|c| c.into_owned())
+        .unwrap_or_else(|_| last.to_string());
+    // `Content%2Fbig_buck_bunny.mp4` decodes to a path: keep its last part.
+    let name = decoded.rsplit('/').next().unwrap_or(&decoded).to_string();
+    match name.rsplit_once('.') {
+        Some((stem, ext)) if (1..=5).contains(&ext.len()) => (stem.to_string(), ext.to_string()),
+        _ => (name, String::new()),
+    }
+}
+
+/// What to call one sniffed file: its own name when it says something
+/// (`flower`, `big_buck_bunny_720p`), the page title when the name is
+/// generic (`index.m3u8`) or a bare id (`f6441ae0c84311e4af010bc47400a0a4`).
+pub fn media_title(url: &str, page_title: &str) -> String {
+    let (stem, _) = url_file(url);
+    let lower = stem.to_ascii_lowercase();
+    let generic = stem.is_empty() || GENERIC_STEMS.contains(&lower.as_str());
+    if (generic || id_like(&lower)) && !page_title.trim().is_empty() {
+        page_title.trim().to_string()
+    } else if stem.is_empty() {
+        "media".into()
+    } else {
+        stem
+    }
+}
+
+/// A name made only of ids, qualities and codecs
+/// (`c28d0633-…-master`, `193039199_mp4_h264_aac_hd_7`, `x7tgad0`): it
+/// names the stream for the server, not for a person.
+fn id_like(stem: &str) -> bool {
+    const NOISE: &[&str] = &[
+        "mp4",
+        "h264",
+        "h265",
+        "hevc",
+        "avc",
+        "aac",
+        "vp9",
+        "av1",
+        "opus",
+        "hd",
+        "sd",
+        "hq",
+        "fhd",
+        "uhd",
+        "fragmented",
+        "frag",
+        "video",
+        "audio",
+        "master",
+        "index",
+        "playlist",
+        "manifest",
+    ];
+    let tokens: Vec<&str> = stem
+        .split(['-', '_', '.', ' '])
         .filter(|t| !t.is_empty())
-        .unwrap_or_else(|| url.to_string());
+        .collect();
+    let mixed = |t: &str| {
+        t.len() >= 6
+            && t.chars().any(|c| c.is_ascii_digit())
+            && t.chars().any(|c| c.is_ascii_alphabetic())
+            && t.chars().all(|c| c.is_ascii_alphanumeric())
+    };
+    if tokens.len() == 1 {
+        return mixed(tokens[0])
+            || (tokens[0].len() >= 16 && tokens[0].chars().all(|c| c.is_ascii_hexdigit()));
+    }
+    !tokens.is_empty()
+        && tokens.iter().all(|t| {
+            NOISE.contains(t)
+                || t.chars().all(|c| c.is_ascii_digit())
+                || (t.len() >= 4 && t.chars().all(|c| c.is_ascii_hexdigit()))
+                || t.strip_suffix('p')
+                    .is_some_and(|n| !n.is_empty() && n.chars().all(|c| c.is_ascii_digit()))
+                || t.strip_suffix('k')
+                    .is_some_and(|n| !n.is_empty() && n.chars().all(|c| c.is_ascii_digit()))
+        })
+}
+
+/// Extension for a file whose URL has none (`/download?id=…`).
+fn ext_for_mime(mime: &str) -> Option<&'static str> {
+    Some(match mime.split(';').next().unwrap_or("").trim() {
+        "video/mp4" => "mp4",
+        "video/webm" => "webm",
+        "video/quicktime" => "mov",
+        "video/x-matroska" => "mkv",
+        "audio/mpeg" | "audio/mp3" => "mp3",
+        "audio/mp4" | "audio/x-m4a" | "audio/aac" => "m4a",
+        "audio/ogg" => "ogg",
+        "audio/opus" => "opus",
+        "audio/wav" | "audio/x-wav" => "wav",
+        "audio/flac" => "flac",
+        "application/pdf" => "pdf",
+        "application/epub+zip" => "epub",
+        "text/vtt" => "vtt",
+        "application/x-subrip" => "srt",
+        _ => return None,
+    })
+}
+
+/// Rank for listing: the video first, then audio, subtitles and files.
+fn kind_rank(kind: &str) -> u8 {
+    match kind {
+        "video" => 0,
+        "audio" => 1,
+        "subtitle" => 2,
+        _ => 3,
+    }
+}
+
+/// No connector: what the tab played, plus the page itself for yt-dlp.
+fn generic_tree(url: &str, tab_id: Option<&str>, page_title: &str) -> Node {
+    let page_title = if looks_like_address(page_title) {
+        // A bare file opened in a tab: its name, not the whole address.
+        let (stem, _) = url_file(url);
+        if stem.is_empty() {
+            url.to_string()
+        } else {
+            stem
+        }
+    } else {
+        page_title.to_string()
+    };
     let mut children = vec![Node {
         title: format!("{page_title} (yt-dlp)"),
         kind: "video".into(),
@@ -444,6 +625,7 @@ fn generic_tree(url: &str, tab_id: Option<&str>) -> Node {
         note: Some("sent to the Downloads queue".into()),
         ..Default::default()
     }];
+    let mut media: Vec<Node> = Vec::new();
     if let Some(t) = tab_id {
         for m in sniffer::sniffed(Some(t)) {
             let format = match m.kind.as_str() {
@@ -451,15 +633,16 @@ fn generic_tree(url: &str, tab_id: Option<&str>) -> Node {
                 "dash" => "dash",
                 _ => "direct",
             };
-            let name = m
-                .url
-                .split(['?', '#'])
-                .next()
-                .and_then(|p| p.rsplit('/').next())
-                .unwrap_or("media")
-                .to_string();
-            children.push(Node {
-                title: name,
+            let (_, ext) = url_file(&m.url);
+            let ext = if format != "direct" {
+                None
+            } else if ext.is_empty() {
+                ext_for_mime(&m.mime).map(String::from)
+            } else {
+                Some(ext.to_ascii_lowercase())
+            };
+            media.push(Node {
+                title: media_title(&m.url, &page_title),
                 kind: match m.kind.as_str() {
                     "hls" | "dash" => "video".into(),
                     "document" => "file".into(),
@@ -469,17 +652,57 @@ fn generic_tree(url: &str, tab_id: Option<&str>) -> Node {
                     format: format.into(),
                     url: Some(m.url),
                     headers: m.headers,
+                    ext,
                     ..Default::default()
                 }),
                 ..Default::default()
             });
         }
     }
+    media.sort_by_key(|n| kind_rank(&n.kind));
+    disambiguate(&mut media);
+    children.extend(media);
     Node {
         title: page_title,
         kind: "folder".into(),
         children,
         ..Default::default()
+    }
+}
+
+/// Items that ended up with the same title (68 subtitles all `full.vtt`)
+/// get the path segment that tells them apart (`eu`, `pt-BR`, `720`).
+fn disambiguate(items: &mut [Node]) {
+    use std::collections::HashMap;
+    let mut count: HashMap<(String, String), usize> = HashMap::new();
+    for n in items.iter() {
+        *count.entry((n.kind.clone(), n.title.clone())).or_default() += 1;
+    }
+    let mut seen: HashMap<(String, String), usize> = HashMap::new();
+    for n in items.iter_mut() {
+        let key = (n.kind.clone(), n.title.clone());
+        if count.get(&key).copied().unwrap_or(0) < 2 {
+            continue;
+        }
+        let url = n
+            .source
+            .as_ref()
+            .and_then(|s| s.url.clone())
+            .unwrap_or_default();
+        let path = url.split(['?', '#']).next().unwrap_or("");
+        let segs: Vec<&str> = path.split('/').filter(|x| !x.is_empty()).collect();
+        let hint = segs
+            .iter()
+            .rev()
+            .skip(1)
+            .find(|x| !x.contains('.') && x.len() <= 24 && !GENERIC_STEMS.contains(x))
+            .map(|x| x.to_string());
+        let i = seen.entry(key).or_default();
+        *i += 1;
+        n.title = match hint {
+            Some(h) => format!("{} ({h})", n.title),
+            None => format!("{} ({})", n.title, i),
+        };
     }
 }
 
@@ -720,4 +943,47 @@ fn run_blocking(
     let text = result?;
     let logs = logs.lock().map(|l| l.clone()).unwrap_or_default();
     Ok((text, logs))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{id_like, media_title, url_file};
+
+    #[test]
+    fn names_from_sniffed_urls() {
+        let page = "What is PeerTube? - Framatube";
+        assert_eq!(
+            media_title(
+                "https://f.org/hls/c28d0633-b88d-44c0-a236-e5f40f7e2d35-master.m3u8",
+                page
+            ),
+            page
+        );
+        assert_eq!(media_title("https://a.com/v/index.m3u8?x=1", page), page);
+        assert_eq!(
+            media_title("https://dm.net/manifest/x7tgad0.m3u8?sec=1", page),
+            page
+        );
+        assert_eq!(
+            media_title("https://mdn.dev/media/flower.webm", page),
+            "flower"
+        );
+        assert_eq!(
+            media_title(
+                "https://ia.org/x/Content%2Fbig_buck_bunny_720p_surround.mp4",
+                page
+            ),
+            "big_buck_bunny_720p_surround"
+        );
+        assert_eq!(
+            media_title("https://a.com/ed_1024_512kb.mp4", page),
+            "ed_1024_512kb"
+        );
+        assert!(id_like("193039199_mp4_h264_aac_hd_7"));
+        assert!(!id_like("rhapsody_in_blue"));
+        assert_eq!(
+            url_file("https://a.com/x/dummy.pdf?y=1"),
+            ("dummy".into(), "pdf".into())
+        );
+    }
 }
