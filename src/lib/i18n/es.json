@@ -1832,7 +1832,13 @@
     "external_url_ready": "URL recibida y lista para descargar",
     "external_url_queued": "Descarga añadida desde la extensión de Chrome",
     "file_copied_to_clipboard": "Archivo copiado al portapapeles",
-    "generic_download_complete": "{{name}} — ¡descarga completa!"
+    "generic_download_complete": "{{name}} — ¡descarga completa!",
+    "hotkey_queued": "Enlace del portapapeles añadido a las descargas",
+    "hotkey_already_queued": "Ese enlace ya está en tus descargas",
+    "hotkey_not_a_url": "El portapapeles no tiene un enlace para descargar",
+    "hotkey_clipboard_error": "No se pudo leer el portapapeles",
+    "hotkey_unsupported": "No se pudo descargar el enlace del portapapeles",
+    "hotkey_permission": "El atajo global necesita el permiso de Accesibilidad: Ajustes del Sistema > Privacidad y seguridad > Accesibilidad"
   },
   "reencode": {
     "title": "Recodificar vídeo",

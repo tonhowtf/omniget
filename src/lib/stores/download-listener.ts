@@ -178,6 +178,21 @@ export async function initDownloadListener(): Promise<() => void> {
     },
   );
 
+  const unlistenHotkeyResult = await listen<{ outcome: string; url: string | null }>(
+    "hotkey-download-result",
+    (event) => {
+      const tr = get(t);
+      const outcome = event.payload.outcome;
+      const ok = outcome === "queued" || outcome === "already_queued";
+      showToast(ok ? "success" : "error", tr(`toast.hotkey_${outcome}`));
+    },
+  );
+
+  const unlistenHotkeyPermission = await listen("hotkey-permission-error", () => {
+    const tr = get(t);
+    showToast("error", tr("toast.hotkey_permission"), 15000);
+  });
+
   const unlistenMediaPreview = await listen<{
     url: string;
     title: string;
@@ -217,6 +232,8 @@ export async function initDownloadListener(): Promise<() => void> {
     unlistenQueueState();
     unlistenQueueItemProgress();
     unlistenFileCopied();
+    unlistenHotkeyResult();
+    unlistenHotkeyPermission();
     unlistenMediaPreview();
     clearInterval(cookieCheckInterval);
     if (throttleTimer !== null) {

@@ -58,7 +58,6 @@ export const SETTLE_MS = 150;
 /** Soft delete: a removed terminal keeps its PTY this long for undo. */
 export const SOFT_DELETE_MS = 60_000;
 export const MESSAGE_EVENT = 'canvas://message';
-export const TRAFFIC_EVENT = 'canvas://traffic';
 export const ASK_EVENT = 'canvas://ask';
 
 /** Modal panels of the canvas (toolbar, node menu, shortcuts). */
@@ -287,18 +286,8 @@ export class CanvasEngine {
         MESSAGE_EVENT,
         (e) => this.onMessage(e.payload),
       );
-      const u2: UnlistenFn = await listen<{ connectionId?: string; from: string; to: string; kind?: string }>(
-        TRAFFIC_EVENT,
-        (e) =>
-          this.onMessage({
-            id: `${e.payload.connectionId ?? ''}:${performance.now()}`,
-            from: e.payload.from,
-            to: e.payload.to,
-            kind: e.payload.kind,
-          }),
-      );
       // An answered ask flies back along the cord (same id as its reply message).
-      const u3: UnlistenFn = await listen<{ id: string; from: string; to: string; state: string }>(ASK_EVENT, (e) => {
+      const u2: UnlistenFn = await listen<{ id: string; from: string; to: string; state: string }>(ASK_EVENT, (e) => {
         // The cord stays lit while the ask is in flight.
         if (this.traffic.trackAsk(e.payload)) this.invalidate();
         if (e.payload?.state === 'answered') {
@@ -308,10 +297,9 @@ export class CanvasEngine {
       if (this.destroyed) {
         u1();
         u2();
-        u3();
         return;
       }
-      this.unlisten.push(u1, u2, u3);
+      this.unlisten.push(u1, u2);
     } catch {
       // Outside Tauri.
     }

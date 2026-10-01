@@ -12,6 +12,20 @@ use omniget_core::core::sessions::import::ImportOutcome;
 use omniget_core::core::sessions::index::{ListFilter, ListPage, RefreshStats};
 use omniget_core::core::sessions::search::{Hit, SearchQuery, SearchResult};
 
+/// Grava o texto de "Salvar como" no caminho escolhido no diálogo.
+#[tauri::command]
+pub async fn sessions_save_text(dest: String, content: String) -> Result<String, String> {
+    if let Some(parent) = std::path::Path::new(&dest).parent() {
+        tokio::fs::create_dir_all(parent)
+            .await
+            .map_err(|e| e.to_string())?;
+    }
+    tokio::fs::write(&dest, content)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(dest)
+}
+
 /// Lista de sessões do índice (filtro por ferramenta/conta/projeto/data/título).
 #[tauri::command]
 pub async fn sessions_list(filter: Option<ListFilter>) -> Result<ListPage, String> {

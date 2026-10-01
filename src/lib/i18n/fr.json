@@ -1832,7 +1832,13 @@
     "external_url_ready": "URL reçue et prête à être téléchargée",
     "external_url_queued": "Téléchargement ajouté depuis l'extension Chrome",
     "file_copied_to_clipboard": "Fichier copié dans le presse-papiers",
-    "generic_download_complete": "{{name}} — téléchargement terminé !"
+    "generic_download_complete": "{{name}} — téléchargement terminé !",
+    "hotkey_queued": "Lien du presse-papiers ajouté aux téléchargements",
+    "hotkey_already_queued": "Ce lien est déjà dans vos téléchargements",
+    "hotkey_not_a_url": "Le presse-papiers ne contient aucun lien à télécharger",
+    "hotkey_clipboard_error": "Impossible de lire le presse-papiers",
+    "hotkey_unsupported": "Impossible de télécharger le lien du presse-papiers",
+    "hotkey_permission": "Le raccourci global a besoin de l'autorisation Accessibilité : Réglages Système > Confidentialité et sécurité > Accessibilité"
   },
   "reencode": {
     "title": "Réencoder la vidéo",

@@ -1832,7 +1832,13 @@
     "external_url_ready": "آدرس دریافت شد و آماده دانلود است",
     "external_url_queued": "دانلود از افزونه کروم اضافه شد",
     "file_copied_to_clipboard": "فایل در کلیپ‌بورد کپی شد",
-    "generic_download_complete": "{{name}} — دانلود کامل شد!"
+    "generic_download_complete": "{{name}} — دانلود کامل شد!",
+    "hotkey_queued": "پیوند کلیپ‌بورد به دانلودها اضافه شد",
+    "hotkey_already_queued": "این پیوند از قبل در دانلودهای شما هست",
+    "hotkey_not_a_url": "کلیپ‌بورد پیوندی برای دانلود ندارد",
+    "hotkey_clipboard_error": "خواندن کلیپ‌بورد ممکن نشد",
+    "hotkey_unsupported": "دانلود پیوند کلیپ‌بورد ممکن نشد",
+    "hotkey_permission": "میانبر سراسری به مجوز دسترس‌پذیری نیاز دارد: تنظیمات سیستم > حریم خصوصی و امنیت > دسترس‌پذیری"
   },
   "reencode": {
     "title": "Re-encode video",

@@ -1832,7 +1832,13 @@
     "external_url_ready": "URLを受信し、ダウンロードの準備ができました",
     "external_url_queued": "Chrome拡張機能からダウンロードを追加しました",
     "file_copied_to_clipboard": "ファイルをクリップボードにコピーしました",
-    "generic_download_complete": "{{name}} — ダウンロード完了！"
+    "generic_download_complete": "{{name}} — ダウンロード完了！",
+    "hotkey_queued": "クリップボードのリンクをダウンロードに追加しました",
+    "hotkey_already_queued": "そのリンクはすでにダウンロードにあります",
+    "hotkey_not_a_url": "クリップボードにダウンロードできるリンクがありません",
+    "hotkey_clipboard_error": "クリップボードを読み取れませんでした",
+    "hotkey_unsupported": "クリップボードのリンクをダウンロードできませんでした",
+    "hotkey_permission": "グローバルショートカットにはアクセシビリティの許可が必要です：システム設定 > プライバシーとセキュリティ > アクセシビリティ"
   },
   "reencode": {
     "title": "動画を再エンコード",

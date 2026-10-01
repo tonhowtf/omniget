@@ -1832,7 +1832,13 @@
     "external_url_ready": "已收到 URL，可以开始下载",
     "external_url_queued": "已从 Chrome 扩展添加下载",
     "file_copied_to_clipboard": "文件已复制到剪贴板",
-    "generic_download_complete": "{{name}} — 下载完成！"
+    "generic_download_complete": "{{name}} — 下载完成！",
+    "hotkey_queued": "已将剪贴板中的链接加入下载",
+    "hotkey_already_queued": "该链接已在下载列表中",
+    "hotkey_not_a_url": "剪贴板中没有可下载的链接",
+    "hotkey_clipboard_error": "无法读取剪贴板",
+    "hotkey_unsupported": "无法下载剪贴板中的链接",
+    "hotkey_permission": "全局快捷键需要辅助功能权限：系统设置 > 隐私与安全性 > 辅助功能"
   },
   "reencode": {
     "title": "重新编码视频",

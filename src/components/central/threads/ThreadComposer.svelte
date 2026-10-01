@@ -236,7 +236,7 @@
       searching = true;
       if (searchTimer) clearTimeout(searchTimer);
       searchTimer = setTimeout(async () => {
-        const hits = await searchFiles(cwd!, trig.query);
+        const hits = await searchFiles(cwd!, trig.query, 40, thread.threadId);
         if (seq !== searchSeq) return;
         searching = false;
         items = hits.map((h) => ({

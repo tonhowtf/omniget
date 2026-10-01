@@ -133,9 +133,10 @@
         void workspaces.refresh();
       }, 1200);
     };
-    const unlisten: Promise<UnlistenFn | null>[] = ["term://exit", "term://state"].map((ev) =>
-      listen(ev, soon).catch(() => null),
-    );
+    const unlisten: Promise<UnlistenFn | null>[] = [
+      listen("term://exit", soon).catch(() => null),
+      listen("term://state", soon).catch(() => null),
+    ];
     void installedIdes().then((l) => (ides = l));
     return () => {
       off();

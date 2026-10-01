@@ -436,7 +436,7 @@ export async function saveTextAs(filename: string, content: string, ext: string)
   const { save } = await import("@tauri-apps/plugin-dialog");
   const dest = await save({ defaultPath: filename, filters: [{ name: ext.toUpperCase(), extensions: [ext] }] });
   if (typeof dest !== "string") return null;
-  await invoke("tool_x_write_text", { dest, content });
+  await invoke("sessions_save_text", { dest, content });
   return dest;
 }
 

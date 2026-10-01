@@ -228,14 +228,7 @@ export async function prLookup(cwd: string, reference?: string): Promise<PrInfo 
 
 // ── @ file search ────────────────────────────────────────────────────────
 
-type Hit = { path: string; size: number | null; is_dir: boolean };
-const IGNORED = /[\\/](node_modules|\.git|target|dist|build|\.svelte-kit|\.next|\.venv|__pycache__)[\\/]/;
-
-/**
- * Files of a thread whose path matches `query`. With `threadId` the host
- * answers from `git ls-files` of the thread folder (`threads_files_search`);
- * otherwise (or on an older build) Spotlight / fd / Everything under `cwd`.
- */
+/** Files of a thread whose path matches `query`, from `git ls-files` of the thread folder. */
 export async function searchFiles(
   cwd: string,
   query: string,
@@ -243,23 +236,10 @@ export async function searchFiles(
   threadId?: string,
 ): Promise<{ path: string; isDir: boolean }[]> {
   const q = query.trim();
-  if (q.length < 1) return [];
-  if (threadId) {
-    try {
-      const glued = await tryGlue<string[]>(GLUE.filesSearch, { threadId, query: q, limit });
-      if (glued) return glued.map((path) => ({ path, isDir: false }));
-    } catch {
-      // fall through to the name search
-    }
-  }
+  if (q.length < 1 || !threadId) return [];
   try {
-    const hits = await invoke<Hit[]>("tool_file_search", { query: q, folder: cwd, limit: 300 });
-    const root = cwd.replace(/[\\/]+$/, "");
-    return hits
-      .filter((h) => !IGNORED.test(h.path) && h.path.startsWith(root))
-      .map((h) => ({ path: h.path.slice(root.length + 1), isDir: h.is_dir }))
-      .sort((a, b) => a.path.length - b.path.length)
-      .slice(0, limit);
+    const glued = await tryGlue<string[]>(GLUE.filesSearch, { threadId, query: q, limit });
+    return (glued ?? []).map((path) => ({ path, isDir: false }));
   } catch {
     return [];
   }

@@ -1743,6 +1743,7 @@ pub fn run() {
             commands::central::sessions::sessions_sources,
             commands::central::sessions::sessions_active,
             commands::central::sessions::sessions_refresh,
+            commands::central::sessions::sessions_save_text,
             commands::central::guard::guard_scan_component,
             commands::central::guard::guard_scan_path,
             commands::central::guard::guard_scan_paths,

@@ -32,7 +32,6 @@ pub fn apply_bindings(app: &tauri::AppHandle, settings: &AppSettings) -> Result<
     let mut desired: Vec<(&'static str, Shortcut)> = Vec::new();
     for (enabled, binding, label) in [
         (d.hotkey_enabled, &d.hotkey_binding, "download"),
-        (d.clip_hotkey_enabled, &d.clip_hotkey_binding, "clip"),
         (d.music_hotkey_enabled, &d.music_hotkey_binding, "music"),
     ] {
         if !enabled {
@@ -110,13 +109,7 @@ pub fn on_hotkey_pressed(app: &tauri::AppHandle, shortcut: &Shortcut) {
     let settings = config::load_settings(app);
 
     let download_match = matches_binding(shortcut, &settings.download.hotkey_binding);
-    let clip_match = matches_binding(shortcut, &settings.download.clip_hotkey_binding);
     let music_match = matches_binding(shortcut, &settings.download.music_hotkey_binding);
-
-    if settings.download.clip_hotkey_enabled && clip_match {
-        let _ = app.emit("clip-hotkey-pressed", serde_json::json!({}));
-        return;
-    }
 
     if settings.download.music_hotkey_enabled && music_match {
         handle_music_clipboard(app);
@@ -190,29 +183,37 @@ async fn enqueue_from_clipboard(app: &tauri::AppHandle, url: String) {
 fn handle_music_clipboard(app: &tauri::AppHandle) {
     let text = match app.clipboard().read_text() {
         Ok(t) => t,
-        Err(_) => return,
+        Err(_) => {
+            emit_hotkey_result(app, "clipboard_error", None);
+            return;
+        }
     };
     let text = text.trim().to_string();
     if text.is_empty() || (!text.starts_with("http://") && !text.starts_with("https://")) {
+        emit_hotkey_result(app, "not_a_url", None);
         return;
     }
     if url::Url::parse(&text).is_err() {
+        emit_hotkey_result(app, "not_a_url", None);
         return;
     }
 
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
-        if matches!(
-            crate::external_url::queue_url_with_defaults(
-                &app,
-                text.clone(),
-                true,
-                Some("audio".to_string()),
-            )
-            .await,
-            Ok(crate::external_url::QueueUrlOutcome::Queued)
-        ) {
-            let _ = app.emit("hotkey-download-queued", serde_json::json!({ "url": text }));
+        use crate::external_url::QueueUrlOutcome;
+        let outcome = crate::external_url::queue_url_with_defaults(
+            &app,
+            text.clone(),
+            true,
+            Some("audio".to_string()),
+        )
+        .await;
+        match outcome {
+            Ok(QueueUrlOutcome::Queued) => emit_hotkey_result(&app, "queued", Some(&text)),
+            Ok(QueueUrlOutcome::AlreadyQueued) => {
+                emit_hotkey_result(&app, "already_queued", Some(&text))
+            }
+            Err(_) => emit_hotkey_result(&app, "unsupported", Some(&text)),
         }
     });
 }

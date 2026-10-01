@@ -1832,7 +1832,13 @@
     "external_url_ready": "已收到 URL，可以开始下载",
     "external_url_queued": "已从 Chrome 扩展添加下载",
     "file_copied_to_clipboard": "檔案已複製到剪貼簿",
-    "generic_download_complete": "{{name}} — 下載完成！"
+    "generic_download_complete": "{{name}} — 下載完成！",
+    "hotkey_queued": "已將剪貼簿中的連結加入下載",
+    "hotkey_already_queued": "該連結已在下載清單中",
+    "hotkey_not_a_url": "剪貼簿中沒有可下載的連結",
+    "hotkey_clipboard_error": "無法讀取剪貼簿",
+    "hotkey_unsupported": "無法下載剪貼簿中的連結",
+    "hotkey_permission": "全域快捷鍵需要輔助使用權限：系統設定 > 隱私權與安全性 > 輔助使用"
   },
   "reencode": {
     "title": "重新編碼影片",

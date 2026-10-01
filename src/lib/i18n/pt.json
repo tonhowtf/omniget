@@ -1832,7 +1832,13 @@
     "external_url_ready": "URL recebida e pronta para download",
     "external_url_queued": "Download adicionado pela extensão do Chrome",
     "file_copied_to_clipboard": "Arquivo copiado para o clipboard",
-    "generic_download_complete": "{{name}} — download concluído!"
+    "generic_download_complete": "{{name}} — download concluído!",
+    "hotkey_queued": "Link da área de transferência adicionado aos downloads",
+    "hotkey_already_queued": "Esse link já está nos seus downloads",
+    "hotkey_not_a_url": "A área de transferência não tem um link para baixar",
+    "hotkey_clipboard_error": "Não foi possível ler a área de transferência",
+    "hotkey_unsupported": "Não foi possível baixar o link da área de transferência",
+    "hotkey_permission": "O atalho global precisa da permissão de Acessibilidade: Ajustes do Sistema > Privacidade e Segurança > Acessibilidade"
   },
   "reencode": {
     "title": "Re-codificar vídeo",

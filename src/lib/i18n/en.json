@@ -1832,7 +1832,13 @@
     "external_url_ready": "URL received and ready to download",
     "external_url_queued": "Download added from the Chrome extension",
     "file_copied_to_clipboard": "File copied to clipboard",
-    "generic_download_complete": "{{name}} — download complete!"
+    "generic_download_complete": "{{name}} — download complete!",
+    "hotkey_queued": "Link from the clipboard added to downloads",
+    "hotkey_already_queued": "That link is already in your downloads",
+    "hotkey_not_a_url": "The clipboard has no link to download",
+    "hotkey_clipboard_error": "Could not read the clipboard",
+    "hotkey_unsupported": "Could not download the link in the clipboard",
+    "hotkey_permission": "The global hotkey needs Accessibility permission: System Settings > Privacy & Security > Accessibility"
   },
   "reencode": {
     "title": "Re-encode video",

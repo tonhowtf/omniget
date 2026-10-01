@@ -1832,7 +1832,13 @@
     "external_url_ready": "ໄດ້ຮັບ URL ແລະ ພ້ອມດາວໂຫຼດ",
     "external_url_queued": "ເພີ່ມການດາວໂຫຼດຈາກສ່ວນຂະຫຍາຍ Chrome ແລ້ວ",
     "file_copied_to_clipboard": "ສຳເນົາໄຟລ໌ໄປຄລິບບອດແລ້ວ",
-    "generic_download_complete": "{{name}} — ດາວໂຫຼດສຳເລັດ!"
+    "generic_download_complete": "{{name}} — ດາວໂຫຼດສຳເລັດ!",
+    "hotkey_queued": "ເພີ່ມລິ້ງຈາກຄລິບບອດໃສ່ການດາວໂຫຼດແລ້ວ",
+    "hotkey_already_queued": "ລິ້ງນີ້ມີຢູ່ໃນການດາວໂຫຼດຂອງທ່ານແລ້ວ",
+    "hotkey_not_a_url": "ຄລິບບອດບໍ່ມີລິ້ງໃຫ້ດາວໂຫຼດ",
+    "hotkey_clipboard_error": "ບໍ່ສາມາດອ່ານຄລິບບອດໄດ້",
+    "hotkey_unsupported": "ບໍ່ສາມາດດາວໂຫຼດລິ້ງຈາກຄລິບບອດໄດ້",
+    "hotkey_permission": "ປຸ່ມລັດທົ່ວລະບົບຕ້ອງການສິດ Accessibility: System Settings > Privacy & Security > Accessibility"
   },
   "reencode": {
     "title": "ເຂົ້າລະຫັດວິດີໂອໃໝ່",

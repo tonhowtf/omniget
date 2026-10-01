@@ -1832,7 +1832,13 @@
     "external_url_ready": "URL ricevuto e pronto per il download",
     "external_url_queued": "Download aggiunto dall'estensione Chrome",
     "file_copied_to_clipboard": "File copiato negli appunti",
-    "generic_download_complete": "{{name}} — download completato!"
+    "generic_download_complete": "{{name}} — download completato!",
+    "hotkey_queued": "Link degli appunti aggiunto ai download",
+    "hotkey_already_queued": "Questo link è già nei tuoi download",
+    "hotkey_not_a_url": "Negli appunti non c'è un link da scaricare",
+    "hotkey_clipboard_error": "Impossibile leggere gli appunti",
+    "hotkey_unsupported": "Impossibile scaricare il link degli appunti",
+    "hotkey_permission": "La scorciatoia globale richiede il permesso di Accessibilità: Impostazioni di Sistema > Privacy e sicurezza > Accessibilità"
   },
   "reencode": {
     "title": "Ricodifica video",
