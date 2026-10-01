@@ -31,18 +31,22 @@
   import PortalDesignSheet from "./PortalDesignSheet.svelte";
   import SessionPicker from "../accounts/SessionPicker.svelte";
   import { canvasAccounts, sessionOf } from "$lib/canvas/accounts/store.svelte";
+  import DeviceNode from "./device/DeviceNode.svelte";
+  import type { Lod } from "$lib/canvas/lod";
 
   let {
     node,
     selected = false,
     focused = false,
     workspaceId = "",
+    lod = "near",
     onpatch,
   }: {
     node: CanvasNode;
     selected?: boolean;
     focused?: boolean;
     zoom?: number;
+    lod?: Lod;
     workspaceId?: string;
     onpatch?: (patch: Partial<CanvasNode>) => void;
   } = $props();
@@ -359,15 +363,7 @@
 {/if}
 <div class="portal" class:driving={!!drive} bind:this={hostEl}>
   {#if kind !== "web"}
-    <div class="soon">
-      <Icon d="M7 3h10v18H7z M11 18h2" size={28} />
-      <div class="soon-title">
-        {kind === "ios"
-          ? $t("canvas.portal.iosTitle", { default: "iOS Simulator" })
-          : $t("canvas.portal.androidTitle", { default: "Android emulator" })}
-      </div>
-      <div class="soon-sub">{$t("canvas.portal.comingSoon", { default: "Coming soon" })}</div>
-    </div>
+    <DeviceNode {node} {lod} />
   {:else}
     {#if !chromeHidden}
     <div class="bar" data-canvas-chrome>
@@ -734,21 +730,5 @@
     .nav.spin :global(svg) {
       animation: none;
     }
-  }
-  .soon {
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    color: var(--text-muted);
-  }
-  .soon-title {
-    font-weight: 600;
-    color: var(--text);
-  }
-  .soon-sub {
-    font-size: 12px;
   }
 </style>

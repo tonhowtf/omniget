@@ -220,7 +220,9 @@ fn portal_node(portal_id: &str) -> Result<(String, String, CanvasNode), String> 
         return Err("DESIGN_ARGS: design-select works on portal nodes".into());
     }
     if n.data_str("portalKind").unwrap_or("web") != "web" {
-        return Err("PORTAL_UNSUPPORTED: device portals are coming soon".into());
+        return Err(
+            "PORTAL_UNSUPPORTED: design-select works on web portals, not device nodes".into(),
+        );
     }
     Ok((ws, floor, n))
 }

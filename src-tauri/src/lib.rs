@@ -22,6 +22,7 @@ pub mod company;
 pub mod connect;
 pub mod cookies;
 pub mod core;
+pub mod device;
 pub mod extension_storage;
 pub mod external_url;
 mod handlers;
@@ -904,6 +905,7 @@ pub fn run() {
                 omniget_core::core::telegram::net::mihomo::shutdown();
                 tauri::async_runtime::block_on(omniget_core::core::llm::local_servers::stop());
                 crate::pty::manager().shutdown_all();
+                crate::device::shutdown_all();
                 crate::canvas::doc::flush_on_exit();
                 tauri::async_runtime::block_on(async {
                     let _ = tokio::time::timeout(

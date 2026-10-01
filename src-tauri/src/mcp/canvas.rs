@@ -24,6 +24,7 @@ mod artifacts;
 mod assets;
 mod clipboard;
 mod council;
+mod device;
 mod generate;
 mod lift_dock_menu;
 mod mcp_servers;
@@ -204,6 +205,7 @@ fn defs() -> &'static [Def] {
         let mut all = accounts::augment(build_defs());
         all.extend(generate::defs());
         all.extend(artifacts::defs());
+        all.extend(device::defs());
         all
     })
 }
@@ -2181,6 +2183,7 @@ async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
         }
         "canvas_portal_open" => portal_open(&app, &s, &a).await,
         accounts::LIST => Ok(accounts::list()),
+        n if n.starts_with("canvas_device_") => device::call(&app, n, &a).await,
         "canvas_portal_snapshot" | "canvas_portal_screenshot" | "canvas_portal_console" => {
             let verb = name.trim_start_matches("canvas_portal_");
             portal_drive(&app, &s, &a, verb).await
@@ -4106,7 +4109,7 @@ async fn portal_drive(
         return Err(format!("CANVAS_INVALID: '{}' is not a portal", n.id));
     }
     if n.data_str("portalKind").unwrap_or("web") != "web" {
-        return Err("PORTAL_UNSUPPORTED: only web portals can be driven".into());
+        return Err("PORTAL_UNSUPPORTED: device nodes are driven with canvas_device_act, canvas_device_screenshot, canvas_device_logs and canvas_device_tree".into());
     }
     let mut args = a.clone();
     if let Some(o) = args.as_object_mut() {

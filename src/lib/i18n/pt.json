@@ -12051,9 +12051,19 @@
       "empty": "Digite um endereço acima para abrir uma página",
       "driving": "Agente no controle",
       "drivingBy": "{{name}} no controle",
-      "comingSoon": "Em breve",
       "iosTitle": "Simulador iOS",
       "androidTitle": "Emulador Android",
+      "deviceNode": {
+        "hint": "Escolha um aparelho e conecte",
+        "pick": "Aparelho",
+        "none": "Nenhum aparelho encontrado",
+        "attach": "Conectar",
+        "boot": "Ligar",
+        "starting": "Iniciando…",
+        "home": "Início",
+        "detach": "Desconectar",
+        "noTouch": "Só visualização: instale o idb_companion para tocar"
+      },
       "device": {
         "label": "Tamanho do dispositivo",
         "responsive": "Responsivo",

@@ -5,6 +5,7 @@ pub mod chat;
 pub mod clipboard;
 pub mod companion;
 pub mod cords;
+pub mod device;
 pub mod doc;
 pub mod files;
 pub mod floors;

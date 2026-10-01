@@ -12051,9 +12051,19 @@
       "empty": "Type an address above to open a page",
       "driving": "Agent is driving",
       "drivingBy": "{{name}} is driving",
-      "comingSoon": "Coming soon",
       "iosTitle": "iOS Simulator",
       "androidTitle": "Android emulator",
+      "deviceNode": {
+        "hint": "选择一个设备并连接",
+        "pick": "设备",
+        "none": "未找到设备",
+        "attach": "连接",
+        "boot": "启动",
+        "starting": "正在启动…",
+        "home": "主屏幕",
+        "detach": "断开",
+        "noTouch": "仅查看：安装 idb_companion 以支持触控"
+      },
       "device": {
         "label": "Device size",
         "responsive": "Responsive",

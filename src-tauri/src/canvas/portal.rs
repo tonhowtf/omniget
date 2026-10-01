@@ -150,7 +150,7 @@ async fn run(ctx: &NodeCtx, verb: &str, a: Value) -> Result<Value, String> {
     let target = pick(&list, arg(&a, "portal"))?.clone();
     if target.kind != "web" {
         return Err(format!(
-            "PORTAL_UNSUPPORTED: {} portals are coming soon",
+            "PORTAL_UNSUPPORTED: {} portals are device nodes, driven with the canvas_device_* MCP tools",
             target.kind
         ));
     }
@@ -279,7 +279,7 @@ async fn open(app: &AppHandle, ctx: &NodeCtx, list: &[Reach], a: &Value) -> Resu
         Some(r) => {
             if r.kind != "web" {
                 return Err(format!(
-                    "PORTAL_UNSUPPORTED: {} portals are coming soon",
+                    "PORTAL_UNSUPPORTED: {} portals are device nodes, driven with the canvas_device_* MCP tools",
                     r.kind
                 ));
             }
