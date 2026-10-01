@@ -64,18 +64,22 @@ pub fn put_or_delete(namespace: &str, account: &str, value: &str) -> Result<(), 
     }
 }
 
-pub const SHARED: &str = "shared";
-
-pub fn shared_get(account: &str) -> Result<Option<String>, String> {
-    FileSecretStore::default_store().get(SHARED, account)
-}
-
-pub fn shared_set(account: &str, value: &str) -> Result<(), String> {
-    FileSecretStore::default_store().set(SHARED, account, value)
-}
-
-pub fn shared_delete(account: &str) -> Result<(), String> {
-    FileSecretStore::default_store().delete(SHARED, account)
+// WHY: Meetings was removed; its credentials (Vexa key, Teams webhook, Microsoft 365 token) can no longer be seen or revoked, so they go at startup. Recordings stay.
+pub fn forget_removed_meetings_credentials() {
+    let Some(data) = crate::core::paths::app_data_dir() else {
+        return;
+    };
+    let graph = data.join("msgraph.json");
+    let prefs = data.join("meetings").join("settings.json");
+    if !graph.exists() && !prefs.exists() {
+        return;
+    }
+    for account in ["meetings:vexa", "meetings:teams-webhook"] {
+        let _ = delete(AI_KEYS, account);
+    }
+    let _ = FileSecretStore::default_store().delete("shared", "msgraph:refresh");
+    let _ = std::fs::remove_file(graph);
+    let _ = std::fs::remove_file(prefs);
 }
 
 pub struct FileSecretStore {
@@ -333,6 +337,35 @@ mod tests {
         write_private(&path, b"secret2").unwrap();
         let mode = std::fs::metadata(&path).unwrap().permissions().mode();
         assert_eq!(mode & 0o777, 0o600, "mode was {:o}", mode);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn forgets_the_removed_meetings_credentials_but_keeps_recordings() {
+        let root = temp_dir("meetings-leftovers");
+        let g = crate::core::test_env::exclusive();
+        g.set("OMNIGET_DATA_DIR", Some(root.as_os_str()));
+        g.set(SECRETS_DIR_ENV, Some(root.join("secrets").as_os_str()));
+        let store = FileSecretStore::new(root.join("secrets"));
+        store.set(AI_KEYS, "meetings:vexa", "vx").unwrap();
+        store.set(AI_KEYS, "openai:1", "sk").unwrap();
+        store.set("shared", "msgraph:refresh", "rt").unwrap();
+        std::fs::create_dir_all(root.join("meetings").join("m1")).unwrap();
+        std::fs::write(root.join("meetings").join("settings.json"), "{}").unwrap();
+        std::fs::write(root.join("meetings").join("m1").join("audio.wav"), "x").unwrap();
+        std::fs::write(root.join("msgraph.json"), "{}").unwrap();
+
+        forget_removed_meetings_credentials();
+
+        assert_eq!(store.get(AI_KEYS, "meetings:vexa").unwrap(), None);
+        assert_eq!(
+            store.get(AI_KEYS, "openai:1").unwrap().as_deref(),
+            Some("sk")
+        );
+        assert_eq!(store.get("shared", "msgraph:refresh").unwrap(), None);
+        assert!(!root.join("msgraph.json").exists());
+        assert!(!root.join("meetings").join("settings.json").exists());
+        assert!(root.join("meetings").join("m1").join("audio.wav").exists());
         let _ = std::fs::remove_dir_all(&root);
     }
 }

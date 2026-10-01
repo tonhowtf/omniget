@@ -8,12 +8,12 @@ use tauri::{AppHandle, Manager};
 
 pub fn catalog(p: &Principal) -> Vec<Value> {
     tools(p).into_iter().map(|tool| {
-        let writes = matches!(policy::scope(tool.name), Some("enqueue" | "control" | "company_control" | "orchestration_control" | "orchestration_create" | "app_control" | "app_capture" | "system_change" | "telegram_write" | "approvals_respond" | "agents_run" | "meetings_write"))
-            || matches!(tool.name, "teams_transcript_import" | "auth_connection_request" | "diagnostic_bundle_create" | "catalog_install" | "memory_retain");
-        let open_world = matches!(tool.name, "meeting_import" | "meeting_bot_send" | "teams_chats_list" | "teams_chat_read" | "teams_channels_list" | "teams_channel_read" | "teams_calendar" | "teams_transcript_import" | "download_enqueue" | "downloads_batch_enqueue" | "download_retry" | "download_resume" | "media_inspect" | "media_collection_list");
+        let writes = matches!(policy::scope(tool.name), Some("enqueue" | "control" | "company_control" | "orchestration_control" | "orchestration_create" | "app_control" | "app_capture" | "system_change" | "telegram_write" | "approvals_respond" | "agents_run"))
+            || matches!(tool.name, "auth_connection_request" | "diagnostic_bundle_create" | "catalog_install" | "memory_retain");
+        let open_world = matches!(tool.name, "download_enqueue" | "downloads_batch_enqueue" | "download_retry" | "download_resume" | "media_inspect" | "media_collection_list");
         let mut value = serde_json::to_value(&tool).expect("static tool schema serializes");
         let destructive = writes && (matches!(tool.name, "download_cancel" | "download_pause" | "missions_cancel" | "missions_pause" | "wmb_execute" | "job_cancel" | "tg_delete_messages") || super::canvas::is_destructive(tool.name));
-        let idempotent = !matches!(tool.name,"omniget_app_capture"|"omniget_app_export"|"meeting_import"|"meeting_bot_send"|"teams_transcript_import") && !(writes && super::canvas::owns(tool.name));
+        let idempotent = !matches!(tool.name,"omniget_app_capture"|"omniget_app_export") && !(writes && super::canvas::owns(tool.name));
         value["annotations"] = json!({"readOnlyHint":!writes,"destructiveHint":destructive,"idempotentHint":idempotent,"openWorldHint":open_world});
         value
     }).collect()
@@ -65,8 +65,6 @@ pub fn tools(p: &Principal) -> Vec<ToolDef> {
     list.extend(
         super::memory::tools()
             .into_iter()
-            .chain(super::meetings::tools())
-            .chain(super::teams::tools())
             .filter(|t| policy::allowed(p, t.name)),
     );
     list.extend(
@@ -229,15 +227,6 @@ pub async fn call(app: &AppHandle, p: &Principal, name: &str, a: Value) -> Resul
     }
     if matches!(policy::scope(name), Some("memory_read" | "memory_write")) {
         return super::memory::call(app, p, name, a).await;
-    }
-    if matches!(
-        policy::scope(name),
-        Some("meetings_read" | "meetings_write")
-    ) {
-        return super::meetings::call(app, p, name, a).await;
-    }
-    if policy::scope(name) == Some("teams_read") {
-        return super::teams::call(app, p, name, a).await;
     }
     if policy::scope(name) == Some("catalog") {
         if !policy::allowed(p, name) {

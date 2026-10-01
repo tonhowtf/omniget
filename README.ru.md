@@ -74,7 +74,7 @@ or export a GIF/WebP to assets/readme/hero.webp and use an <img>.
 4. [Холст: смотрите, как работают ваши агенты](#the-canvas)
 5. [Инструменты вернутся](#tools-coming-back)
 
-Ещё: [Скачать и установить](#download-and-install) · [Суперсилы](#superpowers) · [Встречи](#meetings) · [washmybelly](#washmybelly) · [Всё остальное](#everything-else-in-the-box) · [Приватность](#privacy-and-what-omniget-refuses-to-do) · [Поддержать OmniGet](#support-omniget) · [Частые вопросы](#frequently-asked-questions) · [Командная строка](#command-line) · [Сборка из исходников](#build-from-source) · [Владельцам платформ](#notice-to-platform-owners) · [Участие и переводы](#contributing-and-translations)
+Ещё: [Скачать и установить](#download-and-install) · [Суперсилы](#superpowers) · [washmybelly](#washmybelly) · [Всё остальное](#everything-else-in-the-box) · [Приватность](#privacy-and-what-omniget-refuses-to-do) · [Поддержать OmniGet](#support-omniget) · [Частые вопросы](#frequently-asked-questions) · [Командная строка](#command-line) · [Сборка из исходников](#build-from-source) · [Владельцам платформ](#notice-to-platform-owners) · [Участие и переводы](#contributing-and-translations)
 
 ---
 
@@ -132,8 +132,6 @@ OmniGet выйдет на передний план с названием инс
 | Когда что-то не получилось | Очищенные логи движка, диагноз по тому, что осталось от загрузки, варианты восстановления |
 | После загрузки | Сведения о готовых файлах и временный доступ к ним |
 | Ваши агенты | Список агентов и папок; запуск, пауза, продолжение или отмена миссии; её события и результаты; ожидающие одобрения |
-| Ваши встречи | Список, чтение и поиск встреч (итоги, задачи, решения, расшифровка); открытые задачи со всех встреч и отметка о выполнении; импорт записи Teams по ссылке; отправка бота |
-| Ваш Teams | Чтение чатов и каналов в Markdown, встречи из календаря со ссылками, импорт официальной расшифровки встречи (разрешение `teams_read`, ваш собственный вход в Microsoft 365) |
 | Ваш компьютер (washmybelly) | Состояние системы, поиск мусора, приложений, элементов автозагрузки и настроек приватности, составление плана; запуск или отмена плана требуют вашего одобрения в окне OmniGet |
 
 ### Всё под вашим контролем
@@ -154,8 +152,6 @@ OmniGet выйдет на передний план с названием инс
 /omniget:transcribe <url|file>       # субтитры, затем локальный whisper.cpp, затем Gemini или OpenAI, если вы добавили ключ
 /omniget:research <url>              # субтитры и транскрипт превращаются в заметку Markdown со ссылками [mm:ss]
 /omniget:doctor                      # что установлено, чего не хватает и как это добавить
-/omniget:meetings [todo]             # протоколы и открытые задачи ваших встреч в OmniGet
-/omniget:teams [chat|calendar]       # прочитать или экспортировать чат Teams, встречи на сегодня, расшифровку встречи
 ```
 
 Если десктопное приложение установлено, плагин использует yt-dlp и FFmpeg, которыми оно уже управляет.
@@ -471,22 +467,6 @@ sudo pacman -S gst-plugins-good gst-plugins-bad gst-libav   # Arch
 
 Дополнительные возможности в разделе **Суперсилы** на боковой панели. Музыку, League of Legends и washmybelly можно выключить в **Настройки → Дополнительно**.
 
-<a id="meetings"></a>
-
-### Встречи: запись, расшифровка и итоги, а потом обратно в Teams
-
-Встреча попадает в OmniGet одним из трёх способов:
-
-- **Запись прямо здесь, без бота в звонке.** OmniGet записывает ваш микрофон и звук компьютера двумя дорожками, поэтому расшифровка отличает **Вы** от **Другие**. Звук компьютера работает в Windows, в macOS 14.6 и новее и в Linux с PulseAudio или PipeWire.
-- **Импорт записи Teams.** Вставьте ссылку на запись в SharePoint или Stream (или её URL `videomanifest`). OmniGet входит в SharePoint в собственном окне, читает расшифровку Teams с именами говорящих и скачивает и расшифровывает звук, только если расшифровки нет. yt-dlp записи Teams не поддерживает. Подойдут и файлы аудио и видео.
-- **Отправка бота.** Вставьте ссылку на встречу в Teams, Google Meet или Zoom, и бот [Vexa](https://github.com/Vexa-ai/vexa) (открытый код, облако или ваш сервер) подключится и расшифрует с именами говорящих.
-
-Расшифровку пишет Whisper: локально через whisper.cpp (ничего не покидает компьютер) или через вашего ИИ-провайдера. Затем ваш ИИ-провайдер, включая Ollama, пишет итоги, решения, задачи с ответственным и сроком и открытые вопросы, учитывая заметки, которые вы делали во время звонка. Каждая встреча сохраняется как Markdown-файл с front matter.
-
-**Teams прямо из Microsoft 365.** Войдите один раз своей рабочей учётной записью (регистрация приложения, которую вы создаёте в Entra ID; шаги есть в приложении), и OmniGet читает Teams через Microsoft Graph: экспортирует чаты (а с разрешениями, одобренными администратором, и каналы) в Markdown или JSON, показывает онлайн-встречи из календаря со ссылками для бота и превращает официальную расшифровку Teams в протокол. Один вход работает для приложения, `omniget-cli teams` и MCP-инструментов, поэтому Claude Code может пересказать чат, перечислить невыполненные задачи с прошлых встреч или набросать follow-up. Плагин для Claude Code получает `/omniget:meetings` и `/omniget:teams`.
-
-Обратно в Teams: **Опубликовать в Teams** отправляет итоги и задачи в канал через webhook Workflows. **Передать агенту** отдаёт протокол одному из ваших агентов: с MCP-сервером Microsoft 365 (один клик в **LLM → MCP**) он опубликует его в чате встречи, посмотрит ваш календарь или сохранит в OneDrive. Агенты вне OmniGet читают и ищут ваши встречи через MCP-сервер (разрешение `meetings_read`). Из терминала: `omniget-cli meetings list|show|search|import|summarize|post`.
-
 ### Музыка
 
 **Музыка** — полноценное приложение для музыки на вашем компьютере. Оно индексирует папки с музыкой, играет без пауз между треками или с кроссфейдом, выравнивает громкость между песнями (ReplayGain 2.0), а также даёт 10-полосный эквалайзер и живой визуализатор. Показывает синхронизированные тексты (ваши файлы .lrc, тексты внутри файла или найденные на LRCLIB) и играет интернет-радио — тысячи станций. Песни, скачанные по ссылке или через поиск, сразу попадают в библиотеку. Пакетные инструменты измеряют громкость, темп и тональность, конвертируют форматы, переименовывают файлы по тегам, находят дубликаты и распознают поддельный lossless по спектрограмме.
@@ -650,9 +630,6 @@ omniget-cli download <url> -q 1080 -o ~/Videos
 omniget-cli download <url> --audio-only --subs en,pt
 omniget-cli batch links.txt -m 3           # по одному URL на строку, по 3 одновременно
 omniget-cli import-cookies cookies.txt     # формат Netscape
-omniget-cli meetings import call.m4a       # также ссылка на запись Teams/SharePoint; затем list, show, search
-omniget-cli meetings todo                  # открытые задачи со всех встреч
-omniget-cli teams read <id чата> --since 7d   # чат Teams в Markdown; также: chats, export, calendar, transcript
 
 # через запущенное десктопное приложение
 omniget-cli claude [account]               # Claude Code на одном из аккаунтов приложения
@@ -730,7 +707,7 @@ Loop — маскот OmniGet. Фан-арт приветствуется; ор�
 
 ## Опираясь на открытый код
 
-OmniGet построен на [yt-dlp](https://github.com/yt-dlp/yt-dlp), [FFmpeg](https://ffmpeg.org/), [gallery-dl](https://github.com/mikf/gallery-dl), [aria2](https://aria2.github.io/), [librqbit](https://github.com/ikatson/rqbit), [SponsorBlock](https://sponsor.ajay.app/), [FxTwitter](https://github.com/FixTweet/FxTwitter), [cat-catch](https://github.com/xifangczy/cat-catch) (части медиасниффера в расширении), [whisper.cpp](https://github.com/ggml-org/whisper.cpp) (во Встречах и в плагине для Claude Code), [Tauri](https://tauri.app) и [Svelte](https://svelte.dev). Агенты, задачи и холст позаимствовали идеи у [opencode](https://github.com/anomalyco/opencode), [Codex](https://github.com/openai/codex), [aider](https://github.com/Aider-AI/aider), [cline](https://github.com/cline/cline), [compozy](https://github.com/compozy/compozy), [Agent Client Protocol](https://agentclientprotocol.com), [mem0](https://github.com/mem0ai/mem0), [letta](https://github.com/letta-ai/letta), [ai-town](https://github.com/a16z-infra/ai-town) и статьи о [generative agents](https://github.com/joonspk-research/generative_agents). Встречи следуют примеру [Meetily](https://github.com/Zackriya-Solutions/meetily), [anarlog](https://github.com/fastrepl/anarlog), [minutes](https://github.com/silverstein/minutes) и [Humla](https://github.com/michaelwilhelmsen/humla), отправляют ботов через [Vexa](https://github.com/Vexa-ai/vexa), доходят до Teams через [ms-365-mcp-server](https://github.com/Softeria/ms-365-mcp-server) и читают записи Teams так, как показал [ms-teams-sharepoint-downloader](https://github.com/brendangooden/ms-teams-sharepoint-downloader). Спасибо всем, кто их поддерживает. washmybelly использует данные и идеи из [privacy.sexy](https://github.com/undergroundwires/privacy.sexy), [BleachBit](https://github.com/bleachbit/bleachbit), [Win11Debloat](https://github.com/Raphire/Win11Debloat), [winutil](https://github.com/ChrisTitusTech/winutil), [Sophia Script](https://github.com/farag2/Sophia-Script-for-Windows), [Bulk Crap Uninstaller](https://github.com/Klocman/Bulk-Crap-Uninstaller), [Kudu](https://github.com/AdventDevInc/kudu), [kondo](https://github.com/tbillington/kondo), [czkawka](https://github.com/qarmin/czkawka), [Stats](https://github.com/exelban/stats), [CapFrameX](https://github.com/CXWorld/CapFrameX) и других проектов; полный список с лицензиями — в [THIRD_PARTY.md](THIRD_PARTY.md).
+OmniGet построен на [yt-dlp](https://github.com/yt-dlp/yt-dlp), [FFmpeg](https://ffmpeg.org/), [gallery-dl](https://github.com/mikf/gallery-dl), [aria2](https://aria2.github.io/), [librqbit](https://github.com/ikatson/rqbit), [SponsorBlock](https://sponsor.ajay.app/), [FxTwitter](https://github.com/FixTweet/FxTwitter), [cat-catch](https://github.com/xifangczy/cat-catch) (части медиасниффера в расширении), [whisper.cpp](https://github.com/ggml-org/whisper.cpp) (в плагине для Claude Code), [Tauri](https://tauri.app) и [Svelte](https://svelte.dev). Агенты, задачи и холст позаимствовали идеи у [opencode](https://github.com/anomalyco/opencode), [Codex](https://github.com/openai/codex), [aider](https://github.com/Aider-AI/aider), [cline](https://github.com/cline/cline), [compozy](https://github.com/compozy/compozy), [Agent Client Protocol](https://agentclientprotocol.com), [mem0](https://github.com/mem0ai/mem0), [letta](https://github.com/letta-ai/letta), [ai-town](https://github.com/a16z-infra/ai-town) и статьи о [generative agents](https://github.com/joonspk-research/generative_agents). Спасибо всем, кто их поддерживает. washmybelly использует данные и идеи из [privacy.sexy](https://github.com/undergroundwires/privacy.sexy), [BleachBit](https://github.com/bleachbit/bleachbit), [Win11Debloat](https://github.com/Raphire/Win11Debloat), [winutil](https://github.com/ChrisTitusTech/winutil), [Sophia Script](https://github.com/farag2/Sophia-Script-for-Windows), [Bulk Crap Uninstaller](https://github.com/Klocman/Bulk-Crap-Uninstaller), [Kudu](https://github.com/AdventDevInc/kudu), [kondo](https://github.com/tbillington/kondo), [czkawka](https://github.com/qarmin/czkawka), [Stats](https://github.com/exelban/stats), [CapFrameX](https://github.com/CXWorld/CapFrameX) и других проектов; полный список с лицензиями — в [THIRD_PARTY.md](THIRD_PARTY.md).
 
 <p align="center">
   <a href="https://getomniget.com/download"><b>Скачать OmniGet</b></a> · <a href="LICENSE">GPL-3.0</a>

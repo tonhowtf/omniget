@@ -20,5 +20,5 @@ export const CORE_NAV_ITEMS: NavItem[] = [
 ];
 
 export const NAV_ALIASES: Record<string, string[]> = {
-  "/superpowers": ["/league", "/music", "/washmybelly", "/video", "/global", "/meetings", "/telegram", "/youtube", "/read"],
+  "/superpowers": ["/league", "/music", "/washmybelly", "/video", "/global", "/telegram", "/youtube", "/read"],
 };

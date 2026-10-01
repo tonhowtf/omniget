@@ -70,7 +70,7 @@ or export a GIF/WebP to assets/readme/hero.webp and use an <img>.
 4. [Canvas：看你的智能体干活](#the-canvas)
 5. [工具区：即将回归](#tools-coming-back)
 
-另外：[下载与安装](#download-and-install) · [超能力](#superpowers) · [会议](#meetings) · [washmybelly](#washmybelly) · [其他随附功能](#everything-else-in-the-box) · [隐私](#privacy-and-what-omniget-refuses-to-do) · [支持 OmniGet](#support-omniget) · [常见问题](#frequently-asked-questions) · [命令行](#command-line) · [从源码构建](#build-from-source) · [致平台所有者](#notice-to-platform-owners) · [参与贡献](#contributing-and-translations)
+另外：[下载与安装](#download-and-install) · [超能力](#superpowers) · [washmybelly](#washmybelly) · [其他随附功能](#everything-else-in-the-box) · [隐私](#privacy-and-what-omniget-refuses-to-do) · [支持 OmniGet](#support-omniget) · [常见问题](#frequently-asked-questions) · [命令行](#command-line) · [从源码构建](#build-from-source) · [致平台所有者](#notice-to-platform-owners) · [参与贡献](#contributing-and-translations)
 
 ---
 
@@ -128,8 +128,6 @@ OmniGet 会切到前台，显示工具名称和一个短码。确认工具里显
 | 出错时 | 读取整理过的引擎日志，根据下载留下的痕迹得到诊断，拿到恢复方案 |
 | 下载之后 | 读取已完成文件的详情，获得对它们的临时访问 |
 | 你的智能体 | 列出智能体和文件夹，启动、暂停、继续或取消一个任务，读取它的事件和结果，查看待批准的请求 |
-| 你的会议 | 列出、阅读和搜索会议（摘要、待办事项、决定、转写稿）；列出所有会议里未完成的待办事项并标记完成；通过链接导入 Teams 录制；派出记录机器人 |
-| 你的 Teams | 以 Markdown 读取聊天和频道，列出日历里带加入链接的会议，导入会议的官方转写稿（`teams_read` 权限，使用你自己的 Microsoft 365 登录） |
 | 你的电脑（washmybelly） | 读取系统状态，扫描垃圾文件、应用、开机启动项和隐私设置，生成计划；执行或撤销计划都要你在 OmniGet 窗口里批准 |
 
 ### 一切由你掌控
@@ -150,8 +148,6 @@ OmniGet 会切到前台，显示工具名称和一个短码。确认工具里显
 /omniget:transcribe <url|file>       # 先用字幕，再用本地 whisper.cpp，如果你添加了密钥再用 Gemini 或 OpenAI
 /omniget:research <url>              # 把字幕和转写整理成一份带 [mm:ss] 时间标记的 Markdown 笔记
 /omniget:doctor                      # 装了什么、缺了什么、怎么补上
-/omniget:meetings [todo]             # OmniGet 会议的纪要和未完成的待办事项
-/omniget:teams [chat|calendar]       # 阅读或导出 Teams 聊天、今天的会议、会议的转写稿
 ```
 
 如果装了桌面应用，插件会复用应用已经管理的 yt-dlp 和 FFmpeg。
@@ -467,22 +463,6 @@ sudo pacman -S gst-plugins-good gst-plugins-bad gst-libav   # Arch
 
 额外能力都在侧栏的 **超能力** 里。音乐、英雄联盟和 washmybelly 可以在 **设置 → 高级** 里关闭。
 
-<a id="meetings"></a>
-
-### 会议：录制、转写、总结，再发回 Teams
-
-会议可以通过三种方式进入 OmniGet：
-
-- **在本机录制，通话里没有机器人。** OmniGet 把你的麦克风和电脑播放的声音录成两条音轨，所以转写稿能分清 **你** 和 **其他人**。电脑声音支持 Windows、macOS 14.6 及以上，以及使用 PulseAudio 或 PipeWire 的 Linux。
-- **导入 Teams 录制。** 粘贴录制在 SharePoint 或 Stream 上的链接（或它的 `videomanifest` 地址）。OmniGet 在自己的窗口里登录 SharePoint，读取带发言人姓名的 Teams 转写稿；只有没有转写稿时才下载音频并转写。yt-dlp 不支持 Teams 录制。音频和视频文件也可以导入。
-- **派一个机器人。** 粘贴 Teams、Google Meet 或 Zoom 的会议链接，一个 [Vexa](https://github.com/Vexa-ai/vexa) 机器人（开源，可用托管服务或自己的服务器）会加入会议并按发言人转写。
-
-转写由 Whisper 完成：用 whisper.cpp 在本机运行（什么都不离开你的电脑），或通过你的 AI 服务商。随后你的 AI 服务商（包括 Ollama）写出摘要、决定、带负责人和截止日期的待办事项以及未解决的问题，并参考你在通话中记下的笔记。每场会议都保存为带 front matter 的 Markdown 文件。
-
-**直接从 Microsoft 365 读取 Teams。** 用你自己的工作账号登录一次（需要你在 Entra ID 里创建一个应用注册，步骤在应用里），OmniGet 就能通过 Microsoft Graph 读取 Teams：把聊天（以及经管理员批准权限后的频道）导出为 Markdown 或 JSON，列出日历里带加入链接的在线会议以便派机器人，并把 Teams 官方转写稿变成会议纪要。同一个登录供应用、`omniget-cli teams` 和 MCP 工具共用，所以 Claude Code 可以帮你补看聊天、列出上周会议还没完成的事项或起草跟进消息。Claude Code 插件新增 `/omniget:meetings` 和 `/omniget:teams`。
-
-发回 Teams：**发布到 Teams** 通过 Workflows webhook 把摘要和待办事项发到一个频道。**交给智能体** 把会议纪要交给你的某个智能体：配合 Microsoft 365 MCP 服务器（在 **LLM → MCP** 里一键添加），它可以发到会议聊天、查看你的日历或保存到 OneDrive。OmniGet 之外的智能体可以通过 MCP 服务器读取和搜索你的会议（`meetings_read` 权限）。终端里：`omniget-cli meetings list|show|search|import|summarize|post`。
-
 ### 音乐
 
 **音乐** 是一个完整的本地音乐应用。它为你的音乐文件夹建立曲库，支持无缝或交叉淡入淡出播放，在歌曲之间统一音量（ReplayGain 2.0），带 10 段均衡器和实时可视化。它显示同步歌词（你的 .lrc 文件、文件内嵌的歌词，或从 LRCLIB 自动找到的歌词），还能收听数千个网络电台。通过链接或搜索下载的歌曲会直接进入曲库。批量工具可以测量响度、节拍和调性，转换格式，按标签重命名文件，查找重复歌曲，并用频谱图识别假无损文件。
@@ -646,9 +626,6 @@ omniget-cli download <url> -q 1080 -o ~/Videos
 omniget-cli download <url> --audio-only --subs en,pt
 omniget-cli batch links.txt -m 3           # 每行一个 URL，同时下 3 个
 omniget-cli import-cookies cookies.txt     # Netscape 格式
-omniget-cli meetings import call.m4a       # 也可以是 Teams/SharePoint 录制链接；之后 list、show、search
-omniget-cli meetings todo                  # 所有会议里未完成的待办事项
-omniget-cli teams read <聊天 id> --since 7d   # 以 Markdown 输出一个 Teams 聊天；还有 chats、export、calendar、transcript
 
 # 通过正在运行的桌面应用
 omniget-cli claude [account]               # 用应用里的某个账号运行 Claude Code
@@ -726,7 +703,7 @@ Loop 是 OmniGet 的吉祥物。欢迎同人创作；原始美术不得用于商
 
 ## 站在开源的肩膀上
 
-OmniGet 建立在 [yt-dlp](https://github.com/yt-dlp/yt-dlp)、[FFmpeg](https://ffmpeg.org/)、[gallery-dl](https://github.com/mikf/gallery-dl)、[aria2](https://aria2.github.io/)、[librqbit](https://github.com/ikatson/rqbit)、[SponsorBlock](https://sponsor.ajay.app/)、[FxTwitter](https://github.com/FixTweet/FxTwitter)、[cat-catch](https://github.com/xifangczy/cat-catch)（扩展的媒体嗅探器有一部分来自它）、[whisper.cpp](https://github.com/ggml-org/whisper.cpp)（用在会议和 Claude Code 插件里）、[Tauri](https://tauri.app) 和 [Svelte](https://svelte.dev) 之上。智能体、Job 和画布借鉴了 [opencode](https://github.com/anomalyco/opencode)、[Codex](https://github.com/openai/codex)、[aider](https://github.com/Aider-AI/aider)、[cline](https://github.com/cline/cline)、[compozy](https://github.com/compozy/compozy)、[Agent Client Protocol](https://agentclientprotocol.com)、[mem0](https://github.com/mem0ai/mem0)、[letta](https://github.com/letta-ai/letta)、[ai-town](https://github.com/a16z-infra/ai-town) 以及 [generative agents](https://github.com/joonspk-research/generative_agents) 论文的思路。会议功能参考了 [Meetily](https://github.com/Zackriya-Solutions/meetily)、[anarlog](https://github.com/fastrepl/anarlog)、[minutes](https://github.com/silverstein/minutes) 和 [Humla](https://github.com/michaelwilhelmsen/humla)，通过 [Vexa](https://github.com/Vexa-ai/vexa) 派机器人，通过 [ms-365-mcp-server](https://github.com/Softeria/ms-365-mcp-server) 连接 Teams，并按照 [ms-teams-sharepoint-downloader](https://github.com/brendangooden/ms-teams-sharepoint-downloader) 展示的方式读取 Teams 录制。感谢所有维护它们的人。washmybelly 使用了 [privacy.sexy](https://github.com/undergroundwires/privacy.sexy)、[BleachBit](https://github.com/bleachbit/bleachbit)、[Win11Debloat](https://github.com/Raphire/Win11Debloat)、[winutil](https://github.com/ChrisTitusTech/winutil)、[Sophia Script](https://github.com/farag2/Sophia-Script-for-Windows)、[Bulk Crap Uninstaller](https://github.com/Klocman/Bulk-Crap-Uninstaller)、[Kudu](https://github.com/AdventDevInc/kudu)、[kondo](https://github.com/tbillington/kondo)、[czkawka](https://github.com/qarmin/czkawka)、[Stats](https://github.com/exelban/stats)、[CapFrameX](https://github.com/CXWorld/CapFrameX) 等项目的数据和思路，完整列表和许可证见 [THIRD_PARTY.md](THIRD_PARTY.md)。
+OmniGet 建立在 [yt-dlp](https://github.com/yt-dlp/yt-dlp)、[FFmpeg](https://ffmpeg.org/)、[gallery-dl](https://github.com/mikf/gallery-dl)、[aria2](https://aria2.github.io/)、[librqbit](https://github.com/ikatson/rqbit)、[SponsorBlock](https://sponsor.ajay.app/)、[FxTwitter](https://github.com/FixTweet/FxTwitter)、[cat-catch](https://github.com/xifangczy/cat-catch)（扩展的媒体嗅探器有一部分来自它）、[whisper.cpp](https://github.com/ggml-org/whisper.cpp)（用在 Claude Code 插件里）、[Tauri](https://tauri.app) 和 [Svelte](https://svelte.dev) 之上。智能体、Job 和画布借鉴了 [opencode](https://github.com/anomalyco/opencode)、[Codex](https://github.com/openai/codex)、[aider](https://github.com/Aider-AI/aider)、[cline](https://github.com/cline/cline)、[compozy](https://github.com/compozy/compozy)、[Agent Client Protocol](https://agentclientprotocol.com)、[mem0](https://github.com/mem0ai/mem0)、[letta](https://github.com/letta-ai/letta)、[ai-town](https://github.com/a16z-infra/ai-town) 以及 [generative agents](https://github.com/joonspk-research/generative_agents) 论文的思路。感谢所有维护它们的人。washmybelly 使用了 [privacy.sexy](https://github.com/undergroundwires/privacy.sexy)、[BleachBit](https://github.com/bleachbit/bleachbit)、[Win11Debloat](https://github.com/Raphire/Win11Debloat)、[winutil](https://github.com/ChrisTitusTech/winutil)、[Sophia Script](https://github.com/farag2/Sophia-Script-for-Windows)、[Bulk Crap Uninstaller](https://github.com/Klocman/Bulk-Crap-Uninstaller)、[Kudu](https://github.com/AdventDevInc/kudu)、[kondo](https://github.com/tbillington/kondo)、[czkawka](https://github.com/qarmin/czkawka)、[Stats](https://github.com/exelban/stats)、[CapFrameX](https://github.com/CXWorld/CapFrameX) 等项目的数据和思路，完整列表和许可证见 [THIRD_PARTY.md](THIRD_PARTY.md)。
 
 <p align="center">
   <a href="https://getomniget.com/download"><b>下载 OmniGet</b></a> · <a href="LICENSE">GPL-3.0</a>

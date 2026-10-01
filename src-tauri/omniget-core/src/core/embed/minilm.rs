@@ -43,7 +43,6 @@ pub const VOCAB: Asset = Asset {
 pub const ASSETS: &[Asset] = &[MODEL, VOCAB];
 
 pub const LICENSE: &str = "Apache-2.0";
-pub const SOURCE: &str = "https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2";
 
 pub fn dim() -> usize {
     DIM

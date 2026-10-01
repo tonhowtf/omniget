@@ -78,8 +78,6 @@ bash claude-plugin/omniget/scripts/keys.sh check
 | `/omniget:setup` | Install missing tools + `omniget-cli` (confirm once), check API keys; `--update` refreshes them |
 | `/omniget:doctor` | Report available tools, models, and keys, plus how to add the missing ones |
 | `/omniget:connect` | Connect Claude Code to the OmniGet desktop app: you click Allow in OmniGet and it adds the `omniget` MCP server for you |
-| `/omniget:meetings [name \| todo \| owner]` | Minutes, decisions and action items of your OmniGet meetings, or every open action item |
-| `/omniget:teams [chat \| calendar \| export <name> \| join link]` | Read or export a Teams chat, list today's meetings, or pull a meeting's official transcript |
 
 The two skills (`omniget-fetch`, `omniget-transcribe`) trigger on their own when a
 media URL is pasted with a request, so the slash commands are optional. The
@@ -92,13 +90,6 @@ job with `omniget agent run`, waits for it and reports back from `omniget agent 
 is its reference. In a repository with `.omniget/workflow.md` it lets that file choose
 the agent, mode and prompt template, and it never trusts the file for you. Inside an
 OmniGet job it never delegates.
-
-A fourth skill, `omniget-meetings`, answers questions about your meetings and Microsoft
-Teams through the `omniget` CLI: minutes and open action items (`omniget meetings`), Teams
-chats, channels and calendar read as Markdown and official transcripts turned into minutes
-(`omniget teams`, signed in with your own Microsoft 365 account once, in the app or with
-`omniget teams login`). `omniget guide meetings` is its reference. It reads freely and
-asks before signing in, sending a bot or posting anything.
 
 ## Transcription backends
 

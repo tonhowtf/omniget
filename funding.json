@@ -14,7 +14,7 @@
     {
       "guid": "omniget",
       "name": "OmniGet",
-      "description": "A free desktop downloader for Windows, macOS and Linux: paste a link from YouTube, Instagram, TikTok, X, Reddit, Twitch or one of the sites yt-dlp supports and get the file. Its MCP server lets Claude Code, Cursor and VS Code queue downloads, and it runs Claude Code, Codex, Gemini CLI and local models as AI agents in a window. Meetings records or imports a call (Teams recordings included), transcribes it with Whisper and writes the summary and action items. Its washmybelly superpower cleans junk, uninstalls apps with their leftovers and handles privacy, power and FPS measurement, always showing a plan and asking first. No account, no ads, no telemetry on what anyone downloads. Files stay on the machine that fetched them.",
+      "description": "A free desktop downloader for Windows, macOS and Linux: paste a link from YouTube, Instagram, TikTok, X, Reddit, Twitch or one of the sites yt-dlp supports and get the file. Its MCP server lets Claude Code, Cursor and VS Code queue downloads, and it runs Claude Code, Codex, Gemini CLI and local models as AI agents in a window. Its washmybelly superpower cleans junk, uninstalls apps with their leftovers and handles privacy, power and FPS measurement, always showing a plan and asking first. No account, no ads, no telemetry on what anyone downloads. Files stay on the machine that fetched them.",
       "webpageUrl": {
         "url": "https://getomniget.com"
       },

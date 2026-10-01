@@ -85,20 +85,6 @@ enum Commands {
         topic: Option<String>,
     },
     #[command(
-        about = "Meetings: list, read, search and import recordings (Teams/SharePoint or files); transcript, summary and action items"
-    )]
-    Meetings {
-        #[command(subcommand)]
-        command: commands::meetings::MeetingsCommand,
-    },
-    #[command(
-        about = "Microsoft Teams through Graph: export chats and channels as Markdown/JSON, list calendar meetings, import official transcripts"
-    )]
-    Teams {
-        #[command(subcommand)]
-        command: commands::teams::TeamsCommand,
-    },
-    #[command(
         about = "washmybelly: scan, plan and clean this computer through the running app (execute asks in the window)"
     )]
     Wmb {
@@ -298,12 +284,6 @@ async fn main() -> anyhow::Result<()> {
         }
         Commands::Company { command } => {
             commands::company::execute(command, cli.json).await?;
-        }
-        Commands::Meetings { command } => {
-            commands::meetings::execute(command, cli.json).await?;
-        }
-        Commands::Teams { command } => {
-            commands::teams::execute(command, cli.json).await?;
         }
         Commands::Wmb { command } => {
             commands::wmb::execute(command, cli.json).await?;

@@ -5,7 +5,6 @@ pub mod tokens;
 pub mod whisper;
 
 use std::ffi::{OsStr, OsString};
-use std::path::Path;
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
@@ -102,20 +101,6 @@ fn schedule_release() {
             *g = None;
         }
     });
-}
-
-pub async fn transcribe_file(
-    path: &Path,
-    lang: Option<&str>,
-    model: Option<&str>,
-    progress: impl Fn(f32) + Send + Sync + 'static,
-) -> anyhow::Result<Transcript> {
-    let duration_ms = crate::core::ffmpeg::probe(path)
-        .await
-        .ok()
-        .map(|p| (p.duration_seconds * 1000.0) as u64)
-        .filter(|d| *d > 0);
-    transcribe_input(path.as_os_str(), duration_ms, lang, model, progress).await
 }
 
 pub async fn transcribe_input(

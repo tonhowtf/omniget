@@ -15,14 +15,6 @@ pub struct NewVideo {
     pub url: String,
 }
 
-#[derive(Clone, Serialize)]
-pub struct ChannelNewVideos {
-    pub channel_id: String,
-    pub channel_title: String,
-    pub auto_download: bool,
-    pub videos: Vec<NewVideo>,
-}
-
 fn now_ms() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)

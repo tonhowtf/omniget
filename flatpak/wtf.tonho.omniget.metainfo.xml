@@ -22,12 +22,6 @@
       jobs and loops that repeat until your tests pass.
     </p>
     <p>
-      Meetings records a call with no bot (your microphone and the computer audio),
-      imports a Microsoft Teams recording or sends a bot, transcribes it with Whisper
-      and writes the summary, decisions and action items with your AI provider, then
-      posts them back to Teams or hands them to an agent.
-    </p>
-    <p>
       The washmybelly superpower cleans caches, logs, build folders and duplicates,
       uninstalls apps with their leftovers, controls what opens at login, adjusts
       privacy settings and measures FPS honestly. It shows only what exists on your
@@ -41,7 +35,6 @@
       <li>Browser extension that downloads with your own session</li>
       <li>MCP server for Claude Code, Cursor and VS Code</li>
       <li>AI agents with per-folder permissions, undo, jobs, loops and triggers</li>
-      <li>Meeting notes: local recording, Teams recording import, Whisper transcripts, summaries and action items</li>
       <li>The Canvas: your agents side by side in terminals, connected by cords</li>
       <li>washmybelly: cleanup, uninstaller, startup items, privacy, power and FPS with undo</li>
     </ul>

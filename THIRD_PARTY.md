@@ -107,27 +107,11 @@ TODO(owner): creator credit. Add the name and link of the Pibble meme's creator 
 - **PresentMon API2 DLL**: not shipped. OmniGet runs the PresentMon command-line tool and reads its CSV.
 - **winapp2.ini**, which BleachBit can import, is not included until its license is checked.
 
-## Meetings
+## Speech and MCP presets
 
-No code or data is copied. These projects shaped how Meetings works, and two of them are services it talks to.
+No code or data is copied.
 
-- **ms-teams-sharepoint-downloader** by Brendan Gooden. License: **MIT**.
-  - What: how the Stream player reaches a Teams recording (the `videomanifest` DASH URL, cut after `index&format=dash`) and its transcript (`/_api/v2.1/drives/{drive}/items/{item}?$expand=media/transcripts`, whose `temporaryDownloadUrl` answers `?format=json` with speaker names). Reimplemented in Rust.
-  - Where: `src-tauri/omniget-core/src/core/meetings/teams.rs`.
-- **Meetily** by Zackriya Solutions (**MIT**), **Humla** by Michael Wilhelmsen (**MIT**), **anarlog** by Fastrepl (**MIT**) and **minutes** by Silverstein (**MIT**).
-  - What: the product shape. Record the microphone and the computer audio without a bot, transcribe with Whisper, summarize with a local model, fuse the person's own notes into the summary, and keep each meeting as Markdown with front matter an agent can read over MCP. The front matter uses the same field names as minutes.
-- **Vexa** by Vexa.ai. License: **Apache-2.0**.
-  - What: the meeting bot. OmniGet calls its REST API (`/bots`, `/transcripts`) on the server the person chooses; nothing of Vexa ships inside OmniGet.
 - **ms-365-mcp-server** by Softeria. License: **MIT**.
   - What: offered as a one-click MCP server in LLM → MCP (`npx -y @softeria/ms-365-mcp-server --org-mode`). It runs as its own process; nothing of it ships inside OmniGet.
-- **teams-chats-export** by codeforkjeff. License: **MIT**.
-  - What: the idea of exporting Teams chats through Microsoft Graph with the person's own app registration (`/me/chats`, `/me/chats/{id}/messages`). OmniGet's export (`src-tauri/omniget-core/src/core/msgraph/`) is written from the Graph documentation and writes Markdown/JSON instead of HTML.
 - **whisper.cpp** by ggml-org. License: **MIT**.
-  - What: the local speech-to-text engine, downloaded from its official release (Windows, Linux) or taken from Homebrew (macOS), with GGML models from Hugging Face.
-
-### What did not go in, and why
-
-- **attendee** and **meet-teams-bot**: Elastic License 2.0, which is not open source. Not used.
-- **microsoft/teams-sdk** and **teams.ts**: a Teams bot needs an Azure app registration and a public endpoint, which a desktop app cannot offer.
-- **Work IQ**: needs a Microsoft 365 Copilot license.
-- **ms-teams-cli** (osodevops): no license declared in the repository metadata, so it is not embedded.
+  - What: the local speech-to-text engine of the Claude Code plugin, with GGML models from Hugging Face.

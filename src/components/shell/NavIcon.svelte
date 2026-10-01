@@ -18,7 +18,6 @@
     washmybelly: { glyph: "sparkle", from: "#FF9BC2", to: "#E0527F" },
     video: { glyph: "puzzle-piece", from: "#FF8A3D", to: "#E5383B" },
     global: { glyph: "globe-hemisphere-west", from: "#40C8E0", to: "#0A7EA8" },
-    meetings: { glyph: "microphone", from: "#4FD1C5", to: "#1F8A9E" },
     telegram: { glyph: "puzzle-piece", from: "#2AABEE", to: "#229ED9" },
     read: { glyph: "book-open-text", from: "#FFB86B", to: "#E0712A" },
     fallback: { glyph: "puzzle-piece", from: "#8E8E93", to: "#5C5C60" },
@@ -27,7 +26,7 @@
   const ART = new Set([
     "home", "downloads", "llm", "help", "world",
     "superpowers", "settings", "about", "league", "music", "washmybelly", "video",
-    "telegram", "tube", "read", "global", "meetings",
+    "telegram", "tube", "read", "global",
   ]);
 
   let tile = $derived(TILES[icon] ?? TILES.fallback);

@@ -469,7 +469,7 @@ pub async fn chat_with(
     Ok(trimmed.to_string())
 }
 
-pub fn transcription_target(cfg: &AiConfig) -> Result<(String, String), String> {
+fn transcription_target(cfg: &AiConfig) -> Result<(String, String), String> {
     Ok(match cfg.provider {
         AiProvider::Openai => (
             "https://api.openai.com/v1/audio/transcriptions".to_string(),

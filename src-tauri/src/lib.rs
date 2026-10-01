@@ -47,7 +47,6 @@ pub mod local_bridge_remote;
 pub mod local_bridge_telegram;
 pub mod local_bridge_wmb;
 pub mod mcp;
-mod meetings_capture;
 pub mod missions;
 pub mod models;
 mod native_agent;
@@ -642,7 +641,7 @@ pub fn run() {
             }
             core::recovery::init_from_disk();
             core::queue_history::init_from_disk();
-            std::thread::spawn(omniget_core::core::meetings::recover_interrupted);
+            std::thread::spawn(omniget_core::core::secrets::forget_removed_meetings_credentials);
             core::channels::init_from_disk();
             core::channel_poller::start(app.handle().clone());
             if let Some(dir) = crate::core::paths::app_data_dir() {

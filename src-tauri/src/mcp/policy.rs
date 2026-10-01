@@ -73,11 +73,16 @@ pub const SCOPES: &[&str] = &[
     "agents_run",
     "memory_read",
     "memory_write",
-    "meetings_read",
-    "meetings_write",
-    "teams_read",
     "library",
 ];
+
+fn stored_scopes(raw: &str) -> Vec<String> {
+    serde_json::from_str::<Vec<String>>(raw)
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|s| SCOPES.contains(&s.as_str()))
+        .collect()
+}
 pub fn create(name: String, scopes: Vec<String>) -> Result<ConnectionGrant, String> {
     if name.trim().is_empty()
         || name.len() > 80
@@ -118,7 +123,7 @@ pub fn list() -> Result<Vec<Principal>, String> {
             Ok(Principal {
                 id: r.get(0)?,
                 name: r.get(1)?,
-                scopes: serde_json::from_str(&r.get::<_, String>(2)?).unwrap_or_default(),
+                scopes: stored_scopes(&r.get::<_, String>(2)?),
             })
         })
         .map_err(|e| e.to_string())?;
@@ -160,7 +165,7 @@ pub fn authenticate(token: &str) -> Result<Principal, String> {
                 Ok(Principal {
                     id: r.get(0)?,
                     name: r.get(1)?,
-                    scopes: serde_json::from_str(&r.get::<_, String>(2)?).unwrap_or_default(),
+                    scopes: stored_scopes(&r.get::<_, String>(2)?),
                 })
             },
         )
@@ -196,7 +201,7 @@ pub fn principal(id: &str) -> Result<Principal, String> {
                 Ok(Principal {
                     id: r.get(0)?,
                     name: r.get(1)?,
-                    scopes: serde_json::from_str(&r.get::<_, String>(2)?).unwrap_or_default(),
+                    scopes: stored_scopes(&r.get::<_, String>(2)?),
                 })
             },
         )
@@ -242,17 +247,6 @@ pub fn scope(name: &str) -> Option<&'static str> {
         "catalog_search" | "catalog_get" | "catalog_plan_install" | "catalog_install" => "catalog",
         "memory_recall" | "memory_reflect" => "memory_read",
         "memory_retain" => "memory_write",
-        "meetings_list" | "meeting_get" | "meetings_search" | "meetings_action_items" => {
-            "meetings_read"
-        }
-        "meeting_import" | "meeting_action_done" | "meeting_bot_send" => "meetings_write",
-        "teams_status"
-        | "teams_chats_list"
-        | "teams_chat_read"
-        | "teams_channels_list"
-        | "teams_channel_read"
-        | "teams_calendar"
-        | "teams_transcript_import" => "teams_read",
         "wmb_plan"
         | "wmb_execute"
         | "wmb_restore"
