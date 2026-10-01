@@ -16,6 +16,7 @@ use crate::canvas::doc::host;
 
 const MAX_TEXT_BYTES: u64 = 4 * 1024 * 1024;
 const MAX_IMAGE_BYTES: u64 = 10 * 1024 * 1024;
+const MAX_INLINE_PREVIEW_BYTES: u64 = 2 * 1024 * 1024;
 const MAX_LIST_ENTRIES: usize = 5000;
 const MAX_SEARCH_HITS: usize = 200;
 const MAX_SEARCH_FILE_BYTES: u64 = 1024 * 1024;
@@ -383,21 +384,24 @@ pub async fn canvas_file_node_preview(
     node_id: String,
 ) -> Result<Option<String>, String> {
     let s = store(&app);
+    let path = s.read(&workspace_id, &floor_id, |d| {
+        d.node(&node_id)
+            .filter(|n| matches!(n.kind, NodeKind::File | NodeKind::Image))
+            .and_then(|n| n.data_str("path").map(str::to_string))
+    })?;
+    let Some(path) = path else {
+        return Ok(None);
+    };
+    if let Some(thumb) = super::images::file_preview(&app, &workspace_id, &path).await? {
+        return Ok(Some(thumb));
+    }
     blocking(move || {
-        let path = s.read(&workspace_id, &floor_id, |d| {
-            d.node(&node_id)
-                .filter(|n| matches!(n.kind, NodeKind::File | NodeKind::Image))
-                .and_then(|n| n.data_str("path").map(str::to_string))
-        })?;
-        let Some(path) = path else {
-            return Ok(None);
-        };
         let abs = Path::new(&path);
         let Some(mime) = image_mime(abs) else {
             return Ok(None);
         };
         match std::fs::metadata(abs) {
-            Ok(m) if m.is_file() && m.len() <= MAX_IMAGE_BYTES => {}
+            Ok(m) if m.is_file() && m.len() <= MAX_INLINE_PREVIEW_BYTES => {}
             _ => return Ok(None),
         }
         let bytes = std::fs::read(abs).map_err(io)?;

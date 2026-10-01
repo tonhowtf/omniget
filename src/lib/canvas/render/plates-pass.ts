@@ -1,9 +1,13 @@
 import type { CanvasEngine } from '../engine.svelte';
-import { isTerminalKind } from '../model/types';
+import { isTerminalKind, type CanvasNode } from '../model/types';
 import { parseColor, withAlpha, type Rgba } from './color';
 import type { FrameInfo, GlPass } from './gl-layer';
 import { LineBatch } from './lines';
 import { SdfBatch } from './sdf-shapes';
+import { hasSnapshot } from './snapshot-textures';
+import { hidesCard, isImageLike } from '../images.svelte';
+
+type ViewNode = Pick<CanvasNode, 'id' | 'kind' | 'data'>;
 
 const KIND_TINT: Record<string, string> = {
   note: '#e9c46a',
@@ -39,7 +43,11 @@ export function createPlatesPass(engine: CanvasEngine, colors: () => { surface: 
         });
       }
       for (const v of frame.visibleNodes) {
-        if (v.lod !== 'far' || isTerminalKind(v.kind)) continue;
+        if (v.lod === 'near' || isTerminalKind(v.kind)) continue;
+        const vn = v as ViewNode;
+        const image = isImageLike(vn);
+        if (image && hasSnapshot(v.id)) continue;
+        if (v.lod === 'mid' && !(image && hidesCard(engine, vn))) continue;
         const tint = parseColor(KIND_TINT[v.kind] ?? '#9aa5b1');
         sdf.rect((v.x - cam.x) * z, (v.y - cam.y) * z, v.w * z, v.h * z, {
           radius: 4,
@@ -55,6 +63,7 @@ export function createPlatesPass(engine: CanvasEngine, colors: () => { surface: 
       }
       for (const v of frame.visibleNodes) {
         if (v.lod !== 'mid' || isTerminalKind(v.kind)) continue;
+        if (hasSnapshot(v.id) || hidesCard(engine, v as ViewNode)) continue;
         sdf.rect((v.x - cam.x) * z + 2, (v.y - cam.y) * z + 4, v.w * z, v.h * z, {
           radius: 10,
           fill: [0, 0, 0, 0.18],

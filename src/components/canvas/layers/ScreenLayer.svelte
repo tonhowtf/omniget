@@ -3,6 +3,7 @@
   import type { CanvasNode } from "$lib/canvas/model/types";
   import { nodeKind } from "$lib/canvas/nodes/registry";
   import { atWorld, worldLen } from "$lib/canvas/screen";
+  import { hidesCard } from "$lib/canvas/images.svelte";
   import NodeCard from "../cards/NodeCard.svelte";
   import CordLabel from "../chrome/CordLabel.svelte";
   import ContextToolbar from "../chrome/ContextToolbar.svelte";
@@ -17,7 +18,7 @@
     void engine.registryRev;
     return engine.cards
       .map((id) => engine.store.node(id))
-      .filter((n): n is CanvasNode => !!n)
+      .filter((n): n is CanvasNode => !!n && !hidesCard(engine, n))
       .sort((a, b) => a.z - b.z);
   });
   const groups = $derived.by(() => {

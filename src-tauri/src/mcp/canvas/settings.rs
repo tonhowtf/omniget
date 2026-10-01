@@ -21,6 +21,8 @@ const CANVAS_ROOTS: &[&str] = &[
     "agent_presets",
     "shortcuts",
     "skills",
+    "images",
+    "performance",
 ];
 
 pub fn canvas_path(key: &str) -> Option<Vec<String>> {

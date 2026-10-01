@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, untrack } from "svelte";
   import { useEngine } from "$lib/canvas/engine.svelte";
   import { registerPass } from "$lib/canvas/render/gl-layer";
   import { createGridPass } from "$lib/canvas/render/grid";
@@ -11,13 +11,15 @@
   import { createCanvas2dDrawer } from "$lib/canvas/render/canvas2d";
   import { readTheme, watchTheme, type CanvasTheme } from "$lib/canvas/render/theme";
   import { registerTermPass, setTermGlAvailable } from "$lib/canvas/term/pass";
-  import { canvasPrefs } from "$lib/canvas/prefs.svelte";
+  import { canvasPrefs, imageBudgetBytes } from "$lib/canvas/prefs.svelte";
+  import { watchImages } from "$lib/canvas/images.svelte";
   import { registerSemantic } from "$lib/native-agent/semantic";
 
   const engine = useEngine();
   let glCanvas = $state<HTMLCanvasElement | null>(null);
   let fallbackCanvas = $state<HTMLCanvasElement | null>(null);
   let theme: CanvasTheme | null = null;
+  let forced = false;
   const th = () => (theme ??= readTheme());
 
   onMount(() =>
@@ -41,13 +43,29 @@
       registerPass(createPlatesPass(engine, () => th())),
       registerPass(createMeshPass(engine)),
       registerPass(createCordsPass(engine, () => th())),
-      registerPass(createSnapshotPass(engine)),
+      registerPass(createSnapshotPass(engine, imageBudgetBytes)),
       registerPass(createSpritePass(engine, () => th())),
       registerPass(createOverlayPass(engine, () => th())),
       registerTermPass(() => engine.invalidate()),
     ];
-    const ok = glCanvas
-      ? engine.layer.init(glCanvas, {
+    const stopImages = watchImages(engine);
+    if (canvasPrefs().performance.force_canvas2d) {
+      forced = true;
+      setTermGlAvailable(false);
+      engine.glFallback = true;
+    } else if (!engine.layer.canvas) {
+      startGl(glCanvas);
+    }
+    return () => {
+      stopTheme();
+      stopImages();
+      for (const u of unregister) u();
+    };
+  });
+
+  function startGl(c: HTMLCanvasElement | null) {
+    const ok = c
+      ? engine.layer.init(c, {
           onFallback: () => {
             setTermGlAvailable(false);
             engine.glFallback = true;
@@ -58,10 +76,30 @@
     setTermGlAvailable(ok);
     if (!ok) engine.glFallback = true;
     engine.invalidate();
-    return () => {
-      stopTheme();
-      for (const u of unregister) u();
-    };
+  }
+
+  $effect(() => {
+    const force = canvasPrefs().performance.force_canvas2d;
+    untrack(() => {
+      if (force && !engine.glFallback) {
+        forced = true;
+        engine.layer.destroy();
+        setTermGlAvailable(false);
+        engine.glFallback = true;
+      } else if (!force && forced) {
+        forced = false;
+        engine.glFallback = false;
+      }
+    });
+  });
+
+  $effect(() => {
+    const c = glCanvas;
+    if (!c || engine.glFallback) return;
+    untrack(() => {
+      if (engine.layer.canvas && engine.layer.canvas !== c) engine.layer.destroy();
+      if (!engine.layer.canvas) startGl(c);
+    });
   });
 
   $effect(() => {

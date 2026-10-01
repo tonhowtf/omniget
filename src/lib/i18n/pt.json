@@ -11353,7 +11353,6 @@
       },
       "front": "Trazer para frente",
       "group": "Agrupar",
-      "imageMissing": "Imagem não encontrada",
       "linkEmpty": "Link",
       "lock": "Travar",
       "locked": "Travado",
@@ -12449,7 +12448,28 @@
         "align_bottom": "Alinhar embaixo",
         "distribute_horizontally": "Distribuir na horizontal",
         "distribute_vertically": "Distribuir na vertical"
-      }
+      },
+      "imagesTitle": "Imagens",
+      "imagesAnyZoom": "Mostrar imagens em qualquer zoom",
+      "imagesAnyZoomHint": "Afastado, a imagem continua visível numa cópia mais leve, no lugar de uma placa colorida",
+      "imagesQuality": "Qualidade afastado",
+      "imagesQualityHint": "Mais nítida guarda mais imagens na memória",
+      "imagesLight": "Leve",
+      "imagesBalanced": "Equilibrada",
+      "imagesSharp": "Nítida",
+      "imagesDownload": "Baixar imagens da web",
+      "imagesDownloadHint": "Links de imagem são salvos no workspace, até 25 MB cada",
+      "imagesThumbs": "Miniaturas",
+      "imagesThumbsHint": "Elas são refeitas quando precisar",
+      "imagesClearThumbs": "Limpar miniaturas",
+      "thumbsCleared": "Miniaturas limpas ({{mb}} MB)",
+      "performanceTitle": "Desempenho",
+      "mountedTerminals": "Terminais mantidos abertos",
+      "mountedTerminalsHint": "Acima disso, terminais fora da tela saem da vista; eles continuam rodando",
+      "livePortals": "Portais ao vivo",
+      "livePortalsHint": "Acima disso, portais mostram a última imagem até você chegar perto",
+      "forceCanvas2d": "Desenhar o canvas sem a placa de vídeo",
+      "forceCanvas2dHint": "Mais lento; tente se o canvas piscar ou ficar em branco"
     },
     "clipboard": {
       "copy": "Copiar",
@@ -12638,6 +12658,16 @@
       "on": "Ligado",
       "palette": "Servidores MCP…",
       "menu": "Servidores MCP…"
+    },
+    "image": {
+      "loading": "Carregando imagem",
+      "retry": "Tentar de novo",
+      "webOff": "Baixar imagens da web está desligado nos Ajustes",
+      "downloadFailed": "Não foi possível baixar esta imagem",
+      "tooLarge": "Esta imagem é grande demais",
+      "unsupported": "Este formato de imagem não é suportado",
+      "notFound": "O arquivo da imagem sumiu",
+      "loadFailed": "Não foi possível carregar esta imagem"
     }
   },
   "tube": {

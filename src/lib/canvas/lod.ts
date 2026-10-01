@@ -58,5 +58,4 @@ export function allocate(cands: Array<{ id: string; score: number }>, limit: num
   );
 }
 
-export const MOUNTED_TERMINALS_LIMIT = 12;
-export const LIVE_PORTALS_LIMIT = 4;
+export { mountedTerminalsLimit, livePortalsLimit } from './prefs.svelte';

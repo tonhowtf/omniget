@@ -5,6 +5,7 @@ import type { CanvasNode } from '../model/types';
 import { baseName, IMAGE_RE, joinPath, VIDEO_RE, type FileEditorData } from './api';
 
 const EDITOR_SIZE = { w: 600, h: 480 };
+const RASTER_RE = /\.(png|jpe?g|gif|webp)$/i;
 
 function onFloor(engine: CanvasEngine): CanvasNode[] {
   return engine.store.nodes.filter((n) => !stackIdOf(n));
@@ -85,6 +86,9 @@ export function nodeForPath(engine: CanvasEngine, abs: string, isDir: boolean, a
   }
   if (isNoteFile(abs)) {
     return engine.spawn('note', at, { title: name.replace(/\.(md|markdown|txt)$/i, ''), data: { path: abs, isExternal: true } });
+  }
+  if (RASTER_RE.test(abs)) {
+    return engine.spawn('image', at, { title: name, data: { path: abs, fit: true } });
   }
   const data: Record<string, unknown> = { path: abs, displayName: name };
   if (IMAGE_RE.test(abs)) data.isImage = true;

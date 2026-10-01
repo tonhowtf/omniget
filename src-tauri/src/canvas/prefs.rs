@@ -30,6 +30,7 @@ fn allowed(path: &[String]) -> Option<&'static [&'static str]> {
         ["rope_routing"] => CanvasSettings::ROUTINGS,
         ["power", "prevent_sleep"] => CanvasSettings::SLEEP_MODES,
         ["defaults", "note", "render"] => &["formatted", "raw"],
+        ["images", "quality"] => CanvasSettings::IMAGE_QUALITIES,
         _ => return None,
     })
 }

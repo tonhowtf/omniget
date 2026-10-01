@@ -8,7 +8,7 @@ import { Inertia, springStep } from './camera/inertia';
 import { cordPath, reverseCord, sampleCord } from './cords/route';
 import { kindColor, Traffic } from './cords/traffic';
 import { cordRefusal } from './cords/validate';
-import { allocate, isCostlySwap, mountsInWorld, MOUNTED_TERMINALS_LIMIT, nodeLod, type Lod } from './lod';
+import { allocate, isCostlySwap, mountsInWorld, mountedTerminalsLimit, nodeLod, type Lod } from './lod';
 import { History } from './model/history';
 import { removeNodesOps } from './model/ops';
 import { CanvasStore, drawingBounds } from './model/store.svelte';
@@ -433,10 +433,11 @@ export class CanvasEngine {
       if (!n || raised.has(id)) this.mountedLru.delete(id);
       else if (!isTerminalKind(n.kind) && !near.includes(id)) this.mountedLru.delete(id);
     }
-    if (!moving && this.mountedLru.size > MOUNTED_TERMINALS_LIMIT) {
+    const mountLimit = mountedTerminalsLimit();
+    if (!moving && this.mountedLru.size > mountLimit) {
       const keep = allocate(
         Array.from(this.mountedLru.entries()).map(([id, t]) => ({ id, score: near.includes(id) ? Infinity : t })),
-        MOUNTED_TERMINALS_LIMIT,
+        mountLimit,
       );
       for (const id of Array.from(this.mountedLru.keys())) if (!keep.has(id)) this.mountedLru.delete(id);
     }

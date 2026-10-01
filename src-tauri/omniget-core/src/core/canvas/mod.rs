@@ -1,5 +1,6 @@
 pub mod adapters;
 pub mod answer;
+pub mod assets;
 pub mod chat;
 pub mod client;
 pub mod clipboard;

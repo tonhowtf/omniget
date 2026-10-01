@@ -2,8 +2,11 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, OnceLock};
 
+use omniget_core::core::canvas::assets;
 use omniget_core::core::canvas::clipboard::{self as clip, Clip, ClipSelection, Placement};
-use omniget_core::core::canvas::model::{default_size, new_id, CanvasNode, NodeKind, Point, GRID};
+use omniget_core::core::canvas::model::{
+    default_size, new_id, CanvasNode, NodeKind, Point, Size, GRID,
+};
 use omniget_core::core::canvas::ops::Op;
 use omniget_core::core::canvas::store::CanvasStore;
 use serde_json::{json, Map, Value};
@@ -322,8 +325,29 @@ const IMAGE_EXT: &[&str] = &[
 ];
 const VIDEO_EXT: &[&str] = &["mp4", "mov", "webm", "m4v", "mkv"];
 
-fn node_for_path(p: &Path) -> (NodeKind, String, Map<String, Value>) {
+fn image_item(r: &assets::AssetRef, name: String) -> (NodeKind, String, Map<String, Value>) {
+    (NodeKind::Image, name, assets::node_data(r, None))
+}
+
+fn item_size(kind: &NodeKind, data: &Map<String, Value>) -> Size {
+    let natural = |k: &str| data.get(k).and_then(Value::as_u64).unwrap_or(0) as u32;
+    if *kind == NodeKind::Image {
+        let (w, h) = assets::fit_size(natural("naturalW"), natural("naturalH"));
+        return Size {
+            w: snap(w).max(GRID),
+            h: snap(h).max(GRID),
+        };
+    }
+    default_size(kind)
+}
+
+fn node_for_path(ws_dir: &Path, p: &Path) -> (NodeKind, String, Map<String, Value>) {
     let name = base_name(p);
+    if p.is_file() && assets::supported_ext(p) {
+        if let Ok(r) = assets::put_path(ws_dir, p) {
+            return image_item(&r, name);
+        }
+    }
     let abs = p.to_string_lossy().into_owned();
     let mut data = Map::new();
     if p.is_dir() {
@@ -364,6 +388,7 @@ fn paste_foreign(
     w: Where,
 ) -> Result<Value, String> {
     let fkey = format!("{}|{ws}|{floor}", foreign_key(&f));
+    let ws_dir = s.workspace_dir(ws);
     let (source, items): (&str, Vec<ForeignItem>) = match f {
         Foreign::Url(u) => {
             let mut d = Map::new();
@@ -377,15 +402,20 @@ fn paste_foreign(
         Foreign::Svg(text) => {
             let path = files_dir(s, ws)?.join(format!("pasted-{}.svg", &new_id()[..8]));
             std::fs::write(&path, text).map_err(|e| format!("CANVAS_IO: {e}"))?;
-            ("svg", vec![node_for_path(&path)])
+            ("svg", vec![node_for_path(&ws_dir, &path)])
         }
-        Foreign::Paths(ps) => ("files", ps.iter().map(|p| node_for_path(p)).collect()),
+        Foreign::Paths(ps) => (
+            "files",
+            ps.iter().map(|p| node_for_path(&ws_dir, p)).collect(),
+        ),
         Foreign::Image { w: iw, h: ih, rgba } => {
-            let path = files_dir(s, ws)?.join(format!("pasted-{}.png", &new_id()[..8]));
             let img = image::RgbaImage::from_raw(iw, ih, rgba)
                 .ok_or("CLIPBOARD_IMAGE: malformed image")?;
-            img.save(&path).map_err(|e| format!("CANVAS_IO: {e}"))?;
-            ("image", vec![node_for_path(&path)])
+            let mut png = Vec::new();
+            img.write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
+                .map_err(|e| format!("CANVAS_IO: {e}"))?;
+            let r = assets::put_bytes(&ws_dir, &png)?;
+            ("image", vec![image_item(&r, "Pasted image".into())])
         }
         Foreign::Text(t) => {
             let mut d = Map::new();
@@ -394,7 +424,7 @@ fn paste_foreign(
         }
     };
     let doc = s.read(ws, floor, |d| d.clone())?;
-    let sizes: Vec<_> = items.iter().map(|(k, _, _)| default_size(k)).collect();
+    let sizes: Vec<_> = items.iter().map(|(k, _, d)| item_size(k, d)).collect();
     let total_w: f64 =
         sizes.iter().map(|z| z.w).sum::<f64>() + GAP * (sizes.len().saturating_sub(1)) as f64;
     let max_h = sizes.iter().map(|z| z.h).fold(0.0, f64::max);

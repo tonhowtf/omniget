@@ -49,6 +49,8 @@ export interface CanvasPrefs {
   agent_presets: Record<string, AgentPreset>;
   shortcuts?: Record<string, string>;
   skills?: { roots: Record<string, string> };
+  images: { any_zoom: boolean; quality: 'light' | 'balanced' | 'sharp'; download_web: boolean };
+  performance: { mounted_terminals: number; live_portals: number; force_canvas2d: boolean };
 }
 
 const CANVAS_PREFS_DEFAULTS: CanvasPrefs = {
@@ -81,6 +83,8 @@ const CANVAS_PREFS_DEFAULTS: CanvasPrefs = {
   notifications: { attention: true, badges_for_non_maestro: true },
   power: { prevent_sleep: 'while_working' },
   agent_presets: {},
+  images: { any_zoom: true, quality: 'balanced', download_web: true },
+  performance: { mounted_terminals: 12, live_portals: 4, force_canvas2d: false },
 };
 
 const BUILTIN_AGENTS = new Set(['shell', 'claude', 'codex', 'gemini', 'opencode', 'ollama', 'native']);
@@ -102,7 +106,25 @@ export function canvasPrefs(): CanvasPrefs {
     notifications: { ...d.notifications, ...(c.notifications ?? {}) },
     power: { ...d.power, ...(c.power ?? {}) },
     agent_presets: c.agent_presets ?? {},
+    images: { ...d.images, ...(c.images ?? {}) },
+    performance: { ...d.performance, ...(c.performance ?? {}) },
   };
+}
+
+const IMAGE_BUDGET_MB = { light: 128, balanced: 256, sharp: 512 } as const;
+
+export function imageBudgetBytes(): number {
+  return (IMAGE_BUDGET_MB[canvasPrefs().images.quality] ?? IMAGE_BUDGET_MB.balanced) * 1024 * 1024;
+}
+
+export function mountedTerminalsLimit(): number {
+  const v = canvasPrefs().performance.mounted_terminals;
+  return Number.isFinite(v) && v > 0 ? v : 12;
+}
+
+export function livePortalsLimit(): number {
+  const v = canvasPrefs().performance.live_portals;
+  return Number.isFinite(v) && v >= 0 ? v : 4;
 }
 
 function parseSize(s: string | undefined | null): { w: number; h: number } | null {

@@ -1,4 +1,4 @@
-import { allocate, LIVE_PORTALS_LIMIT } from '../lod';
+import { allocate, livePortalsLimit } from '../lod';
 import type { CanvasEngine } from '../engine.svelte';
 import { closePortal, hidePortal, refreshSnapshot, setPortalBounds, type PortalBounds } from './client';
 
@@ -228,7 +228,7 @@ class PortalPolicy {
       cameraStill: !this.engine.moving && !this.engine.pinching,
       zoom,
       container: this.container(),
-      budget: LIVE_PORTALS_LIMIT,
+      budget: livePortalsLimit(),
       pageVisible: typeof document === 'undefined' || document.visibilityState !== 'hidden',
       candidates: cands,
     });

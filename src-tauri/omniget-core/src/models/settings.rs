@@ -176,6 +176,44 @@ pub struct CanvasSettings {
     pub agent_presets: std::collections::BTreeMap<String, AgentPreset>,
     pub shortcuts: std::collections::BTreeMap<String, String>,
     pub skills: CanvasSkillSettings,
+    pub images: CanvasImageSettings,
+    pub performance: CanvasPerformanceSettings,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct CanvasImageSettings {
+    pub any_zoom: bool,
+    pub quality: String,
+    pub download_web: bool,
+}
+
+impl Default for CanvasImageSettings {
+    fn default() -> Self {
+        Self {
+            any_zoom: true,
+            quality: "balanced".into(),
+            download_web: true,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct CanvasPerformanceSettings {
+    pub mounted_terminals: u32,
+    pub live_portals: u32,
+    pub force_canvas2d: bool,
+}
+
+impl Default for CanvasPerformanceSettings {
+    fn default() -> Self {
+        Self {
+            mounted_terminals: 12,
+            live_portals: 4,
+            force_canvas2d: false,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -284,6 +322,8 @@ impl Default for CanvasSettings {
             agent_presets: Default::default(),
             shortcuts: Default::default(),
             skills: Default::default(),
+            images: CanvasImageSettings::default(),
+            performance: CanvasPerformanceSettings::default(),
         }
     }
 }
@@ -382,6 +422,7 @@ impl CanvasSettings {
     pub const CORD_STYLES: &'static [&'static str] = &["bezier", "rope", "circuit"];
     pub const ROUTINGS: &'static [&'static str] = &["behind_nodes", "avoid_nodes", "circuit"];
     pub const SLEEP_MODES: &'static [&'static str] = &["never", "always", "while_working"];
+    pub const IMAGE_QUALITIES: &'static [&'static str] = &["light", "balanced", "sharp"];
 
     pub fn normalize(&mut self) {
         let d = Self::default();
@@ -446,6 +487,22 @@ impl CanvasSettings {
         };
         self.agent_presets
             .retain(|name, p| !name.trim().is_empty() && !p.command.trim().is_empty());
+        pick(
+            &mut self.images.quality,
+            Self::IMAGE_QUALITIES,
+            &d.images.quality,
+        );
+        let perf = &mut self.performance;
+        perf.mounted_terminals = perf.mounted_terminals.clamp(1, 64);
+        perf.live_portals = perf.live_portals.clamp(0, 16);
+    }
+
+    pub fn image_budget_mb(&self) -> u32 {
+        match self.images.quality.as_str() {
+            "light" => 128,
+            "sharp" => 512,
+            _ => 256,
+        }
     }
 }
 
@@ -1369,7 +1426,14 @@ mod backcompat_tests {
         };
         c.defaults.note.size = "333x211".into();
         c.power.prevent_sleep = "whileWorking".into();
+        c.images.quality = "Sharp".into();
+        c.performance.mounted_terminals = 0;
+        c.performance.live_portals = 99;
         c.normalize();
+        assert_eq!(c.images.quality, "sharp");
+        assert_eq!(c.image_budget_mb(), 512);
+        assert_eq!(c.performance.mounted_terminals, 1);
+        assert_eq!(c.performance.live_portals, 16);
         assert_eq!(c.selection_style, "corner_dots");
         assert_eq!(c.cord_style, "bezier");
         assert_eq!(c.zoom_step, 1.0);

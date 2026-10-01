@@ -88,6 +88,7 @@ scraper = "0.27"
 pulldown-cmark = { version = "0.13", default-features = false, features = ["html"] }
 chardetng = "0.1"
 alacritty_terminal = "0.26.0"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp", "gif"] }
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61", features = [

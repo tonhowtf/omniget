@@ -19,6 +19,7 @@ use super::policy::{self, Principal};
 use super::ToolDef;
 
 mod activity;
+mod assets;
 mod clipboard;
 mod council;
 mod lift_dock_menu;
@@ -257,18 +258,18 @@ fn build_defs() -> Vec<Def> {
         def("floor_hooks_run", "Run a floor's hooks of one kind (setup, run, teardown), or one hook by id.", true, json!({
             "workspaceId": ws(), "floorId": floor(), "kind": e(&["setup", "run", "teardown"], "Hook kind"), "hookId": s("One hook id")
         }), &["kind"], list_out("runs")),
-        def("canvas_snapshot", "Snapshot of a floor: nodes (terminals, agents, notes, portals, files, shapes, stacks...), cords, drawings, groups, cable ties and camera, with the revision to pass as baseRev.", false, json!({"workspaceId": ws(), "floorId": floor()}), &[], out(json!({
+        def("canvas_snapshot", "Snapshot of a floor: nodes (terminals, agents, notes, portals, files, shapes, stacks...), cords, drawings, groups, cable ties and camera, with the revision to pass as baseRev. thumbnails adds a small JPEG data URL (up to 128 px) to each image node.", false, json!({"workspaceId": ws(), "floorId": floor(), "thumbnails": b("Add a tiny thumbnail to image nodes (default false)")}), &[], out(json!({
             "workspaceId": ty("string"), "floorId": ty("string"), "epoch": ty("string"), "rev": ty("integer"), "seq": ty("integer"), "camera": ty("object"),
             "nodes": arr(ty("object")), "connections": arr(ty("object")), "drawings": arr(ty("object")), "groups": arr(ty("object")), "cableTies": arr(ty("object"))
         }), &["workspaceId", "floorId", "rev", "nodes", "connections"])),
         def("canvas_apply", "Apply raw document ops atomically (add_node, update_node {id, patch}, remove_node, add_connection, update_connection, remove_connection, add_drawing, update_drawing, remove_drawing, set_group, set_cable_tie, set_camera), the same ops the canvas writes. Returns the effective ops. Terminals added this way are not started: call canvas_terminal_ensure.", true, json!({
             "workspaceId": ws(), "floorId": floor(), "ops": json!({"type": "array", "items": {"type": "object", "properties": {"op": e(&["add_node", "update_node", "remove_node", "add_connection", "update_connection", "remove_connection", "add_drawing", "update_drawing", "remove_drawing", "set_group", "set_cable_tie", "set_camera"], "Op"), "id": s("Target id (update/remove)"), "patch": schemas::free("Fields (update ops)"), "node": schemas::free("Node (add_node)"), "connection": schemas::free("Cord (add_connection)"), "drawing": schemas::free("Drawing (add_drawing)")}, "required": ["op"], "additionalProperties": true}, "description": "Ops, e.g. [{\"op\": \"update_node\", \"id\": \"n1\", \"patch\": {\"x\": 40}}]"}), "baseRev": json!({"type": "integer", "minimum": 0, "description": "Revision the ops were computed against"})
         }), &["ops"], apply_out.clone()),
-        def("canvas_node_spawn", "Put a node on the canvas the way the canvas does. kind terminal = a terminal running `agent` (claude, codex, gemini, opencode, ollama, shell, native) with optional role, cwd, command, a first prompt and the Maestro flag, started right away; note (text), text, file (path; a .md/.markdown/.txt becomes an external note showing the formatted text), filetree (path), link/portal (url), shape (shape, text), image (path or url), stack, connector. Without x/y it goes to the nearest free spot. connectFrom cords it to an existing node.", true, json!({
+        def("canvas_node_spawn", "Put a node on the canvas the way the canvas does. kind terminal = a terminal running `agent` (claude, codex, gemini, opencode, ollama, shell, native) with optional role, cwd, command, a first prompt and the Maestro flag, started right away; note (text), text, file (path; a .md/.markdown/.txt becomes an external note showing the formatted text), filetree (path), link/portal (url), shape (shape, text), image (asset from the library, path or url; files and links are copied into the workspace library), stack, connector. Without x/y it goes to the nearest free spot. connectFrom cords it to an existing node.", true, json!({
             "workspaceId": ws(), "floorId": floor(), "kind": e(NODE_KINDS, "Node kind"), "agent": e(AGENTS, "Agent of a terminal (default shell)"),
             "title": s("Title"), "name": s("Same as title"), "preset": s("Same as agent"), "fontSize": n("Font size of a text node (8 to 200)"), "fontWeight": e(TEXT_WEIGHTS, "Weight of a text node"), "fontFamily": e(TEXT_FAMILIES, "Family of a text node"), "roleId": s("Role id or name (see role_list)"), "cwd": s("Working folder of a terminal"), "command": s("Own command line of a terminal (overrides the agent preset)"),
             "model": s("Ollama model"), "prompt": s("First message for the agent of a terminal, sent when it is ready for input (after a folder trust question or a login)"), "maestro": b("Make the terminal the Maestro"), "start": b("Start a terminal now (default true)"),
-            "text": s("Text of a note, text or shape"), "url": s("URL of a portal, link or image"), "path": s("Path of a file, file tree or image"), "shape": s("Shape: rectangle, ellipse, diamond..."),
+            "text": s("Text of a note, text or shape"), "url": s("URL of a portal, link or image"), "path": s("Path of a file, file tree or image"), "asset": s("Library asset id of an image (see canvas_asset_list)"), "shape": s("Shape: rectangle, ellipse, diamond..."),
             "storageScope": e(&["isolated", "workspace", "global"], "Cookie jar of a portal (default isolated)"),
             "x": n("Left (world units)"), "y": n("Top (world units)"), "w": n("Width"), "h": n("Height"), "color": s("Color"),
             "data": schemas::free("Extra payload fields merged into data"), "connectFrom": s("Node id to cord the new node from")
@@ -530,6 +531,7 @@ fn build_defs() -> Vec<Def> {
     ];
     all.extend(activity::defs());
     all.extend(mcp_servers::defs());
+    all.extend(assets::defs());
     all
 }
 
@@ -1447,7 +1449,10 @@ async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
         }
         "canvas_snapshot" => {
             let (ws, floor) = ws_floor(&s, &a)?;
-            let mut v = to_value(cmd::doc::canvas_load(app, ws, floor).await?)?;
+            let mut v = to_value(cmd::doc::canvas_load(app, ws.clone(), floor).await?)?;
+            if flag(&a, "thumbnails") == Some(true) {
+                assets::snapshot_thumbs(&s, &ws, &mut v).await;
+            }
             crate::canvas::cords::host().mark_active(&mut v);
             if let Some(nodes) = v.get_mut("nodes").and_then(Value::as_array_mut) {
                 for n in nodes.iter_mut().filter(|n| n["kind"] == "file") {
@@ -2655,6 +2660,7 @@ async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
         }
         "canvas_node_duplicate" => duplicate(&app, &s, &a).await,
         "canvas_clipboard" => clipboard::call(&app, &a).await,
+        t if assets::NAMES.contains(&t) => assets::call(&app, &s, t, &a).await,
         "canvas_group_update" => {
             let (ws, floor) = ws_floor(&s, &a)?;
             let gid = need(&a, "groupId")?;
@@ -3296,6 +3302,11 @@ fn terminals_list(s: &CanvasStore, a: &Value) -> Result<Value, String> {
 async fn spawn(app: &AppHandle, s: &Arc<CanvasStore>, a: &Value) -> Result<Value, String> {
     let (ws, floor) = ws_floor(s, a)?;
     let kind_name = need(a, "kind")?;
+    let mut image_data = if NodeKind::parse(&kind_name) == NodeKind::Image {
+        Some(assets::spawn_data(app, s, &ws, a).await?)
+    } else {
+        None
+    };
     let mut a = a.clone();
     if a.get("title").is_none() {
         if let Some(nm) = a.get("name").cloned() {
@@ -3455,11 +3466,7 @@ async fn spawn(app: &AppHandle, s: &Arc<CanvasStore>, a: &Value) -> Result<Value
                 }
             }
             NodeKind::Image => {
-                if let Some(p) = st(a, "path") {
-                    data.insert("path".into(), json!(p));
-                } else {
-                    data.insert("url".into(), json!(need(a, "url")?));
-                }
+                data.extend(image_data.take().unwrap_or_default());
             }
             NodeKind::Stack => {
                 let name = title
@@ -3506,11 +3513,25 @@ async fn spawn(app: &AppHandle, s: &Arc<CanvasStore>, a: &Value) -> Result<Value
         node.w = w;
         node.h = h;
     }
+    let natural = (node.kind == NodeKind::Image)
+        .then(|| assets::natural(&node.data))
+        .flatten();
+    if let Some((nw, nh)) = natural {
+        let (w, h) = omniget_core::core::canvas::assets::fit_size(nw, nh);
+        node.w = w;
+        node.h = h;
+    }
     if let Some(w) = num(a, "w") {
         node.w = w.max(40.0);
+        if let (Some((nw, nh)), None) = (natural, num(a, "h")) {
+            node.h = (node.w * nh as f64 / nw as f64).max(24.0);
+        }
     }
     if let Some(h) = num(a, "h") {
         node.h = h.max(24.0);
+        if let (Some((nw, nh)), None) = (natural, num(a, "w")) {
+            node.w = (node.h * nw as f64 / nh as f64).max(40.0);
+        }
     }
     if node.kind == NodeKind::Text {
         let (w, h) = text_fit(&node.data, node.w, node.h);

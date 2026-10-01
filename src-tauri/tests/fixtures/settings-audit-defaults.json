@@ -52,10 +52,20 @@
       }
     },
     "focus_on_hover": false,
+    "images": {
+      "any_zoom": true,
+      "download_web": true,
+      "quality": "balanced"
+    },
     "node_material": "opaque",
     "notifications": {
       "attention": true,
       "badges_for_non_maestro": true
+    },
+    "performance": {
+      "force_canvas2d": false,
+      "live_portals": 4,
+      "mounted_terminals": 12
     },
     "power": {
       "prevent_sleep": "while_working"

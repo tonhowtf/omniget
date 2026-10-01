@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { invoke } from "@tauri-apps/api/core";
+  import { convertFileSrc, invoke } from "@tauri-apps/api/core";
   import { t } from "$lib/i18n";
   import type { CanvasNode } from "$lib/canvas/model/types";
   import { useEngine } from "$lib/canvas/engine.svelte";
@@ -25,8 +25,8 @@
     if (!img || !p || engine.syncMode !== "rust") return;
     let alive = true;
     invoke<string | null>("canvas_file_node_preview", { workspaceId: ws, floorId: floor, nodeId: id })
-      .then((url) => {
-        if (alive) preview = url ?? null;
+      .then((thumb) => {
+        if (alive) preview = !thumb ? null : thumb.startsWith("data:") ? thumb : convertFileSrc(thumb);
       })
       .catch(() => {});
     return () => {

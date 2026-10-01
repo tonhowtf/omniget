@@ -11353,7 +11353,6 @@
       },
       "front": "Bring to front",
       "group": "Group",
-      "imageMissing": "Image not found",
       "linkEmpty": "Link",
       "lock": "Lock",
       "locked": "Locked",
@@ -12449,7 +12448,28 @@
         "align_bottom": "Align bottom",
         "distribute_horizontally": "Distribute horizontally",
         "distribute_vertically": "Distribute vertically"
-      }
+      },
+      "imagesTitle": "Images",
+      "imagesAnyZoom": "Show images at any zoom",
+      "imagesAnyZoomHint": "Zoomed out, images stay visible as a lighter copy instead of a colored plate",
+      "imagesQuality": "Quality when zoomed out",
+      "imagesQualityHint": "Sharper keeps more images in memory",
+      "imagesLight": "Light",
+      "imagesBalanced": "Balanced",
+      "imagesSharp": "Sharp",
+      "imagesDownload": "Download images from the web",
+      "imagesDownloadHint": "Image links are saved into the workspace, up to 25 MB each",
+      "imagesThumbs": "Thumbnails",
+      "imagesThumbsHint": "They are made again when needed",
+      "imagesClearThumbs": "Clear thumbnails",
+      "thumbsCleared": "Thumbnails cleared ({{mb}} MB)",
+      "performanceTitle": "Performance",
+      "mountedTerminals": "Terminals kept open",
+      "mountedTerminalsHint": "Terminals off screen beyond this are closed in the view; they keep running",
+      "livePortals": "Live portals",
+      "livePortalsHint": "Portals beyond this show their last picture until you get close",
+      "forceCanvas2d": "Draw the canvas without the graphics card",
+      "forceCanvas2dHint": "Slower; try it if the canvas flickers or stays blank"
     },
     "clipboard": {
       "copy": "Copy",
@@ -12638,6 +12658,16 @@
       "on": "Activé",
       "palette": "Serveurs MCP…",
       "menu": "Serveurs MCP…"
+    },
+    "image": {
+      "loading": "Loading image",
+      "retry": "Try again",
+      "webOff": "Downloading images from the web is off in Settings",
+      "downloadFailed": "Couldn't download this image",
+      "tooLarge": "This image is too large",
+      "unsupported": "This image format isn't supported",
+      "notFound": "The image file is gone",
+      "loadFailed": "Couldn't load this image"
     }
   },
   "tube": {

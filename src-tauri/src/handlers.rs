@@ -972,6 +972,8 @@ pub(crate) fn invoke_handler() -> impl Fn(Invoke<Wry>) -> bool + Send + Sync + '
         commands::canvas::files::canvas_files_list,
         commands::canvas::files::canvas_files_read,
         commands::canvas::files::canvas_file_node_preview,
+        commands::canvas::images::canvas_image_thumb,
+        commands::canvas::images::canvas_image_thumbs_clear,
         commands::canvas::files::canvas_files_write,
         commands::canvas::files::canvas_files_create,
         commands::canvas::files::canvas_files_rename,

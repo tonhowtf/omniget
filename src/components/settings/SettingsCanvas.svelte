@@ -12,6 +12,7 @@
   import { SHORTCUT_ACTIONS, normCombo } from "$lib/canvas/interaction/keyboard";
   import { onMount } from "svelte";
   import SettingsCanvasEnvironments from "./SettingsCanvasEnvironments.svelte";
+  import SettingsCanvasImages from "./SettingsCanvasImages.svelte";
 
   const tr = (key: string, fallback: string, vars?: Record<string, unknown>) =>
     $t(key, { default: fallback, ...(vars ?? {}) }) as string;
@@ -439,6 +440,7 @@
   </div>
 </section>
 
+<SettingsCanvasImages />
 
 <SettingsCanvasEnvironments />
 

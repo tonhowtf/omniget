@@ -7,6 +7,7 @@ import { gridLevel } from './grid';
 import { rgbaCss, type Rgba } from './color';
 import type { FrameInfo } from './gl-layer';
 import { kindColor } from '../cords/traffic';
+import { containRect, getSnapshot } from './snapshot-textures';
 
 export function createCanvas2dDrawer(
   engine: CanvasEngine,
@@ -85,13 +86,24 @@ export function createCanvas2dDrawer(
 
     ctx.font = '12px system-ui, sans-serif';
     ctx.textAlign = 'center';
+    const drawn = new Set<string>();
+    for (const v of frame.visibleNodes) {
+      if (v.lod === 'near') continue;
+      const snap = getSnapshot(v.id);
+      if (!snap) continue;
+      const r = containRect((v.x - cam.x) * z, (v.y - cam.y) * z, v.w * z, v.h * z, snap.w, snap.h);
+      ctx.drawImage(snap.source as CanvasImageSource, r.x, r.y, r.w, r.h);
+      drawn.add(v.id);
+    }
     for (const v of frame.visibleNodes) {
       if (v.lod !== 'far') continue;
       const sx = (v.x - cam.x) * z;
       const sy = (v.y - cam.y) * z;
       const node = engine.store.node(v.id);
-      ctx.fillStyle = isTerminalKind(v.kind) ? 'rgba(40,40,48,0.9)' : 'rgba(120,120,130,0.6)';
-      ctx.fillRect(sx, sy, v.w * z, v.h * z);
+      if (!drawn.has(v.id)) {
+        ctx.fillStyle = isTerminalKind(v.kind) ? 'rgba(40,40,48,0.9)' : 'rgba(120,120,130,0.6)';
+        ctx.fillRect(sx, sy, v.w * z, v.h * z);
+      }
       if (node && isTerminalKind(v.kind)) {
         ctx.fillStyle = stateCss(agentStates.stateOf(node));
         ctx.beginPath();
