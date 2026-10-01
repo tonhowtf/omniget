@@ -47,6 +47,9 @@ pub struct Sniffed {
     /// fetching through MSE asks with XHR/Fetch, a `<video src>` with Media.
     pub resource_type: String,
     pub at: i64,
+    /// An HLS playlist with no end (`EXT-X-ENDLIST` missing): a live stream.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub live: bool,
 }
 
 #[derive(Default)]
@@ -178,6 +181,10 @@ pub fn on_response(session: &str, tab_id: &str, page: (&str, &str), p: &Value) -
     if !(200..400).contains(&status) || status == 204 {
         return None;
     }
+    // Pre-rolls and outstream ads stay in the log, never in the media list.
+    if super::blocklist::is_ad_media(&url) {
+        return None;
+    }
     let kind = classify(&url, &mime, &rtype)?;
     let key = dedupe_key(&url, kind);
     if st.covered.contains(&key)
@@ -234,6 +241,7 @@ pub fn on_response(session: &str, tab_id: &str, page: (&str, &str), p: &Value) -
         headers,
         resource_type: rtype.clone(),
         at: now,
+        live: false,
     };
     if kind == "hls" || kind == "dash" {
         // Fragments sniffed before the manifest showed up.
@@ -346,6 +354,14 @@ fn distinctive_name(url: &str) -> Option<&str> {
 /// media playlist hides its segment files (single-file playlists list one
 /// `fragmented.mp4` many times), and an answer that is not a playlist at all
 /// drops the entry. Returns the ids that left the list.
+/// Marks a sniffed playlist as live, once its media playlist showed no end.
+pub fn mark_live(id: u64) {
+    let mut st = state().lock().unwrap_or_else(|e| e.into_inner());
+    if let Some(s) = st.sniffed.iter_mut().find(|s| s.id == id) {
+        s.live = true;
+    }
+}
+
 pub fn absorb_playlist(id: u64, body: &[u8]) -> Vec<u64> {
     let mut st = state().lock().unwrap_or_else(|e| e.into_inner());
     let Some(item) = st.sniffed.iter().find(|s| s.id == id).cloned() else {

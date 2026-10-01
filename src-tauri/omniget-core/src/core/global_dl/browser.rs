@@ -120,6 +120,13 @@ pub fn block_ads() -> bool {
     config()["block_ads"].as_bool().unwrap_or(true)
 }
 
+/// Starting a page's player when Resolve sees nothing yet (muted
+/// `play()`, then one click on the play button), on by default. Off:
+/// `"autoplay": false` in `config.json`.
+pub fn autoplay() -> bool {
+    config()["autoplay"].as_bool().unwrap_or(true)
+}
+
 /// Where files the browser itself downloads land.
 pub fn downloads_dir() -> PathBuf {
     let d = config()["downloads_dir"]
@@ -424,6 +431,10 @@ pub async fn start(url: Option<String>, allow_download: bool) -> Result<Arc<Brow
         // UA says "HeadlessChrome"; the flag fixes it for every frame and
         // worker, the per-target override fixes the client hints.
         cmd.arg("--headless=new");
+        // No window means no speakers to surprise: let players start without
+        // a gesture, so a page's media shows up in the sniffer
+        // (SoundCloud and Bandcamp only load audio once they play).
+        cmd.arg("--autoplay-policy=no-user-gesture-required");
         if let Some(ua) = real_user_agent(&exe).await {
             cmd.arg(format!("--user-agent={ua}"));
         }
@@ -690,6 +701,7 @@ pub fn status() -> Value {
             "view": b.view.lock().ok().and_then(|v| v.clone()),
             "network": sniffer::summary(),
             "block_ads": block_ads(),
+            "autoplay": autoplay(),
             "downloads_dir": downloads_dir(),
         }),
         None => json!({
@@ -701,6 +713,7 @@ pub fn status() -> Value {
             "configured": config()["browser_path"].clone(),
             "mode": mode(),
             "block_ads": block_ads(),
+            "autoplay": autoplay(),
         }),
     }
 }
@@ -964,6 +977,18 @@ impl Browser {
             .cdp
             .call("Network.enable", json!({ "maxPostDataSize": 65536 }), s)
             .await;
+        // Ad iframes run in processes of their own: the tab's blocking does
+        // not reach them, so each child gets the list too.
+        if block_ads() {
+            let _ = self
+                .cdp
+                .call(
+                    "Network.setBlockedURLs",
+                    json!({ "urls": super::blocklist::patterns() }),
+                    s,
+                )
+                .await;
+        }
         let _ = self
             .cdp
             .call(
@@ -1808,5 +1833,38 @@ async fn inspect_playlist(item: sniffer::Sniffed) {
     let removed = sniffer::absorb_playlist(item.id, &body);
     if !removed.is_empty() {
         emit(json!({ "kind": "sniffed_removed", "ids": removed }));
+        return;
+    }
+    // Live or not shows in a media playlist: a master's first variant is
+    // fetched once more to tell.
+    let media = match m3u8_rs::parse_playlist_res(&body) {
+        Ok(m3u8_rs::Playlist::MediaPlaylist(p)) => Some(p),
+        Ok(m3u8_rs::Playlist::MasterPlaylist(m)) => {
+            let Some(v) = m.variants.iter().find(|v| !v.is_i_frame) else {
+                return;
+            };
+            let Ok(u) = url::Url::parse(&item.url).and_then(|b| b.join(&v.uri)) else {
+                return;
+            };
+            let mut req = client.get(u.as_str());
+            for (k, val) in &item.headers {
+                req = req.header(k.as_str(), val.as_str());
+            }
+            match req.send().await {
+                Ok(r) if r.status().is_success() => match r.bytes().await {
+                    Ok(b) => match m3u8_rs::parse_playlist_res(&b) {
+                        Ok(m3u8_rs::Playlist::MediaPlaylist(p)) => Some(p),
+                        _ => None,
+                    },
+                    Err(_) => None,
+                },
+                _ => None,
+            }
+        }
+        Err(_) => None,
+    };
+    if media.is_some_and(|p| crate::core::hls_downloader::is_live(&p)) {
+        sniffer::mark_live(item.id);
+        emit(json!({ "kind": "sniffed_live", "id": item.id }));
     }
 }

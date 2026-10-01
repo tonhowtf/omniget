@@ -13,7 +13,7 @@ use std::time::{Duration, Instant};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
-use super::{browser, data_dir, host_matches, host_of, sniffer, Node, Source};
+use super::{browser, data_dir, host_matches, host_of, sniffer, Node, Rendition, Source};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Manifest {
@@ -413,6 +413,9 @@ pub async fn resolve(
             (tree, logs, Some(c.manifest.id))
         }
         None => {
+            if let Some(t) = tab_id.as_deref() {
+                wake_media(t).await;
+            }
             let title = page_title(url, tab_id.as_deref()).await;
             (
                 generic_tree(url, tab_id.as_deref(), &title),
@@ -483,6 +486,7 @@ const GENERIC_STEMS: &[&str] = &[
     "play",
     "hls",
     "dash",
+    "api",
 ];
 
 /// A sniffed URL's file name, percent-decoded, split in (stem, extension).
@@ -555,7 +559,9 @@ fn id_like(stem: &str) -> bool {
             && t.chars().all(|c| c.is_ascii_alphanumeric())
     };
     if tokens.len() == 1 {
+        // Bandcamp streams a track as `…/mp3-128/2584466013`.
         return mixed(tokens[0])
+            || (tokens[0].len() >= 6 && tokens[0].chars().all(|c| c.is_ascii_digit()))
             || (tokens[0].len() >= 16 && tokens[0].chars().all(|c| c.is_ascii_hexdigit()));
     }
     !tokens.is_empty()
@@ -601,6 +607,44 @@ fn kind_rank(kind: &str) -> u8 {
     }
 }
 
+/// How long Resolve waits for a player it started to fetch its media.
+const WAKE_WAIT: Duration = Duration::from_secs(6);
+
+fn has_media(tab: &str) -> bool {
+    sniffer::sniffed(Some(tab))
+        .iter()
+        .any(|m| matches!(m.kind.as_str(), "hls" | "dash" | "video" | "audio"))
+}
+
+/// Players that wait for a click (SoundCloud, Bandcamp, Vimeo's page,
+/// Commons, podcast pages) load nothing until they play, so the sniffer has
+/// nothing to show. When the tab has no media yet, start the player and wait
+/// up to [`WAKE_WAIT`] for it, plus a moment for the files that come with it
+/// (subtitles, the other renditions). Bounded, and off with `autoplay: false`.
+async fn wake_media(tab: &str) {
+    if !browser::autoplay() || has_media(tab) {
+        return;
+    }
+    let Some(b) = browser::current() else {
+        return;
+    };
+    match super::page::start_playback(&b, tab).await {
+        Ok(r) => tracing::info!("[global-dl] started the player of {tab}: {r}"),
+        Err(e) => {
+            tracing::info!("[global-dl] could not start the player of {tab}: {e}");
+            return;
+        }
+    }
+    let deadline = Instant::now() + WAKE_WAIT;
+    while Instant::now() < deadline {
+        tokio::time::sleep(Duration::from_millis(400)).await;
+        if has_media(tab) {
+            tokio::time::sleep(Duration::from_millis(1200)).await;
+            return;
+        }
+    }
+}
+
 /// No connector: what the tab played, plus the page itself for yt-dlp.
 fn generic_tree(url: &str, tab_id: Option<&str>, page_title: &str) -> Node {
     let page_title = if looks_like_address(page_title) {
@@ -634,15 +678,40 @@ fn generic_tree(url: &str, tab_id: Option<&str>, page_title: &str) -> Node {
                 _ => "direct",
             };
             let (_, ext) = url_file(&m.url);
+            // `api.php?…&trackformat=vtt` names the script, not the file.
+            let script = matches!(
+                ext.to_ascii_lowercase().as_str(),
+                "php" | "asp" | "aspx" | "jsp" | "cgi" | "ashx" | "pl"
+            );
             let ext = if format != "direct" {
                 None
-            } else if ext.is_empty() {
-                ext_for_mime(&m.mime).map(String::from)
+            } else if ext.is_empty() || script {
+                ext_for_mime(&m.mime)
+                    .or(match m.kind.as_str() {
+                        _ if !script => None,
+                        "subtitle" => Some("vtt"),
+                        "video" => Some("mp4"),
+                        "audio" => Some("m4a"),
+                        _ => None,
+                    })
+                    .map(String::from)
             } else {
                 Some(ext.to_ascii_lowercase())
             };
+            let mut title = media_title(&m.url, &page_title);
+            if m.kind == "subtitle" {
+                if let Some(lang) = query_lang(&m.url) {
+                    title = format!("{title} ({lang})");
+                }
+            }
             media.push(Node {
-                title: media_title(&m.url, &page_title),
+                note: m.live.then(|| {
+                    format!(
+                        "live: saves the latest {} segments",
+                        crate::core::hls_downloader::LIVE_TAKE
+                    )
+                }),
+                title,
                 kind: match m.kind.as_str() {
                     "hls" | "dash" => "video".into(),
                     "document" => "file".into(),
@@ -659,6 +728,7 @@ fn generic_tree(url: &str, tab_id: Option<&str>, page_title: &str) -> Node {
             });
         }
     }
+    let mut media = merge_renditions(media);
     media.sort_by_key(|n| kind_rank(&n.kind));
     disambiguate(&mut media);
     children.extend(media);
@@ -668,6 +738,187 @@ fn generic_tree(url: &str, tab_id: Option<&str>, page_title: &str) -> Node {
         children,
         ..Default::default()
     }
+}
+
+/// `?lang=en` (MediaWiki's timedtext, most subtitle APIs).
+fn query_lang(url: &str) -> Option<String> {
+    let u = url::Url::parse(url).ok()?;
+    u.query_pairs()
+        .find(|(k, _)| matches!(k.as_ref(), "lang" | "language" | "tlang" | "hl"))
+        .map(|(_, v)| v.into_owned())
+        .filter(|v| !v.is_empty() && v.len() <= 16)
+}
+
+/// Height a file name states, the way yt-dlp's `parse_resolution`
+/// (yt_dlp/utils/_utils.py) reads it: `1280x720` first, then `720p`/`1080i`
+/// (with an optional frame rate, `720p60`), then `4K`/`8K`. Only whole
+/// tokens of the last path segment count.
+pub fn height_of(url: &str) -> Option<u32> {
+    let (stem, _) = url_file(url);
+    let tokens: Vec<&str> = stem
+        .split(|c: char| !c.is_ascii_alphanumeric() && c != '×')
+        .filter(|t| !t.is_empty())
+        .collect();
+    let num = |s: &str| s.parse::<u32>().ok().filter(|n| (100..=8640).contains(n));
+    for t in &tokens {
+        if let Some((w, h)) = t.split_once(['x', 'X', '×']) {
+            if w.chars().all(|c| c.is_ascii_digit()) && !w.is_empty() {
+                if let Some(h) = num(h) {
+                    return Some(h);
+                }
+            }
+        }
+    }
+    for t in &tokens {
+        let digits: String = t.chars().take_while(|c| c.is_ascii_digit()).collect();
+        let rest = &t[digits.len()..];
+        let mut rest = rest.chars();
+        if matches!(rest.next(), Some('p' | 'P' | 'i' | 'I')) {
+            let fps: String = rest.collect();
+            if fps.is_empty() || (fps.len() <= 3 && fps.chars().all(|c| c.is_ascii_digit())) {
+                if let Some(h) = num(&digits) {
+                    return Some(h);
+                }
+            }
+        }
+    }
+    tokens
+        .iter()
+        .find_map(|t| match t.to_ascii_lowercase().as_str() {
+            "4k" => Some(2160),
+            "8k" => Some(4320),
+            _ => None,
+        })
+}
+
+/// The URL with its height token taken out: two renditions of one file
+/// share it (`…/x.webm.480p.vp9.webm` and `…/x.webm.1080p.vp9.webm`).
+fn rendition_key(url: &str, height: u32) -> String {
+    let path = url.split(['?', '#']).next().unwrap_or(url);
+    let (dir, last) = path.rsplit_once('/').unwrap_or(("", path));
+    let mut out = String::new();
+    let mut token = String::new();
+    let flush = |token: &mut String, out: &mut String| {
+        let hit = height_of(&format!("a/{token}")) == Some(height);
+        out.push_str(if hit { "*" } else { token.as_str() });
+        token.clear();
+    };
+    for c in last.chars() {
+        if c.is_ascii_alphanumeric() || c == '×' {
+            token.push(c);
+        } else {
+            flush(&mut token, &mut out);
+            out.push(c);
+        }
+    }
+    flush(&mut token, &mut out);
+    format!("{dir}/{out}")
+}
+
+/// A merged item's name without what tells its renditions apart:
+/// `Big_Buck_Bunny_4K.webm.1080p.vp9` → `Big_Buck_Bunny_4K` (the height, the
+/// codec and the container go; `4K`, part of the title, stays).
+fn strip_rendition(title: &str, heights: &[u32]) -> String {
+    const DROP: &[&str] = &[
+        "webm", "mp4", "mkv", "mov", "vp8", "vp9", "av1", "h264", "h265", "hevc", "avc",
+    ];
+    let mut parts: Vec<String> = Vec::new();
+    let mut token = String::new();
+    let push = |token: &mut String, sep: Option<char>, parts: &mut Vec<String>| {
+        let lower = token.to_ascii_lowercase();
+        let height = height_of(&format!("a/{token}")).is_some_and(|h| heights.contains(&h));
+        if !token.is_empty() && !height && !DROP.contains(&lower.as_str()) {
+            parts.push(std::mem::take(token));
+        } else {
+            token.clear();
+            // Drop the separator that led to the token as well.
+            if parts
+                .last()
+                .is_some_and(|p| p.len() == 1 && !p.chars().all(|c| c.is_ascii_alphanumeric()))
+            {
+                parts.pop();
+            }
+        }
+        if let Some(c) = sep {
+            parts.push(c.to_string());
+        }
+    };
+    for c in title.chars() {
+        if c.is_alphanumeric() {
+            token.push(c);
+        } else {
+            push(&mut token, Some(c), &mut parts);
+        }
+    }
+    push(&mut token, None, &mut parts);
+    let out = parts.concat();
+    let out = out.trim_matches(|c: char| !c.is_alphanumeric()).to_string();
+    if out.is_empty() {
+        title.to_string()
+    } else {
+        out
+    }
+}
+
+/// Direct videos that are the same file at several heights become one item
+/// with its renditions, so a job does not fetch it twice and its max height
+/// picks one (yt-dlp's `best[height<=N]`).
+fn merge_renditions(media: Vec<Node>) -> Vec<Node> {
+    let mut out: Vec<Node> = Vec::with_capacity(media.len());
+    let mut groups: Vec<(String, usize)> = Vec::new();
+    for n in media {
+        let direct = n.kind == "video" && n.source.as_ref().is_some_and(|s| s.format == "direct");
+        let url = n
+            .source
+            .as_ref()
+            .and_then(|s| s.url.clone())
+            .unwrap_or_default();
+        let height = if direct { height_of(&url) } else { None };
+        let Some(h) = height else {
+            out.push(n);
+            continue;
+        };
+        let key = rendition_key(&url, h);
+        match groups.iter().find(|(k, _)| *k == key) {
+            Some((_, i)) => {
+                let first = &mut out[*i];
+                if let Some(s) = first.source.as_mut() {
+                    if !s.renditions.iter().any(|r| r.url == url) {
+                        s.renditions.push(Rendition { height: h, url });
+                    }
+                }
+            }
+            None => {
+                let mut n = n;
+                if let Some(s) = n.source.as_mut() {
+                    s.renditions = vec![Rendition { height: h, url }];
+                }
+                groups.push((key, out.len()));
+                out.push(n);
+            }
+        }
+    }
+    for n in out.iter_mut() {
+        let Some(s) = n.source.as_mut() else { continue };
+        if s.renditions.len() < 2 {
+            s.renditions.clear();
+            continue;
+        }
+        s.renditions.sort_by_key(|r| r.height);
+        s.url = s.renditions.last().map(|r| r.url.clone());
+        let heights: Vec<String> = s
+            .renditions
+            .iter()
+            .map(|r| format!("{}p", r.height))
+            .collect();
+        let hs: Vec<u32> = s.renditions.iter().map(|r| r.height).collect();
+        n.title = strip_rendition(&n.title, &hs);
+        n.note = Some(format!(
+            "{} (best within the max height)",
+            heights.join(", ")
+        ));
+    }
+    out
 }
 
 /// Items that ended up with the same title (68 subtitles all `full.vtt`)
@@ -947,7 +1198,62 @@ fn run_blocking(
 
 #[cfg(test)]
 mod tests {
-    use super::{id_like, media_title, url_file};
+    use super::{
+        height_of, id_like, media_title, merge_renditions, query_lang, strip_rendition, url_file,
+    };
+    use crate::core::global_dl::{Node, Source};
+
+    #[test]
+    fn heights_like_yt_dlp() {
+        assert_eq!(
+            height_of("https://u/x/Big_Buck_Bunny_4K.webm.480p.vp9.webm"),
+            Some(480)
+        );
+        assert_eq!(height_of("https://u/clip_1280x720.mp4"), Some(720));
+        assert_eq!(height_of("https://u/clip-720p60.mp4"), Some(720));
+        assert_eq!(height_of("https://u/Big_Buck_Bunny_4K.webm"), Some(2160));
+        assert_eq!(height_of("https://u/ed_1024_512kb.mp4"), None);
+        assert_eq!(height_of("https://u/2584466013"), None);
+        assert_eq!(height_of("https://u/mp3-128/track.mp3"), None);
+    }
+
+    #[test]
+    fn renditions_of_one_file_merge() {
+        let item = |u: &str| Node {
+            title: media_title(u, "page"),
+            kind: "video".into(),
+            source: Some(Source {
+                format: "direct".into(),
+                url: Some(u.into()),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let base = "https://upload.wikimedia.org/transcoded/c/c0/Big_Buck_Bunny_4K.webm";
+        let out = merge_renditions(vec![
+            item(&format!("{base}/Big_Buck_Bunny_4K.webm.480p.vp9.webm")),
+            item(&format!("{base}/Big_Buck_Bunny_4K.webm.1080p.vp9.webm")),
+            item("https://other.org/trailer_720p.mp4"),
+        ]);
+        assert_eq!(out.len(), 2);
+        let s = out[0].source.as_ref().unwrap();
+        assert_eq!(s.renditions.len(), 2);
+        assert!(s.url.as_deref().unwrap().contains("1080p"));
+        assert_eq!(out[0].title, "Big_Buck_Bunny_4K");
+        assert!(out[1].source.as_ref().unwrap().renditions.is_empty());
+        assert_eq!(strip_rendition("clip_720p_h264", &[720]), "clip");
+    }
+
+    #[test]
+    fn subtitle_language_from_query() {
+        assert_eq!(
+            query_lang(
+                "https://commons.wikimedia.org/w/api.php?action=timedtext&lang=en&trackformat=vtt"
+            ),
+            Some("en".into())
+        );
+        assert_eq!(query_lang("https://a.com/sub.vtt"), None);
+    }
 
     #[test]
     fn names_from_sniffed_urls() {
@@ -980,6 +1286,7 @@ mod tests {
             "ed_1024_512kb"
         );
         assert!(id_like("193039199_mp4_h264_aac_hd_7"));
+        assert!(id_like("2584466013"));
         assert!(!id_like("rhapsody_in_blue"));
         assert_eq!(
             url_file("https://a.com/x/dummy.pdf?y=1"),

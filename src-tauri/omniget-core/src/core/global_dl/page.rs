@@ -298,6 +298,101 @@ pub async fn wait_for(
     }
 }
 
+/// Starts what the page has not played yet. Every `<video>` and `<audio>`,
+/// in the page and in its same-origin iframes (the frames cat-catch's
+/// content script walks, js/content-script.js), is muted and `play()`ed.
+/// When nothing was playing, the first visible play button of a known player
+/// (or any control labelled "Play") is located for a real click, or clicked
+/// from script when something covers it.
+const KICK: &str = r#"
+  var docs = [document];
+  document.querySelectorAll('iframe').forEach(function (f) {
+    try { if (f.contentDocument) docs.push(f.contentDocument); } catch (e) {}
+  });
+  var media = 0, playing = 0;
+  docs.forEach(function (d) {
+    d.querySelectorAll('video,audio').forEach(function (m) {
+      media++;
+      try {
+        if (!m.paused) { playing++; return; }
+        m.muted = true;
+        var p = m.play();
+        if (p && p.catch) p.catch(function () {});
+      } catch (e) {}
+    });
+  });
+  if (playing > 0 || !A.click) return { media: media, playing: playing, click: null };
+  // Known players first: their play controls are often links that a click
+  // handler turns into playback (MediaWiki's .mw-tmh-play, SoundCloud's
+  // a.sc-button-play). The generic ones after GENERIC must not navigate.
+  var SEL = [
+    '.vjs-big-play-button', '.jw-display-icon-display', '.plyr__control--overlaid',
+    '.ytp-large-play-button', '.mw-tmh-play', '.playbutton', '.sc-button-play',
+    '.audio-module-controls-play', '.mejs__overlay-button', '.fp-play',
+    '.shaka-play-button', '[data-testid="play-button"]',
+    'button[aria-label="Play" i]', '[role=button][aria-label="Play" i]',
+    'button[aria-label^="Play " i]', 'button[title="Play" i]', 'button[class*="play" i]'
+  ];
+  var GENERIC = 12;
+  var covered = null;
+  var vw = innerWidth, vh = innerHeight;
+  function seen(r) { return !(r.bottom < 0 || r.top > vh || r.right < 0 || r.left > vw); }
+  for (var i = 0; i < SEL.length; i++) {
+    var els = document.querySelectorAll(SEL[i]);
+    for (var j = 0; j < els.length; j++) {
+      var el = els[j];
+      if (i >= GENERIC) {
+        var a = el.closest('a[href]');
+        if (a && !/^(#|javascript:|$)/i.test(a.getAttribute('href') || '')) continue;
+      }
+      var st = getComputedStyle(el);
+      if (st.visibility === 'hidden' || st.display === 'none' || +st.opacity === 0) continue;
+      var r = el.getBoundingClientRect();
+      if (r.width < 8 || r.height < 8) continue;
+      if (!seen(r)) {
+        el.scrollIntoView({ block: 'center' });
+        r = el.getBoundingClientRect();
+        if (!seen(r)) continue;
+      }
+      var x = r.left + r.width / 2, y = r.top + r.height / 2;
+      // A sign-in modal or a fixed footer on top would take a real click
+      // (SoundCloud, Bandcamp): the control is then clicked from script.
+      var hit = document.elementFromPoint(x, y);
+      if (!hit || !(hit === el || el.contains(hit) || hit.contains(el))) {
+        if (!covered) covered = { el: el, what: SEL[i] };
+        continue;
+      }
+      return { media: media, playing: playing, click: { x: x, y: y, what: SEL[i] } };
+    }
+  }
+  if (covered) {
+    covered.el.click();
+    return { media: media, playing: playing, click: null, scripted: covered.what };
+  }
+  return { media: media, playing: playing, click: null };
+"#;
+
+/// Gets a page's player going so the sniffer sees its media: muted `play()`
+/// on every media element, then, when nothing plays, one trusted click on
+/// the play button (a click from script does not count as a gesture where
+/// autoplay needs one), then `play()` again for the element the click
+/// created.
+pub async fn start_playback(b: &Browser, tab: &str) -> Result<Value, String> {
+    let r = run(b, tab, KICK, json!({ "click": true })).await?;
+    if let Some(c) = r.get("click").filter(|c| c.is_object()) {
+        let (x, y) = (
+            c["x"].as_f64().unwrap_or(0.0),
+            c["y"].as_f64().unwrap_or(0.0),
+        );
+        click_at(b, tab, x, y, 1).await?;
+    }
+    if r.get("click").is_some_and(Value::is_object) || r.get("scripted").is_some() {
+        tokio::time::sleep(Duration::from_millis(800)).await;
+        let _ = run(b, tab, KICK, json!({ "click": false })).await;
+    }
+    Ok(r)
+}
+
 /// Waits for the tab to stop loading (or `timeout`).
 pub async fn wait_loaded(b: &Browser, tab: &str, timeout: Duration) {
     let deadline = std::time::Instant::now() + timeout;

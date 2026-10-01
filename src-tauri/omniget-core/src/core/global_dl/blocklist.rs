@@ -37,6 +37,23 @@ const HOSTS: &[&str] = &[
     "propellerads.com",
     "exoclick.com",
     "adsterra.com",
+    // Outstream video ads and the header bidders seen next to them
+    // (w3schools.com, 2026-10): the ad plays as HLS and lands in the
+    // sniffer as if it were the page's media.
+    "viously.com",
+    "springserve.com",
+    "spotxchange.com",
+    "spotx.tv",
+    "innovid.com",
+    "tremorhub.com",
+    "aniview.com",
+    "vidazoo.com",
+    "primis.tech",
+    "sparteo.com",
+    "4dex.io",
+    "bricks-co.com",
+    "e-planning.net",
+    "a-mx.com",
     // Trackers and analytics
     "google-analytics.com",
     "googletagmanager.com",
@@ -106,4 +123,85 @@ pub fn patterns() -> Vec<String> {
 
 pub fn host_count() -> usize {
     HOSTS.len()
+}
+
+/// Hosts that only serve ad creatives. They are not blocked on the network:
+/// players load the ad SDK from the same hosts (Google IMA's `client.js` is
+/// on 2mdn.net) and break without it. Their media is only kept out of the
+/// sniffed list.
+const AD_MEDIA_HOSTS: &[&str] = &["2mdn.net", "imasdk.googleapis.com"];
+
+/// Path segments that mark an ad creative on a site's own CDN, where the host
+/// cannot be blocked (Niconico serves its pre-rolls from
+/// `cdn.nimg.jp/nicoad/instream/video/…`, next to the real thumbnails).
+/// Whole segments only, so `/videos/instreamer/` stays.
+const AD_MEDIA_SEGMENTS: &[&str] = &[
+    "nicoad",
+    "instream",
+    "preroll",
+    "midroll",
+    "vast",
+    "adcreative",
+];
+
+/// A sniffed response that is an ad, not the page's media: blocked hosts
+/// (when blocking is off they still load), ad-only hosts and ad paths.
+pub fn is_ad_media(url: &str) -> bool {
+    let Ok(u) = url::Url::parse(url) else {
+        return false;
+    };
+    let host = u.host_str().unwrap_or("").to_ascii_lowercase();
+    let on = |h: &&str| !h.contains('/') && super::host_matches(&host, h);
+    if HOSTS.iter().any(on) || AD_MEDIA_HOSTS.iter().any(on) {
+        return true;
+    }
+    u.path_segments().is_some_and(|mut segs| {
+        segs.any(|seg| {
+            AD_MEDIA_SEGMENTS
+                .iter()
+                .any(|a| seg.eq_ignore_ascii_case(a))
+        })
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ad_creatives_are_not_media() {
+        // w3schools.com's outstream ad, Niconico's pre-roll, a DoubleClick creative.
+        assert!(is_ad_media(
+            "https://www.viously.com/video/hls/vgIPoM9kV3U/index.m3u8?pw=156"
+        ));
+        assert!(is_ad_media(
+            "https://cdn.viously.com/streaming/vgIPoM9kV3U/hls/media-2/stream.m3u8"
+        ));
+        assert!(is_ad_media(
+            "https://dcdn.cdn.nimg.jp/nicoad/instream/video/vRnv6NE9_268512580.mp4"
+        ));
+        assert!(is_ad_media(
+            "https://gcdn.2mdn.net/videoplayback/id/abc/file.mp4"
+        ));
+    }
+
+    #[test]
+    fn real_media_is_kept() {
+        for u in [
+            "https://delivery.domand.nicovideo.jp/hlsbid/x/playlists/variants/7c.m3u8",
+            "https://ir.cdn.nimg.jp/res/supporters/credit/sayobirth.mp3",
+            "https://example.com/videos/instreamer/clip.mp4",
+            "https://archive.org/download/BigBuckBunny/big_buck_bunny_720p.mp4",
+            "https://media.example.com/advanced-course/lesson1.mp4",
+        ] {
+            assert!(!is_ad_media(u), "{u}");
+        }
+    }
+
+    #[test]
+    fn patterns_cover_subdomains() {
+        let p = patterns();
+        assert!(p.contains(&"*://*.viously.com/*".to_string()));
+        assert!(p.contains(&"*://viously.com/*".to_string()));
+    }
 }

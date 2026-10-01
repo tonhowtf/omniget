@@ -109,6 +109,35 @@ pub struct Source {
     /// SubRip.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub convert: Option<String>,
+    /// Other renditions of the same `direct` file, by height (a page that
+    /// loaded `…480p.webm` and `…1080p.webm`). The job takes the tallest one
+    /// within its max height, as it does with an HLS master.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub renditions: Vec<Rendition>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+pub struct Rendition {
+    pub height: u32,
+    pub url: String,
+}
+
+impl Source {
+    /// The URL to fetch for `max_height`: the tallest rendition within it,
+    /// else the shortest one (the rule `select_best_variant` follows for
+    /// HLS), else `url`.
+    pub fn url_for(&self, max_height: Option<u32>) -> Option<String> {
+        let best = match max_height {
+            Some(h) => self
+                .renditions
+                .iter()
+                .filter(|r| r.height <= h)
+                .max_by_key(|r| r.height)
+                .or_else(|| self.renditions.iter().min_by_key(|r| r.height)),
+            None => self.renditions.iter().max_by_key(|r| r.height),
+        };
+        best.map(|r| r.url.clone()).or_else(|| self.url.clone())
+    }
 }
 
 impl Node {
@@ -170,4 +199,37 @@ pub fn host_of(url: &str) -> Option<String> {
 pub fn host_matches(host: &str, domain: &str) -> bool {
     let d = domain.trim_start_matches("*.").trim_start_matches('.');
     host == d || host.ends_with(&format!(".{}", d))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Rendition, Source};
+
+    #[test]
+    fn rendition_follows_max_height() {
+        let s = Source {
+            format: "direct".into(),
+            url: Some("https://u/x.1080p.webm".into()),
+            renditions: vec![
+                Rendition {
+                    height: 480,
+                    url: "https://u/x.480p.webm".into(),
+                },
+                Rendition {
+                    height: 1080,
+                    url: "https://u/x.1080p.webm".into(),
+                },
+            ],
+            ..Default::default()
+        };
+        assert_eq!(s.url_for(None).unwrap(), "https://u/x.1080p.webm");
+        assert_eq!(s.url_for(Some(720)).unwrap(), "https://u/x.480p.webm");
+        assert_eq!(s.url_for(Some(240)).unwrap(), "https://u/x.480p.webm");
+        assert_eq!(s.url_for(Some(2160)).unwrap(), "https://u/x.1080p.webm");
+        let plain = Source {
+            url: Some("https://u/a.mp4".into()),
+            ..Default::default()
+        };
+        assert_eq!(plain.url_for(Some(360)).unwrap(), "https://u/a.mp4");
+    }
 }

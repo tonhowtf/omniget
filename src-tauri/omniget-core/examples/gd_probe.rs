@@ -241,9 +241,11 @@ async fn main() -> Result<(), String> {
         "probe" => {
             // One process, end to end, for site sweeps:
             // probe <url> [out dir] [max height] [wait secs]
-            // Opens the page, starts every <video>/<audio>, resolves with the
-            // sniffer, downloads what it found (yt-dlp items are only
-            // listed) and stops a file past GD_CAP_MB (default 50).
+            // Opens the page, waits, resolves with the sniffer (which starts
+            // the player when nothing played yet), downloads what it found
+            // (yt-dlp items are only listed) and stops a file past GD_CAP_MB
+            // (default 50). GD_KICK=1 starts the player first and prints the
+            // state of the page's media elements.
             let b = browser::start(None, true).await?;
             let url = args.get(1).ok_or("url")?;
             let tab = b.open_tab(url).await?;
@@ -257,7 +259,7 @@ async fn main() -> Result<(), String> {
             let played = b
                 .eval(
                     &tab,
-                    "(() => { const m = [...document.querySelectorAll('video,audio')]; m.forEach(v => { try { v.muted = true; v.play().catch(() => {}); } catch (e) {} }); return [document.title, document.readyState, m.length, m.map(v => v.currentSrc).join(' ')]; })()",
+                    "(() => { const m = [...document.querySelectorAll('video,audio')]; return [document.title, document.readyState, m.length, m.map(v => v.currentSrc).join(' ')]; })()",
                     std::time::Duration::from_secs(5),
                 )
                 .await;
@@ -280,6 +282,20 @@ async fn main() -> Result<(), String> {
                         );
                     }
                 }
+            }
+            if std::env::var("GD_KICK").is_ok() {
+                let k = omniget_core::core::global_dl::page::start_playback(&b, &tab).await;
+                println!("kick: {k:?}");
+                tokio::time::sleep(std::time::Duration::from_secs(4)).await;
+                let d = b
+                    .eval(
+                        &tab,
+                        "[...document.querySelectorAll('video,audio')].map(m => [m.tagName, m.paused, m.networkState, m.readyState, m.currentSrc.slice(0, 120)].join(' | ')).join('\\n')",
+
+                        std::time::Duration::from_secs(5),
+                    )
+                    .await;
+                println!("media after kick: {d:?}");
             }
             let r = connector::resolve(url, None, Some(tab.clone()), None).await;
             let r = match r {
@@ -309,7 +325,7 @@ async fn main() -> Result<(), String> {
                     );
                 }
             }
-            if let Some(out) = args.get(2) {
+            if let Some(out) = args.get(2).filter(|o| !o.is_empty()) {
                 let h = args.get(3).and_then(|x| x.parse().ok());
                 let cap: u64 = std::env::var("GD_CAP_MB")
                     .ok()
@@ -376,12 +392,16 @@ fn print_tree(n: &omniget_core::core::global_dl::Node, depth: usize, shown: &mut
             .map(|s| format!("[{}] {}", s.format, s.filename.clone().unwrap_or_default()))
             .unwrap_or_default();
         println!(
-            "{}{} {} {}{}",
+            "{}{} {} {}{}{}",
             "  ".repeat(depth),
             c.id,
             c.title,
             src,
-            if c.drm { " DRM" } else { "" }
+            if c.drm { " DRM" } else { "" },
+            c.note
+                .as_deref()
+                .map(|n| format!(" — {n}"))
+                .unwrap_or_default()
         );
         print_tree(c, depth + 1, shown);
     }

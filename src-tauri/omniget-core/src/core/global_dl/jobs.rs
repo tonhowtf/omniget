@@ -540,7 +540,7 @@ async fn fetch(
             Ok("done")
         }
         _ => {
-            let url = src.url.ok_or("item has no url")?;
+            let url = src.url_for(max_height).ok_or("item has no url")?;
             let client = reqwest::Client::builder()
                 .use_rustls_tls()
                 .build()
