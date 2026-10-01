@@ -70,7 +70,6 @@
 </dialog>
 
 <style>
-  /* macOS sheet: opaque popup material, 16pt radius, springs in from slightly above. */
   .dialog-container {
     border: none;
     border-radius: var(--radius-xl);

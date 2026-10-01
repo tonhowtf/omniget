@@ -1,13 +1,4 @@
 <script lang="ts">
-  /**
-   * Cost per day — one series, one colour, columns.
-   *
-   * Magnitude across a small set of ordered categories, so: columns from a
-   * single baseline, capped at 24px, 4px rounded cap, hairline recessive
-   * gridlines, the extreme directly labelled and everything else carried by
-   * the axis and the hover tooltip. No legend: a single series is named by the
-   * section title.
-   */
   import { t } from "$lib/i18n";
   import type { CostBucket } from "$lib/stores/llm-telemetry-store.svelte";
 
@@ -18,7 +9,6 @@
   let { days }: Props = $props();
 
   let max = $derived(Math.max(0, ...days.map((d) => d.cost_usd)));
-  /** Axis top rounded up to a clean 1 / 2 / 5 × 10ⁿ step. */
   let axisTop = $derived.by(() => {
     if (max === 0) return 0.01;
     const exp = Math.floor(Math.log10(max));
@@ -103,7 +93,6 @@
     font-variant-numeric: tabular-nums;
     text-align: right;
     min-width: 34px;
-    /* Pull the labels onto their gridlines. */
     margin-block: -6px -7px;
   }
   .plot {

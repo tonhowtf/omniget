@@ -1,18 +1,7 @@
-/*
- * OmniTube design tokens. Values from youtube.com / music.youtube.com
- * production CSS (Sep 2026), see estudos/102-youtube/ui/00-spec-youtube-atual.md.
- *
- * `.omnitube` is the root of /youtube. Two looks:
- *   data-look="classic"  YouTube's neutral palette (default), dark or light by data-scheme
- *   data-look="app"      derived from the OmniGet theme tokens
- * The Music face (`data-face="music"`) is always dark-leaning, like YT Music.
- */
-
 .omnitube {
   container-type: inline-size;
   container-name: omnitube;
 
-  /* sizes */
   --yt-masthead-h: 56px;
   --yt-guide-w: 240px;
   --yt-mini-guide-w: 72px;
@@ -44,7 +33,6 @@
   --ytm-quickpick-col-w: 420px;
   --ytm-header-art: 264px;
 
-  /* type (YouTube scale, app fonts) */
   --yt-font: var(--font-body);
   --yt-font-display: var(--font-display);
   --yt-type-caption: 400 12px/18px var(--yt-font);
@@ -57,7 +45,6 @@
   --yt-type-display: 700 36px/44px var(--yt-font-display);
   --yt-type-mini-guide: 400 10px/14px var(--yt-font);
 
-  /* motion */
   --yt-ease-standard: cubic-bezier(.05, 0, 0, 1);
   --yt-ease-exit: cubic-bezier(.4, 0, 1, 1);
   --yt-ease-enter: cubic-bezier(0, 0, .2, 1);
@@ -67,7 +54,6 @@
   --yt-dur-preview: 250ms;
   --ytm-dur-page: 300ms;
 
-  /* overlay on video (same in every look) */
   --yt-ov-text: #fff;
   --yt-ov-text-2: rgba(255, 255, 255, .7);
   --yt-ov-pill: rgba(0, 0, 0, .3);
@@ -79,11 +65,9 @@
   --yt-ov-buffer: rgba(255, 255, 255, .4);
   --yt-ov-heavy: rgba(0, 0, 0, .8);
 
-  /* semantic, same in every look */
   --yt-live-red: #e1002d;
   --yt-green: #2ba640;
 
-  /* SponsorBlock category colors (the extension's defaults) */
   --sb-sponsor: #00d400;
   --sb-selfpromo: #ffff00;
   --sb-interaction: #cc00ff;
@@ -101,7 +85,6 @@
   background: var(--yt-bg);
 }
 
-/* ---------- classic look, dark ---------- */
 .omnitube[data-look="classic"],
 .omnitube[data-look="classic"][data-scheme="dark"] {
   --yt-bg: #0f0f0f;
@@ -135,7 +118,6 @@
   --yt-search-btn: #222;
 }
 
-/* ---------- classic look, light ---------- */
 .omnitube[data-look="classic"][data-scheme="light"] {
   --yt-bg: #fff;
   --yt-bg-raised: #fff;
@@ -168,7 +150,6 @@
   --yt-search-btn: #f8f8f8;
 }
 
-/* ---------- app look: follow the OmniGet theme ---------- */
 .omnitube[data-look="app"] {
   --yt-bg: var(--primary);
   --yt-bg-raised: var(--surface, var(--surface-src));
@@ -201,7 +182,6 @@
   --yt-search-btn: color-mix(in srgb, var(--secondary) 8%, var(--primary));
 }
 
-/* ---------- Music face ---------- */
 .omnitube[data-face="music"] {
   --ytm-bg: #030303;
   --ytm-bg-a: #181818;
@@ -235,8 +215,6 @@
   --ytm-link: var(--blue);
 }
 
-/* Headings take OmniTube's text color, not the app theme's (the Music face is
-   always dark, even when the app runs a light theme). */
 .omnitube :is(h1, h2, h3, h4, h5, h6) {
   color: inherit;
 }
@@ -244,9 +222,6 @@
   color: var(--ytm-text);
 }
 
-/* ---------- shared primitives (use these classes, don't restyle) ---------- */
-
-/* Pill button. Variants: .yt-btn--tonal (default), --inverted, --accent, --ghost, --outline. Sizes: --s, --l */
 .omnitube .yt-btn {
   display: inline-flex;
   align-items: center;
@@ -280,13 +255,11 @@
 .omnitube .yt-btn--icon { width: 40px; height: 40px; padding: 0; background: transparent; }
 .omnitube .yt-btn--icon:hover { background: var(--yt-hover); }
 
-/* Segmented pill (like | dislike) */
 .omnitube .yt-seg { display: inline-flex; border-radius: 999px; background: var(--yt-tonal); overflow: hidden; }
 .omnitube .yt-seg > .yt-btn { background: transparent; border-radius: 0; }
 .omnitube .yt-seg > .yt-btn:hover { background: var(--yt-tonal); }
 .omnitube .yt-seg > .yt-btn + .yt-btn { box-shadow: inset 1px 0 0 var(--yt-outline); }
 
-/* Chip */
 .omnitube .yt-chip {
   display: inline-flex;
   align-items: center;
@@ -305,7 +278,6 @@
 .omnitube .yt-chip[aria-pressed="true"],
 .omnitube .yt-chip.is-selected { background: var(--yt-bg-inverted); color: var(--yt-on-inverted); }
 
-/* Thumbnail frame with duration badge */
 .omnitube .yt-thumb { position: relative; overflow: hidden; border-radius: var(--yt-radius-thumb-lg); background: var(--yt-skeleton); aspect-ratio: 16 / 9; }
 .omnitube .yt-thumb > img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .omnitube .yt-duration {
@@ -317,14 +289,11 @@
 .omnitube .yt-resume { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: rgba(255, 255, 255, .4); }
 .omnitube .yt-resume > i { display: block; height: 100%; background: var(--yt-accent); }
 
-/* Two-line clamp */
 .omnitube .yt-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .omnitube .yt-clamp-1 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-/* Avatar */
 .omnitube .yt-avatar { border-radius: 50%; object-fit: cover; background: var(--yt-skeleton); flex: none; }
 
-/* Skeleton shimmer */
 .omnitube .yt-skel { background: var(--yt-skeleton); border-radius: 8px; position: relative; overflow: hidden; }
 .omnitube .yt-skel::after {
   content: ""; position: absolute; inset: 0;
@@ -334,7 +303,6 @@
 @keyframes yt-shimmer { to { transform: translateX(100%); } }
 @media (prefers-reduced-motion: reduce) { .omnitube .yt-skel::after { animation: none; } }
 
-/* Popup menu */
 .omnitube .yt-menu {
   min-width: 220px; padding: 8px 0; border-radius: var(--yt-radius-menu);
   background: var(--yt-bg-menu); color: var(--yt-text);
@@ -348,8 +316,6 @@
 .omnitube .yt-menu-item:hover, .omnitube .yt-menu-item:focus-visible { background: var(--yt-tonal); outline: none; }
 .omnitube .yt-menu-sep { height: 1px; margin: 8px 0; background: var(--yt-divider); }
 
-/* Section title */
 .omnitube .yt-shelf-title { font: var(--yt-type-headline-s); color: var(--yt-text); margin: 0; }
 
-/* Scrollbar */
 .omnitube .yt-scroll { overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--yt-tonal-hover) transparent; }

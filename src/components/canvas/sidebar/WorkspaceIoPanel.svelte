@@ -1,7 +1,4 @@
 <script lang="ts">
-  // Import preview and backup manager of a workspace (sidebar menu: Import…,
-  // Backups…). Import shows what the file holds before creating anything;
-  // restore shows what changes before replacing the canvas.
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "$lib/i18n";
 
@@ -108,7 +105,6 @@
       const picked = await open({ directory: true, multiple: false, defaultPath: importDir || undefined });
       if (typeof picked === "string") importDir = picked;
     } catch {
-      // Text field still works.
     }
   }
 

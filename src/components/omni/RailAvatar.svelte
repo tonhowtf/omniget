@@ -1,10 +1,4 @@
 <script lang="ts">
-  /**
-   * The avatar as the `/llm` rail and the profile card use it: Omni in his tinted
-   * disc, plus the two states a rail needs to show at a glance — selected and
-   * speaking. Everything is CSS; the component itself holds no state and starts
-   * no timer, so a rail with 50 of these costs nothing while nobody talks.
-   */
   import Avatar from "./Avatar.svelte";
   import type { Mood } from "$lib/omni/skins";
 
@@ -20,7 +14,6 @@
     size?: number;
     mood?: Mood | string;
     speaking?: boolean;
-    /** The rail item is the selected one. */
     active?: boolean;
     label?: string;
   } = $props();
@@ -45,8 +38,6 @@
     border-radius: var(--radius-full);
   }
 
-  /* Selection and speaking rings live on the wrapper so they can sit OUTSIDE the
-     disc, which clips its own sprite. */
   .rail-avatar::after {
     content: "";
     position: absolute;
@@ -82,7 +73,6 @@
     }
 
     .rail-avatar.speaking::after {
-      /* Still readable as "this one is talking", just not moving. */
       animation: none;
       opacity: 1;
     }

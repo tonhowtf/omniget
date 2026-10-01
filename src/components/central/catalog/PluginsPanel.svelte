@@ -1,10 +1,4 @@
 <script lang="ts">
-  /**
-   * Plugins tab of `/llm/installed`: every plugin/extension the coding tools
-   * have (Claude, Copilot CLI, Droid, Cursor, Gemini, Qwen, OpenCode), grouped
-   * by tool, with an on/off switch written in the tool's own file (per scope),
-   * where it came from (marketplace/source) and what it brings.
-   */
   import { t } from "$lib/i18n";
   import { showToast } from "$lib/stores/toast-store.svelte";
   import { errText } from "$lib/central/catalog";
@@ -74,7 +68,6 @@
     return s && p.toggle_scopes.includes(s) ? s : defaultScope(p, projectDir);
   }
 
-  /** State in the scope the switch writes to (falls back to the effective one). */
   function stateIn(p: PluginInfo, s: PluginScope): boolean {
     return p.enabled_in?.[s] ?? p.enabled ?? false;
   }

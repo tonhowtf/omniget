@@ -1,7 +1,3 @@
-// Read-only canvas visits and phone control: typed wrappers over the
-// `canvas_visit_*` / `canvas_remote_*` commands (`commands::canvas::remote`)
-// and the events `crate::canvas::visit` emits.
-
 import { invoke } from '@tauri-apps/api/core';
 
 export const EVENT_VISIT_STATE = 'canvas://visit-state';
@@ -9,7 +5,6 @@ export const EVENT_VISIT_SCENE = 'canvas://visit-scene';
 export const EVENT_VISIT_CHAT = 'canvas://visit-chat';
 export const EVENT_VISIT_CLOSED = 'canvas://visit-closed';
 export const EVENT_VISIT_REACTION = 'canvas://visit-reaction';
-/** Emitted by the Central's remote hub when devices or the listener change. */
 export const EVENT_REMOTE_CHANGED = 'remote://changed';
 
 export interface VisitState {
@@ -112,8 +107,6 @@ export function visitRefresh(): Promise<void> {
   return invoke('canvas_visit_refresh');
 }
 
-// ---- phone control ------------------------------------------------------
-
 export interface RemoteDeviceView {
   id: string;
   name: string;
@@ -148,7 +141,6 @@ export function remoteStatus(): Promise<RemoteStatusView> {
   return invoke('canvas_remote_status');
 }
 
-/** Reuses the Central's listener command (same devices, same scopes). */
 export function remoteStart(bindIp: string): Promise<unknown> {
   return invoke('remote_start', { bindIp, port: null });
 }

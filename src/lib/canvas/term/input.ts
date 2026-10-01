@@ -1,13 +1,3 @@
-// Our own input layer for GL-drawn terminals (estudo 98/01 §5). A hidden
-// <textarea> sits over the cursor cell so the IME candidate window opens in
-// the right place. Text arrives through beforeinput/composition (never
-// keypress), keydown only carries non-text keys, and Rust turns keys into
-// bytes using the live terminal modes.
-//
-// Dead keys (ABNT2 ´ ~ ^ `): the browser reports them as a composition; we
-// send only the committed text at compositionend, and drop an insertText
-// that repeats it right after (WebKit sends both on some layouts).
-
 import { invoke } from '@tauri-apps/api/core';
 import { open as openUrl } from '@tauri-apps/plugin-shell';
 import {
@@ -40,7 +30,6 @@ export { resolvePath, smartClean, tokenAt };
 
 const IS_MAC = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 
-/** Keys that never produce text and always go to Rust through keydown. */
 const NAMED_KEYS = new Set([
   'Enter',
   'Backspace',
@@ -81,10 +70,8 @@ type KeyRoute =
   | 'ignore'
   | TermCommand;
 
-/** Terminal commands handled by the node (find bar, font) or by this layer (clear, smart copy). */
 export type TermCommand = 'find' | 'clear' | 'scroll-lock' | 'font-up' | 'font-down' | 'font-reset' | 'smart-copy';
 
-/** ⌘⇧+ / ⌘⇧− / ⌘⇧0 whatever the layout (US '+'/'_', ABNT2 '+'/'_', or the physical keys). */
 function fontKey(e: { key: string; code?: string }): 'font-up' | 'font-down' | 'font-reset' | null {
   if (e.key === '+' || e.key === '=' || e.code === 'Equal' || e.code === 'NumpadAdd') return 'font-up';
   if (e.key === '-' || e.key === '_' || e.code === 'Minus' || e.code === 'NumpadSubtract') return 'font-down';
@@ -92,10 +79,6 @@ function fontKey(e: { key: string; code?: string }): 'font-up' | 'font-down' | '
   return null;
 }
 
-/**
- * Where a keydown goes. Pure, so the reserved-shortcut rules are testable.
- * `optionAsMeta` = Option sends ESC-prefixed keys instead of composing characters.
- */
 function routeKey(
   e: { key: string; code?: string; shiftKey: boolean; altKey: boolean; ctrlKey: boolean; metaKey: boolean; isComposing?: boolean; keyCode?: number },
   isMac: boolean,
@@ -124,7 +107,6 @@ function routeKey(
       if (k === 'c') return hasSelection ? 'copy' : 'app';
       if (k === 'v') return 'paste';
       if (k === 'a') return 'select-all';
-      // ⌘⌫ erases to the start of the line (Maestri; readline's ^U).
       if (e.key === 'Backspace' && !e.shiftKey && !e.altKey && !e.ctrlKey) return 'kill-line';
       return 'app';
     }
@@ -152,7 +134,6 @@ function routeKey(
   if (NAMED_KEYS.has(e.key) || isFunctionKey(e.key)) return 'terminal';
 
   if (e.key.length >= 1 && [...e.key].length === 1) {
-    // AltGr on Windows/Linux arrives as Ctrl+Alt and types a character (ABNT2 AltGr+Q = '/').
     if (!isMac && e.ctrlKey && e.altKey) return 'text';
     if (e.ctrlKey) return 'terminal';
     if (e.altKey) {
@@ -171,10 +152,8 @@ export interface TermInputHandle {
 
 interface TermInputOptions {
   id: string;
-  /** Called when the user leaves the terminal with the keyboard (Cmd+Esc). */
   onUnfocus?: () => void;
   optionAsMeta?: () => boolean;
-  /** Find bar, font size and scroll lock live in the node. */
   onCommand?: (cmd: TermCommand) => void;
 }
 
@@ -223,7 +202,6 @@ function report(id: string, e: unknown): void {
   termLive(id).error = errorText(e);
 }
 
-/** Wires the hidden textarea of one terminal node. */
 export function attachTermInput(ta: HTMLTextAreaElement, opts: TermInputOptions): TermInputHandle {
   const id = opts.id;
   let composing = false;
@@ -242,7 +220,7 @@ export function attachTermInput(ta: HTMLTextAreaElement, opts: TermInputOptions)
       case 'text':
         return;
       case 'app':
-        return; // bubble to the app's shortcut handler
+        return;
       case 'clear':
         e.preventDefault();
         e.stopPropagation();
@@ -273,7 +251,6 @@ export function attachTermInput(ta: HTMLTextAreaElement, opts: TermInputOptions)
         void copySelection(id).catch((err) => report(id, err));
         return;
       case 'paste':
-        // Cmd+V: the native paste event follows. Ctrl+Shift+V has none: read ourselves.
         if (!IS_MAC) {
           e.preventDefault();
           void readClipboard().then((t) => t && send(termPaste(id, t)));
@@ -307,7 +284,7 @@ export function attachTermInput(ta: HTMLTextAreaElement, opts: TermInputOptions)
   const onBeforeInput = (e: InputEvent) => {
     const type = e.inputType;
     if (composing || type === 'insertCompositionText' || type === 'insertFromComposition' || type === 'deleteCompositionText') {
-      return; // committed at compositionend
+      return;
     }
     if (type === 'insertText' || type === 'insertReplacementText') {
       e.preventDefault();
@@ -328,7 +305,7 @@ export function attachTermInput(ta: HTMLTextAreaElement, opts: TermInputOptions)
       return;
     }
     if (type === 'insertFromPaste' || type === 'insertFromDrop') {
-      e.preventDefault(); // the paste event carries the text
+      e.preventDefault();
       return;
     }
     e.preventDefault();
@@ -347,7 +324,6 @@ export function attachTermInput(ta: HTMLTextAreaElement, opts: TermInputOptions)
       lastCommitAt = performance.now();
       send(termText(id, data));
     }
-    // WebKit may still write the committed text into the textarea after this.
     setTimeout(clear, 0);
   };
   const onInput = () => clear();
@@ -407,8 +383,6 @@ export function attachTermInput(ta: HTMLTextAreaElement, opts: TermInputOptions)
   };
 }
 
-// ---------------------------------------------------------------- pointer
-
 function rowCells(id: string, row: number): string[] {
   const grid = termHub.grid(id);
   if (!grid || row >= grid.rows) return [];
@@ -423,22 +397,14 @@ function rowCells(id: string, row: number): string[] {
 interface CellPos {
   col: number;
   row: number;
-  /** Which half of the cell was hit (selection anchoring). */
   side: 'left' | 'right';
 }
 
-/**
- * Cell under a client point. `body` is the DOM element laid over the GL body;
- * the cell size comes from what the pass actually drew (bucket-snapped), so
- * hits match the pixels even when the grid is not an exact fit.
- */
 function cellAt(id: string, body: HTMLElement, clientX: number, clientY: number): CellPos {
   const r = body.getBoundingClientRect();
   const layout = termLayout(id);
   let cw: number;
   let ch: number;
-  // Cell (0,0) where the pass drew it: the body box and the GL body can
-  // differ by the padding (Settings → Canvas → Terminal padding, M-D18).
   const origin = drawnOrigin(layout) ?? { x: r.left, y: r.top };
   if (layout) {
     cw = layout.cellW;
@@ -459,14 +425,12 @@ function cellAt(id: string, body: HTMLElement, clientX: number, clientY: number)
   return { col, row, side: fx - Math.floor(fx) < 0.5 ? 'left' : 'right' };
 }
 
-/** Local (unscaled) position of the cursor cell inside `body`, for placing the textarea. */
 export function cursorBox(id: string, body: HTMLElement): { x: number; y: number; w: number; h: number; font: number } {
   const m = cellMetrics();
   const grid = termHub.grid(id);
   const layout = termLayout(id);
   const r = body.getBoundingClientRect();
   const scale = body.offsetWidth ? r.width / body.offsetWidth : 1;
-  // Drawn cell size back in the body's local units.
   const cw = layout ? layout.cellW / scale : m.w;
   const ch = layout ? layout.cellH / scale : m.h;
   const cx = grid?.cursor.x ?? 0;
@@ -477,7 +441,6 @@ export function cursorBox(id: string, body: HTMLElement): { x: number; y: number
   return { x: ox + cx * cw, y: oy + cy * ch, w: cw, h: ch, font: (ch / m.h) * 13 };
 }
 
-/** Client position of the drawn cell (0,0): the pass layout is in canvas CSS px. */
 function drawnOrigin(layout: ReturnType<typeof termLayout>): { x: number; y: number } | null {
   if (!layout || typeof document === 'undefined') return null;
   const gl = document.querySelector<HTMLCanvasElement>('canvas.l0');
@@ -490,17 +453,11 @@ function buttonOf(e: PointerEvent | MouseEvent): 0 | 1 | 2 {
   return e.button === 1 ? 1 : e.button === 2 ? 2 : 0;
 }
 
-/**
- * Pointer handling over a terminal body: mouse reporting when the program
- * asked for it (Shift forces local selection), otherwise selection in Rust
- * (double = semantic, triple = line, Alt = block), Cmd/Ctrl+click opens links.
- */
 export function attachTermPointer(
   body: HTMLElement,
   opts: {
     id: string;
     focus: () => void;
-    /** ⌘⇧-click on a path: open it on the canvas (file node / tree). */
     openInCanvas?: (path: string) => void;
   },
 ): () => void {
@@ -529,7 +486,6 @@ export function attachTermPointer(
             .catch((err) => report(id, err));
           return;
         }
-        // Plain text: a URL, or a path relative to the shell's directory.
         const tok = tokenAt(rowCells(id, pos.row), pos.col);
         if (/^(https?:\/\/|mailto:)\S+$/i.test(tok)) {
           e.preventDefault();
@@ -586,7 +542,6 @@ export function attachTermPointer(
   };
 
   const onWheel = (e: WheelEvent) => {
-    // Cmd/Ctrl+wheel zooms the canvas; an unfocused terminal lets the canvas pan.
     if (e.ctrlKey || e.metaKey) return;
     if (focused !== id) return;
     e.preventDefault();

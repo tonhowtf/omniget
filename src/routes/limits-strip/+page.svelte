@@ -1,20 +1,4 @@
 <script lang="ts">
-  /**
-   * The limits strip: the whole content of the `limits-strip` window.
-   *
-   * The window is built, sized and parked in Rust (`limits_strip::commands`);
-   * it is exactly as big as what is drawn here, because a transparent window
-   * still swallows clicks. Collapsed it is the pill; a click on a ring asks
-   * Rust to grow the window and the card appears next to the pill.
-   *
-   * At rest this page owns no timer: it redraws when `limits://state`
-   * arrives. The only clock is a 30 s one for "resets in…", alive while a
-   * card is open.
-   *
-   * The snapshot's `look` says how to draw: everything is zoomed by its
-   * scale, and Rust already sized the window for that scale and for the
-   * percentage band under the rings (`limits_strip::placement`).
-   */
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { listen, type UnlistenFn } from "@tauri-apps/api/event";
@@ -52,14 +36,11 @@
     catch { loadFailed = true; }
     finally { openingApp = false; }
   }
-  /** From Rust, in real window pixels: divided by the scale inside the zoomed stage. */
   let offset = $state(0);
   let now = $state(Date.now());
   let pulsing = $state<string | null>(null);
   let solid = $state(false);
-  /** The glass follows the app theme, or the system when the app sets none. */
   let theme = $state<"dark" | "light">("dark");
-  /** The window is hidden or minimised: every CSS loop holds still. */
   let asleep = $state(false);
 
   let vertical = $derived(snap.edge === "left" || snap.edge === "right");
@@ -68,7 +49,6 @@
   let emptyTipVisible = $state(false);
   let openRing = $derived(snap.rings.find((r) => r.id === openId) ?? null);
   let stacks = $derived(groups(snap.rings));
-  /** The one ring that most needs a look: the fullest at 80 % or more. */
   let critical = $derived.by(() => {
     let best: { id: string; used: number } | null = null;
     for (const r of snap.rings) {
@@ -77,7 +57,6 @@
     }
     return best?.id ?? null;
   });
-  /** Other logins of the open ring's tool, to hop between without closing. */
   let siblings = $derived(
     openRing ? snap.rings.filter((r) => toolOf(r.id) === toolOf(openRing.id)) : [],
   );
@@ -105,7 +84,6 @@
       : ($t("llm.limits.strip.resets_in", { time: span(at - now) }) as string);
   }
 
-  /** "20% ahead of pace · runs out in 1 h 20 min", or null with nothing to say yet. */
   function paceLine(w: LimitWindow): { text: string; warn: boolean } | null {
     const p = paceOf(w, now);
     if (!p) return null;
@@ -144,13 +122,11 @@
     return [m.params, m.quant, gib(m.vram_bytes ?? m.size_bytes), left].filter(Boolean).join(" · ");
   }
 
-  /** "Max pessoal · me@x.com", or null for a tool with a single login. */
   function who(ring: Ring): string | null {
     const parts = [ring.account?.label, ring.account?.email].filter(Boolean);
     return parts.length ? parts.join(" · ") : null;
   }
 
-  /** Two letters in the ring: the account's initials when a tool has several. */
   function glyph(ring: Ring): string {
     const several = snap.rings.filter((r) => r.label === ring.label).length > 1;
     const name = several ? (ring.account?.label ?? ring.account?.email ?? "") : "";
@@ -175,7 +151,6 @@
       : ($t("llm.limits.strip.read_ago", { time: span(ms) }) as string);
   }
 
-  /** The bot mirrors the account: hops while its agent works, holds still when it cannot read. */
   function botOf(ring: Ring) {
     const stuck = ring.status === "needs_auth" || ring.status === "error" || ring.status === "absent";
     return {
@@ -204,7 +179,6 @@
     void expand(openId === id ? null : id);
   }
 
-  /** Another login of the same tool: the window is already open, only the card changes. */
   function switchTo(id: string) {
     now = Date.now();
     openId = id;
@@ -223,14 +197,12 @@
     void getCurrentWindow().startDragging().catch(() => {});
   }
 
-  // The 30 s clock lives only while a card shows a countdown.
   $effect(() => {
     if (!openId) return;
     const timer = setInterval(() => (now = Date.now()), 30000);
     return () => clearInterval(timer);
   });
 
-  // The ring whose card is open was switched off: fold the window back.
   $effect(() => {
     if (openId && !snap.rings.some((r) => r.id === openId)) void expand(null);
   });
@@ -249,7 +221,6 @@
     const arm = (p: Promise<UnlistenFn>) =>
       void p.then((un) => (disposed ? un() : unlisteners.push(un))).catch(() => {});
 
-    // The ticks follow the snapshot's clock: no timer at rest.
     arm(
       listen<Snapshot>("limits://state", (e) => {
         now = Date.now();
@@ -365,8 +336,6 @@
       {#if initialLoading}
         <span class="empty" role="status" aria-label={$t("common.loading")}>…</span>
       {:else}
-        <!-- Keyboard focus shows the same description the pointer gets from `title`;
-             the button already carries it as its name, so the tip is not read twice. -->
         <span class="empty-tip-anchor">
           <button class="empty empty-action" type="button" disabled={openingApp} onclick={openConnections}
             aria-label={$t(loadFailed ? "llm.limits.strip.open_after_error" : "llm.limits.strip.connect_hint")}
@@ -497,7 +466,6 @@
     overflow: hidden;
   }
 
-  /* Loop's palette: hood green, carrot orange, scarf red. */
   .stage {
     --calm: #4aa84b;
     --amber: #f59e35;
@@ -541,8 +509,6 @@
     --chip: rgba(17, 17, 17, 0.07);
     --shadow: 0 8px 24px rgba(60, 40, 10, 0.14);
   }
-  /* High contrast: opaque plates, stronger tracks and text, deeper tones on
-     light, brighter ones on dark. */
   .stage.contrast {
     --calm: #6fdc70;
     --amber: #ffb35c;
@@ -569,7 +535,6 @@
     --stack: rgba(29, 90, 60, 0.12);
     --chip: rgba(0, 0, 0, 0.1);
   }
-  /* No alpha channel to trust: a square backdrop instead of see-through corners. */
   .stage.solid {
     background: #1c1c1e;
   }
@@ -585,7 +550,6 @@
   .stage.edge-right {
     flex-direction: row-reverse;
   }
-  /* Hidden window: no CSS loop keeps ticking. */
   .stage.asleep,
   .stage.asleep * {
     animation-play-state: paused !important;
@@ -608,8 +572,6 @@
     padding: 8px 0;
     flex-direction: column;
   }
-  /* The percentage band: 12 px more across a horizontal strip, 12 px more
-     per ring along a vertical one (`placement::LABEL`). */
   .stage.labels .pill:not(.vertical) {
     height: 56px;
   }
@@ -638,7 +600,6 @@
     opacity: 0.6;
   }
 
-  /* Several logins of one tool sit on one shared plate, no extra width. */
   .stack {
     position: relative;
     display: flex;
@@ -719,9 +680,6 @@
     --tone: var(--red);
   }
 
-  /* A soft halo behind the ring: steady for the fullest account, breathing
-     while an agent works. Opacity and transform only, so it stays on the
-     compositor. */
   .ring::before {
     content: "";
     position: absolute;
@@ -1044,7 +1002,6 @@
     background: var(--track);
     overflow: hidden;
   }
-  /* Where the bar would be if the window were spent evenly. */
   .bar-tick {
     position: absolute;
     top: 0;

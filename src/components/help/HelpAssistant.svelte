@@ -34,8 +34,6 @@
     agents=next;
     selected=preferred?(next.some(agent=>agent.id===preferred)?preferred:''):(next[0]?.id??'');
     await tick();
-    // Native WebKit can reset the visible option while a new option list is committed.
-    // Keep the DOM and selected connection aligned after that commit.
     if(connectionSelect)connectionSelect.value=selected;
     persist();
   }

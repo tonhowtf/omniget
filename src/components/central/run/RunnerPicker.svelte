@@ -1,9 +1,4 @@
 <script lang="ts">
-  /**
-   * Who runs it: an agent of the roster (native or not), a Claude/Codex
-   * account, an ACP agent, or a coding CLI run headless. Tool runners also
-   * take a model and a permission level; "bypass" names the exact flag.
-   */
   import { onMount } from "svelte";
   import { t } from "$lib/i18n";
   import {

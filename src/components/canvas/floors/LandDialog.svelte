@@ -1,8 +1,4 @@
 <script lang="ts">
-  // Land: the floor's branch on the left, the target on the right, a plane
-  // in the middle. Shows the commits, the diff stats and any conflict or
-  // uncommitted work that blocks it; lands by plumbing (the ground's files
-  // only move when the target is the branch checked out there).
   import { t } from "$lib/i18n";
   import { toBody } from "$lib/canvas/to-body";
   import {

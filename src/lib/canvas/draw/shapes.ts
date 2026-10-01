@@ -1,6 +1,3 @@
-// Path generators for the drawing shapes (02-motor-do-canvas §6.2). Each returns
-// a closed polygon as a flat [x,y,...] list in world units.
-
 import type { Rect } from '../model/types';
 
 export function rectPolygon(r: Rect, radius = 0, segs = 4): number[] {
@@ -69,7 +66,6 @@ function parallelogramPolygon(r: Rect, slant = 0.25): number[] {
   return [r.x + k, r.y, r.x + r.w, r.y, r.x + r.w - k, r.y + r.h, r.x, r.y + r.h];
 }
 
-/** Heart from the classic parametric curve, fitted to the box. */
 function heartPolygon(r: Rect, segs = 64): number[] {
   const raw: number[] = [];
   let minX = Infinity;
@@ -93,7 +89,6 @@ function heartPolygon(r: Rect, segs = 64): number[] {
   return out;
 }
 
-/** Cloud: bumps (circle arcs) around an ellipse, as one outline. */
 function cloudPolygon(r: Rect, bumps = 9): number[] {
   const cx = r.x + r.w / 2;
   const cy = r.y + r.h / 2;
@@ -104,7 +99,6 @@ function cloudPolygon(r: Rect, bumps = 9): number[] {
   for (let b = 0; b < bumps; b++) {
     for (let k = 0; k < per; k++) {
       const a = ((b + k / per) / bumps) * Math.PI * 2;
-      // Each bump bulges out by up to 18% of the radius.
       const bulge = 0.82 + 0.18 * Math.sin((k / per) * Math.PI);
       out.push(cx + Math.cos(a) * rx * bulge, cy + Math.sin(a) * ry * bulge);
     }
@@ -112,9 +106,7 @@ function cloudPolygon(r: Rect, bumps = 9): number[] {
   return out;
 }
 
-/** Block arrow pointing `dir`, shaft 50% of the cross size, head 40% of the length. */
 function blockArrowPolygon(r: Rect, dir: 'left' | 'right' | 'up' | 'down'): number[] {
-  // Built pointing right in a unit box, then mapped.
   const unit = [0, 0.25, 0.6, 0.25, 0.6, 0, 1, 0.5, 0.6, 1, 0.6, 0.75, 0, 0.75];
   const out: number[] = [];
   for (let i = 0; i < unit.length; i += 2) {
@@ -128,15 +120,10 @@ function blockArrowPolygon(r: Rect, dir: 'left' | 'right' | 'up' | 'down'): numb
   return out;
 }
 
-/** Stadium (capsule) — Maestri's oval. */
 function ovalPolygon(r: Rect): number[] {
   return rectPolygon(r, Math.min(r.w, r.h) / 2, 12);
 }
 
-/**
- * Polygon of a shape kind, or null for kinds that are not closed shapes.
- * Accepts the Maestri wire names and the front's short ones (`rect`).
- */
 export function shapePolygon(kind: string, r: Rect, cornerRadius?: number): number[] | null {
   switch (kind) {
     case 'rect':
@@ -175,7 +162,6 @@ export function shapePolygon(kind: string, r: Rect, cornerRadius?: number): numb
   }
 }
 
-/** Open polylines drawn inside a shape (the X of xBox, the tick of checkBox). */
 export function shapeMarks(kind: string, r: Rect): number[][] {
   const p = Math.min(r.w, r.h) * 0.2;
   if (kind === 'xBox') {
@@ -190,7 +176,6 @@ export function shapeMarks(kind: string, r: Rect): number[][] {
   return [];
 }
 
-/** Two short barbs of an arrow head at (x1, y1) coming from (x0, y0). */
 export function arrowHead(x0: number, y0: number, x1: number, y1: number, size: number): number[] {
   const a = Math.atan2(y1 - y0, x1 - x0);
   const spread = Math.PI / 7;
@@ -204,10 +189,6 @@ export function arrowHead(x0: number, y0: number, x1: number, y1: number, size: 
   ];
 }
 
-/**
- * Splits a polyline into dash pieces (`dash` on, `gap` off, in world units).
- * `closed` walks back to the first point.
- */
 export function dashPolyline(pts: ArrayLike<number>, dash: number, gap: number, closed = false): number[][] {
   const n = Math.floor(pts.length / 2);
   const out: number[][] = [];

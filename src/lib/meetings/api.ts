@@ -157,7 +157,6 @@ export function isBusy(s: MeetingStatus): boolean {
   return s === "queued" || s === "downloading" || s === "transcribing" || s === "summarizing";
 }
 
-/** `mm:ss`, or `h:mm:ss` from one hour on. */
 export function clock(ms: number): string {
   const total = Math.max(0, Math.floor(ms / 1000));
   const h = Math.floor(total / 3600);
@@ -167,7 +166,6 @@ export function clock(ms: number): string {
   return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
 }
 
-/** Consecutive segments of the same speaker read as one turn. */
 export function turns(segments: Segment[], maxGapMs = 2000): Segment[] {
   const out: Segment[] = [];
   for (const s of segments) {
@@ -182,7 +180,6 @@ export function turns(segments: Segment[], maxGapMs = 2000): Segment[] {
   return out;
 }
 
-/** A stable hue per speaker name, so each voice keeps its colour. */
 export function speakerHue(name: string | undefined): number {
   if (!name) return 220;
   let h = 0;
@@ -190,7 +187,6 @@ export function speakerHue(name: string | undefined): number {
   return h;
 }
 
-/** Which import a pasted link is: a meeting to join (bot) or a recording. */
 export function classifyLink(raw: string): "bot" | "recording" | null {
   let url: URL;
   try {
@@ -209,7 +205,6 @@ export function classifyLink(raw: string): "bot" | "recording" | null {
   return null;
 }
 
-/** The prompt an agent gets to take a meeting back to Teams. */
 export function agentPrompt(markdown: string, instruction: string): string {
   return [
     instruction.trim(),
@@ -223,8 +218,6 @@ export function agentPrompt(markdown: string, instruction: string): string {
     "</meeting>",
   ].join("\n");
 }
-
-// ---------------------------------------------------------------- Teams (Microsoft Graph)
 
 interface TeamsAccount {
   name: string;
@@ -290,7 +283,6 @@ export const teamsCalendar = (days?: number, pastDays?: number) =>
 export const teamsTranscriptImport = (joinUrl: string, title?: string) =>
   invoke<Meeting>("teams_transcript_import", { joinUrl, title });
 
-/** Meetings starting within the next `minutes` or already running. */
 export function isSoon(m: CalendarMeeting, now = Date.now(), minutes = 15): boolean {
   const start = Date.parse(m.start);
   const end = Date.parse(m.end);

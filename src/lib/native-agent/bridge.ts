@@ -1,4 +1,3 @@
-/** App-only typed inspection bridge. No eval, shell, or browser automation API. */
 import { waitForPaint } from './paint';
 import { allowedActions } from './actions';
 import 'virtual:omniget-dev-revision';
@@ -63,7 +62,6 @@ function inspect(args: { cursor?: number; limit?: number }) {
       bounds: {x: Math.round(r.x), y: Math.round(r.y), width: Math.round(r.width), height: Math.round(r.height)},
       scroll: {top: el.scrollTop, left: el.scrollLeft, height: el.scrollHeight, viewportHeight: el.clientHeight},
       inViewport: r.bottom > 0 && r.right > 0 && r.top < innerHeight && r.left < innerWidth,
-      // Inspection does not confer permission to invoke a business handler.
       actions: secret ? [] : allowedActions(el),
     };
   });

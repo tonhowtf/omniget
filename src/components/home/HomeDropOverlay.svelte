@@ -5,8 +5,6 @@
   let { visible = false }: { visible?: boolean } = $props();
 </script>
 
-<!-- Full-pane drop target (21st extend-hq File Upload #15587, as an overlay).
-     Pointer events stay off: the page listens for the drop itself. -->
 {#if visible}
   <div class="drop-overlay" role="status" aria-live="polite">
     <div class="drop-frame">

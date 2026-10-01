@@ -10,14 +10,10 @@
   type ControlArgs = { id: string; describedBy: string | undefined };
   type BindingField = "hotkey_binding" | "music_hotkey_binding";
 
-  // "clipboard" is the primary paste detection; "hotkeys" is the advanced
-  // group with the global shortcuts.
   let { part = "clipboard" }: { part?: "clipboard" | "hotkeys" } = $props();
 
   let settings = $derived(getSettings());
 
-  // Shortcut bindings are a draft: recording or typing a key only changes the
-  // form, and "Save changes" registers them. The enable switches autosave.
   const hotkeys = createSettingsDraft({
     id: "hotkeys",
     read: (s) => ({
@@ -35,8 +31,6 @@
   let modes = $state<Record<BindingField, "record" | "type">>({ hotkey_binding: "record", music_hotkey_binding: "record" });
   let recording = $state<BindingField | null>(null);
 
-  // An empty binding would unregister the shortcut silently: keep the form
-  // unsaved until an enabled shortcut has keys.
   let bindingMissing = $derived(
     !!settings &&
       ((settings.download.hotkey_enabled && !(hotkeys.value.hotkey_binding ?? "").trim()) ||
@@ -60,8 +54,6 @@
     return map[key] ?? null;
   }
 
-  // O WebKit do macOS não dá foco a um `<button>` ao clicar, então o keydown
-  // nunca chegava e o gravador ficava preso em "Pressione as teclas…".
   function startRecording(field: BindingField, e: MouseEvent) {
     recording = field;
     (e.currentTarget as HTMLButtonElement | null)?.focus();

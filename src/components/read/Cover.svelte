@@ -1,6 +1,4 @@
 <script lang="ts">
-  // A book or series cover with a typographic fallback (title on a tint
-  // derived from the title) while loading or when there is no image.
   let {
     src = "",
     title = "",

@@ -1,6 +1,3 @@
-// Canonical OmniTube types. Mirror of
-// `src-tauri/omniget-core/src/core/tube/model.rs` (same snake_case fields).
-
 export type Thumb = { url: string; width: number; height: number };
 
 export type ChannelRef = {
@@ -416,19 +413,15 @@ export type StorageStats = { total_bytes: number; files: number; free_bytes?: nu
 
 export type TubeStatus = {
   account: Account;
-  /// Proxy server base (`http://127.0.0.1:PORT`).
   server: string;
   ytdlp: boolean;
   ffmpeg: boolean;
 };
 
-/// Per-category SponsorBlock behavior.
 export type SbMode = "skip" | "ask" | "show" | "off";
 
-/// `settings.tube` (AppSettings). Mirror of `TubeSettings` in settings.rs.
 export type TubeSettings = {
   enabled: boolean;
-  /// "classic" = YouTube's own neutral palette and red progress; "app" = follow the OmniGet theme.
   look: "classic" | "app";
   start_face: "video" | "music";
   start_page: "home" | "subscriptions" | "library";

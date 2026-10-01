@@ -1,16 +1,4 @@
 <script lang="ts">
-  /**
-   * Uso — todas as ferramentas de código numa linha do tempo só.
-   *
-   * Tudo sai do índice de sessões do núcleo (`sessions_*`): tokens por dia em
-   * cinco tipos empilhados, custo por dia (registrado pela ferramenta ×
-   * estimado pela tabela de preço), por modelo, por ferramenta, heatmap de um
-   * ano com sequências, hora de pico, projetos, agentes/subagentes com os
-   * padrões A → B → C e as fontes encontradas nesta máquina.
-   *
-   * Nada roda em repouso: a tela busca ao abrir, quando um filtro muda e no
-   * botão Atualizar. Sem timer.
-   */
   import { onMount } from "svelte";
   import { goto } from "$app/navigation";
   import { t } from "$lib/i18n";
@@ -72,7 +60,6 @@
   let grain = $derived<GroupBy>(rangeKey === "all" ? "month" : rangeKey === "year" ? "week" : "day");
 
   let range = $derived<ListFilter>({ tool, account, project, model, from, to });
-  /** O heatmap é sempre de um ano; herda só os filtros de dimensão. */
   let dimRange = $derived<ListFilter>({ tool, account, project, model });
 
   async function load() {
@@ -131,13 +118,10 @@
   });
 
   $effect(() => {
-    // Depende de todos os filtros; cada mudança refaz as consultas.
     void range;
     void grain;
     void load();
   });
-
-  // ---- séries e derivações ----
 
   const SERIES_COLORS: Record<string, string> = {
     input: "var(--viz-input)",
@@ -147,7 +131,6 @@
     reasoning: "var(--viz-reasoning)",
   };
 
-  /** Leitura de cache costuma ser 90%+ do volume e achata o resto: dá para tirar. */
   let showCacheRead = $state(prefGet("usage.cacheRead", "1") === "1");
   $effect(() => prefSet("usage.cacheRead", showCacheRead ? "1" : "0"));
 
@@ -246,7 +229,6 @@
     </button>
   </header>
 
-  <!-- Budgets (3.3): the ceilings of the agents here, not of the sessions below. -->
   <BudgetPanel />
 
   <FilterBar

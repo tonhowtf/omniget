@@ -1,6 +1,3 @@
-// Snapping (02-motor-do-canvas §4.4): frames on the 20-unit grid, plus
-// alignment guides to neighbours' edges and centres within 6 screen px.
-
 import { GRID, type Rect } from '../model/types';
 
 export function snap(v: number, grid = GRID): number {
@@ -9,7 +6,6 @@ export function snap(v: number, grid = GRID): number {
 
 export interface Guide {
   axis: 'x' | 'y';
-  /** World coordinate of the guide line. */
   at: number;
   from: number;
   to: number;
@@ -21,10 +17,6 @@ interface SnapResult {
   guides: Guide[];
 }
 
-/**
- * Finds the smallest nudge that aligns `moving` with one of `others` on each
- * axis (edges and centres). `tol` is in world units.
- */
 export function alignGuides(moving: Rect, others: Rect[], tol: number): SnapResult {
   const mx = [moving.x, moving.x + moving.w / 2, moving.x + moving.w];
   const my = [moving.y, moving.y + moving.h / 2, moving.y + moving.h];
@@ -66,12 +58,6 @@ export function alignGuides(moving: Rect, others: Rect[], tol: number): SnapResu
   return { dx: bestX?.d ?? 0, dy: bestY?.d ?? 0, guides };
 }
 
-/**
- * ⌘-drag magnet (Maestri): the moving frame touches the nearest wall of a
- * neighbour within `tol` on each axis (left edge to its right edge, right edge
- * to its left edge, same for top/bottom), when the two overlap on the other
- * axis. Dropped into a hole, it lands against the nearer wall.
- */
 export function magnetSnap(
   moving: Rect,
   others: Rect[],
@@ -98,7 +84,6 @@ export function magnetSnap(
 
 export type AlignMode = 'left' | 'hcenter' | 'right' | 'top' | 'vcenter' | 'bottom' | 'hdistribute' | 'vdistribute';
 
-/** New positions for align/distribute (ids → {x, y}). */
 export function arrange(items: Array<Rect & { id: string }>, mode: AlignMode): Map<string, { x: number; y: number }> {
   const out = new Map<string, { x: number; y: number }>();
   if (items.length < 2) return out;
@@ -153,7 +138,6 @@ export function arrange(items: Array<Rect & { id: string }>, mode: AlignMode): M
   return out;
 }
 
-/** Nearest free spot for a w×h frame near (x, y), scanning a spiral on the grid. */
 export function nearestFreeSpot(x: number, y: number, w: number, h: number, taken: Rect[], gap = GRID): { x: number; y: number } {
   const free = (px: number, py: number) =>
     !taken.some(

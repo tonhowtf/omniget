@@ -3,8 +3,6 @@
   import { stateKey } from "$lib/washmybelly/tweaks";
 
   /// What Windows has now, read from the system. Ported from "Status Badge"
-  /// (serafimcloud, 21st.dev, after Tremor): a dot plus a word, tinted by
-  /// state, on the app's tokens.
   let { state }: { state: string } = $props();
   let tone = $derived(state === "applied" ? "on" : state === "partial" ? "part" : state === "unknown" ? "unk" : "off");
 </script>

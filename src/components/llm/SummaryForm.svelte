@@ -1,10 +1,4 @@
 <script lang="ts">
-  /**
-   * Summarize a video with the saved AI connection (`ai_summarize_url`).
-   * Opening this form only reads the saved connection (`ai_get_config`); a
-   * summary runs only on an explicit click. The connection itself is edited in
-   * Settings, so this form never saves or tests it.
-   */
   import { invoke } from "@tauri-apps/api/core";
   import { onMount } from "svelte";
   import { t } from "$lib/i18n";

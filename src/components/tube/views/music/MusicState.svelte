@@ -1,5 +1,4 @@
 <script lang="ts">
-  // Empty / error / sign-in states with the OmniTube illustration.
   import type { Snippet } from "svelte";
   import { t } from "$lib/i18n";
 

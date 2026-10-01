@@ -1,19 +1,3 @@
-/**
- * State of `/llm/mcp`: the external MCP servers, what each one exposes and the
- * per-agent grants.
- *
- * Three rules, same shape as `llm-store.svelte.ts`:
- *
- * 1. **Nothing runs at rest.** No listener, no timer, no polling. Reading the
- *    saved list is a file read; a *connection* only happens when the user
- *    presses "test" or opens a server's tool table.
- * 2. **`tools/list` is cached.** Once a server answered, its tools stay in the
- *    store until the user tests again, so opening the grant table twice costs
- *    one connection, not two.
- * 3. **A failure is shown, never dressed as data.** A list the backend cannot
- *    give stays empty with the error on screen (U4: the example servers of
- *    the old demo mode are gone; the screenshot harness has its own fixture).
- */
 import { invoke } from "@tauri-apps/api/core";
 import type { AgentDef, GrantMode } from "$lib/llm/types";
 import {
@@ -24,8 +8,6 @@ import {
   type McpTestResult,
   type McpToolDef,
 } from "$lib/llm/mcp";
-
-// ── State ───────────────────────────────────────────────────────────────
 
 let rows = $state<McpServerRow[]>([]);
 let loading = $state(false);
@@ -50,7 +32,6 @@ export function isLoading(): boolean {
   return loading;
 }
 
-/** False once the saved list could not be read or a change was refused. */
 export function isAvailable(): boolean {
   return available;
 }
@@ -59,7 +40,6 @@ export function getErrorKey(): string | null {
   return errorKey;
 }
 
-/** Id of the server being probed right now, or `null`. One at a time. */
 export function getTestingId(): string | null {
   return testing;
 }
@@ -72,7 +52,6 @@ export function getTools(id: string): McpToolDef[] {
   return getServer(id)?.tools ?? [];
 }
 
-/** Normalises both shapes the backend may answer: a list or `{ servers }`. */
 function toRows(answer: unknown): McpServerRow[] | null {
   if (Array.isArray(answer)) return answer as McpServerRow[];
   if (answer && typeof answer === "object" && Array.isArray((answer as { servers?: unknown }).servers)) {
@@ -81,10 +60,6 @@ function toRows(answer: unknown): McpServerRow[] | null {
   return null;
 }
 
-/**
- * Reads the saved servers. No connection is opened: this is the config file,
- * not the network. Loads once per session unless `force`. Never throws.
- */
 export function loadServers(force = false): Promise<void> {
   if (inFlight) return inFlight;
   if (loadedOnce && !force) return Promise.resolve();
@@ -98,7 +73,6 @@ export function loadServers(force = false): Promise<void> {
         available = true;
         return;
       }
-      // No list at all: a backend that does not answer.
       available = false;
       errorKey = mcpErrorKey("ERR_NO_ANSWER");
     })
@@ -114,7 +88,6 @@ export function loadServers(force = false): Promise<void> {
   return inFlight;
 }
 
-/** Creates or replaces one server. Returns false when the backend refused. */
 export async function saveServer(config: McpServerConfig): Promise<boolean> {
   errorKey = null;
   const existing = rows.some((r) => r.config.id === config.id);
@@ -150,10 +123,6 @@ export async function removeServer(id: string): Promise<boolean> {
   }
 }
 
-/**
- * The one command that opens a connection: `initialize` + `tools/list`, then
- * the client is dropped. Only ever called from the "test" button.
- */
 export async function testServer(id: string): Promise<McpTestResult | null> {
   if (testing) return null;
   errorKey = null;
@@ -162,7 +131,6 @@ export async function testServer(id: string): Promise<McpTestResult | null> {
   try {
     const result = await invoke<McpTestResult | null>("llm_mcp_test", { id });
     if (!result) {
-      // No answer: keep whatever the row already showed, and say so.
       errorKey = mcpErrorKey("ERR_NO_ANSWER");
       return null;
     }
@@ -195,10 +163,6 @@ export async function testServer(id: string): Promise<McpTestResult | null> {
   }
 }
 
-/**
- * Tools of one server. Cached: with tools already in the row nothing is sent
- * unless `force`. Called when the grant table opens, never on page load.
- */
 export async function loadTools(id: string, force = false): Promise<McpToolDef[]> {
   const row = rows.find((r) => r.config.id === id);
   if (!row) return [];
@@ -218,12 +182,6 @@ export async function loadTools(id: string, force = false): Promise<McpToolDef[]
   }
 }
 
-/**
- * Writes one grant into `AgentDef.tools`; `null` clears it.
- *
- * `llm_mcp_grant` is the narrow command — it touches one grant and leaves the
- * rest of the agent alone; the local copy follows the same pure `applyGrant`.
- */
 export async function setGrant(
   agent: AgentDef,
   server: string,
@@ -245,7 +203,6 @@ export async function setGrant(
   }
 }
 
-/** Test seam: drops every bit of state. Nothing to cancel — nothing runs. */
 export function resetMcpStore(): void {
   rows = [];
   loading = false;

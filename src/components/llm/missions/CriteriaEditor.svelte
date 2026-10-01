@@ -1,11 +1,4 @@
 <script lang="ts">
-  /**
-   * The completion criteria of a mission, as the person writes them: what
-   * must be true for the mission to count as done. Objective checks (a
-   * command, a file, a tool result) decide on their own; a rubric or a human
-   * check waits for the person. A command imported or proposed by a model is
-   * shown but never runs.
-   */
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "$lib/i18n";

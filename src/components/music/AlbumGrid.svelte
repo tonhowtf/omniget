@@ -6,7 +6,6 @@
 
   let { albums, min = 168, limit = 0 }: { albums: Album[]; min?: number; limit?: number } = $props();
 
-  // grids with thousands of albums render in pages as you scroll
   let shown = $state(120);
   let sentinel: HTMLDivElement | undefined = $state();
   let list = $derived(limit ? albums.slice(0, limit) : albums.slice(0, shown));

@@ -1,6 +1,4 @@
 <script lang="ts">
-  // Placar por driver/modelo ao longo de todas as arenas: vitórias, votos,
-  // testes que passaram, falhas e médias de tempo, custo, tokens e linhas.
   import { t } from "$lib/i18n";
   import { driverName, driverTint } from "$lib/central/threads-ui/drivers";
   import { formatCost, formatMs, formatTokens, type ScoreRow } from "$lib/central/arena";

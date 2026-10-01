@@ -1,7 +1,3 @@
-// Book downloads started from /read go through the normal download queue
-// (same engine, retries, proxy and cookies as everything else); when one
-// finishes its file is added to the reading library.
-
 import { invoke } from "@tauri-apps/api/core";
 import type { DownloadItem } from "$lib/stores/download-store.svelte";
 import { ensureStatus, upsertBooks } from "./library-store.svelte";
@@ -35,13 +31,11 @@ function persist() {
   try {
     localStorage.setItem(KEY, JSON.stringify(readDownloads.items.slice(0, 200)));
   } catch {
-    /* ignore */
   }
 }
 
 export async function startBookDownload(url: string, title: string, source: string, cover: string | null = null): Promise<ReadDownload> {
   const status = await ensureStatus();
-  // OPDS catalogs with a login get their credentials inlined for the engine.
   const finalUrl = source.startsWith("opds:") ? await invoke<string>("read_opds_download_url", { source, url }) : url;
   const r = await invoke<{ id: number; title: string }>("download_from_url", {
     url: finalUrl,
@@ -55,7 +49,6 @@ export async function startBookDownload(url: string, title: string, source: stri
 
 const importing = new Set<number>();
 
-/** Called whenever the download queue changes. */
 export function syncReadDownloads(map: Map<number, DownloadItem>) {
   for (const d of readDownloads.items) {
     if (d.state !== "running" || importing.has(d.id)) continue;

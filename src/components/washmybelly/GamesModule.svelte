@@ -26,9 +26,6 @@
   import GameStatusPill from "./GameStatusPill.svelte";
   import GameRow from "./GameRow.svelte";
 
-  /// Game mode: what the system offers, the running processes that could be
-  /// the game (the person picks), what is on now, and the honest note per
-  /// system. Everything turns off by itself when the game exits.
   let { caps }: { caps: Caps } = $props();
 
   const mod = moduleById("games");

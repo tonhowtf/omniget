@@ -1,7 +1,4 @@
 <script lang="ts">
-  // Music library: chips Playlists / Songs / Albums / Artists / Subscriptions /
-  // History. "Liked music" leads the playlists. Without an account it invites
-  // to sign in (the library only exists on the account).
   import { onMount } from "svelte";
   import { t } from "$lib/i18n";
   import * as api from "$lib/tube/api";

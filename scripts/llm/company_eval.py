@@ -31,7 +31,6 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 TAURI = ROOT / "src-tauri"
 BASELINE = ROOT / "estudos" / "92-paperclip-completo" / "bench" / "summary.json"
 
-
 def cargo(args, out, release):
     env = dict(os.environ, OMNIGET_BENCH_OUT=str(out))
     cmd = ["cargo", "test"] + (["--release"] if release else []) + args
@@ -42,7 +41,6 @@ def cargo(args, out, release):
         return False
     return True
 
-
 def load_metrics(path):
     m = {}
     for line in path.read_text().splitlines():
@@ -52,7 +50,6 @@ def load_metrics(path):
             continue
         m[f"{v['bench']}.{v['metric']}"] = v["value"]
     return m
-
 
 def baseline():
     if not BASELINE.exists():
@@ -103,8 +100,6 @@ def baseline():
         "burst50_runs_per_s": med(["wakeBurst50", "runsCompletedPerSec"]),
     }
 
-
-# (label, omniget metric, paperclip key, lower is better)
 COMPARE = [
     ("create company (ms)", "bn13-http.create_company_ms", "create_company_ms", True),
     ("hire agent p50 (ms)", "bn13-http.create_agent_p50_ms", "create_agent_p50_ms", True),
@@ -143,7 +138,6 @@ GATES = [
     ("export → import keeps the org chart", "bn13.roundtrip_org_chart_ok", lambda v: v == 1),
     ("search 10k issues p95 ≤ 25 ms", "bn13.search_10k_p95_ms", lambda v: v <= 25),
 ]
-
 
 def main():
     ap = argparse.ArgumentParser()
@@ -204,7 +198,6 @@ def main():
         pathlib.Path(a.out).write_text(json.dumps(summary, indent=2, ensure_ascii=False) + "\n")
     print(f"\n{out_dir / 'summary.json'} — all_pass={summary['all_pass']}")
     sys.exit(0 if summary["all_pass"] else 1)
-
 
 if __name__ == "__main__":
     main()

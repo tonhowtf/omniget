@@ -1,9 +1,4 @@
 <script lang="ts">
-  /**
-   * /llm/memory: every memory scope of the person — the profile shared by
-   * their personal bots, each bot's private notes, each room's shared
-   * memory — with history, export/import and what "forget" reaches.
-   */
   import { onMount } from "svelte";
   import { t } from "$lib/i18n";
   import { getAgent, loadRoster } from "$lib/stores/llm-store.svelte";

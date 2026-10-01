@@ -86,7 +86,6 @@
     ];
   }
 
-  // Builds the one-line-per-player summary that gets posted to champ select.
   function buildChatSummary(): string {
     const parts: string[] = [];
     for (const p of scoutPlayers.filter((x) => !x.isAlly)) {

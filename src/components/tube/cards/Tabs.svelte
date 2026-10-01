@@ -1,6 +1,4 @@
 <script lang="ts">
-  // Underline tabs with a sliding indicator (21st 24930 / 24956). Arrow keys
-  // move between tabs.
   export type TabDef = { id: string; label: string };
 
   let {

@@ -1,11 +1,6 @@
-// Workspace sidebar helpers (study 100 §A): sidebar order with groups and
-// folders, fixed jump numbers, the ⌘⌘-number jump mode, the mini sidebar
-// toggle, custom icons (emoji or image file) and "Open in IDE".
-
 import { invoke } from '@tauri-apps/api/core';
 import type { WorkspaceSummary } from './palette/workspaces.svelte';
 
-/** Runtime and extra fields the backend adds to a workspace summary. */
 interface WorkspaceExtra {
   ide?: string;
   jumpNumber?: number | null;
@@ -19,18 +14,10 @@ interface WorkspaceExtra {
 export type Ws = WorkspaceSummary & WorkspaceExtra;
 
 interface WsSection {
-  /** Divider label (Maestri "Group"); '' for workspaces outside any group. */
   group: string;
-  /** Items in sidebar order: plain rows and folders (Maestri "Folder"). */
   items: Array<{ kind: 'ws'; ws: Ws } | { kind: 'folder'; name: string; key: string; list: Ws[] }>;
 }
 
-/**
- * Sidebar layout: workspaces without a group first, then one section per
- * group in the order its first member appears; inside, folders sit where
- * their first member is. The flat order (what ⌘↑/⌘↓ and ⌃N follow) is the
- * visual order.
- */
 export function layoutWorkspaces(list: WorkspaceSummary[]): { sections: WsSection[]; flat: Ws[] } {
   const groups = new Map<string, Ws[]>();
   for (const w of list as Ws[]) {
@@ -68,10 +55,6 @@ export function layoutWorkspaces(list: WorkspaceSummary[]): { sections: WsSectio
   return { sections, flat };
 }
 
-/**
- * Jump number → workspace: fixed `jumpNumber`s first, then the others by
- * sidebar position on the numbers still free (Maestri "number" setting).
- */
 export function jumpTargets(flat: Ws[]): Map<number, Ws> {
   const out = new Map<number, Ws>();
   for (const w of flat) {
@@ -91,13 +74,10 @@ export function numberOf(targets: Map<number, Ws>, id: string): number | undefin
   return undefined;
 }
 
-// ---- icons -----------------------------------------------------------
-
 type WsIcon = { kind: 'text'; text: string } | { kind: 'image'; revision: string };
 
 const EMOJI = /\p{Extended_Pictographic}/u;
 
-/** How to draw a workspace icon: letters, an emoji, or an image file. */
 export function iconOf(w: Ws): WsIcon {
   const raw = (w.icon ?? '').trim();
   if (raw.startsWith('file:') || /^\/.+\.(png|jpe?g|gif|webp|svg|ico)$/i.test(raw)) {
@@ -113,7 +93,6 @@ class IconCache {
   urls = $state<Record<string, string>>({});
   private loading = new Set<string>();
 
-  /** Data URL of an image icon, loaded once per revision. */
   url(w: Ws): string | undefined {
     const key = `${w.id}@${w.iconRevision ?? ''}`;
     const hit = this.urls[key];
@@ -130,16 +109,11 @@ class IconCache {
 
 export const wsIcons = new IconCache();
 
-// ---- mini sidebar, jump mode --------------------------------------------
-
 const MINI_KEY = 'omniget.canvas.miniSidebar';
 
 class SidebarUi {
-  /** Closed sidebar shows the mini rail of icons (View → Toggle Mini Sidebar). */
   mini = $state(read(MINI_KEY) !== '0');
-  /** ⌘ tapped twice: the next digit jumps and the icons show their numbers. */
   jumpArmed = $state(false);
-  /** Last sidebar announcement for screen readers (Alt+arrows reorder). */
   announce = $state('');
 
   toggleMini(): void {
@@ -147,7 +121,6 @@ class SidebarUi {
     try {
       localStorage.setItem(MINI_KEY, this.mini ? '1' : '0');
     } catch {
-      // Private mode.
     }
   }
 }
@@ -161,8 +134,6 @@ function read(key: string): string | null {
 }
 
 export const sidebarUi = new SidebarUi();
-
-// ---- IDE -------------------------------------------------------------------
 
 export const IDE_LABELS: Record<string, string> = {
   vscode: 'VS Code',
@@ -179,12 +150,10 @@ export const IDE_LABELS: Record<string, string> = {
   sublime: 'Sublime Text',
 };
 
-/** Opens the workspace folder in its editor (remembered per workspace). */
 export async function openInIde(workspaceId: string, ide?: string): Promise<{ ide: string; path: string }> {
   return invoke('canvas_workspace_open_ide', { workspaceId, ide: ide ?? null });
 }
 
-/** Editors found on this machine. */
 export async function installedIdes(): Promise<string[]> {
   try {
     return await invoke<string[]>('canvas_ides');
@@ -193,7 +162,6 @@ export async function installedIdes(): Promise<string[]> {
   }
 }
 
-/** Status of CLAUDE.md / AGENTS.md / GEMINI.md, optionally making one win. */
 export async function agentFiles(
   workspaceId: string,
   resolve?: string,

@@ -1,7 +1,3 @@
-// Turning paths into canvas nodes (study 95 §K, 03 §2): opening a file from a
-// tree puts an editor node beside it; dropping things on the canvas makes a
-// note (.md/.markdown/.txt, external), a file tree (folder) or a file node.
-
 import type { CanvasEngine } from '../engine.svelte';
 import { nearestFreeSpot } from '../interaction/snap';
 import { stackIdOf, isNoteFile } from '../notes/api';
@@ -21,13 +17,11 @@ function tabsOf(n: CanvasNode): string[] {
   return cur && !list.includes(cur) ? [...list, cur] : list;
 }
 
-/** Editor node already showing `abs` (active or in a tab), if any. */
 export function findEditor(engine: CanvasEngine, abs: string): CanvasNode | undefined {
   const eds = engine.store.nodes.filter((n) => n.kind === 'file' && n.data.view === 'editor');
   return eds.find((n) => n.data.path === abs) ?? eds.find((n) => tabsOf(n).includes(abs));
 }
 
-/** Makes `abs` the active tab of editor `ed` (adding the tab when new). */
 export function showInEditor(engine: CanvasEngine, ed: CanvasNode, abs: string, line?: number): void {
   const tabs = tabsOf(ed);
   const data: Record<string, unknown> = {
@@ -43,11 +37,6 @@ export function showInEditor(engine: CanvasEngine, ed: CanvasNode, abs: string, 
   engine.updateNode(ed.id, { title: baseName(abs), data });
 }
 
-/**
- * Opens (or reveals) `rel` inside `root`. Opened from a file tree, the file
- * becomes a tab of that tree's editor (Maestri's editor tabs); the first file
- * puts an editor node beside `anchor`.
- */
 export function openEditorBeside(engine: CanvasEngine, anchor: CanvasNode | null, root: string, rel: string, line?: number): CanvasNode {
   const abs = joinPath(root, rel);
   const existing = findEditor(engine, abs);
@@ -76,7 +65,6 @@ export function openEditorBeside(engine: CanvasEngine, anchor: CanvasNode | null
   const spot = nearestFreeSpot(want.x, want.y, w, h, onFloor(engine));
   const data: FileEditorData & { treeId?: string } = { path: abs, displayName: baseName(rel), view: 'editor', rootPath: root, tabs: [abs] };
   if (anchor?.kind === 'filetree') data.treeId = anchor.id;
-  // A remote tree's editor reads and writes over there too.
   if (anchor && anchor.data.environment != null) data.environment = anchor.data.environment;
   if (line) data.line = line;
   if (IMAGE_RE.test(rel)) data.isImage = true;
@@ -90,10 +78,6 @@ export function openEditorBeside(engine: CanvasEngine, anchor: CanvasNode | null
   return node;
 }
 
-/**
- * Node for a dropped path at world point `at`: folder → file tree, note file
- * → external note, anything else → file node (image/video preview).
- */
 export function nodeForPath(engine: CanvasEngine, abs: string, isDir: boolean, at: { x: number; y: number }, root?: string): CanvasNode {
   const name = baseName(abs);
   if (isDir) {

@@ -1,6 +1,4 @@
 <script lang="ts">
-  // Um cartão da grade de ferramentas: estado, versão instalada × mais nova,
-  // dono provado e as ações (o comando aparece antes, no painel de plano).
   import { t } from "$lib/i18n";
   import type { Latest, ToolRow } from "$lib/central/clitools";
   import type { ToolUpdate } from "./config-health";

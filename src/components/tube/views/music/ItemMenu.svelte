@@ -1,5 +1,4 @@
 <script lang="ts">
-  // ⋮ menu of songs, albums, playlists and artists (YT Music order).
   import { onMount, tick } from "svelte";
   import { t } from "$lib/i18n";
   import * as api from "$lib/tube/api";

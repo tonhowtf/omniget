@@ -5,12 +5,6 @@
   import RiskBadge from "./ui/RiskBadge.svelte";
   import PrivacyCode from "./PrivacyCode.svelte";
 
-  /// One privacy setting: tick box, name, the state read from the system
-  /// (applied / not applied / unknown), the recommendation, and on demand
-  /// the explanation and, for "code only" items, the code to copy. Ported
-  /// from "Switch in Frame" (sean0205, 21st.dev): hairline rows inside one
-  /// frame with the control trailing; the switch became a state pill plus a
-  /// leading tick box, since applying goes through a reviewed plan.
   let {
     item,
     selected = false,

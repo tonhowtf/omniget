@@ -1,13 +1,5 @@
 <script lang="ts">
   import { agentActions } from "$lib/native-agent/actions";
-  /**
-   * Left rail: switch between the agent roster and saved direct conversations.
-   * Rooms remain in the roster view and the footer keeps the local profile.
-   *
-   * The list is windowed on fixed row heights (header 28px, item 56px) with no
-   * measuring pass: every row here has a known height, so the visible range is
-   * arithmetic and 50 agents cost the same as 5. No observer, no timer.
-   */
   import { onMount } from "svelte";
   import { t } from "$lib/i18n";
   import type { AgentDef, Conversation, Room } from "$lib/llm/types";
@@ -51,12 +43,10 @@
   let scrollTop = $state(0);
   let viewportHeight = $state(480);
   let query = $state("");
-  // History first: the agent picker also lives in the chat header.
   let view = $state<"agents" | "chats">("chats");
 
   let conversations = $derived(getConversations());
   let active = $derived(getActiveConversation());
-  // A room's answerer is not "the selected agent": only a direct chat highlights one.
   let activeAgentId = $derived(active && active.kind !== "group" ? active.agentId : null);
   let activeRoomId = $derived(active?.kind === "group" ? active.id : null);
   let rooms = $derived(getRooms());
@@ -69,7 +59,6 @@
       : agents,
   );
 
-  /** Agents with at least one conversation are "in the team"; the rest are unassigned. */
   let rows = $derived.by<Row[]>(() => {
     if (view === "chats") {
       const q = query.trim().toLocaleLowerCase();
@@ -151,7 +140,6 @@
   }
 
   onMount(() => {
-    // One read on mount and one per window resize: no ResizeObserver loop.
     const measure = () => {
       if (viewport) viewportHeight = viewport.clientHeight;
     };

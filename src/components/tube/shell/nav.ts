@@ -1,15 +1,11 @@
-// Guide entries of both faces. `root` entries reset the face's stack.
 import type { Route } from "$lib/tube/ui.svelte";
 
 export type NavEntry = {
   id: string;
-  /** i18n key */
   label: string;
   icon: string;
-  /** Filled variant for the active entry, when TIcon has one. */
   iconOn?: string;
   route?: Route;
-  /** App route outside /youtube (Downloads). */
   href?: string;
   root?: boolean;
 };
@@ -40,7 +36,6 @@ export const FOOT: NavEntry[] = [
   { id: "import", label: "tube.shell.import", icon: "import", route: { name: "import" } },
 ];
 
-/** Which entry is lit for the current route. */
 export function activeId(r: Route): string {
   switch (r.name) {
     case "playlist":

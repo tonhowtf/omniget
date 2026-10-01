@@ -1,10 +1,5 @@
-// Reactive per-terminal facts the node chrome shows (title, agent state,
-// progress, LOD). Cells never go through here: only values that change a few
-// times per second at most, and only when they actually change.
-
 export type TermLod = 'text' | 'mini' | 'card';
 
-/** Canonical agent states, in wire order (AGENT.state). */
 const AGENT_STATES = [
   'idle',
   'thinking',
@@ -25,7 +20,6 @@ export function agentStateFromWire(n: number): AgentStateName {
   return AGENT_STATES[n] ?? 'unknown';
 }
 
-/** Accepts the Rust enum spelled any common way (`WaitingPeer`, `waiting_peer`, `waitingPeer`). */
 export function agentStateFromName(s: string | null | undefined): AgentStateName {
   if (!s) return 'unknown';
   const snake = s
@@ -43,16 +37,13 @@ class TermLive {
   agentSource = $state('');
   agentSince = $state(0);
   agentMessage = $state('');
-  /** 0..100, -1 indeterminate, null none. */
   progress = $state<number | null>(null);
   altScreen = $state(false);
   displayOffset = $state(0);
   historyLen = $state(0);
   hasSelection = $state(false);
   exited = $state<{ code: number | null; signal: string | null } | null>(null);
-  /** Last error from the terminal commands (open, resize, ...). */
   error = $state('');
-  /** Modes bitset (plain field: read by input on each key, never rendered). */
   modes = 0;
 }
 

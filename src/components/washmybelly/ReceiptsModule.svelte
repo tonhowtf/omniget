@@ -13,8 +13,6 @@
   import Icon from "./ui/Icon.svelte";
   import ReceiptRow from "./ReceiptRow.svelte";
 
-  /// History: every executed plan, newest first, grouped by day. Each
-  /// receipt opens to show what happened per item and can be restored.
   let _props: { caps: Caps } = $props();
 
   const mod = moduleById("receipts");

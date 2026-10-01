@@ -1,6 +1,4 @@
 <script lang="ts">
-  // Playlist being played, above "Up next": a tonal box with the title,
-  // owner, "3 / 42" and a scrollable list that keeps the current video in view.
   import { t } from "$lib/i18n";
   import type { WatchPlaylist } from "$lib/tube/types";
   import TIcon from "../TIcon.svelte";

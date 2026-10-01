@@ -1,5 +1,4 @@
 <script lang="ts">
-  /** New issue form (`issue.create`). Title is the only required field. */
   import { untrack } from "svelte";
   import { t } from "$lib/i18n";
   import { rpc, errorText, type Issue, type Label, type Project, type Staff } from "$lib/company/rpc";
@@ -29,7 +28,6 @@
 
   let title = $state("");
   let body = $state("");
-  /** "" = nobody, "me" = the owner, else a staff id. */
   let assignee = $state("");
   let priority = $state("medium");
   let project = $state(untrack(() => projectId) ?? "");

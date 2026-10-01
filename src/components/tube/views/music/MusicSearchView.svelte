@@ -1,6 +1,4 @@
 <script lang="ts">
-  // Music search: filter chips, "Top result" card on the left with the first
-  // songs beside it (YT Music layout), then one shelf per type.
   import { t } from "$lib/i18n";
   import * as api from "$lib/tube/api";
   import type { MusicSearchFilter } from "$lib/tube/api";
@@ -37,7 +35,6 @@
   let more = $state(false);
   let seq = 0;
 
-  // The parser turns musicCardShelfRenderer into the first shelf ("top_result").
   let topShelf = $derived.by<Shelf | null>(() => {
     if (!page || filter !== "all" || !page.shelves.length) return null;
     const s = page.shelves[0];
@@ -74,7 +71,6 @@
     try {
       const res = await api.continuation("music_search", token);
       if (page && page.continuation === token) {
-        // Filtered searches continue the single result shelf.
         if (page.shelves.length === 1 && res.shelves.length >= 1) {
           for (const s of res.shelves) page.shelves[0].items.push(...s.items);
         } else page.shelves.push(...res.shelves);

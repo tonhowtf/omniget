@@ -1,13 +1,4 @@
 <script lang="ts">
-  /**
-   * Provider + model picker.
-   *
-   * Providers come from the AI-keys table (`tool_keys_kinds`) and the keys the
-   * user already saved (`tool_keys_list`); the model list is only fetched when
-   * the user clicks Load, never on mount — `llm_models_list` hits the provider.
-   * The model id also stays editable when a provider is offline or returns
-   * no models. Empty results and failures are reported separately.
-   */
   import { onMount, untrack } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "$lib/i18n";
@@ -35,8 +26,6 @@
 
   let kinds = $state<Kind[]>([]);
   let saved = $state<KeyView[]>([]);
-  // Seeded once: after mount the two fields are the source of truth and every
-  // change is pushed back through `onchange`.
   let provider = $state(untrack(() => value?.provider ?? ""));
   let model = $state(untrack(() => value?.model ?? ""));
   let models = $state<string[]>([]);

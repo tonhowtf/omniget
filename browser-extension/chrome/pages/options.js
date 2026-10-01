@@ -19,15 +19,6 @@ import {
   saveCaptureRules,
 } from "../src/capture-store.js";
 
-// ---------------------------------------------------------------------------
-// Pure helpers for the capture-rules tables.
-//
-// They live at the top of this module, outside the DOM wiring below, so
-// tests/capture-rules-ui.test.mjs can import them under `node --test` where
-// there is no document. The rule logic itself belongs to src/capture-rules.js
-// and is only ever called from here, never re-implemented.
-// ---------------------------------------------------------------------------
-
 const SIZE_UNITS = Object.freeze([
   Object.freeze({ label: "GB", bytes: 1024 * 1024 * 1024 }),
   Object.freeze({ label: "MB", bytes: 1024 * 1024 }),
@@ -45,13 +36,6 @@ const SIZE_PHRASES = Object.freeze({
 
 export const SIZE_RULE_HELP = "Not a size rule — try \">=50 KB\", \"<1 GB\" or \"500-1000 MB\".";
 
-/**
- * Render a byte count in the largest unit it actually reaches, with at most
- * two decimals and no trailing zeros. Base 1024, exactly like parseSizeRule,
- * so "1000 MB" is never rounded up into a "1 GB" the rule does not mean.
- * @param {number} bytes
- * @returns {string}
- */
 export function formatRuleBytes(bytes) {
   if (typeof bytes !== "number" || !Number.isFinite(bytes) || bytes < 0) return "";
   for (const unit of SIZE_UNITS) {
@@ -61,20 +45,10 @@ export function formatRuleBytes(bytes) {
   return `${trimNumber(bytes)} ${bytes === 1 ? "byte" : "bytes"}`;
 }
 
-/**
- * @param {number} value
- * @returns {string} the number with at most two decimals and no trailing zeros
- */
 function trimNumber(value) {
   return String(Number(value.toFixed(2)));
 }
 
-/**
- * Say in plain English what a size rule means, for the live hint next to the
- * field. An empty field is not an error: it means "no size limit".
- * @param {string|number|null|undefined} input
- * @returns {{state: "empty"|"ok"|"invalid", text: string}}
- */
 export function describeSizeRule(input) {
   const text = input === null || input === undefined ? "" : String(input).trim();
   if (text === "") return { state: "empty", text: "No size limit" };
@@ -94,23 +68,12 @@ export function describeSizeRule(input) {
   return { state: "ok", text: phrase(formatRuleBytes(rule.size)) };
 }
 
-/**
- * Keep a size the user typed only when it parses. A half-typed rule is stored
- * as "no limit" rather than as garbage the sniffer would have to guess about.
- * @param {any} size
- * @returns {string|null}
- */
 function keepSize(size) {
   const text = typeof size === "string" ? size.trim() : "";
   if (text === "") return null;
   return parseSizeRule(text) === null ? null : text;
 }
 
-/**
- * @param {any} rows
- * @param {"ext"|"type"} key
- * @returns {Array<object>} rows with a non-empty key field
- */
 function cleanKeyedRows(rows, key) {
   if (!Array.isArray(rows)) return [];
   const out = [];
@@ -123,10 +86,6 @@ function cleanKeyedRows(rows, key) {
   return out;
 }
 
-/**
- * @param {any} rows
- * @returns {Array<object>} regex rows with a non-empty pattern
- */
 function cleanRegexRows(rows) {
   if (!Array.isArray(rows)) return [];
   const out = [];
@@ -146,13 +105,6 @@ function cleanRegexRows(rows) {
   return out;
 }
 
-/**
- * Build the canonical rule object out of the three tables as the user left
- * them. Blank rows are dropped and every key goes through normalizeUserRules,
- * so a typed "MP4" is stored as ".mp4" and "Video/MP4" as "video/mp4".
- * @param {{extensions?: Array, contentTypes?: Array, regex?: Array}} draft
- * @returns {{extensions: Array<object>, contentTypes: Array<object>, regex: Array<object>}}
- */
 export function buildCaptureRules(draft) {
   const source = draft && typeof draft === "object" ? draft : {};
   return normalizeUserRules({
@@ -162,14 +114,6 @@ export function buildCaptureRules(draft) {
   });
 }
 
-/**
- * Normalise a single extension or content type the way the store would, so
- * the field can be tidied when the user leaves it. Text that cannot be
- * normalised is handed back untouched: the row is flagged, not silently eaten.
- * @param {"ext"|"type"} kind
- * @param {string} value
- * @returns {string}
- */
 export function normalizeRuleKey(kind, value) {
   const text = typeof value === "string" ? value.trim() : "";
   if (text === "") return "";
@@ -179,14 +123,6 @@ export function normalizeRuleKey(kind, value) {
   return normalized.length > 0 ? normalized[0][field] : text;
 }
 
-/**
- * Describe what applyRegexRules would do with a URL, for the test field under
- * the regex table. Rules are numbered by their row, so the answer points at
- * the line the user has to fix.
- * @param {string} url
- * @param {Array<object>} rules regex rows as edited in the UI
- * @returns {{state: "empty"|"blocked"|"accepted"|"no-match", text: string, url: string}}
- */
 export function describeRegexTest(url, rules) {
   const text = typeof url === "string" ? url.trim() : "";
   if (text === "") return { state: "empty", text: "", url: "" };
@@ -215,11 +151,6 @@ export function describeRegexTest(url, rules) {
   return { state: "accepted", text: `${label} matches — captured as ${result.url}${savedAs}`, url: result.url };
 }
 
-// ---------------------------------------------------------------------------
-// Page wiring. Everything below touches the DOM, so it only runs in the
-// browser; under `node --test` this module is imported for the helpers above.
-// ---------------------------------------------------------------------------
-
 if (typeof document !== "undefined") {
   const endpointInput = document.getElementById("endpoint");
   const tokenInput = document.getElementById("token");
@@ -235,9 +166,6 @@ if (typeof document !== "undefined") {
   const endpointHint = document.getElementById("endpoint-hint");
   const advancedDetails = document.getElementById("advanced");
 
-  // The extension backup page ships only in the Chrome build: it reads
-  // chrome.management, an optional permission the Firefox manifest does not
-  // offer. This page is shared, so it drops the link where it cannot work.
   const extensionBackup = document.getElementById("extension-backup");
   const optionalPermissions = globalThis.chrome?.runtime?.getManifest?.().optional_permissions ?? [];
   if (extensionBackup && !optionalPermissions.includes("management")) extensionBackup.remove();
@@ -262,11 +190,6 @@ if (typeof document !== "undefined") {
     discoveryMessage.textContent = message;
   }
 
-  // --- Auto-pairing -----------------------------------------------------------
-  // The desktop app opens a single-use ~120s pairing window when the user
-  // clicks "Pair extension" in Settings. While this page is visible we poll
-  // `GET /v1/pair` every 5 seconds so pairing completes within seconds of that
-  // click (the background service worker only retries once per minute).
   const AUTOPAIR_POLL_MS = 5000;
   let pairPollTimer = null;
 
@@ -321,16 +244,11 @@ if (typeof document !== "undefined") {
     const { endpoint, token } = await loadBridgeConfig();
     const alreadyPaired = Boolean(token);
 
-    // While unpaired, keep trying to grab the token automatically: once
-    // immediately (the user may already have a pairing window open in the
-    // app) and then every few seconds while this page stays visible.
     if (!alreadyPaired) {
       void tryAutoPair();
       if (!document.hidden) startPairPolling();
     }
 
-    // Show the welcome heading on first run, the regular settings heading
-    // once the user is already paired (they're here to inspect / change).
     if (alreadyPaired) {
       settingsHeader.hidden = false;
     } else {
@@ -340,9 +258,6 @@ if (typeof document !== "undefined") {
     endpointInput.value = endpoint || "";
     tokenInput.value = token || "";
 
-    // Skip auto-discovery if the user is already paired AND we have a stored
-    // endpoint that responds — they're probably here to change the token, no
-    // need to overwrite the URL they trust.
     if (alreadyPaired) {
       const result = await checkBridgeHealth(endpoint);
       if (result.ok) {
@@ -369,8 +284,6 @@ if (typeof document !== "undefined") {
       return;
     }
 
-    // Discovery failed: open the Advanced disclosure so the user can supply
-    // the endpoint manually.
     if (advancedDetails) advancedDetails.open = true;
     setDiscovery(
       "missing",
@@ -427,12 +340,6 @@ if (typeof document !== "undefined") {
 
   init();
 
-  // --- Capture rules --------------------------------------------------------
-  // Three editable tables (extensions, content types, regex) over the same
-  // rule objects the sniffer reads. Edits save themselves after a short pause
-  // instead of behind a Save button: every field here is independent, and a
-  // half-finished table left unsaved is worse than one saved a beat late. A
-  // row whose size rule does not parse holds the save back until it is fixed.
   const captureDetails = document.getElementById("capture-rules");
   const extBody = document.getElementById("ext-rows");
   const typeBody = document.getElementById("type-rows");
@@ -499,8 +406,6 @@ if (typeof document !== "undefined") {
     return td;
   }
 
-  // A size cell carries its own live translation: ">=50 KB" reads back as
-  // "at least 50 KB", and anything parseSizeRule rejects marks the row.
   function sizeCell(tr) {
     const wrap = document.createElement("div");
     wrap.className = "rule-stack";
@@ -524,8 +429,6 @@ if (typeof document !== "undefined") {
     return { wrap, input, refresh };
   }
 
-  // Extension and content-type rows differ only in their key field, so they
-  // share one builder.
   function keyedRow(kind, rule) {
     const tr = document.createElement("tr");
     const field = kind === "ext" ? "ext" : "type";
@@ -566,11 +469,6 @@ if (typeof document !== "undefined") {
     return tr;
   }
 
-  /**
-   * True when the text is already in the shape the store keeps (".mp4",
-   * "video/mp4"), which is how an unusable key ("foo bar") is told apart from
-   * one that simply needs no tidying.
-   */
   function isNormalizedKey(kind, text) {
     const bucket = kind === "ext" ? "extensions" : "contentTypes";
     return normalizeUserRules({ [bucket]: [kind === "ext" ? { ext: text } : { type: text }] })[bucket].length > 0;
@@ -600,8 +498,6 @@ if (typeof document !== "undefined") {
     }
     action.value = rule?.action === "block" ? "block" : "accept";
 
-    // Compile on every keystroke: an unfinished pattern must never throw its
-    // way out of here, and the message from the engine is the useful one.
     function refresh() {
       const text = pattern.value.trim();
       const [compiled] = compileRegexRules([{ pattern: text, flags: flags.value, enabled: true }]);
@@ -715,8 +611,6 @@ if (typeof document !== "undefined") {
     if (input) input.focus();
   }
 
-  // "Restore defaults" confirms in place: the button asks, the second click
-  // inside a few seconds does it. No confirm() dialog on an options page.
   function armReset() {
     if (!resetRulesBtn) return;
     resetRulesBtn.textContent = "Are you sure?";
@@ -768,8 +662,6 @@ if (typeof document !== "undefined") {
 
   regexTestInput?.addEventListener("input", refreshRegexTest);
 
-  // The tables are advanced settings: build them the first time the section is
-  // opened, not on every visit to the pairing page.
   if (captureDetails) {
     captureDetails.addEventListener("toggle", async () => {
       if (!captureDetails.open || rulesLoaded) return;

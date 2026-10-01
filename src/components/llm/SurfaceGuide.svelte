@@ -1,10 +1,7 @@
 <script lang="ts">
   import { t } from "$lib/i18n";
-  // `collapsed`: the page already has its one-line introduction, so the longer
-  // orientation waits behind a disclosure. Risk notices never go in here.
   let { text, steps = [], href = "/help", label, collapsed = false }: { text: string; steps?: string[]; href?: string; label?: string; collapsed?: boolean } = $props();
 </script>
-<!-- Original Svelte composition informed by 21st Agent Plan (2127) and Sidebar 1 (19371). -->
 {#snippet body()}
   <div><p>{text}</p>{#if steps.length}<ol>{#each steps as step}<li>{step}</li>{/each}</ol>{/if}</div>
   <a href={href}>{label ?? $t("llm.surface.help")}<svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="m9 5 7 7-7 7"/></svg></a>

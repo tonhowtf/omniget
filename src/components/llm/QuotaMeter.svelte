@@ -1,29 +1,13 @@
 <script lang="ts">
-  /**
-   * Quota as energy (plan §9.1/§9.2): one bar per account or budget, the time
-   * left until the window flips, and an optional projection line.
-   *
-   * Shared component — the Observatory, the agent rail, the Accounts tab and
-   * the world HUD all mount this same file. It owns no store and makes no
-   * call: every number arrives as a prop, so it works the same in a panel and
-   * inside the canvas overlay. Severity is carried by the fill **and** by a
-   * glyph plus the percentage text, never by colour alone.
-   */
   import { t } from "$lib/i18n";
   import { guardianBand, type GuardianBand } from "$lib/stores/llm-telemetry-store.svelte";
 
   interface Props {
-    /** Account or budget name, already human ("Claude Max · pessoal"). */
     label: string;
-    /** 0..1 of the window/budget already spent. */
     used: number;
-    /** Epoch ms of the next window flip. */
     resetsAt?: number;
-    /** Pre-rendered projection ("acaba em 2 h no ritmo atual"). */
     projection?: string;
-    /** True for the candidate the router is using right now. */
     active?: boolean;
-    /** Smaller variant for the rail and the HUD. */
     compact?: boolean;
   }
 
@@ -35,7 +19,6 @@
 
   const GLYPH: Record<GuardianBand, string> = { ok: "●", warn: "▲", critical: "■" };
 
-  /** "3 h 12 min" from now to the flip; empty when there is no flip to show. */
   let resetIn = $derived.by(() => {
     if (!resetsAt) return "";
     const ms = resetsAt - Date.now();
@@ -114,8 +97,6 @@
   .track {
     height: 6px;
     border-radius: var(--radius-full);
-    /* Unfilled track: a lighter step of the same ramp, so the state reads
-       across the whole bar instead of only where the fill stops. */
     background: color-mix(in srgb, var(--meter) 18%, var(--surface-hi));
     overflow: hidden;
   }

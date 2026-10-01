@@ -6,8 +6,6 @@
   import WorkspaceAppearance from "./WorkspaceAppearance.svelte";
   import { getSettings, saveSettings as updateSettings, MORE_THEMES } from "./settings-helpers";
 
-  // One theme authority: mode (System/Light/Dark) and style (OmniGet, the workspace
-  // presets and the named themes under "More themes") both live in AppSettings.appearance.
   const OMNIGET_PRESET = "omniget-desktop";
   const MODES = [
     { id: "system", labelKey: "settings.rebrand.appearance.system" },
@@ -40,7 +38,6 @@
     const select = e.target as HTMLSelectElement;
     const next = select.value;
     void updateSettings({ appearance: { preset: next } }).then((saved) => {
-      // A rejected change must not leave the select showing an unsaved value.
       if (!saved) select.value = getSettings()?.appearance?.preset ?? OMNIGET_PRESET;
     });
   }

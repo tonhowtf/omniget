@@ -1,9 +1,4 @@
 <script lang="ts">
-  /**
-   * "What it knows about you": the memories this bot reads in a direct
-   * conversation — your profile (shared by your personal bots) and its own
-   * private notes — grouped by kind, each with where it came from.
-   */
   import { t } from "$lib/i18n";
   import MemoryScopeSection from "./MemoryScopeSection.svelte";
   import MemoryReach from "./MemoryReach.svelte";

@@ -1,6 +1,3 @@
-// What the open reader shows right now; read by ReadHost for agents and by
-// the reader panels.
-
 export const reader = $state({
   kind: "" as "" | "ebook" | "comic",
   title: "",
@@ -8,7 +5,6 @@ export const reader = $state({
   progress: 0,
   chapter: "",
   selection: "",
-  /** Where opening a book got to (fetch, parse, render, ready) or the error. */
   stage: "",
 });
 

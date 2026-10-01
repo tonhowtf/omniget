@@ -1,8 +1,3 @@
-// Chat hits for the Batuta (Maestri CL 0.47.2): the palette searches inside
-// every thread of every terminal, in every workspace and floor. Picking a hit
-// goes there, turns the chat face on at the right thread and centers the
-// message with the term marked.
-
 import type { CanvasEngine } from '../engine.svelte';
 import { THREADS, chatSearch, type ChatSearchHit } from '../chat/client';
 import { chats } from '../chat/store.svelte';

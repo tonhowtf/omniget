@@ -1,19 +1,12 @@
-// Modelo do DiffViewer: parser de patch unificado (feito aqui, sem lib),
-// linhas numeradas, pareamento para a vista dividida, dobra de contexto e o
-// mini hunk de um comentário de revisão.
-
 import type { ReviewComment } from "$lib/central/vcs";
 
 type LineKind = "ctx" | "add" | "del";
 
 export type DiffLine = {
   kind: LineKind;
-  /** Número na versão antiga (ctx/del). */
   old: number | null;
-  /** Número na versão nova (ctx/add). */
   new: number | null;
   text: string;
-  /** "\ No newline at end of file" veio logo depois. */
   noEol: boolean;
 };
 
@@ -23,7 +16,6 @@ export type Hunk = {
   oldLines: number;
   newStart: number;
   newLines: number;
-  /** Texto depois do segundo @@ (nome de função, quando o git dá). */
   section: string;
   lines: DiffLine[];
 };
@@ -31,7 +23,6 @@ export type Hunk = {
 export type ParsedPatch = {
   hunks: Hunk[];
   binary: boolean;
-  /** Linhas de cabeçalho (mode, rename, index…). */
   meta: string[];
 };
 
@@ -82,8 +73,6 @@ export function parsePatch(patch: string): ParsedPatch {
   return out;
 }
 
-// ---- linhas renderizáveis ----
-
 export type Row =
   | { t: "file"; fileIndex: number }
   | { t: "gap"; fileIndex: number; hidden: number; before: boolean }
@@ -93,9 +82,7 @@ export type Row =
   | { t: "pair"; fileIndex: number; left: DiffLine | null; right: DiffLine | null; id: number }
   | { t: "note"; fileIndex: number; text: string };
 
-/** Contexto mantido de cada lado de um trecho dobrado. */
 const FOLD_KEEP = 3;
-/** Trechos de contexto maiores que isto dobram. */
 const FOLD_MIN = FOLD_KEEP * 2 + 4;
 
 type Block = { kind: "ctx"; lines: DiffLine[] } | { kind: "chg"; dels: DiffLine[]; adds: DiffLine[] };
@@ -121,11 +108,6 @@ function blocks(lines: DiffLine[]): Block[] {
   return out;
 }
 
-/**
- * Linhas de um arquivo para a vista `unified` ou `split`. `expanded` guarda as
- * chaves de dobras abertas. `idBase` numera as linhas de forma estável para a
- * seleção.
- */
 export function fileRows(
   fileIndex: number,
   parsed: ParsedPatch,
@@ -148,8 +130,6 @@ export function fileRows(
         const key = `${hi}:${bi}`;
         const first = bi === 0;
         const last = bi === bs.length - 1;
-        // Contexto de abertura mantém só o fim (perto da mudança), o de
-        // fechamento só o começo, o do meio as duas pontas.
         const keepHead = first && !last ? 0 : FOLD_KEEP;
         const keepTail = last && !first ? 0 : FOLD_KEEP;
         const hiddenCount = b.lines.length - keepHead - keepTail;
@@ -179,8 +159,6 @@ export function fileRows(
   return rows;
 }
 
-// ---- comentário de revisão ----
-
 export function languageOf(path: string): string {
   const name = path.split("/").pop() ?? path;
   const lower = name.toLowerCase();
@@ -204,13 +182,11 @@ function fence(content: string): string {
   return "`".repeat(longest + 1);
 }
 
-/** Cerca segura para embutir `content` num prompt. */
 export function fenced(content: string, language = ""): string {
   const f = fence(content);
   return `${f}${language}\n${content}\n${f}`;
 }
 
-/** Monta o `ReviewComment` de um conjunto de linhas selecionadas. */
 export function buildReviewComment(path: string, lines: DiffLine[], text: string): ReviewComment {
   const allDel = lines.every((l) => l.kind === "del");
   const allAdd = lines.every((l) => l.kind === "add");
@@ -229,7 +205,6 @@ export function buildReviewComment(path: string, lines: DiffLine[], text: string
   return { path, side, start, end, rangeLabel, diff: `${header}\n${body}`, text, language: languageOf(path) };
 }
 
-/** Texto pronto para colar no composer. */
 export function reviewCommentToPrompt(c: ReviewComment): string {
   const head = `${c.path} (${c.rangeLabel})`;
   const code = fenced(c.diff, "diff");

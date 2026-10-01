@@ -1,7 +1,4 @@
 <script lang="ts">
-  // Channel (spec §2.8): banner radius 16, avatar 160, name 36/700, handle ·
-  // subscribers · videos, one-line description that expands, Subscribe,
-  // animated tabs, sort chips on the video tabs, grid without avatars.
   import { untrack } from "svelte";
   import { t } from "$lib/i18n";
   import * as api from "$lib/tube/api";

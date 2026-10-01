@@ -1,12 +1,4 @@
 <script lang="ts">
-  /**
-   * Context Guardian: how much of the model's window the conversation holds.
-   *
-   * Two sources feed the same bar. Before the send it is the `ai_tokens.rs`
-   * heuristic (marked "estimated"); after the turn it is the provider's real
-   * `usage`. Three bands — under 70%, 70–90%, over 90% — each with its own
-   * glyph and its own sentence, so the state never rides on colour alone.
-   */
   import { t } from "$lib/i18n";
   import { contextRatio, guardianBand, type GuardianBand } from "$lib/stores/llm-telemetry-store.svelte";
 

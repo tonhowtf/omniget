@@ -1,9 +1,4 @@
 <script lang="ts">
-  /**
-   * Importar uma sessão exportada (JSON neutro do OmniGet). Destino Claude ou
-   * Codex grava uma sessão retomável com id novo; outro destino devolve o
-   * Markdown de contexto para colar na ferramenta.
-   */
   import { t } from "$lib/i18n";
   import { showToast } from "$lib/stores/toast-store.svelte";
   import Modal from "./Modal.svelte";

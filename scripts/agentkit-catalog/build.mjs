@@ -1,24 +1,4 @@
 #!/usr/bin/env node
-// Gerador do índice do Catálogo da Central (agentkit).
-//
-// Lê checkouts pinados das fontes (davila7/claude-code-templates + repos de
-// skills oficiais) e escreve static/agentkit/catalog-index.json.gz (o que o
-// app embute) e catalog-meta.json. O JSON puro vai para
-// scripts/agentkit-catalog/out/ (só inspeção, fora do git).
-// O conteúdo NÃO é copiado: o app baixa cada arquivo de
-// raw.githubusercontent.com/<repo>/<commit>/<path> e confere o sha256 do índice.
-//
-// Uso:
-//   node scripts/agentkit-catalog/build.mjs [--latest] [--src <dir>] [--commit <sha>]
-//        [--work <dir>] [--out <dir>] [--no-network] [--only-cct]
-//
-//   --latest   resolve o commit mais novo de cada fonte (git ls-remote) e
-//              regrava pins.json; sem ele usa os commits de pins.json.
-//   --src      checkout já pronto do claude-code-templates.
-//   --work     pasta dos clones rasos (padrão: <tmp>/omniget-agentkit-catalog).
-//
-// Sem dependências npm: só builtins `node:`. A lógica de descoberta por
-// caminho é espelhada em Rust em omniget-core/src/core/catalog/scan.rs.
 
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
@@ -37,19 +17,12 @@ const CCT_URL = `https://github.com/${CCT_REPO}`;
 const DEFAULT_COMMIT = '590d437baf1e53d934a976bd8a06af54607ed7e1';
 const DESC_MAX = 300;
 
-/**
- * Repos de skills com licença por item. `roots`: pastas varridas atrás de
- * SKILL.md (`category` fixa ou, sem ela, a primeira pasta abaixo da raiz).
- * `license`: licença do repo, usada quando a skill não declara nenhuma.
- * `excludeNames`: skills fora do índice por licença (source-available).
- */
 const SKILL_SOURCES = [
   {
     id: 'anthropics/skills',
     name: 'Anthropic Agent Skills',
     repo: 'anthropics/skills',
     roots: [{ dir: 'skills', category: 'anthropic' }],
-    // README: "Many skills in this repo are open source (Apache 2.0)" menos os 4 de documento
     license: 'Apache-2.0',
     origin: 'claude',
     author: 'Anthropic',
@@ -74,7 +47,6 @@ const SKILL_SOURCES = [
     id: 'google/skills',
     name: 'Google Agent Skills',
     repo: 'google/skills',
-    // `plugins/` repete 5 skills de `skills/` dentro de um plugin; fica de fora
     roots: [{ dir: 'skills' }],
     license: 'Apache-2.0',
     origin: 'gemini',
@@ -98,12 +70,10 @@ const SKILL_SOURCES = [
     origin: 'claude',
     author: 'K-Dense Inc.',
     excludeNames: { docx: 'anthropic_proprietary_document_skill', pdf: 'anthropic_proprietary_document_skill', pptx: 'anthropic_proprietary_document_skill', xlsx: 'anthropic_proprietary_document_skill' },
-    // ex-K-Dense-AI/claude-scientific-skills (o GitHub redireciona)
     formerly: 'K-Dense-AI/claude-scientific-skills',
   },
 ];
 
-/** Fontes avaliadas e deixadas de fora (vão no meta, com o motivo). */
 const SKIPPED_SOURCES = [
   {
     repo: 'OpenRouterTeam/skills',
@@ -117,7 +87,6 @@ const SKIPPED_SOURCES = [
   },
 ];
 
-// ---------------------------------------------------------------- argumentos
 function args() {
   const a = process.argv.slice(2);
   const out = {
@@ -159,13 +128,11 @@ function readPins() {
   }
 }
 
-/** Clone raso de `repo` no `commit` (reaproveita a pasta se o HEAD já bate). */
 function checkout(repo, commit, dir) {
   let head = null;
   try {
     head = git(dir, 'rev-parse', 'HEAD');
   } catch {
-    /* sem clone */
   }
   if (head !== commit) {
     console.error(`[catalog] clonando ${repo}@${commit.slice(0, 7)} em ${dir}`);
@@ -180,7 +147,6 @@ function checkout(repo, commit, dir) {
   try {
     date = git(dir, 'log', '-1', '--format=%cI');
   } catch {
-    /* ok */
   }
   return { commit, date: date || new Date().toISOString() };
 }
@@ -195,7 +161,6 @@ function ensureCheckout(src, commit) {
     head = git(src, 'rev-parse', 'HEAD');
     date = git(src, 'log', '-1', '--format=%cI');
   } catch {
-    /* pasta sem .git: confia no --commit */
   }
   if (commit && head && head !== commit) return checkout(CCT_REPO, commit, src);
   const c = commit || head;
@@ -203,7 +168,6 @@ function ensureCheckout(src, commit) {
   return { commit: c, date: date || new Date().toISOString() };
 }
 
-// ---------------------------------------------------------------- utilidades
 const sha256 = (buf) => createHash('sha256').update(buf).digest('hex');
 const posix = (p) => p.split(path.sep).join('/');
 const SKIP_NAMES = new Set(['.git', '.DS_Store', 'node_modules', '__pycache__', 'Thumbs.db']);
@@ -238,7 +202,6 @@ function readJson(p) {
   try {
     return JSON.parse(t);
   } catch {
-    // vírgula sobrando
     return JSON.parse(t.replace(/,(\s*[}\]])/g, '$1'));
   }
 }
@@ -261,8 +224,6 @@ function listFiles(d) {
     .sort();
 }
 
-// ---------------------------------------------------------------- normalização
-/** Descrição curta: sem <example>/<commentary>, espaço colapsado, ≤ 300 chars. */
 export function shortDescription(raw, norm) {
   if (raw === null || raw === undefined) return '';
   let s = typeof raw === 'string' ? raw : JSON.stringify(raw);
@@ -286,7 +247,6 @@ export function shortDescription(raw, norm) {
   return s;
 }
 
-/** Descrição longa sem blocos <example>/<commentary> (vai no frontmatter do índice). */
 export function cleanDescription(raw) {
   if (typeof raw !== 'string') return raw;
   let s = raw.replace(/<example>[\s\S]*?<\/example>/gi, ' ').replace(/<commentary>[\s\S]*?<\/commentary>/gi, ' ');
@@ -294,7 +254,6 @@ export function cleanDescription(raw) {
   return s.replace(/\s*(Examples?( include)?|For example|e\.g\.|Specifically|Such as|Including|Use cases?)\s*:?\s*$/i, '').trim();
 }
 
-/** Primeiro parágrafo útil de um corpo Markdown (para sintetizar descrição). */
 export function descriptionFromBody(body) {
   const lines = body.split(/\r?\n/);
   let heading = null;
@@ -320,7 +279,6 @@ function humanize(name) {
 }
 
 const CLAUDE_MODEL_ALIASES = new Set(['sonnet', 'opus', 'haiku', 'inherit', 'default', 'opusplan']);
-/** Modelo válido para Claude Code: alias ou id datado `claude-...-YYYYMMDD`. */
 export function validClaudeModel(m) {
   if (typeof m !== 'string') return false;
   const v = m.trim();
@@ -346,10 +304,6 @@ function toolList(tools) {
 const isVsCodeTool = (t) =>
   COPILOT_TOOLS.has(t) || /^[a-z][\w.-]*\/[\w*]/.test(t) || /^(azure_|mssql_|pgsql_)|^microsoft\.docs\.mcp$/.test(t) ||
   ['read', 'edit', 'shell', 'execute', 'web', 'agent', 'todo', 'vscode', 'runSubagent'].includes(t);
-/**
- * Classifica o `tools` de um agente: 'copilot' (chatmode do Copilot com ids do
- * VS Code), 'mixed' (ferramentas do Claude + ids estranhos), ou 'claude'.
- */
 export function toolsOrigin(tools, model) {
   const list = toolList(tools);
   const hasClaude = list.some((t) => CLAUDE_TOOLS.has(t) || /^(Bash|Read|Write|Edit|WebFetch)\(/.test(t) || t.startsWith('mcp__') || t === '*');
@@ -360,9 +314,7 @@ export function toolsOrigin(tools, model) {
   return 'claude';
 }
 
-// licenças --------------------------------------------------------------------
 const FIGMA_TERMS = 'LicenseRef-Figma-Developer-Terms';
-/** Licenças que não permitem redistribuir: item fica fora do índice. */
 export function nonRedistributable(license) {
   if (license === 'Proprietary') return 'proprietary_license';
   if (license === FIGMA_TERMS) return 'vendor_terms_not_open_source';
@@ -428,7 +380,6 @@ export function detectLicenseText(text) {
   return null;
 }
 
-/** Procura LICENSE* da pasta do item subindo até `stop` (exclusive). */
 function licenseFromFiles(dir, stop) {
   let d = dir;
   while (d.startsWith(stop) && d !== stop) {
@@ -460,7 +411,6 @@ function authorOf(fm) {
   return null;
 }
 
-/** Remove strings enormes do JSON guardado como frontmatter de mcp/hook/setting. */
 function slimJson(v, depth = 0) {
   if (typeof v === 'string') return v.length > 2000 ? v.slice(0, 2000) + '…' : v;
   if (Array.isArray(v)) return v.map((x) => slimJson(x, depth + 1));
@@ -472,7 +422,6 @@ function slimJson(v, depth = 0) {
   return v;
 }
 
-// ---------------------------------------------------------------- construção
 class Builder {
   constructor(src, commit, date, sid = 'cct', repo = CCT_REPO) {
     this.src = src;
@@ -528,7 +477,6 @@ class Builder {
     };
   }
 
-  /** agentes e comandos: um .md por item */
   markdownKind(typePlural, kind) {
     const base = path.join(this.comp, typePlural);
     for (const category of listDirs(base)) {
@@ -541,7 +489,6 @@ class Builder {
           return false;
         }
         if (kind === 'agent') {
-          // agentes: .md na pasta da categoria, ou texto sem extensão; scripts auxiliares ficam de fora
           if (rel.includes('/')) {
             this.skipped.push({ path: posix(path.relative(this.src, f)), reason: 'helper_script' });
             return false;
@@ -635,7 +582,6 @@ class Builder {
           if (p.startsWith(catDir) && fs.existsSync(p) && fs.statSync(p).isFile()) set.set(p, fileEntry(catDir, p));
           else norm.add('missing_supporting_file');
         }
-        // comandos que chamam .claude/hooks/<x>.(py|sh) de outra pasta
         const cmdText = JSON.stringify(j.hooks ?? {});
         for (const m of cmdText.matchAll(/\.claude\/hooks\/([\w.-]+\.(?:py|sh|js))/g)) {
           const p = path.join(catDir, m[1]);
@@ -744,21 +690,12 @@ class Builder {
     }
   }
 
-  /** Motivo de exclusão de uma skill proprietária (ou null). */
   static skillExclusion(name, license) {
     if (['docx', 'pdf', 'pptx', 'xlsx', 'pdf-anthropic'].includes(name)) return 'anthropic_proprietary_document_skill';
     if (name.endsWith('-official')) return 'anthropic_official_duplicate';
     return nonRedistributable(license);
   }
 
-  /**
-   * Skills: toda pasta com SKILL.md abaixo de `base`.
-   * opts: `category` fixa (senão a 1ª pasta abaixo de `base`, ou `general`),
-   * `defaultLicense` (licença do repo; null = sem licença → fica de fora),
-   * `licenseStop` (até onde subir procurando LICENSE*), `excludeNames`
-   * ({nome: motivo}; sem ele valem as regras do cct), `origin`, `author`,
-   * `codexMetadata` (lê `agents/openai.yaml`).
-   */
   skills(base = path.join(this.comp, 'skills'), opts = {}) {
     if (!fs.existsSync(base)) return;
     const o = { defaultLicense: 'MIT', licenseStop: base, ...opts };
@@ -813,7 +750,6 @@ class Builder {
       const tags = [...new Set([...toList(fm.tags), ...toList(fm.metadata?.tags)])];
       const codexYaml = path.join(dir, 'agents', 'openai.yaml');
       if (o.codexMetadata && fs.existsSync(codexYaml)) {
-        // metadado de UI do Codex (display_name, ícones, default_prompt, dependências MCP)
         const meta = parseYaml(readText(codexYaml));
         if (meta && typeof meta === 'object' && Object.keys(meta).length) fm['x-codex'] = slimJson(meta);
       }
@@ -834,7 +770,6 @@ class Builder {
         origin: o.origin,
         references: nestedSkills.map((d) => `${this.sid}:skills/${idRestOf(posix(path.relative(base, d)))}`),
       });
-      // a pasta da skill é o item: source.path aponta para a pasta
       item.source.path = item.source.dir;
       item.source.url = `${this.url}/tree/${this.commit}/${item.source.dir}`;
       if (fs.existsSync(codexYaml)) item.tags.push('codex-metadata');
@@ -1003,7 +938,6 @@ class Builder {
   }
 
   finish() {
-    // referências dos loops: `agent:cat/name` → id do índice
     const ids = new Set(this.items.map((i) => i.id));
     const plural = { agent: 'agents', command: 'commands', skill: 'skills', hook: 'hooks', setting: 'settings', mcp: 'mcps', statusline: 'statuslines', mod: 'mods', loop: 'loops' };
     for (const it of this.items) {
@@ -1023,7 +957,6 @@ class Builder {
       it.references = refs;
       delete it._rawRefs;
     }
-    // colisões de nome dentro do mesmo tipo (a instalação achata a categoria)
     const byKey = new Map();
     for (const it of this.items) {
       const k = `${it.kind}\u0000${it.name.toLowerCase()}`;
@@ -1044,7 +977,6 @@ class Builder {
   }
 }
 
-// ---------------------------------------------------------------- marketplaces
 const CURATED_MARKETPLACES = [
   ['anthropics/claude-plugins-official', null],
   ['anthropics/knowledge-work-plugins', null],
@@ -1146,7 +1078,6 @@ function parseJsonLoose(t) {
   }
 }
 
-/** Resolve a origem de um plugin de marketplace para {repo, commit, ref, path, url}. */
 export function pluginSource(entrySource, mRepo, mCommit, pluginRoot) {
   const clean = (p) => String(p || '').replace(/^\.\/+/, '').replace(/\/+$/, '');
   if (typeof entrySource === 'string') {
@@ -1272,7 +1203,6 @@ async function marketplaces(network, collected) {
   return out;
 }
 
-// ---------------------------------------------------------------- dedup entre fontes
 const WORD_RE = /[a-z0-9][a-z0-9_-]{3,}/g;
 function wordSet(text) {
   const sp = splitFrontmatter(text);
@@ -1296,11 +1226,6 @@ function provenanceText(fm) {
   return v.filter((x) => typeof x === 'string').join(' ');
 }
 const ALIAS_MIN_SIMILARITY = 0.5;
-/**
- * Linhagem documentada no README/atribuição do cct: onde cada repo foi
- * vendorizado. Com ela, o mesmo nome basta (as cópias do cct divergiram do
- * original, então o texto sozinho não casa).
- */
 const LINEAGE = {
   'anthropics/skills': () => true,
   'openai/skills': () => true,
@@ -1308,11 +1233,6 @@ const LINEAGE = {
   'K-Dense-AI/scientific-agent-skills': (cctItem) => cctItem.category === 'scientific',
 };
 
-/**
- * A mesma skill vendorizada no cct e no repo original: fica a do repo original;
- * a do cct continua resolvível pelo id, marcada como alias (`alias_of`, tag
- * `alias`, `collides_with` → original, normalização `alias_of_upstream`).
- */
 function markAliases(cctItems, cctRoot, upstream) {
   const byName = new Map();
   for (const { item, root } of upstream) {
@@ -1364,7 +1284,6 @@ function markAliases(cctItems, cctRoot, upstream) {
   return report;
 }
 
-/** Colisão de nome entre fontes diferentes (a instalação achata fonte e categoria). */
 function crossSourceCollisions(items) {
   const groups = new Map();
   for (const it of items) {
@@ -1387,7 +1306,6 @@ function crossSourceCollisions(items) {
   return n;
 }
 
-/** Hash do conteúdo sem campos voláteis (data, commit, estrelas): muda só se o índice mudou de verdade. */
 function structuralHash(items, markets) {
   const strip = (it) => {
     const { stars, updated, security, ...rest } = it;
@@ -1409,7 +1327,6 @@ function countBy(items, key) {
   return o;
 }
 
-// ---------------------------------------------------------------- main
 async function main() {
   const opt = args();
   const pins = readPins();
@@ -1426,10 +1343,8 @@ async function main() {
   try {
     prevMeta = JSON.parse(fs.readFileSync(path.join(opt.out, 'catalog-meta.json'), 'utf8'));
   } catch {
-    /* primeiro build */
   }
 
-  // claude-code-templates
   const cctSrc = opt.src ?? path.join(opt.work, dirName(CCT_REPO));
   const { commit, date } = ensureCheckout(cctSrc, opt.commit ?? resolve(CCT_REPO) ?? DEFAULT_COMMIT);
   const b = new Builder(cctSrc, commit, date);
@@ -1439,7 +1354,6 @@ async function main() {
   b.mcps();
   b.settings();
   b.skills();
-  // skills soltas do plugin raiz (`.claude-plugin/skills/*`, ex.: owasp-security)
   b.skills(path.join(cctSrc, '.claude-plugin', 'skills'));
   b.loops();
   b.mods();
@@ -1462,7 +1376,6 @@ async function main() {
     },
   ];
 
-  // repos de skills
   const upstream = [];
   const excluded = [...b.excluded];
   const skipped = [...b.skipped];
@@ -1520,7 +1433,6 @@ async function main() {
 
   const pluginItems = [];
   const markets = await marketplaces(opt.network, pluginItems);
-  // colisões de id entre marketplaces (mesmo plugin listado duas vezes na mesma categoria)
   const seen = new Map();
   for (const it of pluginItems) {
     let id = it.id;
@@ -1556,7 +1468,6 @@ async function main() {
   fs.mkdirSync(opt.out, { recursive: true });
   const gzPath = path.join(opt.out, 'catalog-index.json.gz');
   fs.writeFileSync(gzPath, gzBytes);
-  // o JSON puro não vai para static/ (inflava o bundle): só para inspeção
   const plain = path.join(opt.out, 'catalog-index.json');
   if (fs.existsSync(plain)) fs.unlinkSync(plain);
   fs.mkdirSync(opt.inspect, { recursive: true });
@@ -1596,7 +1507,6 @@ async function main() {
   fs.writeFileSync(path.join(opt.out, 'catalog-meta.json'), JSON.stringify(meta, null, 2) + '\n');
   if (opt.latest || !fs.existsSync(PINS_FILE)) fs.writeFileSync(PINS_FILE, JSON.stringify(newPins, null, 2) + '\n');
 
-  // resumo (corpo do PR do workflow)
   const prevTotal = prevMeta?.total ?? null;
   const kinds = [...new Set(Object.values(bySource).flatMap((o) => Object.keys(o)))].sort();
   const lines = [

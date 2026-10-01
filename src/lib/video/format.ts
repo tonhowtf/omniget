@@ -1,8 +1,5 @@
-// Small pure helpers shared by the player, the study panels and the course views.
-
 import type { Cue } from "./types";
 
-/** "1:02:03" or "12:34" from milliseconds. */
 export function fmtTime(ms: number): string {
   if (!Number.isFinite(ms) || ms < 0) ms = 0;
   const total = Math.floor(ms / 1000);
@@ -13,7 +10,6 @@ export function fmtTime(ms: number): string {
   return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${ss}` : `${m}:${ss}`;
 }
 
-/** Wall clock "14:05" for a unix ms timestamp, in the user's locale. */
 export function fmtClock(at: number): string {
   try {
     return new Date(at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
@@ -22,13 +18,11 @@ export function fmtClock(at: number): string {
   }
 }
 
-/** "1 h 20 min" style duration for course summaries. */
 export function fmtDuration(ms: number): { h: number; m: number } {
   const min = Math.round(ms / 60000);
   return { h: Math.floor(min / 60), m: min % 60 };
 }
 
-/** Speed label without float noise: 1.25 -> "1.25", 2 -> "2". */
 export function fmtSpeed(v: number): string {
   return String(Math.round(v * 100) / 100);
 }
@@ -40,7 +34,6 @@ function tsToMs(ts: string): number {
   return Math.round(sec * 1000);
 }
 
-/** Minimal WebVTT parser (the backend already converts SRT/ASS to VTT). */
 export function parseVtt(text: string): Cue[] {
   const out: Cue[] = [];
   const blocks = text.replace(/^﻿/, "").replace(/\r\n?/g, "\n").split(/\n{2,}/);
@@ -68,7 +61,6 @@ export function parseVtt(text: string): Cue[] {
   return out;
 }
 
-/** Index of the cue active at `ms` (binary search on sorted cues), or -1. */
 export function cueAt(cues: Cue[], ms: number): number {
   let lo = 0;
   let hi = cues.length - 1;
@@ -80,14 +72,12 @@ export function cueAt(cues: Cue[], ms: number): number {
       lo = mid + 1;
     } else hi = mid - 1;
   }
-  // overlapping cues: walk back to any that still covers ms
   for (let i = found; i >= 0 && i > found - 4; i--) {
     if (cues[i].start_ms <= ms && ms < cues[i].end_ms) return i;
   }
   return -1;
 }
 
-/** Index of the last cue that started at or before `ms` (for prev/next line). */
 export function cueBefore(cues: Cue[], ms: number): number {
   let lo = 0;
   let hi = cues.length - 1;
@@ -104,7 +94,6 @@ export function cueBefore(cues: Cue[], ms: number): number {
 
 type AnswerPart = { text: string } | { t_ms: number; label: string };
 
-/** Splits an AI answer into text and clickable "[mm:ss]" / "[h:mm:ss]" citations. */
 export function splitCitations(answer: string): AnswerPart[] {
   const parts: AnswerPart[] = [];
   const re = /\[(\d{1,2}:)?(\d{1,2}):(\d{2})\]/g;

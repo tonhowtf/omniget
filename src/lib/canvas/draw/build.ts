@@ -1,10 +1,3 @@
-// Drawing → coloured triangles in world units, the input of the mesh pass
-// (and of the SVG export later). Freehand strokes go through the stroke
-// generator; shapes get a fill (tint / solid / hachure / cross-hatch) and a
-// clean, dashed, dotted or sketchy outline; arrows get their head. Rotation is
-// applied last, around the centre of the box. Text (the `text` tool and the
-// text inside shapes) is drawn by the DOM layer, not here.
-
 import type { Drawing } from '../model/types';
 import { parseColor, withAlpha, type Rgba } from '../render/color';
 import { crossHatchLines, hachureLines } from './hachure';
@@ -14,15 +7,12 @@ import { freehandTriangles, polylineTriangles } from './stroke';
 import { fillTriangles } from './triangulate';
 
 interface TriRun {
-  /** Flat x,y per vertex (triangle list), world units. */
   tris: number[];
   color: Rgba;
 }
 
-/** Tools drawn as a freehand stroke through their points. */
 const FREEHAND_TOOLS = new Set(['pen', 'brush', 'smartDraw', 'smart', 'highlighter']);
 
-/** Ink used by drawings saved without a colour (set from the theme by the mesh pass). */
 let defaultInk: Rgba = [0.55, 0.57, 0.6, 1];
 
 export function setDefaultInk(c: Rgba): void {
@@ -37,7 +27,6 @@ function segmentsToTris(segs: number[], width: number): number[] {
   return out;
 }
 
-/** Solid, dashed or dotted stroke of a polyline. */
 function strokeTris(pts: number[], width: number, closed: boolean, pattern: Drawing['strokePattern'], caps: number): number[] {
   if (pattern === 'dashed' || pattern === 'dotted') {
     const dash = pattern === 'dashed' ? Math.max(6, width * 4) : Math.max(0.5, width * 0.2);
@@ -49,7 +38,6 @@ function strokeTris(pts: number[], width: number, closed: boolean, pattern: Draw
   return polylineTriangles(pts, width, closed, caps);
 }
 
-/** Quadratic curve through a control point pushed `offset` off the chord's middle. */
 function curvePoints(x0: number, y0: number, x1: number, y1: number, offset: number): number[] {
   const mx = (x0 + x1) / 2;
   const my = (y0 + y1) / 2;
@@ -125,7 +113,6 @@ function buildUnrotated(d: Drawing): TriRun[] {
     const y1 = d.points[d.points.length - 1] + d.y;
     const curved = d.controlPointOffset ? curvePoints(x0, y0, x1, y1, d.controlPointOffset) : null;
     const line = curved ?? [x0, y0, x1, y1];
-    // The head follows the last segment of the (possibly curved) line.
     const hx = line[line.length - 4];
     const hy = line[line.length - 3];
     const head = d.kind === 'arrow' ? arrowHead(hx, hy, x1, y1, Math.max(10, width * 4)) : null;

@@ -1,7 +1,4 @@
 <script lang="ts">
-  // Cartão "N arquivos alterados +A −D" de um turno: árvore de pastas na
-  // ordem do diff, +/- por pasta e por arquivo, clique abre o diff no arquivo.
-  // Recebe `files` prontos ou carrega sozinho com `path` + `thread` + `turn`.
   import { t } from "$lib/i18n";
   import { compactCount, vcsDiffTurn, vcsError, type ChangeSummary, type FileStatus } from "$lib/central/vcs";
 
@@ -17,7 +14,6 @@
     onopendiff,
   }: {
     files?: Item[] | ChangeSummary[] | null;
-    /** Pasta da thread (worktree ou projeto), para carregar sozinho. */
     path?: string | null;
     thread?: string | null;
     turn?: number | null;
@@ -64,7 +60,6 @@
       }
       dir.children.push({ kind: "file", name: parts[parts.length - 1], item, order });
     });
-    // Totais e pastas de filho único achatadas ("src/core/vcs").
     const finish = (d: Dir): Dir => {
       d.children = d.children.map((c) => (c.kind === "dir" ? finish(c) : c));
       d.add = 0;

@@ -1,8 +1,4 @@
 <script lang="ts">
-  // One tool call in the timeline: icon, tense-aware label, failure badge,
-  // hover timestamp; expands (Enter/Space/click) to the command with cwd and
-  // output, the mini diff of an edit, touched files as chips, or the raw JSON
-  // of an MCP / dynamic tool.
   import { t } from "$lib/i18n";
   import type { WorkEntry } from "$lib/central/threads-ui/work";
   import { diffStats, entryVerbKey } from "$lib/central/threads-ui/work";
@@ -20,7 +16,6 @@
     ontoggle,
   }: {
     entry: WorkEntry;
-    /** Controlled disclosure (survives virtual-list recycling). */
     expanded?: boolean | null;
     ontoggle?: () => void;
     depth?: number;
@@ -75,7 +70,6 @@
     }
   }
 
-  // A click that ends a text selection must not collapse the row.
   function onClick() {
     const sel = window.getSelection();
     if (sel && !sel.isCollapsed && open) return;

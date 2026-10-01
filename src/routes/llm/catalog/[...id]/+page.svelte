@@ -1,12 +1,4 @@
 <script lang="ts">
-  /**
-   * Catalog item detail: own viewers (Markdown with TOC and Cmd+F, JSON tree,
-   * multi-file explorer with slides and token counts), metadata (licence,
-   * author, source with link, version), referenced components (loops),
-   * "How it looks in each tool", the guard report, and the stack / install
-   * buttons. Files are fetched and checked (sha256 / git blob) by the
-   * backend the first time the page opens them.
-   */
   import { untrack } from "svelte";
   import { page } from "$app/state";
   import { open as openUrl } from "@tauri-apps/plugin-shell";

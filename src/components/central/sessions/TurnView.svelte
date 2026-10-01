@@ -1,9 +1,4 @@
 <script lang="ts">
-  /**
-   * Uma mensagem da sessão: papel, hora, modelo, texto (blocos ``` viram
-   * código) e as tool calls pareadas com o resultado, cada uma recolhível.
-   * `mark` destaca o termo da busca dentro da sessão.
-   */
   import { t } from "$lib/i18n";
   import { compact, totalTokens, usd, type ToolCall, type Turn } from "$lib/central/sessions";
 
@@ -37,7 +32,6 @@
     return out.filter((b) => b.text.trim().length > 0);
   });
 
-  /** Divide o texto em pedaços marcados/não marcados (sem regex do usuário). */
   function parts(text: string): { t: string; m: boolean }[] {
     const q = mark.trim().toLowerCase();
     if (!q) return [{ t: text, m: false }];

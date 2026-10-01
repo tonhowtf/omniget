@@ -1,6 +1,4 @@
 <script lang="ts">
-  // Minimap (L2, own Canvas 2D): click or drag to move the camera. Redraws on
-  // document changes and at most 10 Hz while the camera moves; ⌘⇧M toggles it.
   import { onMount } from "svelte";
   import { t } from "$lib/i18n";
   import { useEngine } from "$lib/canvas/engine.svelte";
@@ -62,8 +60,6 @@
 </script>
 
 {#if engine.minimapVisible}
-  <!-- data-cover-ignore: a portal under the minimap still goes live (its
-       webview paints above the chrome anyway). -->
   <div class="minimap" data-canvas-chrome data-cover-ignore>
     <button
       type="button"

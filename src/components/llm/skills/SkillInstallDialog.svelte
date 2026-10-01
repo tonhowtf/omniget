@@ -1,12 +1,4 @@
 <script lang="ts">
-  /**
-   * Install a skill from a folder, from a zip or from a git repository.
-   *
-   * The folder and zip pickers are the native `plugin-dialog` ones, imported
-   * dynamically so the page still renders in a plain browser (screenshots,
-   * `pnpm check`). The git source is the only one that touches the network and
-   * it asks for confirmation first: a clone runs code the user has not read.
-   */
   import { t } from "$lib/i18n";
 
   let {
@@ -45,8 +37,6 @@
       if (kind === "dir") oninstalldir?.(path);
       else oninstallzip?.(path);
     } catch {
-      // No native dialog (browser, screenshot harness): say so instead of
-      // failing silently.
       pickerError = true;
     }
   }

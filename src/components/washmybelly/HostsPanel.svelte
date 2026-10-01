@@ -9,11 +9,6 @@
   import PlanReview from "./ui/PlanReview.svelte";
   import PrivacyCode from "./PrivacyCode.svelte";
 
-  /// Trackers tab: a block of tracker domains in the hosts file, between
-  /// OmniGet's own markers. Lists are embedded (nothing is downloaded);
-  /// the preview shows the finished file; applying and removing go through
-  /// a reviewed plan, and when the file needs an administrator the exact
-  /// terminal command is always offered too.
   let status = $state<HostsStatus | null>(null);
   let prefs = $state<HostsPrefs>({ lists: [], whitelist: [], extra: [] });
   let loading = $state(true);

@@ -1,7 +1,4 @@
 <script lang="ts" module>
-  /// Small filled glyphs the kit needs inside dialogs and rows. Drawn on a
-  /// 20×20 grid, solid shapes with knocked-out marks (no thin strokes), so
-  /// they sit next to the Phosphor Fill tiles of the sidebar.
   export type IconName =
     | "check"
     | "warning"

@@ -22,10 +22,6 @@ export function buildOmnigetSchemeUrl(url) {
   return `${OMNIGET_SCHEME}${withoutProtocol}`;
 }
 
-// Opens the omniget:// scheme in a hidden background tab so the OS can route
-// it to the desktop app, without disturbing the user's currently focused tab.
-// We close the throwaway tab shortly after creation since the page itself has
-// no meaningful content (the protocol handler runs out-of-process).
 export async function openOmnigetScheme(
   url,
   {
@@ -52,7 +48,6 @@ export async function openOmnigetScheme(
             removeResult.catch(() => {});
           }
         } catch {
-          // Tab may already be gone; ignore.
         }
       }, tabLifetimeMs);
     }

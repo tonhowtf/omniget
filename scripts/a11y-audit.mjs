@@ -1,13 +1,4 @@
 #!/usr/bin/env node
-/*
- * Behavioral a11y/motion audit for the remake (Fase 3 da auditoria).
- * - prefers-reduced-motion: compares running animations with and without the preference
- *   and flags transform/position animations that survive `reduce`.
- * - click targets: measures every interactive element against the macOS-desktop
- *   minimums adopted (>=28px standard controls, >=20px dense in-row targets).
- * - keyboard: tabs through the page and reports focus-visible affordance.
- * Reuses the Tauri IPC mock from shots.mjs via a tiny inline copy.
- */
 import { chromium } from "playwright";
 import { spawn } from "node:child_process";
 

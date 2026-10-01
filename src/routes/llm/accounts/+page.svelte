@@ -1,20 +1,4 @@
 <script lang="ts">
-  /**
-   * Accounts & quota.
-   *
-   * Top to bottom: the CLIs found on this machine, the rotation switch, the
-   * fallback chain (drag to reorder, one click to promote), the switch
-   * timeline, and the usage dashboard read from the CLIs' own JSONL.
-   *
-   * Three things this page will not do, by contract (`estudos/74` §A.3, plan
-   * §9.2): read a credential, refresh a token, or call an undocumented usage
-   * endpoint. An account here is a label and an isolated config directory;
-   * signing in happens in a terminal the user sees, inside the CLI.
-   *
-   * Cadence: one read on mount, then nothing until the user clicks. The only
-   * subscription is `llm://rerouted`, which the backend pushes and which stops
-   * when the tab closes — no timer lives in this route.
-   */
   import { onMount, tick } from "svelte";
   import { page } from "$app/state";
   import { t } from "$lib/i18n";
@@ -59,9 +43,7 @@
   let newLabel = $state("");
   let creating = $state(false);
   let usageSection = $state<HTMLElement | null>(null);
-  /** Share settings/skills/commands with the new profile, never the identity. */
   let newShare = $state(true);
-  /** Clock of the render, not a ticking one: read once per page load. */
   const nowMs = Date.now();
 
   async function guard(run: () => Promise<void>) {
@@ -178,7 +160,6 @@
     </section>
   {/if}
 
-  <!-- The limits strip editor lives in Settings > General; this is only the way there. -->
   <p class="connection-links"><a href="/settings?tab=general&section=limits-strip">{$t("llm.limits.title")}</a></p>
 
   <section class="surface-card rotation">

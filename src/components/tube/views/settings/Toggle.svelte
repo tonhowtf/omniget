@@ -1,5 +1,4 @@
 <script lang="ts">
-  // Switch in the OmniTube look (accent track, white knob).
   let {
     checked,
     label,

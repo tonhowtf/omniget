@@ -1,9 +1,4 @@
 <script lang="ts">
-  /**
-   * "Create bot": name, purpose, an optional installed skill, capabilities in
-   * plain words, and the connection it runs on. No code or shell access by
-   * default; instructions and memory policy sit under "advanced".
-   */
   import { onMount } from "svelte";
   import { t } from "$lib/i18n";
   import { getAgents, getRosterLoadError, loadRoster } from "$lib/stores/llm-store.svelte";
@@ -47,23 +42,22 @@
         caps = Array.isArray(saved.caps) ? saved.caps.filter((cap: Capability) => CAPABILITIES.includes(cap)) : defaultCapabilities();
         memoryPolicy = ["remember", "ask", "read_only"].includes(saved.memoryPolicy) ? saved.memoryPolicy : "remember";
       }
-    } catch { /* Invalid drafts do not block creating an agent. */ }
+    } catch { }
     hydrated = true;
     void loadRoster().finally(() => { connectionsReady = true; });
     void loadSkills();
   });
 
-  // This window's draft survives visiting Connections, without becoming an agent.
   $effect(() => {
     if (!hydrated) return;
     const draft = { version: 1, name, purpose, instructions, skill, caps: [...caps], memoryPolicy, connection };
     if (!keepDraft) return;
-    try { sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft)); } catch { /* Storage can be unavailable. */ }
+    try { sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft)); } catch { }
   });
 
   function clearDraft() {
     keepDraft = false;
-    try { sessionStorage.removeItem(DRAFT_KEY); } catch { /* Optional storage. */ }
+    try { sessionStorage.removeItem(DRAFT_KEY); } catch { }
   }
 
   function cancel() { clearDraft(); oncancel(); }
@@ -79,8 +73,6 @@
   });
 
   function toggle(cap: Capability, on: boolean) {
-    // Reading records availability evidence only from pages it really fetched,
-    // so it brings web search along; turning web off turns reading off too.
     const add: Capability[] = on && cap === "reading" ? [cap, "web" as Capability] : [cap];
     const drop: Capability[] = !on && cap === "web" ? [cap, "reading" as Capability] : [cap];
     caps = on ? [...new Set([...caps, ...add])] : caps.filter((c) => !drop.includes(c));

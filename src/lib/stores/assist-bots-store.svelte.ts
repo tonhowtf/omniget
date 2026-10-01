@@ -1,12 +1,3 @@
-/**
- * Bots: identity (profile), skill bindings and the effective capability
- * manifest, over the `assist_bot_*` commands (`src-tauri/src/commands/assist/bots.rs`).
- *
- * The manifest is the only source of "available": a ticked capability is
- * shown as available only when the backend says its tools are really offered
- * this turn. The pure helpers below turn backend states into i18n keys and
- * fix actions; they carry the logic and are what the tests cover.
- */
 import { invoke } from "@tauri-apps/api/core";
 import type { AgentDef } from "$lib/llm/types";
 
@@ -131,9 +122,6 @@ interface NewBot {
   connection_agent_id: string;
 }
 
-// ── Pure helpers (tested) ──────────────────────────────────────────────
-
-/** i18n key of a capability's name and of its one-line explanation. */
 export function capabilityKey(cap: Capability): string {
   return `assist.bots.cap.${cap}`;
 }
@@ -141,12 +129,10 @@ export function capabilityHintKey(cap: Capability): string {
   return `assist.bots.cap_hint.${cap}`;
 }
 
-/** The capabilities a new bot starts with: never code or shell. */
 export function defaultCapabilities(): Capability[] {
   return ["memory"];
 }
 
-/** A payload the backend accepts, or the i18n key of what is wrong. */
 export function validateNewBot(bot: NewBot): string | null {
   const name = bot.name.trim();
   if (!name) return "assist.bots.create.err_name";
@@ -191,7 +177,6 @@ export function bindingStateKey(state: BindingState): string {
   return `assist.bots.skill_state.${state}`;
 }
 
-/** Tone for a badge: good, warn (fixable), bad (not usable). */
 export function bindingTone(state: BindingState): "good" | "warn" | "bad" {
   if (state === "ready") return "good";
   if (state === "removed" || state === "invalid" || state === "runtime_unsupported") return "bad";
@@ -200,7 +185,6 @@ export function bindingTone(state: BindingState): "good" | "warn" | "bad" {
 
 type FixKind = "command" | "route" | "local";
 
-/** What a fix button does: run a command here, open a page, or change a local toggle. */
 export function fixPlan(fix: Fix): { kind: FixKind; labelKey: string; route?: string } {
   switch (fix.action) {
     case "enable_capability":
@@ -227,13 +211,11 @@ export function fixPlan(fix: Fix): { kind: FixKind; labelKey: string; route?: st
   }
 }
 
-/** Short version badge: metadata version when declared, else the hash prefix. */
 export function versionLabel(s: { version: string | null; hash: string; installed_hash?: string | null }): string {
   const h = (s.installed_hash || s.hash || "").slice(0, 8);
   return s.version ? `${s.version} · ${h}` : h;
 }
 
-/** Roster agents a bot can start on: the ones that carry a connection. */
 export function connectionAgents(agents: AgentDef[]): AgentDef[] {
   return agents.filter((a) => {
     if (a.runtime?.kind === "cli" || a.runtime?.kind === "acp") return true;
@@ -245,8 +227,6 @@ export function connectionAgents(agents: AgentDef[]): AgentDef[] {
 export function errorText(err: unknown): string {
   return String((err as { message?: string })?.message ?? err ?? "");
 }
-
-// ── Commands ───────────────────────────────────────────────────────────
 
 export function createBot(bot: NewBot): Promise<BotView> {
   return invoke<BotView>("assist_bot_create", { bot });

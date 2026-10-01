@@ -1,10 +1,6 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
 
-  /// Title row of a module. The shell already pads the content pane, so the
-  /// header only spaces itself from what follows. `tile` repeats the
-  /// sidebar's coloured icon next to the title; `meta` sits under the
-  /// subtitle (a status line, a tag).
   let {
     title,
     subtitle = "",

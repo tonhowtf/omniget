@@ -1,9 +1,4 @@
 <script lang="ts">
-  /**
-   * Estado ao vivo de uma sessão: "Trabalhando" (a vez é do agente),
-   * "Esperando você" e "Parada". Cor só nos dois estados que pedem atenção,
-   * sempre com rótulo; parada/sem estado é um ponto neutro.
-   */
   import { t } from "$lib/i18n";
   import type { ActiveState } from "$lib/central/sessions";
 

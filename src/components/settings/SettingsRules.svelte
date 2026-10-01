@@ -126,8 +126,6 @@
     void persist();
   }
 
-  // A ordem é a prioridade: a primeira regra que casa vence. Sem poder mover,
-  // a única saída seria apagar e recriar na ordem certa.
   function move(i: number, delta: number) {
     const j = i + delta;
     if (j < 0 || j >= rules.length) return;
@@ -175,7 +173,6 @@
     {:else if loadError}
       <SettingsEmptyState error title={$t("settings.rules.load_failed")} onRetry={() => void load()} />
     {:else if rules.length === 0}
-      <!-- Empty state que direciona a primeira ação de valor, em vez de card vazio. -->
       <SettingsEmptyState title={$t("settings.rules.empty_title")} hint={$t("settings.rules.empty_hint")} />
     {:else}
       {#each rules as rule, i (i)}
@@ -298,8 +295,6 @@
     </div>
   {/if}
 
-  <!-- Responder "esta regra pega o que eu espero?" antes de descobrir no
-       download errado. -->
   <div class="card rules-test" data-setting-key="settings.rules.test_title">
     <label class="rule-label" for="rules-test-url">{$t("settings.rules.test_title")}</label>
     <input

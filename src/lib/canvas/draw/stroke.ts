@@ -1,20 +1,9 @@
-// Freehand stroke generator in the mould of perfect-freehand (MIT), built to
-// emit GPU triangles directly (02-motor-do-canvas §6.1): streamlined input,
-// real or velocity-simulated pressure, thinning, tapered ends, round caps.
-// No self-intersecting outline to fill, so no stencil pass. The same
-// left/right rails also give the SVG outline for export.
-
 interface StrokeOptions {
-  /** Base diameter in world units. */
   size: number;
-  /** How much pressure narrows the stroke, 0..1. */
   thinning?: number;
-  /** Input smoothing, 0..1 (1 = heaviest lag). */
   streamline?: number;
-  /** Taper lengths in world units (0 = none). */
   taperStart?: number;
   taperEnd?: number;
-  /** Pressures per point (pen); simulated from speed when absent. */
   pressures?: ArrayLike<number>;
 }
 
@@ -27,7 +16,6 @@ interface Sample {
   r: number;
 }
 
-/** Streamlined samples with radius per point. `pts` is flat [x,y,...]. */
 function strokeSamples(pts: ArrayLike<number>, opts: StrokeOptions): Sample[] {
   const n = Math.floor(pts.length / 2);
   if (n === 0) return [];
@@ -100,7 +88,6 @@ function pushFan(out: number[], cx: number, cy: number, r: number, a0: number, a
   }
 }
 
-/** Triangle list (flat x,y per vertex) of a freehand stroke. */
 export function freehandTriangles(pts: ArrayLike<number>, opts: StrokeOptions): number[] {
   const s = strokeSamples(pts, opts);
   const out: number[] = [];
@@ -121,7 +108,6 @@ export function freehandTriangles(pts: ArrayLike<number>, opts: StrokeOptions): 
     const r1y = right[i * 2 + 3];
     out.push(l0x, l0y, r0x, r0y, l1x, l1y, l1x, l1y, r0x, r0y, r1x, r1y);
   }
-  // Round caps: half discs facing out of each end.
   const a = s[0];
   const b = s[1];
   const startAng = Math.atan2(a.y - b.y, a.x - b.x);
@@ -133,10 +119,6 @@ export function freehandTriangles(pts: ArrayLike<number>, opts: StrokeOptions): 
   return out;
 }
 
-/**
- * Constant-width polyline as triangles, with round joins and caps, for shape
- * outlines, sketch strokes, arrows and alignment guides.
- */
 export function polylineTriangles(pts: ArrayLike<number>, width: number, closed = false, capSegs = 4): number[] {
   const out: number[] = [];
   const n = Math.floor(pts.length / 2);
@@ -158,7 +140,6 @@ export function polylineTriangles(pts: ArrayLike<number>, width: number, closed 
     out.push(ax + nx, ay + ny, ax - nx, ay - ny, bx + nx, by + ny, bx + nx, by + ny, ax - nx, ay - ny, bx - nx, by - ny);
   }
   if (capSegs > 0 && r > 0.2) {
-    // Joints and caps as small discs: cheap and seamless.
     for (let i = 0; i < n; i++) {
       if (!closed && i > 0 && i < n - 1 && r < 1) continue;
       pushFan(out, pts[i * 2], pts[i * 2 + 1], r, 0, Math.PI * 2, capSegs * 2);

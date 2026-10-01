@@ -1,7 +1,4 @@
 <script lang="ts">
-  // Full-window player inside the app. Layers (after limeplay's Player
-  // Layout): ambient light, <video>, subtitles, top bar, status, controls,
-  // sheets. The side panel sits next to the stage and pushes it.
   import { t } from "$lib/i18n";
   import { fmtTime } from "$lib/video/format";
   import { actionFor } from "$lib/video/keys.svelte";
@@ -72,7 +69,6 @@
     wakeTimer = setTimeout(() => (awake = false), 2600);
   }
 
-  // ambient light: a tiny copy of the frame, blurred behind the picture
   $effect(() => {
     if (!player.ambient || !canvas || !video) return;
     const ctx = canvas.getContext("2d");
@@ -84,14 +80,12 @@
         try {
           ctx.drawImage(v, 0, 0, c.width, c.height);
         } catch {
-          /* frame not ready */
         }
       }
     }, 200);
     try {
       if (v.readyState >= 2) ctx.drawImage(v, 0, 0, c.width, c.height);
     } catch {
-      /* ignore */
     }
     return () => clearInterval(id);
   });

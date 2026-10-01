@@ -1,6 +1,3 @@
-/// Disk module: types of the `wmb_disk_*` answers and the pure geometry of
-/// the treemap (squarified, Bruls/Huizing/van Wijk) and the sunburst.
-
 export type Volume = {
   name: string;
   mount: string;
@@ -66,7 +63,6 @@ type DiskHealth = {
 
 export type Health = { disks: DiskHealth[]; reason?: string };
 
-/// Apple system palette, one hue per top-level child; depth only lightens.
 const PALETTE = ["#0A84FF", "#FF9F0A", "#30D158", "#BF5AF2", "#FF375F", "#64D2FF", "#FFD60A", "#5E5CE6", "#AC8E68", "#FF6961"];
 const OTHER_COLOR = "#8E8E93";
 
@@ -75,12 +71,8 @@ export function colorFor(index: number, node: UsageNode): string {
   return PALETTE[index % PALETTE.length];
 }
 
-// ── Volume bar ─────────────────────────────────────────────────────────
-
 export type Segment = { key: "used" | "purgeable" | "free"; bytes: number; fraction: number };
 
-/// Used / purgeable / free, as fractions of the total. Purgeable is part of
-/// what the OS reports as used, so it is carved out of it.
 export function volumeSegments(v: Pick<Volume, "total" | "free" | "purgeable">): Segment[] {
   const total = Math.max(1, v.total);
   const purgeable = Math.max(0, v.purgeable ?? 0);
@@ -98,11 +90,8 @@ export function usedFraction(v: Pick<Volume, "total" | "free">): number {
   return v.total > 0 ? Math.min(1, Math.max(0, (v.total - v.free) / v.total)) : 0;
 }
 
-// ── Treemap ────────────────────────────────────────────────────────────
-
 export type Tile = { node: UsageNode; index: number; x: number; y: number; w: number; h: number };
 
-/// Squarified layout of `nodes` in a `w`×`h` box, largest first.
 export function squarify(nodes: UsageNode[], x: number, y: number, w: number, h: number): Tile[] {
   const items = nodes
     .map((node, index) => ({ node, index }))
@@ -167,19 +156,14 @@ export function squarify(nodes: UsageNode[], x: number, y: number, w: number, h:
   return out;
 }
 
-/// How much text fits in a tile.
 export function labelTier(w: number, h: number): "full" | "name" | "none" {
   if (w >= 90 && h >= 40) return "full";
   if (w >= 48 && h >= 20) return "name";
   return "none";
 }
 
-// ── Sunburst ───────────────────────────────────────────────────────────
-
 export type Arc = { node: UsageNode; depth: number; color: string; a0: number; a1: number; r0: number; r1: number };
 
-/// Rings of the tree: the centre is `root`, each level one ring out,
-/// angles proportional to bytes of the root.
 export function sunburst(root: UsageNode, maxDepth: number, radius: number, hole: number): Arc[] {
   const out: Arc[] = [];
   const ring = (radius - hole) / Math.max(1, maxDepth);
@@ -202,7 +186,6 @@ export function sunburst(root: UsageNode, maxDepth: number, radius: number, hole
   return out;
 }
 
-/// SVG path of an annular sector centred on (0,0), angle 0 at 12 o'clock.
 export function arcPath(a0: number, a1: number, r0: number, r1: number): string {
   const full = a1 - a0 >= Math.PI * 2 - 1e-6;
   if (full) a1 = a0 + Math.PI * 2 - 1e-4;
@@ -217,11 +200,8 @@ export function arcPath(a0: number, a1: number, r0: number, r1: number): string 
   ].join(" ");
 }
 
-// ── Breadcrumb ─────────────────────────────────────────────────────────
-
 type Crumb = { name: string; path: string };
 
-/// Crumbs from the scanned root down to `path`.
 export function crumbs(root: string, path: string, rootName: string): Crumb[] {
   const sep = root.includes("\\") && !root.includes("/") ? "\\" : "/";
   const out: Crumb[] = [{ name: rootName, path: root }];

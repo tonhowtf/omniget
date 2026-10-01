@@ -1,9 +1,4 @@
 <script lang="ts">
-  /**
-   * Reading companion of one bot: the curation skill, streaming
-   * preferences, the books being read (progress per edition), and each
-   * round of films with where to watch in Brazil and the subtitle status.
-   */
   import { t } from "$lib/i18n";
   import { loadSkills } from "$lib/stores/llm-skills-store.svelte";
   import JourneyForm from "./JourneyForm.svelte";
@@ -42,7 +37,6 @@
       return;
     }
     skillNote = out.value.outcome?.needs_confirm ? "assist.reading.skill_needs_confirm" : "assist.reading.skill_installed";
-    // The bot screen lists installed skills to link; refresh that list now.
     void loadSkills(true);
   }
 </script>

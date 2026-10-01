@@ -1,7 +1,4 @@
 <script lang="ts">
-  // Opens whatever the reader was asked for: a library book (ebook or comic)
-  // or a manga chapter (downloaded, or streamed page by page). Logs the
-  // reading session when it closes.
   import { onDestroy, onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { open as openUrl } from "@tauri-apps/plugin-shell";
@@ -29,7 +26,6 @@
   let error = $state("");
   let loading = $state(true);
 
-  // Session log: time actually spent with the window visible.
   let started = Date.now();
   let activeMs = 0;
   let lastTick = Date.now();
@@ -133,7 +129,6 @@
     resetReader();
   });
 
-  // Chapter navigation for manga.
   let neighbors = $derived.by(() => {
     if (!series || !chapter) return { prev: null as Chapter | null, next: null as Chapter | null };
     const list = series.chapters.filter((c) => !chapter!.lang || c.lang === chapter!.lang);

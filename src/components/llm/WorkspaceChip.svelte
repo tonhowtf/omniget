@@ -1,25 +1,18 @@
 <script lang="ts">
-  // The context of THIS conversation: Personal (no folder: the project tools
-  // are absent) or Project: <folder>. Picking a folder here never changes
-  // another conversation nor the process-wide folder.
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "$lib/i18n";
   import { showToast } from "$lib/stores/toast-store.svelte";
   import { rewindConversation } from "$lib/stores/llm-store.svelte";
 
-  // `conversationId` binds the folder to one conversation; `refreshKey` changes
-  // when a turn ends, so the undo counter follows what the agent wrote.
   let { conversationId = null, refreshKey = 0 }: { conversationId?: string | null; refreshKey?: number } = $props();
 
   type Workspace = {
-    /** `projectless` (personal) or `project`. */
     context?: "projectless" | "project";
     path: string | null;
     name: string | null;
     sandbox: string;
     undo_depth?: number;
-    /** Why a turn of this folder cannot be undone (no git, snapshot failed). */
     undo_error?: string | null;
   };
   type Undone = {
@@ -34,7 +27,6 @@
   let undoing = $state(false);
 
   async function refresh() {
-    // No conversation, no context: never show the process-wide folder here.
     if (!conversationId) {
       ws = { path: null, name: null, sandbox: "none" };
       return;
@@ -42,7 +34,6 @@
     try {
       ws = (await invoke("llm_workspace_get", { conversationId })) as Workspace;
     } catch {
-      // Backend without the coding tools: the chip stays empty.
     }
   }
 
@@ -53,13 +44,6 @@
     void refresh();
   });
 
-  /**
-   * The backend refuses to restore files while another agent works in an
-   * overlapping folder (`ERR_UNDO_SHARED`) or when a file of that turn
-   * changed again after it (`ERR_UNDO_CONFLICT`): restoring would erase
-   * someone else's work. Then the person may take back only the
-   * conversation, leaving every file as it is.
-   */
   function refusedForSharing(error: unknown): string | null {
     const text = String(error);
     const m = text.match(/(ERR_UNDO_SHARED|ERR_UNDO_CONFLICT):\s*(.*)$/s);
@@ -87,7 +71,6 @@
           ? $t("llm.workspace.undone_conversation", { messages: out.messages_removed })
           : $t("llm.workspace.undone_full", { count: out.files.length, messages: out.messages_removed })) as string,
       );
-      // Undo only knows the folder. What a command did elsewhere stays done.
       if (out.shell_commands.length > 0) {
         showToast(
           "info",
@@ -159,8 +142,6 @@
     background: var(--fill-quaternary, rgba(127, 127, 127, 0.12));
     font-size: var(--text-sm);
     color: var(--text-dim);
-    /* Never wider than the header column it sits in: the folder name gives
-       way (ellipsis), Undo and the detach button do not. */
     max-width: min(320px, 100%);
     min-width: 0;
   }

@@ -1,15 +1,10 @@
 <script lang="ts">
-  /**
-   * A unified diff, painted line by line. Read-only, selectable, scrolls on
-   * its own so a long patch never pushes the page sideways.
-   */
   import { diffLineKind } from "./run-status";
 
   let { patch, label }: { patch: string; label: string } = $props();
   let lines = $derived(patch.split("\n"));
 </script>
 
-<!-- A scrollable region must be reachable by keyboard. -->
 <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 <pre class="diff" role="region" aria-label={label} tabindex="0">{#each lines as line, i (i)}<span class="l {diffLineKind(line)}">{line || " "}</span>
 {/each}</pre>

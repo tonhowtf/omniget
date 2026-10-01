@@ -1,13 +1,4 @@
 <script lang="ts">
-  /**
-   * Remote access (Central, T11): turn the second listener on/off on a chosen
-   * interface, pair a phone with a QR code (read or drive), manage paired
-   * devices, see who accessed, and the Tailscale/SSH helpers. No cloud relay.
-   *
-   * `remote://changed` (pairing, revoke, access, socket open/close) refreshes
-   * the page; the listener lives only while this page is mounted, and nothing
-   * polls.
-   */
   import { onDestroy, onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "$lib/i18n";
@@ -53,7 +44,6 @@
       const { listen } = await import("@tauri-apps/api/event");
       unlisten = await listen("remote://changed", soon);
     } catch {
-      // No event bridge (browser preview): the buttons still refresh.
     }
   });
 

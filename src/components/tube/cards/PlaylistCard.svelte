@@ -1,6 +1,4 @@
 <script lang="ts">
-  // Playlist / mix card. The thumb carries the "stack" (two strips above it)
-  // and a count badge, as on YouTube. `row` renders it like a search result.
   import { t } from "$lib/i18n";
   import { thumbUrl, videoThumb } from "$lib/tube/format";
   import type { PlaylistItem } from "$lib/tube/types";

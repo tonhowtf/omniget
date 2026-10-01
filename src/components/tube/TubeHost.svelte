@@ -1,8 +1,4 @@
 <script lang="ts">
-  // Always mounted by the root layout (next to MusicHost): owns the OmniTube
-  // Music <audio>, shows the floating music bar outside /youtube and the video
-  // mini player whenever a video keeps playing off the watch page. The /music
-  // player and OmniTube never play at the same time.
   import { onMount } from "svelte";
   import { page } from "$app/state";
   import { player as localMusic } from "$lib/music/player-store.svelte";
@@ -30,26 +26,22 @@
     };
   });
 
-  // the /music player started: OmniTube steps aside
   $effect(() => {
     if (localMusic.playing) yieldAll();
   });
 
   let onTube = $derived(page.url.pathname.startsWith("/youtube"));
   let song = $derived(currentSong());
-  // the mini player and the music bar never show together: the last one that played wins
   let showMini = $derived(!!vplayer.videoId && vplayer.mini && (vplayer.active || !song));
   let showBar = $derived(!onTube && !!song && (mplayer.playing || mplayer.position > 0) && !showMini);
   let face = $derived(showBar ? "music" : "video");
   let prefs = $derived(tubePrefs());
   let scheme = $derived(face === "music" && prefs.look === "classic" ? "dark" : look.scheme);
 
-  // /music's mini player shows outside /music when it has something loaded
   let localMiniShown = $derived(!page.url.pathname.startsWith("/music") && !!localMusic.current && (localMusic.playing || localMusic.position > 0));
 
   let reserved = false;
   $effect(() => {
-    // the floating bar needs room at the bottom of the page (same knob MusicHost uses)
     const need = showBar ? BAR_INSET : MINI_INSET;
     if (need > 0) {
       reserved = true;

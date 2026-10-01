@@ -43,7 +43,6 @@ function mediaQuery() {
   };
 }
 
-/** Synthetic v3 document; only fields read by the store. */
 function settings(overrides: { mode?: "system" | "light" | "dark"; preset?: string; migration?: number; language?: string; theme?: string; proxyHost?: string; proxyPort?: number } = {}): AppSettings {
   const mode = overrides.mode ?? "light";
   return {
@@ -65,7 +64,6 @@ function snapshot(value: AppSettings, revision = "0", extra: Partial<ReadySnapsh
   return { settings: value, revision, loadStatus: { kind: "loaded" }, applied: true, pendingEffects: [], fieldErrors: [], ...extra };
 }
 
-/** Routes IPC by command; any command not listed fails loudly. */
 function route(handlers: Record<string, (args: any) => unknown>) {
   invoke.mockImplementation((command: string, args: unknown) => {
     const handler = handlers[command];

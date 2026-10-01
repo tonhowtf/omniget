@@ -1,5 +1,4 @@
 <script lang="ts">
-  /** One heartbeat run: state, agent, task, wake source, cost, tokens, time; opens to the details. */
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "$lib/i18n";
   import { showToast } from "$lib/stores/toast-store.svelte";
@@ -17,9 +16,7 @@
   }: {
     run: Run;
     staff: Staff[];
-    /** Identifier and link of the run's issue, when the caller knows it. */
     issueRef?: { identifier: string; href: string } | null;
-    /** Wakes that were folded into this run. */
     wakes?: Wake[];
     showAgent?: boolean;
   } = $props();

@@ -1,13 +1,3 @@
-// UI half of the MCP canvas tools (`src-tauri/src/mcp/canvas_ui.rs`): the
-// operations only the mounted canvas can do (live selection, camera, undo,
-// chat faces, the palette and the composer). Rust evaluates a fixed runner in
-// the main window; the runner hands canvas operations to this driver and emits
-// the result back as `mcp-ui://reply`. Nothing here takes code from outside:
-// each operation is a named case with plain arguments.
-//
-// It also follows `canvas://navigate {workspaceId, floorId, nodeId?}` (an MCP
-// client switched floors or opened a portal) by flying there.
-
 import { envDrop } from '../floors/api';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import type { CanvasEngine } from '../engine.svelte';
@@ -49,7 +39,6 @@ function ids(a: Args, k: string): string[] {
   return typeof v === 'string' ? [v] : [];
 }
 
-/** Sets the value of a Svelte-bound input/textarea the way typing does. */
 function typeInto(el: HTMLInputElement | HTMLTextAreaElement, text: string, append = true): void {
   el.focus();
   const proto = el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
@@ -107,7 +96,6 @@ export function installCanvasDriver(engine: CanvasEngine): () => void {
       if (r.width > 0 && r.height > 0) return { x: r.x, y: r.y, w: r.width, h: r.height };
     }
     const n = engine.store.node(id);
-    // The GL canvas spans the camera viewport: its origin is the screen origin.
     const root =
       document.querySelector<HTMLElement>('[data-canvas-root]') ?? document.querySelector<HTMLElement>('canvas.l0');
     if (!n) return null;
@@ -243,7 +231,6 @@ export function installCanvasDriver(engine: CanvasEngine): () => void {
         const ta = composerArea();
         if (!ta) return { error: 'UI_COMPOSER_NOT_OPEN: canvas_composer_open first' };
         typeInto(ta, String(a.text ?? ''), a.replace !== true);
-        // The # picker lists files over IPC after a short debounce.
         await sleep(/(^|\s)#[^\s#]*$/.test(ta.value) ? 400 : 120);
         return { text: ta.value, mentions: Array.from(document.querySelectorAll('.composer .mentions .opt .oname')).map((e) => e.textContent?.trim() ?? '') };
       }
@@ -260,7 +247,6 @@ export function installCanvasDriver(engine: CanvasEngine): () => void {
         };
       }
       case 'composerPaste': {
-        // Same path as a real paste (pills over 800 chars or 3+ lines).
         const ta = composerArea();
         if (!ta) return { error: 'UI_COMPOSER_NOT_OPEN: canvas_composer_open first' };
         ta.focus();
@@ -275,7 +261,6 @@ export function installCanvasDriver(engine: CanvasEngine): () => void {
         const path = str(a, 'path');
         if (!path) return { error: 'MISSING_ARGUMENT: path' };
         if (!ta) return { error: 'UI_COMPOSER_NOT_OPEN: canvas_composer_open first' };
-        // Like a pasted file: a remote terminal gets a copy in /tmp/omniget-drops there.
         const target = engine.selection.focused;
         let typed = path;
         if (target) {
@@ -308,8 +293,6 @@ export function installCanvasDriver(engine: CanvasEngine): () => void {
         const ws = engine.store.workspaceId;
         if (typeof a.text === 'string') {
           saveDraft(ws, id, { ...loadDraft(ws, id), text: a.text });
-          // An open composer on this node holds the draft in memory and would
-          // save it back: set its field too (an empty text clears it).
           const ta = composerArea();
           if (ta && engine.selection.focused === id) {
             ta.value = a.text;

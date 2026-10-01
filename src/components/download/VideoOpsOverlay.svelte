@@ -15,8 +15,6 @@
   let resultPath = $state("");
   let silenceHint = $state("");
 
-  // Preview antes de aplicar: mede o silencio sem escrever arquivo, para o
-  // usuario decidir se o ganho justifica a conversao.
   async function estimateSmartSpeed() {
     if (stage === "busy") return;
     silenceHint = $t("downloads.vop.smart_speed_measuring") as string;

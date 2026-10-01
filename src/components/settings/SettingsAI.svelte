@@ -12,11 +12,6 @@
     type AiConfigView as ConfigView, type AiKind, type AiSettingsDraft,
   } from "./settings-ai-form";
 
-  // Settings only configures the summary connection and reports its status.
-  // Running a summary and reading its history live in /llm/summaries.
-
-  // Model names are not in the provider table, so these are placeholders only:
-  // the field stays free text and whatever the provider accepts is what works.
   const MODEL_HINTS: Record<string, string> = {
     openai: "gpt-4o-mini",
     anthropic: "claude-sonnet-4-5",
@@ -31,8 +26,6 @@
     ollama: "llama3.2",
   };
 
-  // The provider table (ai_keys::KINDS) drives the picker, so every provider
-  // the app can route to is reachable here. The wire follows the row picked.
   let savedConfig = $state<ConfigView | null>(null);
   let kinds = $state<AiKind[]>([]);
   let kind = $state("none");
@@ -56,7 +49,6 @@
   let configReady = $state(false);
   let saving = $state(false);
   let testing = $state(false);
-  // Bumped after each test so the status re-reads the module-level result.
   let testRevision = $state(0);
   function draft(): AiSettingsDraft {
     return { provider, kind: kind === "none" ? "" : kind, model, localBaseUrl, openaiKey, anthropicKey, removeOpenaiKey, removeAnthropicKey };
@@ -71,12 +63,10 @@
     removeAnthropicKey = d.removeAnthropicKey;
   }
   let configDirty = $derived(isAiSettingsDirty(draft(), savedConfig));
-  // A stored key belongs to the provider it was saved for: switching drops it.
   let keyStored = $derived(kind === savedKind);
   let storedOpenaiKey = $derived(hasOpenaiKey && keyStored);
   let storedAnthropicKey = $derived(hasAnthropicKey && keyStored);
 
-  /** The row a saved config points at. Older builds kept no kind: a bare endpoint routes as `custom`. */
   function kindOf(c: ConfigView): string {
     if (c.provider === "none") return "none";
     return c.kind || (c.provider === "local" ? "custom" : c.provider);
@@ -87,7 +77,6 @@
       const list = await invoke<AiKind[]>("tool_keys_kinds");
       kinds = Array.isArray(list) ? list : [];
     } catch {
-      // The picker falls back to the three wires it always had.
       kinds = [];
     }
   }
@@ -112,7 +101,6 @@
     configLoading = true;
     configError = false;
     try {
-      // Local read only: opening Settings never contacts the provider.
       applyConfig(await loadAiConnection(invoke));
       const retained = readAiSettingsDraft();
       if (retained) applyDraft(retained);
@@ -150,8 +138,6 @@
       localBaseUrl = savedConfig.local_base_url;
       return;
     }
-    // The endpoint belongs to the provider: a fixed one comes from the table on
-    // save, and only a placeholder-shaped one (ollama, custom, a relay) is typed.
     const row = kinds.find(k => k.id === next);
     localBaseUrl = row?.base_url_editable && next === "ollama" ? row.base_url : "";
   }
@@ -184,8 +170,6 @@
     if (dirty) saving = true;
     saveFailed = false;
     try {
-      // A dirty form is saved first; the provider is contacted only after the
-      // save is confirmed, so a result never belongs to the previous connection.
       const outcome = await testAiConnection(invoke, { dirty, draft: submitted, saved: savedConfig });
       if (outcome.kind === "save_failed") {
         saveFailed = true;
@@ -331,10 +315,8 @@
 </SettingGroup>
 
 <style>
-  /* Rows sit directly in the group: no bordered card inside the group card. */
   .config-fields { min-width: 0; margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; }
   .config-fields > .setting-row { flex-wrap: wrap; gap: var(--space-2) var(--space-4); }
-  /* Rows are always separated by a .divider. */
   .config-fields > .divider + .setting-row { border-block-start: var(--hairline, 1px) solid var(--separator); }
   .config-fields .setting-col { flex: 1 1 14rem; }
   .ai-state { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); padding-block: var(--space-2); }
@@ -343,7 +325,6 @@
   .credential-input .input-text { min-width: 0; flex: 1; }
   .wrap { white-space: normal; overflow: visible; line-height: 1.5; }
   .feedback-error { color: var(--error); }
-  /* The provider select grows to its longest option; the row wraps before it would clip. */
   .config-fields .select { flex: 0 1 auto; min-width: 160px; max-width: 100%; }
   .actions-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; width: 100%; margin-block-start: var(--space-3); }
   .primary-btn {

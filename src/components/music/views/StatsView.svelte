@@ -16,7 +16,6 @@
     stats = await invoke<Stats>("music_stats", { tzOffsetMin: -new Date().getTimezoneOffset() }).catch(() => null);
   });
 
-  // last 30 days, one bar per day, zero-filled
   let days = $derived.by(() => {
     if (!stats) return [];
     const map = new Map(stats.per_day.map(([d, ms]) => [new Date(d).toDateString(), ms]));

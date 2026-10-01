@@ -7,10 +7,6 @@ import { showToast } from "$lib/stores/toast-store.svelte";
 import { parseSettingNumber } from "$lib/settings-search";
 import { failureShownInline } from "$lib/stores/settings-status-surfaces";
 
-/**
- * Autosave from an event handler. A failure is announced once: by the field's inline
- * SettingStatus when every changed field has one mounted, otherwise by a toast.
- */
 export async function saveSettings(partial: Record<string, unknown>): Promise<AppSettings | null> {
   try { return await updateSettings(partial); }
   catch {
@@ -30,7 +26,6 @@ export async function chooseFolder() {
   }
 }
 
-/** The store applies the confirmed language through the layout's locale applier. */
 export async function changeLanguage(e: Event) {
   const value = (e.target as HTMLSelectElement).value;
   await saveSettings({ appearance: { language: value } });
@@ -63,7 +58,6 @@ export type DependencyStatus = {
   name: string;
   installed: boolean;
   version: string | null;
-  /** "managed" | "system" | "flatpak" | "missing" */
   source: string;
   path: string | null;
   outdated: boolean;

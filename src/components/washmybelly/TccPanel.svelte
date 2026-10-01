@@ -9,12 +9,7 @@
   import Icon from "./ui/Icon.svelte";
   import PlanReview from "./ui/PlanReview.svelte";
 
-  /// Permissions tab (macOS): who may use the camera, the microphone, the
-  /// screen, the whole disk... read from TCC, grouped by service. "Reset"
-  /// forgets one app's answer through a one-item plan; the app asks again
   /// the next time it needs it. Ported from "Item Action List" (sean0205,
-  /// 21st.dev): icon, title and description with one trailing action per
-  /// row, inside the app's grouped inset list.
   let list = $state<TccList | null>(null);
   let loading = $state(true);
   let error = $state<string | null>(null);

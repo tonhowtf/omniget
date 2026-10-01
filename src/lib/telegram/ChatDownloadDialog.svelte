@@ -1,5 +1,4 @@
 <script lang="ts">
-  // Download a whole chat with filters (like `tdl dl`): preview first, then queue.
   import { t } from "$lib/i18n";
   import { showToast } from "$lib/stores/toast-store.svelte";
   import TgModal from "./TgModal.svelte";
@@ -50,7 +49,6 @@
     return { filter, template: template.trim() || undefined, outputDir: outputDir || undefined, skipSame, takeout, dedupe };
   }
 
-  // The preview only matches the filters it was made with.
   let currentKey = $derived(JSON.stringify({ f: filterFromForm(form), fromDate, toDate, fromId, toId, limit, takeout, dedupe }));
   let stale = $derived(!!preview && previewKey !== currentKey);
 

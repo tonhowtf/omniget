@@ -1,6 +1,4 @@
 <script lang="ts">
-  // Station favicons come from third-party sites and often 404; a broken one
-  // is replaced by the placeholder instead of leaving a failed <img> around.
   import Cover from "./Cover.svelte";
 
   let { src, name, size = 44, radius = 8 }: { src: string; name: string; size?: number; radius?: number } = $props();

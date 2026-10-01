@@ -15,9 +15,6 @@
   let atBottom = $state(true);
   let refreshTimer: ReturnType<typeof setInterval> | null = null;
 
-  // Última linha do yt-dlp, mostrada inline enquanto o log está fechado: é a
-  // resposta mais barata para "o que ele está fazendo agora?" sem abrir 200
-  // linhas (padrão do Seal, `currentLine`).
   let lastLine = $state("");
   let showLast = $derived(!expanded && !!lastLine && (status === "downloading" || status === "paused" || status === "error"));
 

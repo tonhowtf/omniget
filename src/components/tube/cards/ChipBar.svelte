@@ -1,6 +1,4 @@
 <script lang="ts">
-  // Category / filter chips (56px band). Sticky under the masthead when
-  // `sticky`, with the frosted background YouTube uses while scrolling.
   import Scroller from "./Scroller.svelte";
 
   export type ChipDef = { key: string; label: string; selected: boolean };

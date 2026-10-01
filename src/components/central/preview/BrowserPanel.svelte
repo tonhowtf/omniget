@@ -1,9 +1,4 @@
 <script lang="ts">
-  // Browser surface of a thread: address bar + a native webview anchored over
-  // the empty area below it (the host moves/resizes/hides it with the tab).
-  // With no page yet it lists the dev servers listening from the thread
-  // folder (lsof/netstat + HTML probe). Agents drive the same page through
-  // the preview_* tools.
   import { onDestroy, onMount } from "svelte";
   import { t } from "$lib/i18n";
   import Icon from "$components/central/threads/Icon.svelte";
@@ -114,7 +109,6 @@
           return;
         }
       } catch {
-        /* host without the preview commands yet */
       }
       const last = lastUrl(threadId);
       if (last) void go(last);

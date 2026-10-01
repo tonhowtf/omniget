@@ -2,8 +2,6 @@
   type MascotEmotion = "idle" | "complete" | "amazed";
 
   function emotionToSrc(e: MascotEmotion): string {
-    // amazed.png ships with a baked-in background, which reads as a grey
-    // square on the hero; the celebratory thumbs-up has a clean alpha channel.
     if (e === "amazed") return "/mascot/complete.png";
     return `/mascot/${e}.png`;
   }

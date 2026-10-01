@@ -42,8 +42,6 @@
   let summary = $derived(summarise(visibleGames));
 
   $effect(() => {
-    // A filter kept after a refresh that no longer has the queue would show an
-    // empty list with no explanation.
     if (queueFilter !== null && !availableQueues.includes(queueFilter)) {
       queueFilter = null;
     }
@@ -84,7 +82,6 @@
     }
   }
 
-  // Replay download (through the backend) and an AI review, per game.
   let replayBusy = $state<number | null>(null);
   let replayNote = $state<Record<number, string>>({});
   let reviewBusy = $state<number | null>(null);

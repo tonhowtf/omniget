@@ -1,10 +1,4 @@
 <script lang="ts">
-  /**
-   * Review of a finished job (3.5): the diff in the Central's viewer with a
-   * discard button per hunk and line notes, the notes sent back to the
-   * agent as a follow-up turn, the walkthrough on demand and, for a job in
-   * its own worktree, integrate or discard its branch.
-   */
   import { untrack } from "svelte";
   import DiffViewer from "$components/central/vcs/DiffViewer.svelte";
   import { t } from "$lib/i18n";
@@ -69,7 +63,6 @@
     }
   }
 
-  // Reload when the job changes state (a follow-up ended, a discard landed).
   $effect(() => {
     void job.id;
     void job.state_seq;

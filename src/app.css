@@ -4,7 +4,6 @@
 @import './lib/style/macos-shell.css';
 @import './lib/style/settings-rebrand.css';
 
-/* Lao script only (unicode-range), so Latin text keeps the chosen UI font. */
 @font-face {
   font-family: 'OmniGet Lao';
   font-style: normal;
@@ -13,20 +12,6 @@
   src: url('/fonts/noto-serif-lao-lao-wght-normal.woff2') format('woff2-variations');
   unicode-range: U+0E81-0EDF, U+200C-200D, U+25CC;
 }
-
-/*
- * OmniGet design tokens — Apple-first.
- *
- * Three layers:
- *   1. Global scale (spacing, type, radius, rows, motion). Never changes per theme.
- *   2. Per-theme SOURCE tokens (~24 values). Each [data-theme] block only sets these.
- *   3. Semantic + legacy aliases derived from the sources with color-mix, defined once
- *      on `:root, [data-theme]` so every theme (and any future one) gets the full set.
- *
- * Type follows the macOS text styles (SF Pro): 11 caption, 12 callout, 13 body,
- * 15 title3, 17 title2, 22 title1, 26 large title. Controls are 28pt, list rows
- * 28–40pt, sidebar rows 30pt. Radii are concentric: 12 (panes) → 8 (groups) → 6 (controls).
- */
 
 :root {
   --space-0: 0;
@@ -82,7 +67,6 @@
   --font-mono: ui-monospace, 'SF Mono', Menlo, 'Cascadia Mono', Consolas, 'DejaVu Sans Mono', monospace;
   --font-system: var(--font-body);
 
-  /* legacy layout aliases */
   --padding: var(--space-3);
   --border-radius: var(--radius-sm);
   --bottom-nav-height: 44px;
@@ -107,10 +91,6 @@
   font-family: var(--font-display);
   letter-spacing: var(--track-snug);
 }
-
-/* ------------------------------------------------------------------ */
-/* Theme sources. `dark` doubles as the fallback on :root.              */
-/* ------------------------------------------------------------------ */
 
 :root, [data-theme="dark"] {
   color-scheme: dark;
@@ -372,15 +352,10 @@
   --shadow-ink: 0, 0, 0; --elev-alpha-1: 0.5; --elev-alpha-2: 0.6; --elev-alpha-3: 0.75;
 }
 
-/* ------------------------------------------------------------------ */
-/* Semantic layer + legacy aliases (derived once, for every theme).     */
-/* ------------------------------------------------------------------ */
-
 :root, [data-theme] {
   color: var(--secondary);
   background-color: var(--primary);
 
-  /* surfaces */
   --bg: var(--primary);
   --bg-overlay: var(--scheme-overlay);
   --surface: var(--surface-src);
@@ -388,31 +363,26 @@
   --surface-mut: color-mix(in srgb, var(--surface-src) 60%, var(--pane));
   --pane-bg: var(--pane);
 
-  /* text */
   --text: var(--secondary);
   --text-muted: color-mix(in srgb, var(--secondary) 62%, var(--tertiary));
   --text-dim: var(--tertiary);
   --text-faint: color-mix(in srgb, var(--tertiary) 55%, transparent);
 
-  /* lines */
   --border: var(--content-border);
   --border-hi: color-mix(in srgb, var(--secondary) 16%, transparent);
   --separator: var(--content-border);
 
-  /* fills (Apple systemFill ladder, quaternary → primary) */
   --fill-1: color-mix(in srgb, var(--secondary) 7%, transparent);
   --fill-2: color-mix(in srgb, var(--secondary) 11%, transparent);
   --fill-3: color-mix(in srgb, var(--secondary) 16%, transparent);
   --fill-4: color-mix(in srgb, var(--secondary) 24%, transparent);
 
-  /* accent family */
   --accent-hi: var(--accent-text);
   --accent-lo: color-mix(in srgb, var(--accent) 86%, black);
   --accent-soft: color-mix(in srgb, var(--accent) 14%, transparent);
   --accent-glow: color-mix(in srgb, var(--accent) 28%, transparent);
   --selection: color-mix(in srgb, var(--accent) 22%, transparent);
 
-  /* status */
   --info: var(--blue);
   --danger: var(--error);
   --on-status: #ffffff;
@@ -424,7 +394,6 @@
   --on-success: #0F1A12;
   --on-error: #ffffff;
 
-  /* controls (legacy names still consumed widely) */
   --button: var(--surface-src);
   --button-hover: var(--surface-hi-src);
   --button-press: color-mix(in srgb, var(--surface-hi-src) 80%, var(--secondary));
@@ -440,12 +409,10 @@
   --control-bg-hover: color-mix(in srgb, var(--secondary) 9%, var(--pane));
   --input-bg: var(--control-bg);
 
-  /* materials — glass only where it separates chrome from content */
   --material: color-mix(in srgb, var(--sidebar-bg) 74%, transparent);
   --material-thick: color-mix(in srgb, var(--popup-bg) 88%, transparent);
   --material-blur: blur(28px) saturate(1.6);
 
-  /* elevation — only for things that float (popovers, sheets, palette) */
   --elev-0: none;
   --elev-1:
     0 0 0 var(--hairline) var(--content-border),
@@ -463,16 +430,11 @@
     0 4px 16px var(--accent-glow);
 }
 
-/* Non-macOS webviews render blur slowly and without vibrancy; use opaque chrome. */
 [data-platform="other"] {
   --material: var(--sidebar-bg);
   --material-thick: var(--popup-bg);
   --material-blur: none;
 }
-
-/* ------------------------------------------------------------------ */
-/* Base elements                                                        */
-/* ------------------------------------------------------------------ */
 
 *,
 *::before,
@@ -606,7 +568,6 @@ textarea::placeholder {
   color: var(--text-dim);
 }
 
-/* Native pop-up button look for every <select> that has no class of its own. */
 select {
   font-family: inherit;
   font-size: var(--text-base);
@@ -660,8 +621,6 @@ strong, b {
   font-weight: 600;
 }
 
-/* ---------- Typography helpers ---------- */
-
 .page-title {
   font-family: var(--font-display);
   font-size: var(--text-2xl);
@@ -697,8 +656,6 @@ strong, b {
 .tabular {
   font-variant-numeric: tabular-nums;
 }
-
-/* ---------- Legacy .button (still used in a few places) ---------- */
 
 .button {
   display: inline-flex;
@@ -758,7 +715,7 @@ strong, b {
   opacity: 0.5;
 }
 
-/* Hide WebView2 / Edge / Chromium native video controls (we use custom UI in PlayerShell). */
+/* WHY: WebView2/Chromium draw native video controls over the custom player. */
 video::-webkit-media-controls,
 video::-webkit-media-controls-enclosure,
 video::-webkit-media-controls-overlay-enclosure,
@@ -793,12 +750,6 @@ video {
   outline: none;
 }
 
-/* ------------------------------------------------------------------ */
-/* Accessibility preferences (Settings → Appearance mirrors the OS)     */
-/* ------------------------------------------------------------------ */
-
-/* Reduced motion comes from the OS OR the app preference; either removes
-   displacement. Indeterminate progress stays visible and still, no pulse. */
 [data-reduce-motion="true"] {
   --duration-fast: 0.01ms;
   --duration-base: 0.01ms;
@@ -852,9 +803,6 @@ video {
   }
 }
 
-/* A window nobody is looking at should not be asking the GPU for anything.
-   While the app is unfocused every decorative animation stops; the layout and
-   the colours stay exactly as they are, so nothing moves when focus returns. */
 [data-window-blurred] *,
 [data-window-blurred] *::before,
 [data-window-blurred] *::after {

@@ -1,14 +1,4 @@
 <script lang="ts">
-  /**
-   * The fallback chain: the accounts the router walks, top to bottom.
-   *
-   * Order is the whole point of this list, so it is editable two ways — drag
-   * the handle, or move a row with the keyboard buttons. Drag alone would put
-   * the chain out of reach of anyone who cannot drag, and this order decides
-   * which subscription pays for the next turn.
-   *
-   * The list emits an order and nothing else; persisting it is the page's job.
-   */
   import { t } from "$lib/i18n";
   import AccountCard from "./AccountCard.svelte";
   import {

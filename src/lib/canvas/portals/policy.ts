@@ -1,18 +1,3 @@
-// Live vs snapshot policy of the portals (02-motor-do-canvas §7.3).
-//
-// A native webview sits above all DOM, does not clip and does not scale by
-// CSS, so a portal is "live" (its webview shown over the node) only when all
-// of this holds:
-//   - the camera has been still for SETTLE_MS (150 ms) and the node too;
-//   - canvas zoom within 0.5–2;
-//   - the page rect is entirely inside the canvas area;
-//   - nothing covers it (a higher node, a menu, a toolbar, a dialog): sampled
-//     with elementFromPoint, so any DOM on top counts;
-//   - it is within the live budget (LIVE_PORTALS_LIMIT, focused first).
-// Otherwise it is "dormant": webview hidden, last native snapshot shown.
-// One IPC per portal when its state or rect changes, never per frame.
-// Dormant portals unload (browser process freed) after UNLOAD_AFTER_MS.
-
 import { allocate, LIVE_PORTALS_LIMIT } from '../lod';
 import type { CanvasEngine } from '../engine.svelte';
 import { closePortal, hidePortal, refreshSnapshot, setPortalBounds, type PortalBounds } from './client';
@@ -34,7 +19,6 @@ export interface Rect {
 export interface Candidate {
   id: string;
   rect: Rect;
-  /** How long the rect has not changed (ms). */
   stableMs: number;
   covered: boolean;
   priority: number;
@@ -53,7 +37,6 @@ export function inside(r: Rect, c: Rect, tol = 0.5): boolean {
   return r.x >= c.x - tol && r.y >= c.y - tol && r.x + r.w <= c.x + c.w + tol && r.y + r.h <= c.y + c.h + tol;
 }
 
-/** Pure decision: ids that should be live now. */
 function decideLive(input: PolicyInput): Set<string> {
   if (!input.pageVisible || !input.cameraStill) return new Set();
   if (input.zoom < LIVE_ZOOM_MIN || input.zoom > LIVE_ZOOM_MAX) return new Set();
@@ -73,16 +56,11 @@ function decideLive(input: PolicyInput): Set<string> {
 
 interface PortalEntry {
   id: string;
-  /** Element the page covers (below the portal's toolbar). */
   body: () => HTMLElement | null;
-  /** The whole node element (anything inside it is "ours" for coverage). */
   host: () => HTMLElement | null;
-  /** Higher wins the budget. */
   priority: () => number;
-  /** Loads the browser (hidden) if needed; false = cannot go live. */
   ensureOpen: () => Promise<boolean>;
   onLive: (live: boolean) => void;
-  /** Lifted or docked: shown at real size (zoom 1) and live while the camera moves. */
   raised?: () => boolean;
 }
 
@@ -104,8 +82,6 @@ function sameRect(a: Rect | null, b: Rect): boolean {
   return !!a && Math.abs(a.x - b.x) < 0.5 && Math.abs(a.y - b.y) < 0.5 && Math.abs(a.w - b.w) < 0.5 && Math.abs(a.h - b.h) < 0.5;
 }
 
-/** 3×3 samples inset from the edges (selection handles sit on the edges).
- * Chrome marked `data-cover-ignore` (the minimap) does not count. */
 export function covered(rect: Rect, host: HTMLElement): boolean {
   if (typeof document === 'undefined' || !document.elementFromPoint) return false;
   const fx = [0.15, 0.5, 0.85];
@@ -161,12 +137,10 @@ class PortalPolicy {
       t.live = false;
       void hidePortal(id).catch(() => {});
     }
-    // The node left "near" (or the canvas closed): free the process later.
     this.scheduleUnload(id);
     if (this.tracks.size === 0) this.stop();
   }
 
-  /** Re-evaluates after the next settle (a node moved, a menu opened...). */
   kick(): void {
     this.onFrame();
   }
@@ -188,7 +162,6 @@ class PortalPolicy {
   }
 
   private onFrame(): void {
-    // Camera moving: hide right away, a lagging native window looks broken.
     if (this.engine.moving || this.engine.pinching) {
       for (const [id, t] of this.tracks) if (t.live && !t.entry.raised?.()) this.goDormant(id, t);
       this.evaluateRaised();
@@ -209,7 +182,6 @@ class PortalPolicy {
     return { x: 0, y: 0, w: window.innerWidth, h: window.innerHeight };
   }
 
-  /** Raised portals ignore the camera: live whenever the page is visible. */
   private evaluateRaised(): Set<string> {
     const raised = new Set<string>();
     const visible = typeof document === 'undefined' || document.visibilityState !== 'hidden';
@@ -269,14 +241,12 @@ class PortalPolicy {
         this.goDormant(id, t);
       }
     }
-    // Something may slide over a live portal without any canvas frame.
     const anyLive = Array.from(this.tracks.values()).some((t) => t.live);
     if (anyLive && !this.poll) this.poll = setInterval(() => this.evaluate(), COVER_POLL_MS);
     else if (!anyLive && this.poll) {
       clearInterval(this.poll);
       this.poll = null;
     }
-    // Rects still settling: look again once they are stable.
     if (cands.some((c) => c.stableMs < SETTLE_MS) && !this.settleTimer) {
       this.settleTimer = setTimeout(() => {
         this.settleTimer = null;
@@ -316,7 +286,6 @@ class PortalPolicy {
         t.sent = key;
         if (!wasLive) {
           t.entry.onLive(true);
-          // First frame of the live page becomes the next dormant texture.
           t.lastSnap = performance.now();
           setTimeout(() => {
             if (t.live) void refreshSnapshot(id);
@@ -329,11 +298,6 @@ class PortalPolicy {
       });
   }
 
-  /**
-   * Hides at once (a native window lagging behind the DOM, or covering a
-   * menu, looks broken), then refreshes the texture: WebKit snapshots hidden
-   * webviews; elsewhere the periodic live snapshot is what stays.
-   */
   private goDormant(id: string, t: Track): void {
     t.live = false;
     t.sent = '';

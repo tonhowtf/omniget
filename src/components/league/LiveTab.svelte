@@ -122,8 +122,6 @@
     return Math.max(0, Math.ceil((end - timerNow) / 1000));
   }
 
-  // The objective payload only refreshes every few seconds, so the countdown is
-  // continued locally instead of jumping in steps.
   let eventsFetchedAt = $state(Date.now());
   let objectiveNow = $state(Date.now());
 

@@ -1,8 +1,4 @@
 <script lang="ts">
-  // Root of the agent canvas (02-motor-do-canvas §2, §4.2): the four layers,
-  // the frame loop owner and the single event router. Pointer-down is decided
-  // here, in capture phase, by geometry: chrome first, then live node content
-  // (focused node, terminal body), then the engine's tools.
   import { onMount } from "svelte";
   import { t } from "$lib/i18n";
   import { CanvasEngine, provideEngine } from "$lib/canvas/engine.svelte";
@@ -63,7 +59,6 @@
   registerBuiltinNodes();
   const engine = new CanvasEngine();
   provideEngine(engine);
-  // Dev-only handle for test drivers and the console.
   if (import.meta.env.DEV && typeof window !== "undefined") {
     (window as unknown as { __omnigetCanvas?: CanvasEngine }).__omnigetCanvas = engine;
   }
@@ -120,7 +115,6 @@
         const target = e.target as HTMLElement | null;
         if (!target) return false;
         if (target.closest("[data-canvas-chrome]")) return true;
-        // With a node focused, the wheel scrolls its content; ⇧ forces the canvas.
         const focused = engine.selection.focused;
         if (!focused || e.shiftKey || e.ctrlKey || e.metaKey) return false;
         const host = target.closest<HTMLElement>("[data-node-id]");
@@ -140,7 +134,6 @@
     void engine.start(workspaceId);
 
     const stopDrop = attachFileDrop(engine, root);
-    // MCP canvas tools (UI half) and `canvas://navigate`.
     const stopDriver = installCanvasDriver(engine);
     const stopChat = registerChat({
       focused: () => engine.selection.focused,
@@ -148,7 +141,6 @@
     });
     const stopRoles = registerRoles({
       workspaceId: () => engine.store.workspaceId,
-      // Rust stopped the process only when it was running; otherwise the next open applies the role.
       restart: (nodeId, ev) => {
         if (ev.restart) engine.requestRestart(nodeId);
       },
@@ -177,8 +169,6 @@
     };
   });
 
-  // ---- pointer routing ------------------------------------------------
-
   function onPointerDownCapture(e: PointerEvent) {
     const target = e.target as HTMLElement;
     if (target.closest("[data-canvas-chrome]")) return;
@@ -186,7 +176,6 @@
     const host = target.closest<HTMLElement>("[data-node-id]");
     const id = host?.dataset.nodeId;
     if (id && engine.isRaised(id)) {
-      // A lifted/docked panel is live content: it takes the pointer and the keyboard.
       if (e.button === 0 && engine.selection.focused !== id) {
         engine.selection.set([id]);
         engine.selection.focus(id);
@@ -197,7 +186,6 @@
     const inBody = !!target.closest("[data-node-body]");
     if (id && inBody && e.button === 0 && engine.tool === "select" && !engine.tools.spaceHeld) {
       const node = engine.store.node(id);
-      // A node's own title bar (terminals draw theirs) is still a drag handle; its buttons are not.
       const l = engine.tools.local(e);
       const w = engine.camera.screenToWorld(l.x, l.y);
       const onHeader = !!node && w.y - node.y <= headerWorld(node.kind, node.h, engine.camera.zoom);
@@ -223,13 +211,11 @@
       }
     }
     if (e.button === 2) {
-      // Settings → Canvas: right-button drag pans (a click still opens the menu).
       if (canvasPrefs().right_drag_pan) {
         rightPan = { x: e.clientX, y: e.clientY, moved: false, id: e.pointerId };
         try {
           root?.setPointerCapture(e.pointerId);
         } catch {
-          // Synthetic pointers cannot be captured.
         }
       }
       return;
@@ -259,7 +245,6 @@
     engine.tools.pointerMove(e);
   }
 
-  /** Settings → Canvas "Focus on hover": the node under the pointer gets the keyboard. */
   function focusOnHover(e: PointerEvent) {
     const host = (e.target as HTMLElement | null)?.closest?.<HTMLElement>("[data-node-id]");
     const id = host?.dataset.nodeId ?? null;
@@ -288,7 +273,6 @@
 
   function onContextMenu(e: MouseEvent) {
     if (rightPanned) {
-      // The right button panned: no menu.
       rightPanned = false;
       e.preventDefault();
       return;
@@ -296,7 +280,7 @@
     const target = e.target as HTMLElement;
     if (target.closest("[data-canvas-chrome]")) return;
     const host = target.closest<HTMLElement>("[data-node-id]");
-    if (host && host.dataset.nodeId === engine.selection.focused) return; // native menu inside live content
+    if (host && host.dataset.nodeId === engine.selection.focused) return;
     e.preventDefault();
     const raisedId = host?.dataset.nodeId;
     if (raisedId && engine.isRaised(raisedId)) {
@@ -327,7 +311,6 @@
     const hit = hitTest(engine.store, w.x, w.y, { zoom: engine.camera.zoom });
     if (hit.type === "node") {
       engine.selection.set([hit.id]);
-      // Maestri: double-click on the header lifts the node into the centre.
       if (hit.zone === "header") engine.panels.toggleLift(hit.id);
       else engine.enterSelected();
       return;
@@ -338,8 +321,6 @@
     }
   }
 
-  // ---- keyboard -------------------------------------------------------
-
   function mine(e: KeyboardEvent): boolean {
     if (!root) return false;
     const a = document.activeElement;
@@ -348,7 +329,6 @@
 
   function onKeyDown(e: KeyboardEvent) {
     const primary = mac ? e.metaKey : e.ctrlKey;
-    // ⌘, opens Settings from anywhere on the canvas screen, even inside a terminal.
     if (primary && !e.shiftKey && !e.altKey && (e.key === "," || e.code === "Comma")) {
       e.preventDefault();
       e.stopImmediatePropagation();
@@ -356,8 +336,6 @@
       return;
     }
     if (!mine(e)) {
-      // ⌘1–⌘9 on the canvas screen always mean "jump to terminal N", also with
-      // the focus on a button of the sidebar or the toolbar (never app navigation).
       if (primary && !e.shiftKey && !e.altKey && /^[1-9]$/.test(e.key) && !isEditableTarget(e.target) && !document.querySelector("[role='dialog'][aria-modal='true']")) {
         e.preventDefault();
         e.stopImmediatePropagation();
@@ -365,7 +343,6 @@
       }
       return;
     }
-    // An open menu (the ⌘T sheet, the right-click menu) keeps its arrows and Enter.
     if ((e.target as HTMLElement | null)?.closest?.("[role='menu']") && e.key !== "Escape") return;
     if (primary && e.shiftKey && !e.altKey && e.key.toLowerCase() === "l") {
       e.preventDefault();
@@ -382,7 +359,6 @@
     }
     const editable = isEditableTarget(e.target);
     if (editable) {
-      // Inside live content: only the always-on shortcuts and ⇧Esc (back to canvas).
       if (e.key === "Escape" && e.shiftKey) {
         e.preventDefault();
         engine.exitFocus();
@@ -393,7 +369,6 @@
         e.preventDefault();
         engine.nextAttention();
       } else if (primary && e.altKey && !e.shiftKey && (e.key === "ArrowRight" || e.key === "ArrowLeft")) {
-        // Walking the cord keeps working from inside a note or a terminal it opened.
         e.preventDefault();
         e.stopPropagation();
         void engine.walkCord(e.key === "ArrowRight" ? 1 : -1);
@@ -411,7 +386,6 @@
       engine.tools.setCursor("grab");
       return;
     }
-    // ⌘C over selected page text (a rendered note, a card) copies the text, not the nodes.
     if (primary && e.key.toLowerCase() === "c" && (window.getSelection()?.toString() ?? "") !== "") return;
     const selIds = engine.selection.list();
     const drawingsOnly = selIds.length > 0 && selIds.every((id) => !!engine.store.drawing(id));
@@ -431,7 +405,6 @@
     if (e.key === " ") {
       engine.tools.spaceHeld = false;
       engine.tools.setCursor("");
-      // A short tap of Space (no pan) is Quick Look: the selected node opens at real size.
       if (spaceDownAt && performance.now() - spaceDownAt < 350 && engine.tools.panStarts === spacePans && !isEditableTarget(e.target)) {
         const id = engine.selection.list().find((x) => engine.store.node(x));
         if (id && engine.selection.size === 1) engine.panels.toggleLift(id);
@@ -440,7 +413,6 @@
     }
   }
 
-  /** ⌃Tab / ⌃⇧Tab: next/previous element; with a node lifted, the panel moves. */
   function cycleElements(delta: number) {
     if (engine.panels.cycle(delta)) return;
     const order = engine.panels.order();
@@ -460,7 +432,6 @@
       .filter((d): d is Drawing => !!d);
     if (!ds.length) {
       engine.strokeWidth = Math.max(1, Math.min(16, engine.strokeWidth + delta));
-      // Maestri: [ and ] with nothing selected pick the stroke tool too.
       if (engine.tool === "select" || engine.tool === "hand") engine.setTool("pen");
       return;
     }
@@ -585,7 +556,6 @@
         engine.toggleLock();
         break;
       case "view": {
-        // Shortcuts that run a View menu entry (one implementation for both).
         const entry = viewMenu(engine).find((x) => x.id === cmd.id);
         void Promise.resolve(entry?.run?.()).catch(() => {});
         break;
@@ -594,7 +564,6 @@
         void engine.walkCord(cmd.delta);
         break;
       case "new-note": {
-        // ⌘⇧D: the note appears at a free spot of the view, already in edit mode.
         const n = engine.spawn("note", null);
         engine.reveal(n.id);
         engine.selection.focus(n.id);
@@ -609,7 +578,6 @@
         engine.align(cmd.mode);
         break;
       case "new-terminal": {
-        // ⌘T: the Add sheet (agents, presets) at the centre of the view.
         const c = engine.camera.center();
         engine.spawnMenu = { sx: engine.camera.vw / 2, sy: engine.camera.vh / 2, wx: c.x, wy: c.y, free: true };
         break;
@@ -632,8 +600,6 @@
     }
     engine.invalidate();
   }
-
-  // ---- drops from inside the app (chat attachments, partituras) ------------
 
   const FILE_DRAG = "application/x-omniget-file";
 
@@ -669,7 +635,6 @@
           engine.selection.set([node.id]);
         }
       } catch {
-        // Not ours.
       }
     }
   }
@@ -680,16 +645,13 @@
     engine.invalidate();
   }
 
-  // Settings → Canvas changed (screen, MCP, CLI): redraw grid, cords, selection.
   $effect(() => {
     void canvasPrefs();
     engine.invalidate();
   });
-  // Settings → Canvas → Shortcuts (remapped actions).
   $effect(() => {
     setShortcutOverrides(canvasPrefs().shortcuts);
   });
-  // Terminal font/theme/padding changed: re-measure cells and rebuild the palette.
   let lastTermPrefs = "";
   $effect(() => {
     const tp = JSON.stringify(canvasPrefs().terminal);
@@ -704,11 +666,9 @@
   const sidebarW = $derived(canvasUi.sidebarOpen ? 232 : 48);
   $effect(() => {
     engine.panels.sidebarW = sidebarW;
-    // Docked columns cover the canvas edges: fits and centring avoid them.
     engine.camera.insetLeft = sidebarW + engine.panels.dockWidth("left");
     engine.camera.insetRight = engine.panels.dockWidth("right");
   });
-  // Lifted/docked panels live in the workspace meta (also written by MCP).
   $effect(() => {
     void engine.syncMode;
     void engine.store.version;
@@ -734,7 +694,6 @@
     if (ws) void roles.load(ws);
   });
 
-  // Window title = active workspace (Maestri 0.47), back to "OmniGet" on leave.
   $effect(() => {
     const ws = workspaces.byId(engine.store.workspaceId);
     const title = ws?.name ? `${ws.name} — OmniGet` : "OmniGet";
@@ -801,8 +760,6 @@
     <Toolbar />
   </div>
   <div class="bottom-right">
-    <!-- A lifted node (Quick Look) sits in the world layer, under this
-         corner: the minimap steps aside while it is up (M-B33). -->
     {#if !engine.panels.lifted}<Minimap />{/if}
     <div class="bottom-row">
       {#if engine.syncMode === "rust" && engine.store.workspaceId}
@@ -827,7 +784,6 @@
   <PromptComposer />
   <WorkspaceSidebar />
   <CommandPalette />
-  <!-- Visiting someone: their canvas over the World screen. -->
   <VisitStage />
 
   {#if engine.panel?.kind === "companion" || engine.panel?.kind === "visit"}
@@ -938,7 +894,6 @@
     inset: 0;
     overflow: hidden;
     pointer-events: none;
-    /* Own stacking context: node z-indexes never climb over the sidebar. */
     z-index: 1;
   }
   .world-clip :global(.node) {
@@ -949,22 +904,18 @@
   .top {
     position: absolute;
     top: 12px;
-    /* Centred in the area right of the workspace sidebar, between docked columns. */
     left: calc(var(--sidebar-w, 0px) + var(--dock-l, 0px) + 12px);
     right: calc(var(--dock-r, 0px) + 12px);
     display: flex;
     justify-content: center;
     pointer-events: none;
-    /* Above the minimap corner: the toolbar's "more" menu opens over it. */
     z-index: 12;
   }
   .top > :global(*) {
-    /* The toolbar measures this width and folds what does not fit. */
     min-width: 0;
   }
   .bottom-right {
     position: absolute;
-    /* Left of a column docked on the right, never over its header. */
     right: calc(var(--dock-r, 0px) + 12px);
     bottom: 12px;
     display: flex;
@@ -998,8 +949,6 @@
     box-sizing: border-box;
     background: rgb(0 0 0 / 0.25);
   }
-  /* A tall panel (routine form) scrolls inside the canvas instead of
-     spilling over its top edge. */
   .modal > :global(*) {
     max-height: 100%;
     overflow: auto;

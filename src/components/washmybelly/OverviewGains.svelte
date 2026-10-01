@@ -3,9 +3,6 @@
   import { formatBytes } from "$lib/washmybelly/api";
   import type { Gain } from "$lib/washmybelly/monitor";
 
-  // "What you can win now" cards. Takes every gain the core reports: free
-  // space and battery today; junk and login items once the clean and
-  // startup modules fill `score_inputs`.
   let { gains, onOpen }: { gains: Gain[]; onOpen: (module: string) => void } = $props();
 
   const GLYPH: Record<Gain["id"], string> = {

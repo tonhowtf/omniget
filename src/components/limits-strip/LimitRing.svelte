@@ -1,16 +1,4 @@
 <script lang="ts">
-  /**
-   * One account's ring in the strip: two concentric arcs in a 32 px box.
-   * The outer arc is the short window (the session, "5h limit"), the inner
-   * one the fullest of the longer windows (weekly). Each arc takes its own
-   * colour by band: calm under 80 %, amber to 95 %, red above.
-   *
-   * While the account's agent works, a thinking orb spins in the hole; while
-   * it waits for the user, the orb breathes. At rest nothing here animates.
-   *
-   * `pace` adds a thin tick across one arc where the used share would sit if
-   * the window were spent evenly: an arc past its tick is ahead of pace.
-   */
   import { onMount } from "svelte";
   import { orb } from "./orb";
   import { tone, type Activity } from "./limits";
@@ -33,7 +21,6 @@
     pace?: { at: number; arc: "outer" | "inner" } | null;
   } = $props();
 
-  // Arcs grow from empty when the ring first appears.
   let shown = $state(false);
   onMount(() => {
     const id = requestAnimationFrame(() => requestAnimationFrame(() => (shown = true)));
@@ -43,7 +30,6 @@
   const clamp = (v: number | null) => Math.max(0, Math.min(1, v ?? 0));
   let two = $derived(inner != null);
   let busy = $derived(!small && (activity === "working" || activity === "waiting"));
-  /** The tick's two ends, across the arc's stroke (the svg is turned so 0 is at 12 o'clock). */
   let tick = $derived.by(() => {
     if (!pace) return null;
     const [r, w] = !two ? [13.6, 3.6] : pace.arc === "inner" ? [10.9, 2.4] : [14.4, 3];
@@ -157,8 +143,6 @@
   .arc.zero {
     opacity: 0;
   }
-  /* A dark or light hairline with a halo of the backdrop, so it reads on the
-     coloured arc and on the bare track alike. */
   .tick,
   .tick-under {
     stroke-linecap: round;

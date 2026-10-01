@@ -1,8 +1,3 @@
-// Drops from Finder/Explorer onto the canvas (03 §2): paths arrive through
-// Tauri (the webview never sees them). `.md`/`.markdown`/`.txt` become
-// external notes, folders become file trees, the rest file nodes, laid out
-// in a cascade from the drop point.
-
 import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWebview } from '@tauri-apps/api/webview';
 import type { CanvasEngine } from '../engine.svelte';
@@ -10,7 +5,6 @@ import { GRID } from '../model/types';
 import { nodeForPath } from './open';
 import { dropOnTerminal } from '../term/drop';
 
-/** Starts listening; returns the stop function. `root` is the canvas element. */
 export function attachFileDrop(engine: CanvasEngine, root: HTMLElement): () => void {
   let unlisten: (() => void) | null = null;
   let disposed = false;
@@ -26,7 +20,6 @@ export function attachFileDrop(engine: CanvasEngine, root: HTMLElement): () => v
         const r = root.getBoundingClientRect();
         if (cx < r.left || cx > r.right || cy < r.top || cy > r.bottom) return;
         const w = engine.camera.screenToWorld(cx - r.left, cy - r.top);
-        // On a terminal body: the paths are typed into it (term/drop.ts).
         if (dropOnTerminal(engine, p.paths, w)) return;
         void dropPaths(engine, p.paths, w);
       })
@@ -36,7 +29,6 @@ export function attachFileDrop(engine: CanvasEngine, root: HTMLElement): () => v
       })
       .catch(() => {});
   } catch {
-    // Outside Tauri.
   }
   return () => {
     disposed = true;

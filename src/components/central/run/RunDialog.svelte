@@ -1,5 +1,4 @@
 <script lang="ts">
-  /** Modal shell shared by the run dialogs (same look as the catalog's PlanDialog). */
   import type { Snippet } from "svelte";
   import { t } from "$lib/i18n";
 

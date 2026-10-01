@@ -1,10 +1,4 @@
 #!/usr/bin/env node
-/**
- * Merges every coverage-*.json under the evidence folder (default: the execution evidence,
- * never the audit's docs/settings-rebrand/evidence) and writes summary.json + summary.md there.
- * The latest attempt of each case id is authoritative; earlier failed attempts are counted as retries.
- *   node scripts/settings-rebrand/summarize.mjs [--dir=docs/settings-rebrand/execution/evidence]
- */
 import { readFileSync, writeFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";

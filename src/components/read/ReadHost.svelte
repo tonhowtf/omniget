@@ -1,8 +1,4 @@
 <script lang="ts">
-  // Mounted by the root layout while Read is on: imports finished book
-  // downloads even when you're elsewhere in the app, starts the library
-  // server (and the new-chapter checks) shortly after boot, and tells
-  // agents what is open in the reader.
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { getDownloads } from "$lib/stores/download-store.svelte";

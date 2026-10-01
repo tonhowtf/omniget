@@ -12,7 +12,6 @@
     appNav?: NavItem[];
     badgeLabel?: string;
     badgeCount?: number;
-    /** Icon-only rail; the state lives in settings.appearance.sidebar_collapsed. */
     collapsed?: boolean;
     onToggleCollapsed?: () => void;
   }
@@ -28,10 +27,6 @@
 
   const shortcutLabel = isMac() ? "⌃⌘S" : "Ctrl+Shift+S";
 
-  // Settings and LLM carry their own navigation column. Below 1180px the global
-  // list steps down to the 64px rail there, for as long as the route is open.
-  // This never writes `sidebar_collapsed`: leaving the route or widening the
-  // window brings the saved preference back. Expanding opens it as a drawer.
   const AUTO_COLLAPSE_BELOW = 1180;
   let viewportWidth = $state(typeof window === "undefined" ? AUTO_COLLAPSE_BELOW : window.innerWidth);
   let denseRoute = $derived(/^\/(settings|llm)(\/|$)/.test(page.url.pathname));
@@ -45,7 +40,6 @@
   $effect(() => {
     if (!autoCollapsed) drawerOpen = false;
   });
-  // A new route closes the drawer (links inside it navigate).
   $effect(() => {
     void page.url.pathname;
     drawerOpen = false;
@@ -76,9 +70,6 @@
     if (drawer && aside && !aside.contains(event.target as Node)) closeDrawer(false);
   }
 
-  // Rail tooltip. Native `title` waits ~1s and cannot be styled, so the rail
-  // draws its own: 400 ms before the first one, then instant while the pointer
-  // moves along the column (the "warm" window), like macOS toolbars.
   let tip = $state<{ text: string; top: number; left: number } | null>(null);
   let tipTimer: ReturnType<typeof setTimeout> | undefined;
   let warmTimer: ReturnType<typeof setTimeout> | undefined;
@@ -109,16 +100,12 @@
   });
 
 
-  // Loads once per session and never throws: while `profile_*` answers ERR_STUB
-  // the store stays null and the footer simply does not render.
   loadProfile();
   let profile = $derived(getProfile());
 
   function isActive(href: string): boolean {
     if (href === "/") return page.url.pathname === "/";
     const path = page.url.pathname;
-    // The LLM entry lands on /llm/threads; every /llm page (the Chat tab at
-    // /llm included) belongs to it.
     if (href.startsWith("/llm/")) return path === "/llm" || path.startsWith("/llm/");
     return path.startsWith(href) || (NAV_ALIASES[href] ?? []).some((alias) => path.startsWith(alias));
   }
@@ -245,8 +232,6 @@
     border-radius: var(--radius-xs);
     background: var(--fill-2);
   }
-  /* Temporary rail on Settings/LLM below 1180px: same look as the saved
-     collapsed state, scoped to this element so the preference is untouched. */
   .auto-collapsed { --sidebar-width: 64px; }
   .auto-collapsed .mac-nav-label,
   .auto-collapsed .mac-nav-badge { display: none; }

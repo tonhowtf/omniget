@@ -1,9 +1,4 @@
 <script lang="ts">
-  // Chrome of a terminal/agent node: title bar with the agent state badge,
-  // progress and actions. The body is drawn by the terminal GL pass under
-  // this layer (no DOM per cell); here it is a transparent surface that owns
-  // pointer input and the hidden textarea over the cursor. Without WebGL2 the
-  // Central's xterm.js view is mounted inside the node instead.
   import { onDestroy, onMount } from "svelte";
   import { t } from "$lib/i18n";
   import TerminalView from "$components/central/terminal/TerminalView.svelte";
@@ -60,13 +55,11 @@
     onexit?: () => void;
   } = $props();
 
-  // The terminal id is fixed for the life of the node.
   // svelte-ignore state_referenced_locally
   const termId = terminalIdOf(node);
   const live = termLive(termId);
   const useGl = termGlAvailable();
   const engine = useEngine();
-  /** xterm.js fallback mounts once the launch pipeline opened the PTY. */
   let fallbackReady = $state(false);
 
   let body = $state<HTMLDivElement | null>(null);
@@ -87,10 +80,8 @@
   const role = $derived(roles.byId(typeof data.roleId === "string" ? data.roleId : null));
   const isManager = $derived(!!data.isManager);
   const chatFace = $derived(chats.isChat(node.id));
-  /** Per-terminal font size (⌘⇧+/−) over the base size. */
   const fontScale = $derived(termFontScale(node));
 
-  // Find bar (⌘F): plain text, Enter = older match, ⇧Enter = newer.
   let findOpen = $state(false);
   let findQuery = $state("");
   let findCount = $state<number | null>(null);
@@ -126,7 +117,6 @@
 
   function onFindInput() {
     if (findTimer) clearTimeout(findTimer);
-    // First search from the bottom, towards older output.
     findTimer = setTimeout(() => void findStep(true), 120);
   }
 
@@ -147,7 +137,6 @@
     findCount = null;
     findMiss = false;
     void termSearchClear(termId).catch(() => {});
-    // After the canvas has seen the Escape (it would take the focus back).
     setTimeout(focusInput, 0);
   }
 
@@ -183,7 +172,6 @@
   const chatState = chats.of(node.id);
   const chatUnread = $derived(chatState.totalUnread());
 
-  /** Bus/hook signal from the canvas store wins over the wire when present. */
   const agentState = $derived.by((): AgentStateName => {
     const sig = agentStates.of(node);
     if (sig && sig.state !== "unknown") {
@@ -191,14 +179,11 @@
     }
     return live.agent;
   });
-  // Settings → Canvas: attention badges only on the Maestro when turned off for the others.
   const quietAttention = $derived(
     !canvasPrefs().notifications.badges_for_non_maestro &&
       !isManager &&
       (agentState === "success" || agentState === "failed" || agentState === "blocked"),
   );
-  // Badges off: the attention seal goes away (Maestri hides the dot); the
-  // header shows the plain idle mark instead of a grey check.
   const badgeState = $derived<AgentStateName>(quietAttention ? "idle" : agentState);
   const stateColor = $derived(stateCss(normaliseState(badgeState)));
   const title = $derived(node.title || live.title || $t(`canvas.term.agent.${agent}`));
@@ -240,14 +225,11 @@
     live.error = "";
     const size = gridSizeFor(node.w, node.h, fontScale);
     try {
-      // Floor context -> role -> cords env -> term_open (see $lib/canvas/spawn).
       const info = await openTerminal(node, workspaceId || engine.store.workspaceId, {
         floorId: engine.store.floorId,
         restore,
       });
       fallbackReady = true;
-      // A late term://exit of the process this one replaced (restart, role swap)
-      // must not leave the node marked as exited.
       setTimeout(() => {
         void termList()
           .then((l) => {
@@ -283,7 +265,6 @@
     try {
       await termClose(termId, false);
     } catch {
-      // already gone
     }
     termHub.forget(termId);
     live.exited = null;
@@ -300,8 +281,6 @@
   }
 
   function focusInput() {
-    // Keep the canvas' focused node in step with the real keyboard focus
-    // (⌘J, the composer and ⌘1–9 read selection.focused).
     onfocusrequest?.();
     if (useGl) input?.focus();
   }
@@ -312,7 +291,6 @@
     if (c.x !== caret.x || c.y !== caret.y || c.h !== caret.h) caret = c;
   }
 
-  // Keep the PTY size in step with the node (never with the zoom).
   $effect(() => {
     void node.w;
     void node.h;
@@ -321,11 +299,9 @@
   });
 
   $effect(() => {
-    // The chat face takes the keyboard when it is on.
     if (focused && useGl && !chatFace) queueMicrotask(() => input?.focus());
   });
 
-  // Unread chat replies for the header's chat button (shell face).
   $effect(() => {
     const ws = workspaceId || engine.store.workspaceId;
     if (ws && !chatState.loaded) void chatState.peek(ws);
@@ -347,7 +323,6 @@
         onfocusrequest?.();
         input?.focus();
       },
-      // ⌘⇧-click on a path: a file node (or tree, for a folder) next to the terminal.
       openInCanvas: (path) => {
         void invoke<boolean[]>("canvas_files_kind", { paths: [path] })
           .catch(() => [false])
@@ -382,7 +357,6 @@
     void open(true);
   });
 
-  // Rust closed the PTY for a role change (canvas://role): reopen with the new launch.
   // svelte-ignore state_referenced_locally
   let seenRestart = engine.restarts[node.id] ?? 0;
   $effect(() => {
@@ -395,7 +369,6 @@
     }
   });
 
-  // Focus = the user is looking at this agent: no OS notification for it, and its "needs you" is seen.
   $effect(() => {
     if (!focused) return;
     const path = typeof location !== "undefined" ? location.pathname : "/world";
@@ -761,7 +734,6 @@
     opacity: 0;
     z-index: 2;
   }
-  /* Pre-edit text (IME, dead keys) shows over the cursor while composing. */
   .ime:global(.composing) {
     width: auto;
     min-width: 2px;

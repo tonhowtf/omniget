@@ -18,9 +18,6 @@
   import { attachNet, detachNet, netState, scanNet, hasWorkingRoute } from "$lib/telegram/net.svelte";
   import { attachSessionEvents, detachSessionEvents, ensureSession, resetSession } from "$lib/telegram/session.svelte";
 
-  // Screen flow: the first visit walks through the connection wizard, then
-  // login; later visits check the saved session while the routes are
-  // re-probed in the background.
   type Stage = "boot" | "wizard" | "login" | "ready";
   type Tab = "login" | "chats" | "watch" | "upload" | "links" | "export" | "clone" | "connection" | "account";
 
@@ -48,7 +45,6 @@
     try {
       localStorage.setItem(WIZARD_DONE_KEY, "1");
     } catch {
-      /* private storage */
     }
   }
 
@@ -58,7 +54,6 @@
     const s = netState.status;
     const scan = s && s.scanned_at ? Promise.resolve(s) : scanNet();
     try {
-      // Always the first engine call: it restores the saved session.
       await ensureSession(true);
       stage = "ready";
       tab = "chats";

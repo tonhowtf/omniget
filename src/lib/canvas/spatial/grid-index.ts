@@ -1,7 +1,3 @@
-// Spatial hash (02-motor-do-canvas §4.1): 512-unit cells, each entry is
-// registered in every cell it touches. Moving an entry = remove + reinsert.
-// Behind this interface an R-tree can replace it if the bench asks.
-
 import type { Rect } from '../model/types';
 
 export const CELL = 512;
@@ -19,7 +15,6 @@ export class GridIndex {
     const x1 = Math.floor((r.x + Math.max(0, r.w)) / c);
     const y1 = Math.floor((r.y + Math.max(0, r.h)) / c);
     const out: string[] = [];
-    // A pathological rectangle (huge drawing) is capped so a query never walks millions of cells.
     if ((x1 - x0 + 1) * (y1 - y0 + 1) > 4096) return ['*'];
     for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) out.push(`${x},${y}`);
     return out;
@@ -70,7 +65,6 @@ export class GridIndex {
     return this.rects.size;
   }
 
-  /** Ids whose rectangle intersects `r` (edges touching count). */
   queryRect(r: Rect): string[] {
     const seen = new Set<string>();
     const out: string[] = [];

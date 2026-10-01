@@ -1,13 +1,4 @@
 <script lang="ts">
-  /**
-   * One agent in the rail: avatar, name, role badge and the last thing it said.
-   *
-   * AVATAR SWAP POINT — the only place in `/llm` that draws an agent avatar.
-   * It delegates to `$components/omni/RailAvatar.svelte` (from `f5-rail-avatar`):
-   * Omni in a disc tinted by the agent's skin, with the selected and speaking
-   * rings. Changing the avatar anywhere in the section means changing this file
-   * and nothing else.
-   */
 
   import RailAvatar from "$components/omni/RailAvatar.svelte";
   import { t } from "$lib/i18n";
@@ -38,7 +29,6 @@
   aria-current={active ? "true" : undefined}
   onclick={() => onselect(agent.id)}
 >
-  <!-- AVATAR SWAP POINT (see the comment at the top of this file). -->
   <RailAvatar {tint} size={36} {active} {speaking} />
   <span class="rail-item-body">
     <span class="rail-item-head">

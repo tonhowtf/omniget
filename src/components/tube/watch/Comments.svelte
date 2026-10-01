@@ -1,7 +1,4 @@
 <script lang="ts">
-  // Comments (21st 4340 adapted): count + sort menu, then the list with
-  // infinite scroll. Loads only when the section gets near the screen, so
-  // opening a video doesn't spend a request on comments nobody reads.
   import { t } from "$lib/i18n";
   import * as api from "$lib/tube/api";
   import type { Comment, CommentSort } from "$lib/tube/types";

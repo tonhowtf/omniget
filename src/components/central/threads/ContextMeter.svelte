@@ -1,8 +1,4 @@
 <script lang="ts">
-  // Context ring (20 px): tokens in the window after the last request / the
-  // window size, red above 90 %. Hover or focus opens the details with the
-  // driver's rate-limit windows and a Compact action when the driver has it.
-  // A placeholder keeps the slot while data loads, so nothing shifts.
   import { t } from "$lib/i18n";
   import { formatTokens } from "$lib/central/threads-ui/format";
 

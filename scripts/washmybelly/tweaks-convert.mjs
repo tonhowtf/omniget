@@ -1,27 +1,4 @@
 #!/usr/bin/env node
-// Converts the Windows tweak sources washmybelly ships ("tweak as data",
-// src-tauri/omniget-core/src/core/washmybelly/tweaks/catalog.rs):
-//
-// - Win11Debloat (MIT, Raphire)  Config/Features.json + Regfiles/*.reg + Regfiles/Undo/*.reg
-//     -> data/washmybelly/win11debloat-features/{features.json, Regfiles/**}
-//   Every feature backed by a .reg file, minus the exclusions below. The .reg
-//   files are copied byte for byte (UTF-16 LE with BOM or UTF-8, as upstream
-//   ships them); the Rust side parses them into typed ops. The Undo .reg is
-//   what "Back to the Windows default" applies.
-// - winutil (MIT, CT Tech Group)  config/tweaks.json (not strict JSON: raw
-//   line breaks inside strings) -> data/washmybelly/winutil-tweaks/tweaks.json
-//   Only the entries in INCLUDE_WINUTIL, and only their `registry[]` part as
-//   typed ops. InvokeScript/UndoScript (PowerShell) never come along, and the
-//   "Services - Set to Manual" list is not taken.
-//
-// Sophia (data/washmybelly/sophia-tweaks/tweaks.json) and our own items
-// (data/washmybelly/tweaks/ours.json) are written by hand; this script only
-// checks that they parse.
-//
-// Usage:
-//   node scripts/washmybelly/tweaks-convert.mjs --repos <folder with the checkouts>
-//   node scripts/washmybelly/tweaks-convert.mjs --repos <folder> --check   fail if a committed file differs
-// Without --repos it reads $WMB_REPOS (the layout of estudos/89-washmybelly/repos).
 
 import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync, mkdirSync, copyFileSync, existsSync, rmSync } from 'node:fs';
@@ -45,9 +22,6 @@ if (!repos || !existsSync(join(WD, 'Config', 'Features.json')) || !existsSync(jo
 
 const commitOf = (repo) => execFileSync('git', ['-C', repo, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
 
-// ── Win11Debloat ────────────────────────────────────────────────────
-
-// Left out on purpose (see SOURCE.md).
 const EXCLUDE_WD = {
   DisableTelemetry: 'privacy module (privacy.sexy) owns telemetry',
   DisableLocationServices: 'privacy module owns location',
@@ -55,7 +29,6 @@ const EXCLUDE_WD = {
   DisableBitlockerAutoEncryption: 'BitLocker stays out of washmybelly',
   DisableDeliveryOptimization: 'writes the NetworkService hive (HKU\\S-1-5-20); the winutil policy is used instead',
 };
-// Features implemented in PowerShell upstream that map to one typed op.
 const CODE_FEATURES = {
   EnableWindowsSandbox: [{ op: 'optional_feature', name: 'Containers-DisposableClientVM', enabled: true }],
   EnableWindowsSubsystemForLinux: [
@@ -140,7 +113,6 @@ for (const f of wdRaw.Features) {
     regFiles.add(apply);
     if (f.RegistryUndoKey) {
       const undo = `Undo/${f.RegistryUndoKey}`;
-      // Some undo files live next to the apply files (a group's default).
       const where = existsSync(join(WD, 'Regfiles', undo)) ? undo : f.RegistryUndoKey;
       if (!existsSync(join(WD, 'Regfiles', where))) throw new Error(`missing Regfiles/${undo}`);
       item.default_reg = where;
@@ -150,10 +122,6 @@ for (const f of wdRaw.Features) {
   wdItems.push(item);
 }
 
-// ── winutil ─────────────────────────────────────────────────────────
-
-/// Escape raw control characters inside JSON strings (winutil writes
-/// PowerShell with literal line breaks), then parse strictly.
 function tolerantJson(text) {
   let out = '';
   let inStr = false;
@@ -172,8 +140,6 @@ function tolerantJson(text) {
   return JSON.parse(out);
 }
 
-// Kept winutil entries: our id, category, group, and what to say. Only the
-// registry part is converted; the rest is listed in SOURCE.md.
 const INCLUDE_WINUTIL = {
   WPFTweaksConsumerFeatures: { id: 'winutil.consumer_features', category: 'bloat' },
   WPFTweaksEdgeDebloat: { id: 'winutil.edge_debloat', category: 'bloat', warning: 'Edge will say it is managed by your organization.' },
@@ -237,7 +203,6 @@ for (const [wid, v] of Object.entries(wuRaw)) {
   };
   if (inc.warning) base.warning = inc.warning;
   if (v.Type === 'Combobox') {
-    // One item per choice, as a group (winutil's Multiplane Overlay).
     const choices = v.ComboItems.split('|');
     const slug = { Enabled: 'enabled', 'Disabled (Compatibility)': 'compat', 'Fully Disabled': 'off' };
     for (const c of choices) {
@@ -258,8 +223,6 @@ for (const [wid, v] of Object.entries(wuRaw)) {
   const item = { ...base, id: inc.id, group: inc.group ?? null, ops };
   const defaults = (v.registry ?? []).filter((r) => r.OriginalValue !== undefined).map((r) => regOp(r, r.OriginalValue));
   if (defaults.length === ops.length) item.default_ops = defaults;
-  // A toggle's DefaultState says what an absent value means (winutil
-  // Get-WinUtilToggleStatus): "true" = the tweak's own value.
   (v.registry ?? []).forEach((r, i) => {
     if (ops[i].op !== 'reg_set') return;
     if (r.DefaultState === 'true') ops[i].absent_means = ops[i].data;
@@ -272,13 +235,11 @@ for (const id of Object.keys(INCLUDE_WINUTIL)) {
   if (!wuRaw[id]) throw new Error(`winutil: ${id} no longer exists upstream`);
 }
 
-// ── Hand-written sources: they must parse ───────────────────────────
 for (const p of [join(DATA, 'sophia-tweaks', 'tweaks.json'), join(DATA, 'tweaks', 'ours.json')]) {
   const t = JSON.parse(readFileSync(p, 'utf8'));
   if (!Array.isArray(t.items) || !t.items.length) throw new Error(`${p}: no items`);
 }
 
-// ── Write ───────────────────────────────────────────────────────────
 const outputs = [
   {
     dir: 'win11debloat-features',
@@ -314,7 +275,6 @@ const outputs = [
   },
 ];
 
-// The Rust table of embedded .reg files (include_bytes! needs literal paths).
 const RS = join(ROOT, 'src-tauri', 'omniget-core', 'src', 'core', 'washmybelly', 'tweaks', 'regfiles.rs');
 const rsText =
   '//! Generated by scripts/washmybelly/tweaks-convert.mjs: do not edit.\n' +

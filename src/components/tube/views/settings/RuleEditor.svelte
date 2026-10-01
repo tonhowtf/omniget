@@ -1,6 +1,4 @@
 <script lang="ts">
-  // Auto-download rule editor with a live preview of what the rule would
-  // queue now (tube_rules_preview runs the same code as the poller).
   import { open } from "@tauri-apps/plugin-dialog";
   import { t } from "$lib/i18n";
   import * as api from "$lib/tube/api";
@@ -19,7 +17,6 @@
     oncancel,
   }: { initial: AutoRule; subs: LocalSub[]; onsave: (r: AutoRule) => Promise<void> | void; oncancel: () => void } = $props();
 
-  // Edited copy; the list keeps the original until Save.
   const cloneInitial = () => $state.snapshot(initial) as AutoRule;
   let rule = $state<AutoRule>(cloneInitial());
   let includeText = $state(rule.include_words.join(", "));

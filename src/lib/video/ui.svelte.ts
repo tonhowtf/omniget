@@ -1,5 +1,3 @@
-// In-page navigation for /video (a store, not sub-routes, like /music).
-
 export type View =
   | { name: "home" }
   | { name: "movies" }
@@ -29,7 +27,6 @@ export function go(view: View) {
   ui.view = view;
 }
 
-/** Top-level sections reset the back stack. */
 export function goRoot(view: View) {
   ui.stack = [];
   ui.view = view;

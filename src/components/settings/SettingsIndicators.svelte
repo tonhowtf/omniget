@@ -1,14 +1,4 @@
 <script lang="ts">
-  /**
-   * Settings > General > indicators: the limits strip and the menu bar usage
-   * icon. Mounted by the settings route with no props.
-   *
-   * Opening this reads the saved prefs and nothing else: it never opens
-   * `/limits-strip` or `/usage-panel`, never switches an indicator on and
-   * never refreshes a reading. Only the controls below write, through the
-   * same commands the native menu uses (`usage_tray_set`,
-   * `usage_tray_toggle_account`). `seeded` stays internal.
-   */
   import { invoke } from "@tauri-apps/api/core";
   import { onMount } from "svelte";
   import { t } from "$lib/i18n";
@@ -32,7 +22,6 @@
   type Panel = { prefs: TrayPrefs; catalog: CatalogItem[] };
 
   const SHOWS: Shows[] = ["session", "weekly", "busiest"];
-  /** The same presets the native menu offers (`THRESHOLDS` in usage_tray/mod.rs). */
   const THRESHOLDS: [number, number][] = [[70, 90], [80, 95], [90, 98]];
 
   let prefs = $state<TrayPrefs | null>(null);
@@ -43,7 +32,6 @@
   let saveError = $state<string | null>(null);
 
   let thresholdValue = $derived(prefs ? `${prefs.warn}-${prefs.critical}` : "");
-  // A pair set elsewhere (hand-edited file) stays selectable instead of being rewritten.
   let customThreshold = $derived(!!prefs && !THRESHOLDS.some(([w, c]) => w === prefs!.warn && c === prefs!.critical));
 
   async function load() {
@@ -54,7 +42,6 @@
       prefs = panel.prefs;
       catalog = panel.catalog ?? [];
     } catch {
-      // Raw backend errors may carry file paths; the UI shows a stable state only.
       loadError = "load_failed";
     } finally {
       loading = false;
@@ -70,7 +57,6 @@
     try {
       prefs = await invoke<TrayPrefs>("usage_tray_set", { patch });
     } catch {
-      // The backend kept the saved prefs; show those instead of the attempt.
       saveError = "save_failed";
       await load();
     } finally {

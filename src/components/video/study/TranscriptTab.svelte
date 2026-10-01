@@ -1,7 +1,4 @@
 <script lang="ts">
-  // Clickable transcript (after the 21st "Synced Lyric Captions"): the line
-  // being spoken is highlighted and followed, search filters this video or
-  // every transcript in the course, and the AI can generate one.
   import { t } from "$lib/i18n";
   import { showToast } from "$lib/stores/toast-store.svelte";
   import * as api from "$lib/video/api";

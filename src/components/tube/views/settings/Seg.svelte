@@ -1,5 +1,4 @@
 <script lang="ts" generics="V extends string">
-  // Segmented choice for short option lists (look, codec, SponsorBlock mode...).
   let {
     value,
     options,

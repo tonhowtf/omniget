@@ -1,9 +1,4 @@
 <script lang="ts">
-  // Grid card (spec §2.5): 16:9 thumb with radius 12, duration / live badge,
-  // watched bar, avatar 36, two-line title 16/500, channel and stats in 14px.
-  // Hover paints a soft plate around the card and, after a pause, plays a
-  // muted preview (21st HoverPlayCard). DeArrow swaps title/thumb with a
-  // small toggle back to the original.
   import { t } from "$lib/i18n";
   import { agentActions } from "$lib/native-agent/actions";
   import { bestAvatar, fmtCount, fmtDuration, thumbUrl, timeAgo, videoThumb } from "$lib/tube/format";
@@ -25,7 +20,6 @@
     item: VideoItem;
     showAvatar?: boolean;
     feedbackActions?: boolean;
-    /** Playlist context, when the card belongs to one. */
     list?: string | null;
     index?: number | null;
   } = $props();
@@ -49,7 +43,6 @@
   let menuPoint = $state<{ x: number; y: number } | null>(null);
   let moreBtn = $state<HTMLButtonElement>();
 
-  // hover preview
   let hoverTimer: ReturnType<typeof setTimeout> | null = null;
   let hovering = false;
   let previewSrc = $state<string | null>(null);

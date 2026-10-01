@@ -1,8 +1,3 @@
-// Translation between the front's document shapes and the Rust wire format
-// (scratchpad contract-doc.md, owner doc-rust). Nodes and connections are the
-// same shape; drawings differ (tool/origin/size/lineWidth on the wire) and
-// patches use `null` to remove a field where the front uses `undefined`.
-
 import type { CanvasStore } from './store.svelte';
 import type { CanvasNode, Connection, Drawing, Group, Op } from './types';
 
@@ -27,7 +22,6 @@ export interface WireDrawing {
   [k: string]: unknown;
 }
 
-/** Stable sketch seed from the id, so a shape looks the same in every session. */
 export function seedFromId(id: string): number {
   let h = 2166136261;
   for (let i = 0; i < id.length; i++) {
@@ -40,7 +34,6 @@ export function seedFromId(id: string): number {
 const FREEFORM = new Set(['pen', 'brush', 'smartDraw', 'smart', 'highlighter', 'arrow', 'line']);
 const SKETCH_PATTERN = 'sketch';
 
-/** Front fill names ↔ wire fill names (the wire is Maestri's). */
 function fillToWire(f: Drawing['fillStyle']): string | undefined {
   if (!f || f === 'none') return undefined;
   return f === 'cross' ? 'crossHatch' : f;
@@ -61,7 +54,6 @@ function fillFromWire(f: unknown): Drawing['fillStyle'] | undefined {
   }
 }
 
-/** Optional wire fields copied verbatim both ways (they have the same name and shape). */
 const PASSTHROUGH = ['rotation', 'cornerRadius', 'textFontSize', 'sourceConnection', 'targetConnection', 'controlPointOffset'] as const;
 
 function drawingToWire(d: Drawing): WireDrawing {
@@ -76,7 +68,6 @@ function drawingToWire(d: Drawing): WireDrawing {
     lineWidth: d.strokeWidth,
     z: d.z ?? 0,
   };
-  // An empty colour means "theme ink" (a drawing made without one).
   if (d.color) w.color = d.color;
   if (d.opacity !== undefined) w.opacity = d.opacity;
   if (d.text !== undefined) w.textContent = d.text;
@@ -122,7 +113,6 @@ export function drawingFromWire(w: WireDrawing): Drawing {
   };
   if (FREEFORM.has(w.tool)) d.points = pts;
   if (w.tool === 'text' && typeof w.textContent === 'string' && (d.w < 8 || d.h < 8)) {
-    // A text drawing sent with only an origin: size it from the text.
     const fs = typeof w.textFontSize === 'number' ? w.textFontSize : 20;
     const lines = w.textContent.split('\n');
     d.w = Math.max(d.w, Math.ceil(Math.max(...lines.map((l) => l.length)) * fs * 0.6));
@@ -144,7 +134,6 @@ export function drawingFromWire(w: WireDrawing): Drawing {
   return d;
 }
 
-/** `undefined` values become `null` (the wire's "remove this field"). */
 function nullify<T extends object>(patch: T): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(patch)) out[k] = v === undefined ? null : v;
@@ -153,11 +142,6 @@ function nullify<T extends object>(patch: T): Record<string, unknown> {
 
 const DRAWING_OPTIONALS = ['color', 'opacity', 'textContent', 'fillStyle', 'strokePattern', 'groupId', 'locked', ...PASSTHROUGH];
 
-/**
- * Local op → wire op. Drawing updates are sent as the full set of wire fields
- * of the drawing as it is now in the store (so origin/size stay coherent),
- * with `null` for optionals it no longer has.
- */
 function opToWire(op: Op, store: CanvasStore): Record<string, unknown> | null {
   switch (op.op) {
     case 'update_node': {
@@ -197,7 +181,6 @@ export function opsToWire(ops: Op[], store: CanvasStore): Record<string, unknown
   return out;
 }
 
-/** Wire op → local op (drawing updates are merged on the wire shape, then converted back). */
 function opFromWire(raw: unknown, store: CanvasStore): Op | null {
   const w = raw as Record<string, unknown> & { op?: string };
   if (!w || typeof w.op !== 'string') return null;
@@ -232,10 +215,6 @@ function opFromWire(raw: unknown, store: CanvasStore): Op | null {
   }
 }
 
-/**
- * Converts and applies wire ops one by one (a drawing update may follow its
- * own add in the same batch). Returns the local ops that were applied.
- */
 export function applyWireOps(list: unknown[] | undefined, store: CanvasStore, origin: string): Op[] {
   const applied: Op[] = [];
   for (const raw of list ?? []) {

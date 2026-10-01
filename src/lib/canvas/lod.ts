@@ -1,18 +1,11 @@
-// Semantic zoom (02-motor-do-canvas §2.6): the level of each node is decided in
-// projected pixels, with hysteresis so it never flickers at a threshold.
-//   near = live DOM content (L1), mid = card (L2), far = sprite (L0).
-// Also the small budget allocator used for mounted terminals and live portals.
-
 import { isTerminalKind, type CanvasNode } from './model/types';
 
 export type Lod = 'near' | 'mid' | 'far';
 
 interface LodRule {
-  /** Projected font size (px) at which "near" starts, and below which it ends. */
   baseFont: number;
   nearEnter: number;
   nearLeave: number;
-  /** Projected width (px) below which "far" starts, and above which it ends. */
   farEnter: number;
   farLeave: number;
 }
@@ -44,12 +37,6 @@ export function nodeLod(node: Pick<CanvasNode, 'kind' | 'w'>, zoom: number, prev
   return 'mid';
 }
 
-/**
- * True when switching between the two levels is expensive. Terminals stay
- * mounted in L1 at near and mid (their GL pass draws text or a minimap), so
- * only crossing the far boundary mounts or unmounts them; portals show a
- * native webview only at near.
- */
 export function isCostlySwap(kind: string, from: Lod | undefined, to: Lod): boolean {
   if (from === to) return false;
   if (isTerminalKind(kind)) return (from === 'far' || from === undefined) !== (to === 'far');
@@ -57,12 +44,10 @@ export function isCostlySwap(kind: string, from: Lod | undefined, to: Lod): bool
   return false;
 }
 
-/** Terminals are DOM-mounted (L1) at both near and mid. */
 export function mountsInWorld(kind: string, lod: Lod): boolean {
   return lod === 'near' || (lod === 'mid' && isTerminalKind(kind));
 }
 
-/** Keeps the `limit` best candidates (highest score first). */
 export function allocate(cands: Array<{ id: string; score: number }>, limit: number): Set<string> {
   return new Set(
     cands
@@ -73,6 +58,5 @@ export function allocate(cands: Array<{ id: string; score: number }>, limit: num
   );
 }
 
-/** Mounted xterm ceiling (any renderer) and live portals by default (§8.2, §7.3). */
 export const MOUNTED_TERMINALS_LIMIT = 12;
 export const LIVE_PORTALS_LIMIT = 4;

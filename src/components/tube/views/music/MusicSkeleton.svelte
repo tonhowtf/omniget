@@ -1,11 +1,9 @@
 <script lang="ts">
-  // Loading placeholders shaped like the screen that is coming.
   let {
     variant = "home",
     idle = false,
   }: {
     variant?: "home" | "collection" | "artist" | "grid" | "list" | "shelves";
-    /** A "load more" placeholder that isn't fetching yet: not announced as busy. */
     idle?: boolean;
   } = $props();
   const cards = Array.from({ length: 6 }, (_, i) => i);

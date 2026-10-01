@@ -1,17 +1,9 @@
 import { isUrl } from "./omnibox-controller";
 
-// Links pasted into the home box: every link in the text, cleaned of tracking
-// parameters, unwrapped from redirect pages and counted once even when the same
-// video comes in two shapes (youtu.be/ID and watch?v=ID&si=...). The idea comes
-// from Arroxy's paste step (ClearURLs catalog, bulk-URL parser); this is a
-// small rule list of our own, no code was copied.
-
 const HTTP_LINK = /https?:\/\/[^\s,;|<>"'`]+/gi;
 const TRAILING = /[.,;:!?]+$/;
 
-// Query parameters that only track where a click came from. Any site.
 const TRACKING_ANYWHERE = /^(utm_[a-z_]+|fbclid|gclid|dclid|gbraid|wbraid|msclkid|mc_eid|yclid|igsh|igshid|_hsenc|_hsmi|mkt_tok)$/i;
-// Parameters that track only on these sites; elsewhere the same name can matter.
 const TRACKING_BY_HOST: [RegExp, RegExp][] = [
   [/(^|\.)(youtube\.com|youtu\.be)$/i, /^(si|pp|feature|ab_channel)$/i],
   [/(^|\.)(x\.com|twitter\.com)$/i, /^(s|t|ref_src|ref_url)$/i],
@@ -20,7 +12,6 @@ const TRACKING_BY_HOST: [RegExp, RegExp][] = [
   [/(^|\.)(spotify\.com|soundcloud\.com)$/i, /^(si|in|ref|context)$/i],
   [/(^|\.)reddit\.com$/i, /^(share_id|rdt|ref|ref_source)$/i],
 ];
-// Pages that only forward to another address given in a parameter.
 const REDIRECTS: [RegExp, RegExp, string][] = [
   [/(^|\.)youtube\.com$/i, /^\/redirect$/, "q"],
   [/^l\.facebook\.com$|^lm\.facebook\.com$/i, /^\/l\.php$/, "u"],
@@ -40,7 +31,6 @@ function parse(raw: string): URL | null {
 
 function trimToken(raw: string): string {
   let s = raw.replace(TRAILING, "");
-  // A closing bracket belongs to the link only when the link opened one.
   while (/[)\]]$/.test(s)) {
     const close = s.at(-1) as ")" | "]";
     const open = close === ")" ? "(" : "[";
@@ -50,7 +40,6 @@ function trimToken(raw: string): string {
   return s;
 }
 
-/** The address with tracking parameters removed and redirect pages unwrapped. */
 export function cleanLink(raw: string): string {
   const first = parse(raw);
   if (!first) return raw;
@@ -70,15 +59,9 @@ export function cleanLink(raw: string): string {
     }
   }
   const out = url.toString();
-  // `new URL` leaves a bare "?" once every parameter is gone.
   return out.endsWith("?") ? out.slice(0, -1) : out;
 }
 
-/**
- * One key per piece of media, so two shapes of the same link count once:
- * youtu.be/ID, m.youtube.com, music.youtube.com and /shorts/ID all become the
- * watch page of ID (a playlist or a start time stays part of the key).
- */
 export function linkKey(raw: string): string {
   const url = parse(raw);
   if (!url) return raw;
@@ -97,10 +80,6 @@ export function linkKey(raw: string): string {
   return `${url.protocol}//${host}${url.pathname.replace(/\/+$/, "")}${url.search}`;
 }
 
-/**
- * Every link in pasted text, in order, cleaned and without repeats. Magnet
- * links, `.torrent` paths and p2p codes pass through untouched.
- */
 export function linksFromPaste(text: string): string[] {
   const out: string[] = [];
   const seen = new Set<string>();

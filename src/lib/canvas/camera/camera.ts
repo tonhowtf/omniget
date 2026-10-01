@@ -1,10 +1,5 @@
-// Orthographic camera (02-motor-do-canvas §3.1): screen = (world − camera.xy) × zoom.
-// (x, y) is the world point at the viewport's top-left corner. A plain object,
-// not $state: the frame loop reads it and writes styles directly.
-
 import { MAX_ZOOM, MIN_ZOOM, type CameraState, type Rect } from '../model/types';
 
-/** How far past the limits a live gesture may stretch (rubber band). */
 const RUBBER = 0.1;
 
 export function clampZoom(z: number, rubber = false): number {
@@ -17,10 +12,8 @@ export class Camera implements CameraState {
   x = 0;
   y = 0;
   zoom = 1;
-  /** Viewport in CSS pixels. */
   vw = 1;
   vh = 1;
-  /** Bumped on every change; the frame loop compares it. */
   rev = 0;
 
   set(c: Partial<CameraState>): void {
@@ -36,7 +29,6 @@ export class Camera implements CameraState {
 
   resize(w: number, h: number): void {
     if (w === this.vw && h === this.vh) return;
-    // Keep the centre fixed across resizes.
     const cx = this.x + this.vw / (2 * this.zoom);
     const cy = this.y + this.vh / (2 * this.zoom);
     this.vw = Math.max(1, w);
@@ -58,7 +50,6 @@ export class Camera implements CameraState {
     return { x: (r.x - this.x) * this.zoom, y: (r.y - this.y) * this.zoom, w: r.w * this.zoom, h: r.h * this.zoom };
   }
 
-  /** World rectangle visible now, optionally grown by a fraction on each side. */
   viewRect(margin = 0): Rect {
     const w = this.vw / this.zoom;
     const h = this.vh / this.zoom;
@@ -69,14 +60,12 @@ export class Camera implements CameraState {
     return { x: this.x + this.vw / (2 * this.zoom), y: this.y + this.vh / (2 * this.zoom) };
   }
 
-  /** Pans by a screen-pixel delta. */
   panBy(dx: number, dy: number): void {
     this.x -= dx / this.zoom;
     this.y -= dy / this.zoom;
     this.rev++;
   }
 
-  /** Zooms to `zoom` keeping the world point under (sx, sy) fixed. */
   zoomTo(zoom: number, sx: number, sy: number, rubber = false): void {
     const z = clampZoom(zoom, rubber);
     const wx = sx / this.zoom + this.x;
@@ -91,10 +80,7 @@ export class Camera implements CameraState {
     this.zoomTo(this.zoom * factor, sx, sy, rubber);
   }
 
-  /** Camera that frames `r` with `marginPx` of screen margin. */
-  /** Screen px on the left covered by chrome (workspace sidebar); fits avoid it. */
   insetLeft = 0;
-  /** Screen px on the right covered by chrome (a docked panel); fits avoid it. */
   insetRight = 0;
 
   fitRect(r: Rect, marginPx = 64, maxZoom = 1.5): CameraState {
@@ -113,7 +99,6 @@ export class Camera implements CameraState {
     };
   }
 
-  /** True while the zoom sits outside the hard limits (rubber band stretched). */
   get overstretched(): boolean {
     return this.zoom < MIN_ZOOM - 1e-9 || this.zoom > MAX_ZOOM + 1e-9;
   }

@@ -1,9 +1,4 @@
 <script lang="ts">
-  /**
-   * One tool as a small monogram tile coloured by how a component lands on
-   * it: native (green), converted (blue), converted with losses (amber),
-   * not supported (hollow, dimmed). The tooltip carries the reason/losses.
-   */
   import { t } from "$lib/i18n";
   import { toolMono, type Compat } from "$lib/central/catalog";
 

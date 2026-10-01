@@ -5,8 +5,6 @@
   import SettingGroup from "../rebrand/SettingGroup.svelte";
   import SettingRow from "../rebrand/SettingRow.svelte";
 
-  // "quality" is the primary default; "presets" is the advanced group that
-  // rewrites several download options at once.
   let { part = "quality" }: { part?: "quality" | "presets" } = $props();
 
   let settings = $derived(getSettings());

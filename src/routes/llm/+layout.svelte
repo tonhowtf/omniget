@@ -17,7 +17,6 @@
       {#each LLM_PRIMARY_DESTINATIONS as item (item.id)}
         <a class="llm-tab" href={item.href} aria-current={destination.id === item.id ? 'page' : undefined}>{$t(llmDestinationLabel(item))}</a>
       {/each}
-      <!-- Configure leaves the workspace for Settings (AI and agents); managers keep their URLs. -->
       <a class="llm-tab llm-configure" href={LLM_SETTINGS_HREF}>{$t('llm.workspace.configure')}</a>
     </nav>
     <div class="header-trailing"><WorkBadge /><UsageMonitor /></div>

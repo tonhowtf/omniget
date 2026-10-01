@@ -1,5 +1,4 @@
 <script lang="ts">
-  // Shorts card: 9:16 thumb radius 12, two-line title 16/500, views. No avatar.
   import { t } from "$lib/i18n";
   import { thumbUrl, videoThumb } from "$lib/tube/format";
   import { tubePrefs } from "$lib/tube/prefs.svelte";

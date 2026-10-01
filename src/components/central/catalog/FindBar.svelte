@@ -1,18 +1,10 @@
 <script lang="ts">
-  /**
-   * In-document search (Cmd/Ctrl+F) over a rendered element: finds every
-   * match in its text nodes, paints them with the CSS Custom Highlight API
-   * (no DOM mutation, so `{@html}` content stays untouched) and walks them
-   * with Enter / Shift+Enter. Without the API the matches are still counted
-   * and scrolled to.
-   */
   import { onDestroy, tick } from "svelte";
   import { t } from "$lib/i18n";
 
   let {
     root = null,
     open = $bindable(false),
-    /** Changes when the content under `root` is re-rendered. */
     version = 0,
   }: { root?: HTMLElement | null; open?: boolean; version?: number } = $props();
 
@@ -104,7 +96,6 @@
     if (open) tick().then(() => input?.focus());
   });
 
-  // re-run on new content
   $effect(() => {
     void version;
     void root;

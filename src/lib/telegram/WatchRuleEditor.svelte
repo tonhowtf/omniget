@@ -1,5 +1,4 @@
 <script lang="ts">
-  // Create or edit an auto-save rule ("save new videos from this chat").
   import { t } from "$lib/i18n";
   import { getSettings } from "$lib/stores/settings-store.svelte";
   import { showToast } from "$lib/stores/toast-store.svelte";
@@ -61,7 +60,6 @@
   let outputDir = $state(start.outputDir);
   let template = $state(start.template);
   let dedupe = $state(start.dedupe);
-  // Untouched, a rule keeps following the global "skip duplicates" setting (null).
   let dedupeTouched = $state(false);
   let addToWatch = $state(start.addToWatch);
   let backfillOn = $state(false);

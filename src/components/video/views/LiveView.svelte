@@ -1,8 +1,4 @@
 <script lang="ts">
-  // Live TV from the user's IPTV lists: groups, search, favourites, the last
-  // channel, a channel list with now/next, and the programme guide as a Gantt
-  // style timeline with a "now" line (Timeline by abui on 21st.dev, redone
-  // without drag since the guide is read only).
   import { onMount } from "svelte";
   import { t } from "$lib/i18n";
   import { showToast } from "$lib/stores/toast-store.svelte";
@@ -87,7 +83,6 @@
     return () => clearInterval(tick);
   });
 
-  // debounce the search box
   $effect(() => {
     const v = q;
     const h = setTimeout(() => (qLive = v), 250);
@@ -148,7 +143,6 @@
     return Math.min(1, Math.max(0, (now - p.start) / (p.stop - p.start)));
   }
 
-  // ---- guide ----
   let winStart = $derived(Math.floor((now - 30 * 60_000) / (30 * 60_000)) * 30 * 60_000);
   let winEnd = $derived(winStart + GUIDE_HOURS * 3_600_000);
   let guideRows = $derived((channels ?? []).slice(0, GUIDE_ROWS));
@@ -182,7 +176,6 @@
     void loadEpg();
   });
 
-  // scroll the guide so "now" sits near the left edge each time it opens
   let scrolled = false;
   $effect(() => {
     if (tab !== "guide" || !guideEl) {

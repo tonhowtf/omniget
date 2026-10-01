@@ -1,7 +1,4 @@
 <script lang="ts">
-  // Shorts: a vertical 9:16 feed, one per screen with scroll snap. Only the
-  // slide on screen mounts the player (W5's VideoPlayer in `short` mode);
-  // the others are thumbnails. ↑/↓ and the round buttons move between them.
   import { t } from "$lib/i18n";
   import * as api from "$lib/tube/api";
   import { bestAvatar, thumbUrl, videoThumb } from "$lib/tube/format";
@@ -54,7 +51,6 @@
     return out;
   });
 
-  // Which slide is on screen.
   $effect(() => {
     if (!feed) return;
     void slides.length;
@@ -70,7 +66,6 @@
     return () => io.disconnect();
   });
 
-  // Keep a few slides ahead loaded.
   $effect(() => {
     if (slides.length && active >= slides.length - 3 && pager.hasMore) void pager.more();
   });

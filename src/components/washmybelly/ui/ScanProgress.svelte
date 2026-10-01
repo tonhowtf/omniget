@@ -3,9 +3,6 @@
   import { fraction } from "$lib/washmybelly/ui";
   import { formatCount } from "$lib/washmybelly/format";
 
-  /// A scan in steps: the list of stage labels, which one runs now (index or
-  /// label), a determinate bar when `total` is known, and the current item.
-  /// Feed it from `onProgress(task, …)`.
   let {
     stages = [],
     current = 0,

@@ -1,7 +1,5 @@
 <script lang="ts">
   import { pluralKey } from "$lib/home/plural";
-  // Courses: one card per imported folder, with a progress ring and a
-  // "continue" button that opens the next unwatched lesson.
   import { open as openDialog } from "@tauri-apps/plugin-dialog";
   import { t } from "$lib/i18n";
   import { showToast } from "$lib/stores/toast-store.svelte";

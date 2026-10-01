@@ -43,7 +43,6 @@
         channels: channels.map((c) => [c.id, c.title]),
       });
     } catch {
-      // tray sync is best-effort
     }
   }
 
@@ -163,7 +162,6 @@
     <span class="setting-path add-hint" id="channels-add-hint">{$t('settings.channels.add_hint')}</span>
   </div>
 
-  <!-- A failed read keeps the last list on screen and never claims "no channels". -->
   {#if loadError && !loading}
     <SettingsEmptyState error title={$t('settings.channels.load_failed')} onRetry={() => void load()} />
   {/if}

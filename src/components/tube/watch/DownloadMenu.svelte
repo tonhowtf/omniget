@@ -1,7 +1,4 @@
 <script lang="ts">
-  // Download picker: the qualities of the StreamSet (same list as the player's
-  // quality menu), audio only, and SponsorBlock cut/mark. Each row is a
-  // progress button (21st 7910): spinner while queuing, check when queued.
   import { t } from "$lib/i18n";
   import * as api from "$lib/tube/api";
   import { fmtBytes } from "$lib/tube/format";

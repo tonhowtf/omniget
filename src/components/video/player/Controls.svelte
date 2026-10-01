@@ -1,7 +1,4 @@
 <script lang="ts">
-  // Floating glass control bar (after the 21st "Video Player Pro"): seek bar
-  // on top, transport on the left, time and study state in the middle,
-  // tracks/settings/view on the right.
   import { t } from "$lib/i18n";
   import { fmtClock, fmtSpeed, fmtTime } from "$lib/video/format";
   import {

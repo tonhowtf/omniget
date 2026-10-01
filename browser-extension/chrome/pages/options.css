@@ -224,9 +224,6 @@ input:focus {
 .advanced[open] summary::before { content: "▾ "; }
 .advanced .field { margin-top: 10px; }
 
-/* --- Capture rules -------------------------------------------------------- */
-/* The three rule tables need more room than the pairing form, so the card
-   grows only while the section is open. */
 .card:has(#capture-rules[open]) {
   width: min(100%, 760px);
 }

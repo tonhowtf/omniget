@@ -1,12 +1,4 @@
 <script lang="ts">
-  /**
-   * Sessões — lista ao vivo de todas as ferramentas, agrupada por projeto.
-   *
-   * O estado "trabalhando / esperando você / parada" vem de `sessions_active`
-   * e só é consultado enquanto esta tela está visível (a aba escondida ou o
-   * app em segundo plano param o relógio). A busca tem dois níveis: digitar
-   * filtra títulos na hora; Enter procura no conteúdo de todas as sessões.
-   */
   import { onMount } from "svelte";
   import { page } from "$app/state";
   import { goto } from "$app/navigation";
@@ -99,7 +91,6 @@
       active = new Map(list.map((a) => [key(a.meta), a]));
       now = Date.now();
     } catch {
-      /* estado ao vivo é extra: a lista continua */
     }
   }
 
@@ -192,7 +183,6 @@
     return out;
   });
 
-  /** Resultados agrupados por sessão, na ordem em que chegaram. */
   let hitGroups = $derived.by(() => {
     const map = new Map<string, { tool: string; id: string; title: string; project: string; ended: string | null; hits: Hit[] }>();
     for (const h of search?.hits ?? []) {

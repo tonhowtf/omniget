@@ -1,22 +1,4 @@
 #!/usr/bin/env node
-/**
- * Settings frontend harness (v3). No native app, MCP, credentials, files, providers or hardware.
- * Requires an independently started Vite server on localhost:1431 (only GET/HEAD are sent to it).
- * Modes:
- *   baseline    6 categories × languages × themes × viewports (default 12 × 2 × 3)
- *   sections    every section id of the six categories, scrolled into view
- *   aliases     navigation-map tab/section aliases, legacy hashes, acceptance cases, setting aliases
- *   states      loading/error/pendingApply/recovered/saving/saved/saveFailed/dirty/disabled/empty/partialError
- *   conditional prerequisite toggles and advanced disclosures (fixture + real clicks)
- *   focus       Tab/Shift+Tab walk, disclosure keyboard, reset dialog Escape + focus return, search
- *   navigation  contextual destinations (roster, MCP, music, Home, summaries, settings indicators):
- *               focus after late load and zero mutating calls per navigation
- * Examples:
- *   node scripts/settings-rebrand/visual-audit.mjs --mode=navigation --languages=en,pt,fa
- *   node scripts/settings-rebrand/visual-audit.mjs --mode=baseline
- *   node scripts/settings-rebrand/visual-audit.mjs --mode=states --languages=en,pt --categories=general
- * Screenshots and measurements are evidence of browser rendering, never native persistence.
- */
 import { chromium, webkit } from "playwright";
 import { readFileSync, mkdirSync, writeFileSync, existsSync } from "node:fs";
 import { createHash } from "node:crypto";
@@ -48,7 +30,6 @@ const stateFilter = option("states", "").split(",").filter(Boolean);
 const caseFilter = option("cases", "").split(",").filter(Boolean);
 const variantFilter = option("variants", "").split(",").filter(Boolean);
 
-// Six categories (06-spec) and the section ids the shell/panels expose (fe-shell/fe-panels handoffs).
 const CATEGORIES = ["general", "appearance", "downloads", "ai", "integrations", "advanced"];
 const SECTIONS = {
   general: ["language", "startup", "profile", "guidance", "limits-strip", "usage-tray"],
@@ -82,10 +63,7 @@ async function contextFor(spec) {
   });
   await context.route("**/*", async route => {
     const request = route.request(), url = new URL(request.url());
-    // Only Vite document/assets. No API endpoints, external origins, or HTTP mutations.
     if (url.origin === BASE && ["GET", "HEAD"].includes(request.method()) && !/^\/(mcp|v1|api)(\/|$)/.test(url.pathname)) {
-      // Cache only immutable dependencies and binary assets; /src modules can change under
-      // other agents' edits (Vite HMR), so they always come fresh from the server.
       const cacheable = request.method() === "GET" && !request.isNavigationRequest() && (/\/node_modules\//.test(url.pathname) || /\.(png|svg|webp|jpe?g|gif|woff2?|ttf|otf)$/.test(url.pathname));
       if (cacheable) {
         try {
@@ -109,7 +87,6 @@ async function contextFor(spec) {
   });
   await context.addInitScript(installSyntheticIPC, { defaults, language: spec.language, theme: spec.theme, family: spec.family || "", state: spec.fixtureState || "baseline", settingsState: spec.settingsState || "ready", delays: spec.delays || {} });
   await context.addInitScript(installDestinationFixtures);
-  // Focus trail: shows who took focus and when (e.g. a router focus reset after a deep-link focus).
   await context.addInitScript(() => {
     const trail = window.__FOCUS_TRAIL__ = [];
     document.addEventListener("focusin", event => { const el = event.target; trail.push({ at: Math.round(performance.now()), id: el.id || null, tag: el.tagName }); }, true);
@@ -119,7 +96,6 @@ async function contextFor(spec) {
   page.on("pageerror", error => errors.push(String(error)));
   page.on("console", message => { if (message.type() === "error") consoleErrors.push(message.text().slice(0, 400)); });
   page.on("requestfailed", request => failedRequests.push({ url: request.url(), failure: request.failure() }));
-  // No automatic confirmation of deletion or reset during visual coverage.
   page.on("dialog", dialog => dialog.dismiss());
   return { context, page, blocked, errors, consoleErrors, failedRequests };
 }
@@ -136,7 +112,6 @@ async function settle(page) {
 async function openSettings(page, href, { expectLoaded = true } = {}) {
   await page.goto(`${BASE}${href}`, { waitUntil: "domcontentloaded", timeout: 20000 });
   if (!expectLoaded) {
-    // A read that never resolves may keep the whole shell from rendering: capture what is there.
     await page.locator("#settings-panel-title").waitFor({ timeout: 6000 }).catch(() => {});
     await sleep(1500);
     return;
@@ -146,7 +121,6 @@ async function openSettings(page, href, { expectLoaded = true } = {}) {
   await settle(page);
 }
 
-/** DOM measurements inside the settings shell (or the main app surface outside Settings). */
 async function measurements(page) {
   return page.evaluate(() => {
     const visible = node => { const rect = node.getBoundingClientRect(), style = getComputedStyle(node); return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none" && !node.closest("[hidden]"); };
@@ -190,12 +164,6 @@ async function measurements(page) {
   });
 }
 
-/**
- * Visible English copy in a non-English case. `untranslated`: the string is an English catalog
- * value whose key is missing or still identical in the locale catalog (copy never translated).
- * `renderedEnglish`: the locale has a different translation, yet the English one is on screen.
- * Short tokens (brand names, "HD", "URL") are ignored.
- */
 function englishLeaks(language, texts) {
   if (language === "en") return [];
   const en = catalog("en"), local = catalog(language);
@@ -225,7 +193,6 @@ async function shoot(page, row) {
   row.sha256 = createHash("sha256").update(readFileSync(row.screenshot)).digest("hex");
 }
 
-/** Runs one case with a 30 s budget; a failed case is retried once and both attempts are recorded. */
 async function runCase(spec, body) {
   for (let attempt = 1; attempt <= 2; attempt++) {
     const run = await contextFor(spec);
@@ -249,7 +216,6 @@ async function runCase(spec, body) {
   }
 }
 
-// ---------------------------------------------------------------- baseline / sections
 async function baselineCase(spec) {
   const href = `/settings?tab=${spec.category}${spec.section ? `&section=${spec.section}` : ""}`;
   return runCase(spec, async (page, row) => {
@@ -266,7 +232,6 @@ async function baselineCase(spec) {
   });
 }
 
-// ---------------------------------------------------------------- aliases
 function aliasCases() {
   const cases = [];
   for (const alias of navigationMap.tabSectionAliases) cases.push({ kind: "tab-section", input: `/settings?tab=${alias.tab}${alias.section ? `&section=${alias.section}` : ""}`, expect: alias.targetHref, section: alias.targetSection || null });
@@ -303,7 +268,6 @@ async function aliasCase(spec) {
   });
 }
 
-// ---------------------------------------------------------------- focus waiting
 async function awaitFocus(page, selector, fallback, timeout) {
   if (!selector) return { ok: null, expected: null };
   const started = Date.now();
@@ -314,13 +278,11 @@ async function awaitFocus(page, selector, fallback, timeout) {
   };
   const matched = await page.waitForFunction(test, [selector, fallback], { timeout, polling: 50 }).then(handle => handle.jsonValue()).catch(() => false);
   const ms = Date.now() - started;
-  // Stability: a router focus reset or a late re-render must not take focus away afterwards.
   await sleep(1500);
   const still = await page.evaluate(test, [selector, fallback]);
   return { ok: !!matched, matched: matched || null, ms, stable: matched ? !!still : null, expected: selector, fallback };
 }
 
-// ---------------------------------------------------------------- navigation (contextual destinations)
 const NAV_CASES = [
   { id: "roster-skills", url: "/llm/roster?bot=fixture-bot&section=skills", expect: "#bot-section-skills", late: ["llm_roster_list", "assist_bot_get", "assist_bot_capabilities"] },
   { id: "roster-learning", url: "/llm/roster?bot=fixture-bot&section=learning", expect: "#bot-section-learning", late: ["llm_roster_list", "assist_bot_get", "assist_learning_overview"] },
@@ -350,7 +312,6 @@ async function navigationCase(spec) {
     if (spec.variant.startsWith("cold")) {
       await page.goto(`${BASE}${spec.url}`, { waitUntil: "domcontentloaded", timeout: 20000 });
     } else {
-      // Client-side navigation from a neutral Settings page, like a link inside the app.
       await openSettings(page, "/settings?tab=downloads");
       before = (await mockState(page)).mutations.length;
       await page.evaluate(({ href, delays }) => {
@@ -374,7 +335,6 @@ async function navigationCase(spec) {
   });
 }
 
-// ---------------------------------------------------------------- states
 const firstToggle = { general: "#settings-group-startup", appearance: "#settings-group-accessibility", downloads: "#settings-group-files", integrations: "#settings-group-music", advanced: "#settings-group-performance" };
 const dirtyTarget = { appearance: "typography", downloads: "output", ai: "connections", integrations: "rpc-advanced", advanced: "network" };
 const STATE_RECIPES = {
@@ -387,7 +347,6 @@ const STATE_RECIPES = {
   saveFailed: { categories: Object.keys(firstToggle), settingsState: "patch-rejected", action: "toggle" },
   dirty: { categories: Object.keys(dirtyTarget), action: "dirty" },
   disabled: { categories: ["ai", "integrations", "advanced"], family: { ai: "ai", integrations: "world", advanced: "dependencies" }, fixtureState: "disabled", scrollTo: { ai: "connections", integrations: "world-advanced", advanced: "network" } },
-  // profile_get never resolves null in Rust (ProfileView), so General has no honest empty fixture.
   empty: { categories: ["downloads"], family: { downloads: "channels" }, fixtureState: "empty", scrollTo: { downloads: "channels" } },
   partialError: { categories: ["general", "downloads", "ai", "integrations", "advanced"], family: { general: "profile", downloads: "cookies", ai: "ai", integrations: "world", advanced: "dependencies" }, fixtureState: "error", scrollTo: { general: "profile", downloads: "cookies", ai: "connections", integrations: "world-advanced", advanced: "dependencies" } },
 };
@@ -447,7 +406,6 @@ async function stateCase(spec, recipe) {
     row.measurements = await measurements(page);
     await shoot(page, row);
     if (spec.state === "pendingApply") {
-      // Explicit retry must call settings_retry_effect_v3 exactly once and clear the banner.
       const retry = page.locator(".settings-banner button").last();
       if (await retry.count()) {
         await retry.click(); await sleep(600);
@@ -459,7 +417,6 @@ async function stateCase(spec, recipe) {
   });
 }
 
-// ---------------------------------------------------------------- conditional toggles
 const CONDITIONAL = [
   { category: "downloads", section: "subtitles", toggleKey: "settings.download.download_subtitles" },
   { category: "downloads", section: "hotkeys" },
@@ -478,7 +435,6 @@ async function conditionalCase(spec) {
     if (!present) { row.status = "section-missing"; row.measurements = await measurements(page); await shoot(page, row); return; }
     const before = await page.locator(`#settings-group-${spec.section} input, #settings-group-${spec.section} select, #settings-group-${spec.section} [role=switch]`).evaluateAll(nodes => nodes.filter(n => n.getBoundingClientRect().width > 0).length);
     if (spec.variant === "click") {
-      // Real click on the prerequisite switch; the fixture starts with it off.
       const toggle = spec.toggleId ? page.locator(`#${spec.toggleId}`) : spec.toggleKey ? page.locator(`[data-setting-key="${spec.toggleKey}"] [role=switch], [data-setting-key="${spec.toggleKey}"] input[type=checkbox]`).first() : page.locator(`#settings-group-${spec.section} [role=switch]:enabled`).first();
       if (await toggle.count()) { await toggle.click(); await sleep(700); row.toggled = await toggle.evaluate(node => node.getAttribute("aria-label") || node.id); }
       else row.toggled = null;
@@ -492,7 +448,6 @@ async function conditionalCase(spec) {
   });
 }
 
-// ---------------------------------------------------------------- keyboard focus
 async function focusSuite(spec) {
   return runCase(spec, async (page, row) => {
     const results = row.checks = [];
@@ -577,7 +532,6 @@ async function focusSuite(spec) {
   });
 }
 
-// ---------------------------------------------------------------- reporting
 function writeReports() {
   const suffix = `${MODE}-${slug(languages.join("-"))}-${slug(themes.join("-"))}-${slug(viewports.map(v => v.name).join("-"))}`;
   const file = path.join(OUT, `coverage-${suffix}.json`);

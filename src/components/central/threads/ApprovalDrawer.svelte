@@ -1,9 +1,4 @@
 <script lang="ts">
-  // Approval drawer attached to the composer: "1/3" when several wait, the
-  // full diff of an edit (DiffViewer) or the command with its cwd and reason,
-  // and the engine decisions: Approve, Approve for this session, Always,
-  // Decline, Cancel. Keys (outside text fields): Y approve, S session, A always,
-  // N decline, [ ] previous/next.
   import { t } from "$lib/i18n";
   import type { ApprovalDecision, ApprovalRow } from "$lib/central/threads/types";
   import DiffViewer from "$components/central/vcs/DiffViewer.svelte";
@@ -66,7 +61,6 @@
     onrespond(current.requestId, decision);
   }
 
-  /** Provider options replace the defaults when present. */
   let providerOptions = $derived((current?.options ?? []).filter((o) => o.decision));
 
   function isEditable(el: EventTarget | null): boolean {

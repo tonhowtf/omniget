@@ -1,10 +1,4 @@
 <script lang="ts">
-  /**
-   * The "Always" rules of one agent (`permission-rules.json`): what a click on
-   * Always stored, editable and removable. A rule names a tool and a pattern
-   * over its subject (the command for the shell, the path for the file tools,
-   * `*` otherwise); the last matching rule wins.
-   */
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "$lib/i18n";
   import { emptyPermissionRuleDraft, normalizePermissionRule, type PermissionRuleAction } from "$lib/llm/permission-rules";
@@ -33,7 +27,6 @@
     }
   }
 
-  // A turn that just ended may have stored a new "Always".
   $effect(() => {
     void refreshKey;
     void load(agentId);

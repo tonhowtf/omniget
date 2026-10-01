@@ -1,6 +1,3 @@
-// Client of the companies of agents: one Tauri command (`company_rpc`) with
-// the same methods as the bridge, the CLI and the MCP
-// (src-tauri/omniget-core/src/core/company/rpc.rs), plus the live event.
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 
@@ -12,7 +9,6 @@ export function rpc<T = unknown>(method: string, args: Record<string, unknown> =
   return invoke<T>('company_rpc', { method, args });
 }
 
-/** Calls `fn` on every change (of `company` when given), coalesced per frame. */
 export function onCompanyChange(company: string | null, fn: (c: Change[]) => void): Promise<UnlistenFn> {
   let pending: Change[] = [];
   let scheduled = false;
@@ -30,7 +26,6 @@ export function onCompanyChange(company: string | null, fn: (c: Change[]) => voi
   });
 }
 
-/** `ERR_COMPANY_X: message` → message (the code stays in the console). */
 export function errorText(e: unknown): string {
   const s = String(e);
   const i = s.indexOf(': ');
@@ -88,7 +83,6 @@ export type Issue = {
   blocked_reason: string | null; billing_code: string | null; request_depth: number; board_rank: number;
   origin_kind: string; origin_id: string | null; created_ms: number; updated_ms: number;
   started_ms: number | null; completed_ms: number | null; cancelled_ms: number | null;
-  /** Label names (filled by `issue.list`). */
   labels?: string[];
 };
 
@@ -103,7 +97,6 @@ export type IssueDetail = {
   blocked_by: IssueLink[]; blocking: IssueLink[]; related: IssueLink[]; children: IssueLink[]; assignee: Staff | null;
 };
 
-/** Transitions the core accepts (issues.rs `can_go`); reopen is the owner's. */
 export const TRANSITIONS: Record<IssueStatus, IssueStatus[]> = {
   backlog: ['todo', 'cancelled'],
   todo: ['in_progress', 'blocked', 'cancelled', 'backlog'],

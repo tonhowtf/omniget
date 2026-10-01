@@ -1,11 +1,4 @@
 <script lang="ts">
-  /**
-   * Server half of the MCP tab: OmniGet's own endpoint — on/off, address,
-   * bearer token, one snippet per client and the tools it exposes.
-   *
-   * Everything pure lives in `$lib/llm/mcp` so both halves mask the token the
-   * same way.
-   */
   import ServerConnections from "./ServerConnections.svelte";
   import ConnectTools from "./ConnectTools.svelte";
   import { invoke } from "@tauri-apps/api/core";
@@ -77,7 +70,6 @@
 
   let serverOn = $derived(status?.enabled === true);
   let snippet = $derived(status?.snippets?.[client]?.[1] ?? "");
-  // The Claude Code command never holds the token (argv, shell history).
   let tokenOutsideSnippet = $derived(status?.snippets?.[client]?.[0] === "Claude Code");
 </script>
 
@@ -231,8 +223,6 @@
     color: var(--danger);
   }
 
-  /* The app's switch (primitives.css .toggle, 38×22). Its on-state is also
-     stated here, scoped, so the knob and track always follow aria-checked. */
   .server-switch.on,
   .server-switch[aria-checked="true"] {
     background: var(--accent);
@@ -259,8 +249,6 @@
     color: var(--text-dim);
   }
 
-  /* At phone width a row of buttons next to a URL squeezes the URL to one
-     character per line. Stack the whole row instead. */
   @media (max-width: 720px) {
     .half :global(.group-row) {
       flex-direction: column;

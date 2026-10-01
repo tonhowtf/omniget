@@ -1,5 +1,4 @@
 <script lang="ts">
-  /** Chunky filled tile for a component kind: rounded square with a gradient and a white Phosphor Fill glyph. */
   import { kindStyle } from "$lib/central/catalog";
 
   let { kind, size = 36 }: { kind: string; size?: number } = $props();
@@ -33,7 +32,6 @@
       0 6px 14px -6px rgba(0, 0, 0, 0.35);
   }
 
-  /* top shine, like macOS app icons */
   .kind-icon::before {
     content: "";
     position: absolute;

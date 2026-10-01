@@ -1,8 +1,3 @@
-/// Persistence inventory from `wmb_persistence_list` and the pure logic of
-/// the Security screen: grouping by type, the third-party filter, the seal
-/// each verdict gets. The verdicts are neutral facts from macOS (signature,
-/// notarization, quarantine); nothing here calls anything malware.
-
 export type SecurityClass =
   | "apple"
   | "app_store"
@@ -65,7 +60,6 @@ export type PersistenceList = {
   plan_id: null;
 };
 
-/// The order groups appear in: what runs most often first.
 export const KIND_ORDER: string[] = [
   "launch_agent",
   "launch_daemon",
@@ -80,8 +74,6 @@ export const KIND_ORDER: string[] = [
 
 export type Tone = "good" | "neutral" | "warn" | "muted";
 
-/// The seal colour of a verdict. Green is Apple's own checks passing, amber
-/// is "look at this yourself", never "danger".
 export function toneOf(c: SecurityClass | null | undefined): Tone {
   switch (c) {
     case "apple":
@@ -108,7 +100,6 @@ export function kindKey(kind: string): string {
   return `washmybelly.security.kind.${KIND_ORDER.includes(kind) ? kind : "other"}`;
 }
 
-/// Worth a second look: the verdict is amber, or XProtect matched.
 export function needsLook(it: PersistenceItem): boolean {
   return toneOf(it.class) === "warn" || it.xprotect_matches.length > 0;
 }
@@ -140,13 +131,11 @@ export function groupItems(items: PersistenceItem[]): Group[] {
     .filter((k) => map.has(k))
     .map((k) => {
       const list = map.get(k)!;
-      // Items worth a look first, then by name.
       list.sort((a, b) => Number(needsLook(b)) - Number(needsLook(a)) || a.name.localeCompare(b.name));
       return { kind: k, items: list, look: list.filter(needsLook).length };
     });
 }
 
-/// `btm_unavailable: sfltool: …` → `btm_unavailable`.
 export function noteCodes(notes: string[] | null | undefined): string[] {
   const known = new Set([
     "btm_unavailable",
@@ -164,7 +153,6 @@ export function noteCodes(notes: string[] | null | undefined): string[] {
   return out;
 }
 
-/// The file "Show in Finder" opens: what was checked, else where it is registered.
 export function revealPath(it: PersistenceItem): string | null {
   for (const p of [it.checked, it.path, it.program]) {
     if (p && p.startsWith("/") && (it.exists || p !== it.checked)) return p;
@@ -172,7 +160,6 @@ export function revealPath(it: PersistenceItem): string | null {
   return null;
 }
 
-/// Neutral facts shown as small tags (keys under `washmybelly.security.note`).
 export function factTags(it: PersistenceItem): string[] {
   const order = ["quarantined", "runs_script", "inline_command", "in_temp_folder", "hidden_folder", "removal_disallowed"];
   return order.filter((n) => it.notes.includes(n));

@@ -1,9 +1,4 @@
 <script lang="ts">
-  /**
-   * Org chart: a tree of staff cards (avatar, name, title, live status).
-   * Pass `nodes` from `staff.chart`, or `staff` (a flat list) and the tree
-   * is built here. `onselect` makes the cards buttons.
-   */
   import type { ChartNode, Staff } from "$lib/company/rpc";
   import { t } from "$lib/i18n";
   import StatusDot from "./StatusDot.svelte";
@@ -68,7 +63,6 @@
   .org-chart > ul { padding-top: 0; }
   .org-chart li { display: flex; flex-direction: column; align-items: center; position: relative; padding: 18px 8px 0; }
   .org-chart > ul > li { padding-top: 0; }
-  /* Connectors: a horizontal bar over siblings, a vertical tick into each card. */
   .org-chart li::before,
   .org-chart li::after { content: ""; position: absolute; top: 0; width: 50%; height: 18px; border-top: var(--hairline) solid var(--border-hi, var(--separator)); }
   .org-chart li::before { right: 50%; }

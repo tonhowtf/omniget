@@ -60,7 +60,6 @@ import tempfile
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 TAURI = ROOT / "src-tauri"
 
-
 def run_tests(filter_, env_extra, out_file):
     env = dict(os.environ, OMNIGET_BENCH_OUT=str(out_file), **env_extra)
     cmd, p = run_prepared_tests("omniget-core", filter_, env)
@@ -68,7 +67,6 @@ def run_tests(filter_, env_extra, out_file):
     return {"cmd": " ".join(f"{k}={v}" for k, v in env_extra.items()) + " " + " ".join(cmd),
             "exit": p.returncode, "summary": summary,
             "stderr_tail": p.stderr[-2000:] if p.returncode else ""}
-
 
 def read_metrics(path):
     per = {}
@@ -82,10 +80,8 @@ def read_metrics(path):
         per[m["metric"]] = m["value"]
     return per
 
-
 def goal(name, value, ok, target):
     return {"goal": name, "target": target, "value": value, "pass": bool(ok)}
-
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -196,7 +192,6 @@ def main():
         print(("PASS " if g["pass"] else "FAIL ") + g["goal"] + f"  ({g['value']})")
     print("all_pass:", report["all_pass"], "->", args.out)
     return 0 if report["all_pass"] else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

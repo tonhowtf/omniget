@@ -1,6 +1,4 @@
 <script lang="ts">
-  // Artist page: full-width photo fading into the background, huge name,
-  // subscribers, Shuffle / Radio / Subscribe, then the artist shelves.
   import { t } from "$lib/i18n";
   import * as api from "$lib/tube/api";
   import { thumbUrl } from "$lib/tube/format";

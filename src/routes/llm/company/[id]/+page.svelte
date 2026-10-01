@@ -1,9 +1,4 @@
 <script lang="ts">
-  /**
-   * Company overview: mission and goals, the live org chart, work by status,
-   * spend against budgets, open approvals and the latest runs. One
-   * `company.dashboard` read, refreshed on every `company://changed`.
-   */
   import { page } from "$app/state";
   import { t } from "$lib/i18n";
   import { errorText, onCompanyChange, rpc, type Dashboard, type Issue, type IssueStatus, type PolicyStatus } from "$lib/company/rpc";

@@ -1,6 +1,3 @@
-// Small formatting helpers shared by the company issue, inbox, costs and
-// activity screens (times and money come from ./company-ui). Status and
-// priority names live under `company.common.*`.
 import { onCompanyChange, type Change, type IssueStatus, type Priority, type Run, type Staff } from "$lib/company/rpc";
 
 export const BOARD_COLUMNS: IssueStatus[] = ["backlog", "todo", "in_progress", "in_review", "blocked", "done"];
@@ -10,7 +7,6 @@ export const PRIORITIES: Priority[] = ["critical", "high", "medium", "low"];
 export const issueStatusKey = (s: string) => `company.common.status.${s}`;
 export const priorityKey = (p: string) => `company.common.priority.${p}`;
 
-/** Status → color token, the same palette as the rest of /llm. */
 export function issueStatusColor(s: string): string {
   switch (s) {
     case "in_progress":
@@ -60,12 +56,10 @@ export function dateTime(ms: number | null | undefined): string {
   return new Date(ms).toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" });
 }
 
-/** Where a run's job opens; the jobs page lists every job. */
 export function jobHref(jobId: string): string {
   return `/llm/jobs?job=${encodeURIComponent(jobId)}`;
 }
 
-/** Live updates for one company; returns the cleanup (use inside `$effect`). */
 export function watchCompany(company: string, fn: (batch: Change[]) => void): () => void {
   let off: (() => void) | undefined;
   let alive = true;

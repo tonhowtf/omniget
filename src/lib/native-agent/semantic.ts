@@ -1,4 +1,3 @@
-/** On-demand canvas adapters. Register only while the real renderer is mounted. */
 const adapters = new Map<string, () => unknown>();
 export function registerSemantic(id: string, read: () => unknown): () => void {
   adapters.set(id, read);

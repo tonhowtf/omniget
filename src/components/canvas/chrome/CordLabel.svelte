@@ -1,6 +1,4 @@
 <script lang="ts">
-  // Chip at the arc-length midpoint of a cord: kind or label. Hidden below
-  // zoom 0.4 (02 §5). Clicking selects the cord.
   import { t } from "$lib/i18n";
   import { useEngine } from "$lib/canvas/engine.svelte";
   import { cordPath, sampleCord } from "$lib/canvas/cords/route";

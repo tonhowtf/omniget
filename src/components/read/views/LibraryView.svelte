@@ -27,7 +27,6 @@
     try {
       localStorage.setItem(KEY, JSON.stringify($state.snapshot(o)));
     } catch {
-      /* ignore */
     }
   });
   $effect(() => {

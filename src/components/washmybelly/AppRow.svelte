@@ -5,9 +5,6 @@
   import AppTile from "./AppTile.svelte";
   import Icon from "./ui/Icon.svelte";
 
-  /// One app in the Uninstall list: tile, name, version and origin, when it
-  /// was last opened, size. Apps that can't be removed stay visible but
-  /// faded, with the reason.
   let {
     app,
     selected = false,

@@ -7,7 +7,6 @@
   import SettingGroup from "./SettingGroup.svelte";
   import SettingRow from "./SettingRow.svelte";
 
-  // Language names are written in their own script so anyone can find theirs.
   const LANGUAGES = [
     ["en", "settings.appearance.lang_en"], ["pt", "settings.appearance.lang_pt"], ["es", "settings.appearance.lang_es"],
     ["fr", "settings.appearance.lang_fr"], ["it", "settings.appearance.lang_it"], ["ru", "settings.appearance.lang_ru"],
@@ -21,7 +20,6 @@
     ["exit_on_close", "settings.general.exit_on_close"],
     ["run_in_background", "settings.general.run_in_background"],
   ] as const;
-  /** The Flatpak limit of "agents in the background" only concerns Linux (3.2). */
   const onLinux = typeof navigator !== "undefined" && /linux/i.test(navigator.userAgent);
 
   let settings = $derived(getSettings());
@@ -77,6 +75,5 @@
     </SettingRow>
   </SettingGroup>
 
-  <!-- Limits strip and menu-bar usage indicator (groups limits-strip and usage-tray). -->
   <SettingsIndicators />
 {/if}

@@ -1,11 +1,3 @@
-/**
- * Stack of the catalog: what the user picked to install, where and how.
- * Persisted in localStorage (per machine, never shared); the drawer on
- * `/llm/catalog` and the buttons on every card/detail read the same instance.
- *
- * Items are catalog ids, or inline canonical components (imported from a tool
- * with `agentkit_import_installed`) that have no id in the catalog.
- */
 import type { Component, Policy, Scope } from "./catalog";
 
 interface StackItem {
@@ -14,7 +6,6 @@ interface StackItem {
   name: string;
   category?: string;
   description?: string;
-  /** Inline component (not in the catalog). */
   component?: Component | null;
 }
 
@@ -45,14 +36,12 @@ function load(): Persisted | null {
 class StackStore {
   name = $state("");
   items = $state<StackItem[]>([]);
-  /** Chosen tool ids. With `targetsAuto`, the drawer refills them from detection. */
   targets = $state<string[]>([]);
   targetsAuto = $state(true);
   scope = $state<Scope>("project");
   projectDir = $state<string | null>(null);
   policy = $state<Policy>("rename");
   open = $state(false);
-  /** Bumped when the drawer saves a collection, so the sidebar reloads. */
   rev = $state(0);
 
   constructor() {
@@ -153,15 +142,10 @@ class StackStore {
       };
       localStorage.setItem(KEY, JSON.stringify(p));
     } catch {
-      /* storage off or full: the stack lives only in memory */
     }
   }
 }
 
 export const stack = new StackStore();
 
-/**
- * Guard reports of catalog items scanned in this session (detail page, plan
- * dialog), so the cards can show the real seal instead of "not scanned".
- */
 export const guardSeals: Record<string, import("./guard").GuardReport> = $state({});

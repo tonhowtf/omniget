@@ -49,8 +49,6 @@
   let namingTemplatesOpen = $state(false);
   let cdnOpen = $state(false);
 
-  // Naming templates and CDN hosts are free text: one draft for the Bilibili
-  // text fields, saved with "Save changes" instead of on every keystroke.
   const bilibiliText = createSettingsDraft({
     id: "bilibili-text",
     read: (s) => ({
@@ -64,7 +62,6 @@
     toPatch: (d) => ({ download: { ...d } }),
   });
 
-  // A draft must stay reachable: reopen the editors that hold unsaved text.
   $effect(() => {
     if (!bilibiliText.dirty) return;
     const saved = settings?.download;

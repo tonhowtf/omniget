@@ -1,30 +1,7 @@
-/**
- * Inventário das extensões instaladas ("extension backup").
- *
- * O Chrome está desligando as extensões Manifest V2. Antes de elas sumirem, o
- * usuário quer um registro do que tinha instalado — nome, versão, permissões e
- * link da loja — para conseguir reinstalar ou procurar substituto depois.
- *
- * Este módulo é puro de propósito: recebe a lista crua de
- * `chrome.management.getAll()` e devolve o inventário normalizado + os arquivos
- * de export (JSON, Markdown e HTML). Quem fala com o `chrome.*` é a página
- * (`pages/ext-backup.js`), então tudo aqui roda em teste sem navegador.
- *
- * Limitação honesta: `chrome.management.ExtensionInfo` NÃO expõe o
- * `manifest_version`. A versão do manifest é inferida por permissões que só
- * existem em um dos dois modelos, e o motivo da inferência viaja junto no
- * resultado. Quando não dá para saber, o campo fica `null` — não se inventa.
- */
-
 export const CHROME_WEB_STORE_DETAIL = "https://chromewebstore.google.com/detail/";
 
-/** updateUrl que a Chrome Web Store carimba nas extensões instaladas por ela. */
 export const CHROME_WEB_STORE_UPDATE_URL = "https://clients2.google.com/service/update2/crx";
 
-/**
- * Permissões que só existem no Manifest V3. A presença de qualquer uma delas
- * é prova prática de que a extensão já migrou.
- */
 export const MV3_ONLY_PERMISSIONS = [
   "declarativeNetRequest",
   "declarativeNetRequestWithHostAccess",
@@ -36,18 +13,11 @@ export const MV3_ONLY_PERMISSIONS = [
   "userScripts",
 ];
 
-/**
- * Permissões que só existem no Manifest V2. `webRequestBlocking` é o coração
- * dos bloqueadores antigos e é justamente o que o MV3 tirou (a exceção são
- * extensões instaladas por política de empresa, que ainda podem pedir isso em
- * MV3 — por isso o sinal é "provável", não "certo").
- */
 export const MV2_ONLY_PERMISSIONS = ["webRequestBlocking"];
 
 const MV3_SET = new Set(MV3_ONLY_PERMISSIONS);
 const MV2_SET = new Set(MV2_ONLY_PERMISSIONS);
 
-/** Tipos que não são extensão de verdade (tema, app) e não morrem com o MV2. */
 const NON_EXTENSION_TYPES = new Set([
   "theme",
   "hosted_app",
@@ -61,7 +31,6 @@ export function storeUrlFor(id) {
   return `${CHROME_WEB_STORE_DETAIL}${clean}`;
 }
 
-/** Maior ícone disponível, para a listagem ficar legível. */
 export function largestIcon(icons) {
   if (!Array.isArray(icons) || icons.length === 0) return null;
   let best = null;
@@ -81,10 +50,6 @@ function sortedStrings(list) {
     .sort((a, b) => a.localeCompare(b));
 }
 
-/**
- * Infere a versão do manifest a partir das permissões declaradas.
- * Devolve `{ version, source, confidence }`, com `version` em `2 | 3 | null`.
- */
 export function detectManifestVersion(info) {
   const permissions = Array.isArray(info?.permissions) ? info.permissions : [];
 
@@ -121,7 +86,6 @@ export function detectManifestVersion(info) {
   };
 }
 
-/** Origem da instalação: veio da loja, veio de fora, ou não dá para dizer. */
 export function detectStoreOrigin(info) {
   const installType = info?.installType ?? null;
   if (installType === "development") return false;
@@ -133,7 +97,6 @@ export function detectStoreOrigin(info) {
   return null;
 }
 
-/** Achata um `ExtensionInfo` no registro que vai para o arquivo exportado. */
 export function normalizeExtension(info) {
   const id = typeof info?.id === "string" ? info.id : "";
   const manifest = detectManifestVersion(info);
@@ -167,7 +130,6 @@ export function normalizeExtension(info) {
   };
 }
 
-/** Peso do grupo: MV2 primeiro, depois o que não dá para saber, depois MV3. */
 function groupWeight(entry) {
   if (entry.manifestVersion === 2) return 0;
   if (entry.manifestVersion === null) return 1;
@@ -218,9 +180,6 @@ export function summarize(entries) {
   };
 }
 
-/**
- * Monta o inventário completo. `list` é o que `chrome.management.getAll()` deu.
- */
 export function buildBackup(list, { generatedAt = new Date().toISOString(), browser = "Chrome" } = {}) {
   const entries = (Array.isArray(list) ? list : []).map(normalizeExtension).sort(compareExtensions);
 
@@ -229,8 +188,6 @@ export function buildBackup(list, { generatedAt = new Date().toISOString(), brow
     formatVersion: 1,
     browser,
     generatedAt,
-    // A gente não bate na rede: se a extensão ainda está publicada na loja
-    // ou já foi removida, só o link resolve. Não se chuta esse campo.
     storeListingChecked: false,
     summary: summarize(entries),
     groups: {
@@ -493,14 +450,6 @@ ${
 `;
 }
 
-/**
- * Tentativa (local, sem rede) de ler o `manifest_version` de verdade.
- *
- * `chrome-extension://<id>/manifest.json` só é legível quando a outra extensão
- * publicou o arquivo em `web_accessible_resources`, o que é raro. Quando dá
- * certo o dado é exato e passa a valer sobre a inferência por permissão;
- * quando não dá, devolve `null` e ninguém se machuca.
- */
 export async function probeManifestVersion(id, { fetchImpl = globalThis.fetch } = {}) {
   if (!id || typeof fetchImpl !== "function") return null;
   try {
@@ -514,10 +463,6 @@ export async function probeManifestVersion(id, { fetchImpl = globalThis.fetch } 
   }
 }
 
-/**
- * Roda o probe em toda a lista e devolve cópias com `manifestVersion` cravado
- * onde deu para ler. O que falhar segue para a inferência por permissão.
- */
 export async function withProbedManifestVersions(list, options = {}) {
   const items = Array.isArray(list) ? list : [];
   const probed = await Promise.all(items.map((item) => probeManifestVersion(item?.id, options)));

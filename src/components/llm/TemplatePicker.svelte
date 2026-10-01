@@ -1,8 +1,4 @@
 <script lang="ts">
-  /**
-   * Team templates. The shapes live on the Rust side
-   * (`llm_roster_apply_template`); this is the list plus one Apply button.
-   */
   import { t } from "$lib/i18n";
 
   let {

@@ -1,9 +1,3 @@
-// Dot grid (02-motor-do-canvas §2.2): one full-screen triangle, spacing 20
-// units with a larger dot every 5; when the on-screen spacing drops under
-// 8 px the grid climbs one level (×5) with a cross-fade. The camera offset is
-// reduced modulo the largest period on the CPU, so float32 never sees big
-// numbers.
-
 import { linkProgram } from '$lib/gfx/gl';
 import { GRID } from '../model/types';
 import type { FrameInfo, GlPass } from './gl-layer';
@@ -41,7 +35,6 @@ void main() {
 export function gridLevel(zoom: number): { spacing: number; fade: number } {
   let spacing = GRID;
   while (spacing * zoom < 8 && spacing < 1e7) spacing *= 5;
-  // Fade the minor dots in as the level's on-screen spacing grows from 8 to 16 px.
   const px = spacing * zoom;
   const fade = Math.max(0, Math.min(1, (px - 8) / 8));
   return { spacing, fade };

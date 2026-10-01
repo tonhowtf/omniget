@@ -20,7 +20,6 @@
         onclose();
       }
       if (e.key === "Tab" && card) {
-        // keep focus inside the dialog
         const f = [...card.querySelectorAll<HTMLElement>("input, select, textarea, button, [tabindex='0']")].filter((x) => !x.hasAttribute("disabled"));
         if (!f.length) return;
         const first = f[0];

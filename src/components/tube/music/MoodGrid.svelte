@@ -1,7 +1,4 @@
 <script lang="ts">
-  // Moods & genres buttons: tonal pill with the category color as a stripe on
-  // the left, like YT Music. `rows` lays them out in N rows that scroll sideways
-  // (home/explore shelf); without it they wrap in a responsive grid.
   import { go } from "$lib/tube/ui.svelte";
   import type { Item, MoodItem } from "$lib/tube/types";
 

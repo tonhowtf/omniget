@@ -14,8 +14,6 @@
 
   type ControlArgs = { id: string; describedBy: string | undefined };
 
-  // "files" holds the primary destination choices; "output" is the advanced
-  // group with naming, speed and what gets embedded in each file.
   let { part = "files" }: { part?: "files" | "output" } = $props();
 
   let settings = $derived(getSettings());
@@ -43,8 +41,6 @@
     };
   });
 
-  // The filename template is free text: it is edited as a draft and only
-  // written on "Save changes", never per keystroke.
   const template = createSettingsDraft({
     id: "filename-template",
     read: (s) => ({ filename_template: s.download.filename_template }),
@@ -222,8 +218,6 @@
   .template-feedback { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-inline-size: 0; overflow-wrap: anywhere; }
   .template-feedback:empty { display: none; }
   .template-error { color: var(--error); font-size: 13px; line-height: 1.5; }
-  /* SettingRow gives every field inline-size: 100%, so sizes go through flex-basis:
-     the unit select (fixed KB/s, MB/s labels) keeps 5.5rem and the number field the rest. */
   .speed-limit { display: flex; gap: var(--space-2); min-inline-size: 0; inline-size: 100%; max-inline-size: 260px; }
   .speed-limit input { flex: 1 1 0; min-inline-size: 4rem; }
   .speed-limit select { flex: 0 0 5.5rem; }

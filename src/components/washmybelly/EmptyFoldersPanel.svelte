@@ -12,9 +12,6 @@
   import Icon from "./ui/Icon.svelte";
   import CleanRoots from "./CleanRoots.svelte";
 
-  /// Empty folders (a folder holding only empty folders counts too) go to
-  /// the Trash. Broken shortcuts found on the way are listed to know about,
-  /// nothing more.
   let roots = $state<string[]>([]);
   let phase = $state<"idle" | "scanning" | "done" | "error">("idle");
   let scan = $state<EmptyScan | null>(null);
@@ -196,7 +193,6 @@
     bottom: 0;
     z-index: 2;
     padding: var(--space-3) 0;
-    /* Opaque bar so the button never sits on top of the list's totals. */
     background: var(--pane-bg);
     border-top: 1px solid var(--separator, var(--button-elevated));
   }

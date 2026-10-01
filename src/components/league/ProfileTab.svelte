@@ -81,20 +81,16 @@
     if (active !== false && summoner && !loaded) load();
   });
 
-  // Presence
   let statusMessage = $state("");
 
-  // Rank shown in chat
   let rankQueue = $state<string>("RANKED_SOLO_5x5");
   let rankTier = $state<string>("UNRANKED");
   let rankDivision = $state<string>("I");
   let apex = $derived(["MASTER", "GRANDMASTER", "CHALLENGER", "UNRANKED"].includes(rankTier));
 
-  // Challenge crystal
   let crystalLevel = $state<string>("UNRANKED");
   let crystalPoints = $state<number>(0);
 
-  // Tokens, title, banner
   type Token = { id: number; name: string; level: string; iconPath: string; description: string };
   let tokens = $state<Token[]>([]);
   let titles = $state<{ id: string; name: string }[]>([]);
@@ -150,7 +146,6 @@
     );
   }
 
-  // Icons
   type Icon = { id: number; title: string };
   let icons = $state<Icon[]>([]);
   let iconsLoaded = false;
@@ -179,7 +174,6 @@
     }
   }
 
-  // Background
   let bgChampion = $state<number>(0);
   let ownedSkins = $state<{ id: number; name: string }[]>([]);
 
@@ -194,7 +188,6 @@
     }
   }
 
-  // Friends
   type Friend = { id: string; gameName: string; gameTag: string; name: string; availability: string; icon: number; note: string; groupName: string };
   let friends = $state<Friend[]>([]);
   let friendsLoading = $state(false);
@@ -275,7 +268,6 @@
     {/if}
   </section>
 
-  <!-- Presence -->
   <section class="card">
     <div class="card-head"><h3>{$t("league.profile_section_presence")}</h3></div>
     <div class="profile-tool-row">
@@ -303,7 +295,6 @@
     </div>
   </section>
 
-  <!-- Icons -->
   <section class="card">
     <div class="card-head"><h3>{$t("league.profile_section_icon")}</h3></div>
     <span class="action-hint">{$t("league.profile_icon_hint")}</span>
@@ -332,7 +323,6 @@
     {/if}
   </section>
 
-  <!-- Rank in chat -->
   <section class="card">
     <div class="card-head"><h3>{$t("league.profile_section_rank")}</h3></div>
     <span class="action-hint">{$t("league.rank_hint")}</span>
@@ -367,7 +357,6 @@
     </div>
   </section>
 
-  <!-- Tokens, title, banner -->
   <section class="card">
     <div class="card-head">
       <h3>{$t("league.tokens_title")}</h3>
@@ -425,7 +414,6 @@
     {/if}
   </section>
 
-  <!-- Background -->
   <section class="card">
     <div class="card-head"><h3>{$t("league.profile_background")}</h3></div>
     <div class="profile-tool-row">
@@ -447,7 +435,6 @@
     </div>
   </section>
 
-  <!-- Friends -->
   <section class="card">
     <div class="card-head">
       <h3>{$t("league.friends_title")}</h3>

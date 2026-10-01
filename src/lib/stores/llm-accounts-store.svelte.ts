@@ -1,40 +1,11 @@
-/**
- * Accounts & quota store (`/llm/accounts`).
- *
- * Reads three things, all on demand — this file never creates a timer, so a
- * closed tab costs zero (briefing §5):
- *   - `llm_accounts_list()` — accounts, fallback chain and rotation settings;
- *   - `llm_accounts_detect()` — which CLIs exist on this machine (button);
- *   - `llm_cli_usage_report()` — the dashboard, read from the CLIs' own JSONL.
- *
- * Nothing here ever sees a credential: an account is an id, a label and the
- * path of an isolated config directory (plan §9.2, `estudos/74` §A.3). The
- * quota number carries its own provenance — `reported` came from an official
- * channel, `estimated` was summed from the JSONL — and the UI always prints
- * which one it is.
- *
- * While `llm_cli_usage_report` is unavailable the page renders an empty state.
- * `fakeSnapshot`/`fakeUsage` feed the tests and the screenshot harness
- * (`?demo=1`) and never fill a real screen.
- */
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-
-// ---------------------------------------------------------------------------
-// Contract (mirrors `src-tauri/src/commands/llm/accounts.rs`)
-// ---------------------------------------------------------------------------
 
 export type CliKind = "claude" | "codex";
 type QuotaSource = "reported" | "estimated";
 type WindowKind = "five_hour" | "seven_day";
-/**
- * What a turn on this account may touch. `read-only` is the default for every
- * account and the only value the backend ever infers; anything it does not
- * recognise parses back to `read-only`, so a write is always a deliberate act.
- */
 export type SandboxMode = "read-only" | "write" | "full";
 
-/** Span of each window, in ms. Used for the "runs out at this pace" line. */
 const WINDOW_SPAN_MS: Record<WindowKind, number> = {
   five_hour: 5 * 3_600_000,
   seven_day: 7 * 86_400_000,
@@ -43,11 +14,6 @@ const WINDOW_SPAN_MS: Record<WindowKind, number> = {
 export interface UsageWindow {
   account_id: string;
   window: WindowKind;
-  /**
-   * 0..1 of the window already spent, or `null` when no ceiling is known for
-   * the plan (`cli_usage` never invents one). The UI then prints the token
-   * count and draws no bar.
-   */
   used: number | null;
   used_tokens: number;
   resets_at_ms: number | null;
@@ -61,28 +27,23 @@ export interface AccountView {
   config_dir: string;
   disabled: boolean;
   sandbox: SandboxMode;
-  /** The literal CLI flag behind `sandbox`, printed next to the label. */
   sandbox_flag: string;
   windows: UsageWindow[];
   sessions: number;
-  /** Head of the chain: the account the router prefers right now. */
   active: boolean;
   last_error: string | null;
 }
 
 export interface Rotation {
   enabled: boolean;
-  /** 0..1 of the worst window that triggers a switch. */
   threshold: number;
   cooldown_s: number;
 }
 
 export interface AccountsSnapshot {
   accounts: AccountView[];
-  /** Account ids in router order. */
   chain: string[];
   rotation: Rotation;
-  /** False while no quota source answered: the meters say so. */
   quota_available: boolean;
 }
 
@@ -92,7 +53,6 @@ export interface CliDetected {
   version: string | null;
 }
 
-/** One bucket of the report: a day (`YYYY-MM-DD`) or a model name in `key`. */
 export interface UsageRow {
   key: string;
   calls: number;
@@ -120,21 +80,17 @@ interface SessionRow {
 export interface CliUsageReport {
   by_day: UsageRow[];
   by_model: UsageRow[];
-  /** 7 rows (Mon..Sun) × 24 columns (local hour): tool calls. */
   by_tool_hour: number[][];
   top_tools: ToolBucket[];
   sessions: SessionRow[];
-  /** Every account's windows, including the `estimated` ones from the sweep. */
   windows: UsageWindow[];
   total_cost_usd: number;
-  /** How the scan went, so the tab can show a number instead of a feeling. */
   scanned_files: number;
   scan_ms: number;
 }
 
 export type LoadState = "idle" | "loading" | "ready" | "unavailable";
 
-/** One line of the switch timeline, from the `llm://rerouted` event (F2). */
 interface SwitchRow {
   at_ms: number;
   agent: string;
@@ -143,12 +99,7 @@ interface SwitchRow {
   why: string;
 }
 
-/** How many switches the timeline keeps in memory. */
 const MAX_SWITCHES = 20;
-
-// ---------------------------------------------------------------------------
-// Pure helpers (tested in llm-accounts-store.test.ts)
-// ---------------------------------------------------------------------------
 
 const EMPTY_SNAPSHOT: AccountsSnapshot = {
   accounts: [],
@@ -169,13 +120,11 @@ const EMPTY_REPORT: CliUsageReport = {
   scan_ms: 0,
 };
 
-/** 0..1, or null when the backend has no ceiling to divide by. */
 function clampFraction(v: unknown): number | null {
   if (typeof v !== "number" || !Number.isFinite(v)) return null;
   return v < 0 ? 0 : v > 1 ? 1 : v;
 }
 
-/** One window off the wire, with every field defended. */
 function normalizeWindow(raw: unknown, accountId = ""): UsageWindow {
   const w = (raw ?? {}) as Partial<UsageWindow>;
   return {
@@ -188,18 +137,10 @@ function normalizeWindow(raw: unknown, accountId = ""): UsageWindow {
   };
 }
 
-/**
- * The mode of one account off the wire. Only the exact word `write` is a
- * write: a missing, misspelled or hostile value reads as `read-only`, the same
- * rule the backend applies (`SandboxMode::parse`). The UI must never draw an
- * account as more restricted than it is, and must never invent a write.
- */
 function normalizeSandbox(raw: unknown): SandboxMode {
-  // `full` (2.7): the ceiling that lets a turn whose run mode is full_access run.
   return raw === "write" ? "write" : raw === "full" ? "full" : "read-only";
 }
 
-/** A missing field never crashes a meter or a chart. */
 function normalizeSnapshot(raw: unknown): AccountsSnapshot {
   const r = (raw ?? {}) as Partial<AccountsSnapshot>;
   const accounts = (r.accounts ?? []).map((a) => ({
@@ -247,13 +188,6 @@ function normalizeReport(raw: unknown): CliUsageReport {
   };
 }
 
-/**
- * Hand the sweep's windows to the accounts they belong to.
- *
- * `llm_accounts_list` only sees what an official channel already cached
- * (`reported`); the `estimated` ones only exist after a scan. Merging here
- * keeps the cards honest without making the list command scan.
- */
 function mergeWindows(
   accounts: readonly AccountView[],
   windows: readonly UsageWindow[],
@@ -263,7 +197,6 @@ function mergeWindows(
     const mine = windows.filter((w) => w.account_id === a.id);
     if (mine.length === 0) return a;
     const byKind = new Map(mine.map((w) => [w.window, w]));
-    // A window the account already carried wins only if nothing newer came in.
     for (const w of a.windows) if (!byKind.has(w.window)) byKind.set(w.window, w);
     const order: WindowKind[] = ["five_hour", "seven_day"];
     return {
@@ -273,7 +206,6 @@ function mergeWindows(
   });
 }
 
-/** Accounts in chain order; anything the chain forgot keeps its own order. */
 export function orderByChain(accounts: readonly AccountView[], chain: readonly string[]): AccountView[] {
   const byId = new Map(accounts.map((a) => [a.id, a]));
   const ordered = chain.map((id) => byId.get(id)).filter((a): a is AccountView => !!a);
@@ -281,7 +213,6 @@ export function orderByChain(accounts: readonly AccountView[], chain: readonly s
   return [...ordered, ...rest];
 }
 
-/** Move `id` to `to` in the chain (drag and drop). Out-of-range is clamped. */
 export function reorder(chain: readonly string[], id: string, to: number): string[] {
   const from = chain.indexOf(id);
   if (from < 0) return [...chain];
@@ -292,13 +223,6 @@ export function reorder(chain: readonly string[], id: string, to: number): strin
   return out;
 }
 
-/**
- * Epoch ms when a window runs out at the pace observed so far, or null when
- * the pace cannot be read (no reset time, nothing spent yet, or already full).
- *
- * The elapsed part of the window is `span - (resetsAt - now)`; the rate is
- * `used / elapsed`; the remainder `1 - used` at that rate is what is left.
- */
 export function exhaustsAt(w: UsageWindow, nowMs: number): number | null {
   if (!w.resets_at_ms || w.used === null) return null;
   const span = WINDOW_SPAN_MS[w.window];
@@ -307,11 +231,9 @@ export function exhaustsAt(w: UsageWindow, nowMs: number): number | null {
   const rate = w.used / elapsed;
   const left = (1 - w.used) / rate;
   const at = nowMs + left;
-  // Running out after the flip is not a projection worth showing.
   return at >= w.resets_at_ms ? null : Math.round(at);
 }
 
-/** "2 h 15 min" / "45 min" from a duration in ms. Empty for the past. */
 export function humanDuration(ms: number): string {
   if (!Number.isFinite(ms) || ms <= 0) return "";
   const mins = Math.round(ms / 60_000);
@@ -319,10 +241,6 @@ export function humanDuration(ms: number): string {
   return h > 0 ? `${h} h ${mins % 60} min` : `${mins} min`;
 }
 
-/**
- * Sequential ramp bucket of a heatmap cell: 0 (empty) to 4 (darkest step).
- * One hue, light to dark — never a rainbow (dataviz: sequential = one hue).
- */
 export function cellLevel(value: number, max: number): 0 | 1 | 2 | 3 | 4 {
   if (!(value > 0) || !(max > 0)) return 0;
   const r = value / max;
@@ -332,30 +250,22 @@ export function cellLevel(value: number, max: number): 0 | 1 | 2 | 3 | 4 {
   return 4;
 }
 
-/** Largest cell of the grid, the top of the heatmap legend. */
 export function gridMax(grid: readonly (readonly number[])[]): number {
   let max = 0;
   for (const row of grid) for (const v of row) if (v > max) max = v;
   return max;
 }
 
-/** Total calls in the grid, for the caption under the heatmap. */
 export function gridTotal(grid: readonly (readonly number[])[]): number {
   let total = 0;
   for (const row of grid) for (const v of row) total += v;
   return total;
 }
 
-/** Newest first, bounded. The timeline holds no history beyond the session. */
 function pushSwitch(list: readonly SwitchRow[], row: SwitchRow, max = MAX_SWITCHES): SwitchRow[] {
   return [row, ...list].slice(0, max);
 }
 
-/**
- * Command palette entries: one "switch to <account>" per account, plus the
- * tab itself. `src/routes/+layout.svelte` is shared, so the layout spreads
- * this list instead of knowing anything about accounts.
- */
 export function accountPaletteItems(
   accounts: readonly AccountView[],
   labels: { group: string; switchTo: (label: string) => string; openTab: string },
@@ -382,10 +292,6 @@ export function accountPaletteItems(
   }
   return items;
 }
-
-// ---------------------------------------------------------------------------
-// Deterministic fake (tests + `?demo=1` screenshots). Never a real screen.
-// ---------------------------------------------------------------------------
 
 function rng(seed: number): () => number {
   let s = seed >>> 0 || 1;
@@ -439,7 +345,6 @@ export function fakeSnapshot(nowMs: number): AccountsSnapshot {
         sandbox_flag: "--permission-mode acceptEdits",
         windows: [
           win("claude-trabalho", "five_hour", 0.18, 412_000, base + 15_600_000, "estimated"),
-          // No ceiling known for this plan: tokens only, and no bar.
           win("claude-trabalho", "seven_day", null, 3_180_000, base + 86_400_000, "estimated"),
         ],
         sessions: 0,
@@ -484,7 +389,6 @@ function fakeUsage(nowMs: number): CliUsageReport {
   for (let day = 0; day < 7; day++) {
     const row: number[] = [];
     for (let hour = 0; hour < 24; hour++) {
-      // Weekday office hours are busy, nights and weekends are not.
       const office = hour >= 9 && hour <= 19 ? 1 : hour >= 20 && hour <= 23 ? 0.35 : 0.05;
       const week = day < 5 ? 1 : 0.3;
       row.push(Math.round(rand() * 46 * office * week));
@@ -517,10 +421,6 @@ function fakeUsage(nowMs: number): CliUsageReport {
     scan_ms: 142,
   };
 }
-
-// ---------------------------------------------------------------------------
-// Store
-// ---------------------------------------------------------------------------
 
 let snapshot = $state<AccountsSnapshot>(EMPTY_SNAPSHOT);
 let report = $state<CliUsageReport>(EMPTY_REPORT);
@@ -570,11 +470,6 @@ export function getSwitches(): SwitchRow[] {
   return switches;
 }
 
-/**
- * Switch timeline: rides `llm://rerouted`, which the backend emits when the
- * router moves a turn to another candidate. Event-driven, so the tab creates
- * no timer; leaving it unsubscribes.
- */
 export async function startSwitchLog(): Promise<() => void> {
   if (demo) return () => {};
   try {
@@ -592,7 +487,6 @@ export async function startSwitchLog(): Promise<() => void> {
       },
     );
   } catch {
-    // No event bridge (browser, tests): the timeline just stays empty.
   }
   return () => stopSwitchLog();
 }
@@ -621,7 +515,6 @@ async function call(command: string, args?: Record<string, unknown>): Promise<vo
   }
 }
 
-/** One read of accounts + chain + rotation. Also the refresh button. */
 export async function loadAccounts(): Promise<void> {
   if (demo) return;
   accountsState = accountsState === "ready" ? "ready" : "loading";
@@ -638,7 +531,6 @@ export async function loadAccounts(): Promise<void> {
   }
 }
 
-/** The dashboard. Runs on tab open and on the refresh button, never on boot. */
 export async function loadUsage(days = 30): Promise<void> {
   if (demo) return;
   usageState = usageState === "ready" ? "ready" : "loading";
@@ -646,8 +538,6 @@ export async function loadUsage(days = 30): Promise<void> {
     report = normalizeReport(await invoke<CliUsageReport>("llm_cli_usage_report", { days }));
     usageState = "ready";
     usageError = "";
-    // The sweep is the only place the `estimated` windows come from, so the
-    // cards get them the moment the dashboard lands.
     if (report.windows.length > 0) {
       snapshot = {
         ...snapshot,
@@ -671,12 +561,6 @@ export async function detectClis(): Promise<void> {
   }
 }
 
-/**
- * `share` symlinks the non-identity parts of the user's existing profile
- * (settings, skills, commands, agents, plugins) into the new one and copies
- * `.claude.json` without the account fields — the account-switcher model of
- * `estudos/74` §A.3. The credential is never touched either way.
- */
 export async function createAccount(cli: CliKind, label: string, share = true): Promise<void> {
   await call("llm_accounts_create", { cli, label, share });
 }
@@ -689,10 +573,6 @@ export async function setDisabled(id: string, disabled: boolean): Promise<void> 
   await call("llm_accounts_set_disabled", { id, disabled });
 }
 
-/**
- * Change what a turn on this account may touch. The card confirms before it
- * calls this with `write`; the backend re-checks the word anyway.
- */
 export async function setSandbox(id: string, sandbox: SandboxMode): Promise<void> {
   await call("llm_accounts_set_sandbox", { id, sandbox });
 }
@@ -702,7 +582,6 @@ export async function activateAccount(id: string): Promise<void> {
 }
 
 export async function setChain(chain: string[]): Promise<void> {
-  // Optimistic: the drag already moved the row, the backend confirms the order.
   snapshot = { ...snapshot, chain };
   await call("llm_accounts_set_chain", { chain });
 }
@@ -717,13 +596,11 @@ export async function setRotation(rotation: Rotation): Promise<void> {
   }
 }
 
-/** Opens a terminal in the account's config dir so the CLI signs itself in. */
 export async function loginAccount(id: string): Promise<void> {
   if (demo) return;
   await invoke("llm_accounts_login", { id });
 }
 
-/** Screenshot/test mode: deterministic data, no IPC. */
 export function startAccountsDemo(nowMs = Date.now()): void {
   demo = true;
   snapshot = fakeSnapshot(nowMs);

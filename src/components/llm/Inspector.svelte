@@ -1,9 +1,4 @@
 <script lang="ts">
-  /**
-   * Right pane: what the selected agent is allowed to do and what the running
-   * turn is costing. Everything here is read from state the store already has —
-   * no command of its own, no polling.
-   */
   import { t } from "$lib/i18n";
   import type { AgentDef, ToolGrant } from "$lib/llm/types";
   import { effectiveModelLabel } from "$lib/llm/types";
@@ -12,8 +7,6 @@
   import { invoke } from "@tauri-apps/api/core";
   import { runModeOf } from "$lib/stores/llm-run-mode.svelte";
 
-  // Tools that need a project folder: absent in a personal conversation
-  // (the backend removes them from the effective agent; this only says so).
   const PROJECT_TOOLS = new Set(["fs_read", "fs_list", "fs_glob", "fs_grep", "todo_write", "fs_edit", "fs_write", "fs_apply_patch", "shell_exec", "kb_search", "kb_write"]);
   let personal = $state(false);
 

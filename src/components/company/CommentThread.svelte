@@ -1,5 +1,4 @@
 <script lang="ts">
-  /** An issue's comments, oldest first, and the box to add one (Cmd+Enter). */
   import { t } from "$lib/i18n";
   import { rpc, errorText, type Comment, type Staff } from "$lib/company/rpc";
   import IssueMarkdown from "./IssueMarkdown.svelte";

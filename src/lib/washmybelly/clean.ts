@@ -1,12 +1,6 @@
 import type { Risk } from "./api";
 import type { SelectItem } from "./ui";
 
-/// Pure logic of the Clean up screen: junk categories and selection,
-/// project artifacts grouped by project, duplicate groups with a movable
-/// "keep", empty folders. No Svelte, no Tauri: everything here is tested.
-
-// ── Junk ─────────────────────────────────────────────────────────────
-
 export type JunkItem = {
   id: string;
   rule_id: string;
@@ -33,7 +27,6 @@ export type JunkScan = {
   needs_full_disk_access: boolean;
 };
 
-/// Display order when two categories weigh the same; unknown ones go last.
 export const CATEGORY_ORDER = [
   "system",
   "apps",
@@ -49,8 +42,6 @@ export const CATEGORY_ORDER = [
   "privacy",
 ] as const;
 
-/// Colors of the summary bar, one per category (CSS custom properties with
-/// fallbacks, so the bar reads in light and dark).
 const CATEGORY_COLOR: Record<string, string> = {
   system: "var(--accent, #0a84ff)",
   apps: "var(--info, #64d2ff)",
@@ -74,7 +65,6 @@ export function categoryKey(id: string): string {
   return `washmybelly.clean.category.${id}`;
 }
 
-/// The i18n key the catalog gives a rule (`washmybelly.clean.rule.<id with _>`).
 export function ruleLabelKey(ruleId: string): string {
   return `washmybelly.clean.rule.${ruleId.replace(/\./g, "_")}`;
 }
@@ -84,7 +74,6 @@ function orderOf(id: string): number {
   return i < 0 ? CATEGORY_ORDER.length : i;
 }
 
-/// Why an item is left unticked, in words the screen can translate.
 type RunningReason =
   | { kind: "in_use"; who: string }
   | { kind: "close"; app: string }
@@ -121,21 +110,16 @@ function prettyApp(name: string): string {
   return name.length ? name[0].toUpperCase() + name.slice(1) : name;
 }
 
-/// Items ticked on first show: what the backend ticks, minus anything that
-/// is open right now (the backend already unticks those; this is a guard).
 export function defaultJunkSelection(items: readonly JunkItem[]): Set<string> {
   return new Set(items.filter((i) => i.selected_by_default && !i.running).map((i) => i.id));
 }
 
-/// Items that cannot be picked on the screen: an app holds them.
 function isBlocked(item: JunkItem): boolean {
   return !!item.running;
 }
 
 export type CategorySlice = { id: string; bytes: number; count: number; fraction: number; color: string };
 
-/// The categories of a scan for the summary bar, heaviest first, with each
-/// one's share of the whole. Categories without bytes still count items.
 export function categorySlices(scan: Pick<JunkScan, "categories" | "items">): CategorySlice[] {
   let cats = scan.categories?.length
     ? scan.categories.map((c) => ({ ...c }))
@@ -158,22 +142,18 @@ function aggregate(items: readonly JunkItem[]): { id: string; bytes: number; cou
   return [...m.values()];
 }
 
-/// Bytes of the selected items (ids not in `items` are ignored).
 export function selectedBytes(items: readonly { id: string; bytes?: number }[], selected: ReadonlySet<string>): number {
   let n = 0;
   for (const it of items) if (selected.has(it.id)) n += it.bytes ?? 0;
   return n;
 }
 
-/// Per category: how much of it is selected (for the summary tiles).
 export function selectedByCategory(items: readonly JunkItem[], selected: ReadonlySet<string>): Map<string, number> {
   const m = new Map<string, number>();
   for (const it of items) if (selected.has(it.id)) m.set(it.category, (m.get(it.category) ?? 0) + it.bytes);
   return m;
 }
 
-/// Items of the list, grouped by category in summary order. `label` and
-/// `hint` come from the caller (they need the translator).
 export function junkRows(
   items: readonly JunkItem[],
   label: (it: JunkItem) => string,
@@ -203,13 +183,10 @@ export function junkRows(
     }));
 }
 
-/// Keeps only ids still present and pickable (after a rescan or a filter).
 export function pruneSelection(selected: ReadonlySet<string>, items: readonly { id: string; disabled?: boolean }[]): Set<string> {
   const ok = new Set(items.filter((i) => !i.disabled).map((i) => i.id));
   return new Set([...selected].filter((id) => ok.has(id)));
 }
-
-// ── Project artifacts ────────────────────────────────────────────────
 
 type ArtifactItem = {
   id: string;
@@ -231,7 +208,6 @@ export type ArtifactScan = {
   skipped_roots: string[];
 };
 
-/// The folder an artifact item points at (`dev_artifacts:<kind>:<path>`).
 function artifactPath(id: string): string {
   const m = /^dev_artifacts:[^:]+:(.+)$/.exec(id);
   return m ? m[1] : id;
@@ -243,7 +219,6 @@ function isInside(child: string, parent: string): boolean {
   return child.startsWith(p);
 }
 
-/// Each item's project: the deepest project folder that holds it.
 function projectOf(id: string, projects: readonly ArtifactProject[]): ArtifactProject | null {
   const path = artifactPath(id);
   let best: ArtifactProject | null = null;
@@ -258,8 +233,6 @@ export function baseName(p: string): string {
   return parts[parts.length - 1] ?? p;
 }
 
-/// Rows grouped by project (group key = project path), heaviest project
-/// first; the row says which artifact folder and of what kind.
 export function artifactRows(scan: Pick<ArtifactScan, "items" | "projects">): SelectItem[] {
   const rows = scan.items.map((it) => {
     const proj = projectOf(it.id, scan.projects);
@@ -279,8 +252,6 @@ export function artifactRows(scan: Pick<ArtifactScan, "items" | "projects">): Se
   return rows.map(({ projectBytes: _p, ...r }) => r);
 }
 
-// ── Duplicates ───────────────────────────────────────────────────────
-
 type DupFile = { path: string; mtime: number; keep: boolean };
 export type DupGroup = { hash: string; size: number; files: DupFile[]; wasted: number };
 
@@ -299,7 +270,6 @@ export type DupScan = {
 export const trashId = (path: string) => `duplicates:trash:${path}`;
 const cloneId = (path: string) => `duplicates:clone:${path}`;
 
-/// Which file each group keeps (group hash → path), as the scan chose.
 export function initialKeeps(groups: readonly DupGroup[]): Map<string, string> {
   const m = new Map<string, string>();
   for (const g of groups) {
@@ -309,15 +279,12 @@ export function initialKeeps(groups: readonly DupGroup[]): Map<string, string> {
   return m;
 }
 
-/// Every copy but the kept one, in every group.
 export function defaultDupSelection(groups: readonly DupGroup[], keeps: ReadonlyMap<string, string>): Set<string> {
   const s = new Set<string>();
   for (const g of groups) for (const f of g.files) if (f.path !== keeps.get(g.hash)) s.add(trashId(f.path));
   return s;
 }
 
-/// Keep another file of a group: the new keeper leaves the selection and
-/// every other copy of that group is selected, the rest untouched.
 export function setKeep(
   groups: readonly DupGroup[],
   keeps: ReadonlyMap<string, string>,
@@ -345,7 +312,6 @@ export function toggleCopy(selected: ReadonlySet<string>, path: string): Set<str
   return s;
 }
 
-/// Bytes the selected copies take (each copy is the group's size).
 export function dupSelectedBytes(groups: readonly DupGroup[], selected: ReadonlySet<string>): number {
   let n = 0;
   for (const g of groups) for (const f of g.files) if (selected.has(trashId(f.path))) n += g.size;
@@ -358,9 +324,6 @@ export function dupSelectedCount(groups: readonly DupGroup[], selected: Readonly
   return n;
 }
 
-/// Ids to plan. The scan registers every file of a group as a candidate
-/// (the kept one unticked), so switching "Keep" can send the scan's choice
-/// to the Trash too. `heldBack` stays for the screen and is always 0 now.
 export function dupPlanIds(groups: readonly DupGroup[], selected: ReadonlySet<string>): { ids: string[]; heldBack: number } {
   const ids: string[] = [];
   const heldBack = 0;
@@ -372,14 +335,11 @@ export function dupPlanIds(groups: readonly DupGroup[], selected: ReadonlySet<st
   return { ids, heldBack };
 }
 
-/// Whether a group still keeps the file the scan chose (clones point at it).
 function keepsOriginal(g: DupGroup, keeps: ReadonlyMap<string, string>): boolean {
   const orig = g.files.find((f) => f.keep)?.path;
   return !!orig && keeps.get(g.hash) === orig;
 }
 
-/// Clone ids for the selected copies of groups that still keep the scan's
-/// choice (a clone item is built against that file).
 export function cloneIdsFor(groups: readonly DupGroup[], keeps: ReadonlyMap<string, string>, selected: ReadonlySet<string>): string[] {
   const out: string[] = [];
   for (const g of groups) {
@@ -389,7 +349,6 @@ export function cloneIdsFor(groups: readonly DupGroup[], keeps: ReadonlyMap<stri
   return out;
 }
 
-/// Copies that cannot be cloned because their group's keeper moved.
 export function unclonableCount(groups: readonly DupGroup[], keeps: ReadonlyMap<string, string>, selected: ReadonlySet<string>): number {
   let n = 0;
   for (const g of groups) {
@@ -399,8 +358,6 @@ export function unclonableCount(groups: readonly DupGroup[], keeps: ReadonlyMap<
   return n;
 }
 
-// ── Empty folders ────────────────────────────────────────────────────
-
 export type EmptyScan = {
   items: ArtifactItem[];
   total_bytes: number;
@@ -408,7 +365,6 @@ export type EmptyScan = {
   broken_links: { path: string; target: string }[];
 };
 
-/// Rows grouped by the parent folder of each empty folder.
 export function emptyRows(items: readonly ArtifactItem[]): SelectItem[] {
   return items
     .map((it) => {
@@ -419,9 +375,6 @@ export function emptyRows(items: readonly ArtifactItem[]): SelectItem[] {
     .sort((a, b) => a.group.localeCompare(b.group) || a.label.localeCompare(b.label));
 }
 
-// ── Shared ───────────────────────────────────────────────────────────
-
-/// Adds folders to a root list without repeats, in order.
 export function addRoots(roots: readonly string[], picked: string | string[] | null | undefined): string[] {
   const more = picked == null ? [] : Array.isArray(picked) ? picked : [picked];
   const out = [...roots];

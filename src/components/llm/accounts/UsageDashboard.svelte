@@ -1,20 +1,4 @@
 <script lang="ts">
-  /**
-   * What the CLIs actually did, read from their own JSONL history on this
-   * machine: cost per day, cost per model, the tool heat map and the priciest
-   * sessions. Nothing here leaves the machine.
-   *
-   * There is no "top prompts" list on purpose: `cli_usage` parses usage and
-   * never keeps prompt text, so the tab has nothing to show and invents
-   * nothing. The sessions card names the project instead.
-   *
-   * Every number is a local estimate — the CLI writes "client-side estimates"
-   * into its log — so the footer says how many files were scanned and how long
-   * it took, instead of implying a bill.
-   *
-   * `CostByDay` is the Observatory's column chart, reused as-is: one series,
-   * one colour, a single baseline.
-   */
   import { t } from "$lib/i18n";
   import CostByDay from "$components/llm/observatory/CostByDay.svelte";
   import ToolHeatmap from "./ToolHeatmap.svelte";
@@ -28,7 +12,6 @@
 
   let topToolMax = $derived(Math.max(1, ...report.top_tools.map((x) => x.calls)));
   let modelMax = $derived(Math.max(0.01, ...report.by_model.map((m) => m.cost_usd)));
-  /** `CostByDay` wants `{ day, cost_usd, calls }`; the wire calls the key `key`. */
   let days = $derived(
     report.by_day.map((d) => ({ day: d.key, cost_usd: d.cost_usd, calls: d.calls })),
   );

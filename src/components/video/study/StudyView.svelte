@@ -1,7 +1,4 @@
 <script lang="ts">
-  // Study: review due flashcards (flip, grade 0-3), browse every card and
-  // send them to Anki. Cards are made in the player (C, or from a transcript
-  // line) or here by hand.
   import { t } from "$lib/i18n";
   import { showToast } from "$lib/stores/toast-store.svelte";
   import * as api from "$lib/video/api";
@@ -46,7 +43,6 @@
       reviewed++;
       flipped = false;
       due = due.slice(1);
-      // "again" comes back in this session
       if (g === 0) due = [...due, updated];
       all = all.map((x) => (x.id === updated.id ? updated : x));
     } catch (e) {

@@ -1,19 +1,11 @@
-// Selection and focus. Selection is semantic (Maestri): a selected terminal
-// leaves inter-agent monitoring because the user took over, so every change is
-// announced as `canvas://selection` for the Rust side to follow.
-// Two focus states (02 §3.3): "canvas" (focused = null) and "inside a node".
-
 import { emit } from '@tauri-apps/api/event';
 
 const SELECTION_EVENT = 'canvas://selection';
 
 export class Selection {
-  /** Node and drawing ids (UUIDs never collide across kinds). */
   ids = $state.raw<ReadonlySet<string>>(new Set());
-  /** Node that owns keyboard and pointer right now, or null = the canvas. */
   focused = $state<string | null>(null);
   hovered = $state<string | null>(null);
-  /** Id of the text/shape being edited in place. */
   editing = $state<string | null>(null);
 
   private scope: { workspaceId: string; floorId: string } = { workspaceId: '', floorId: '' };
@@ -24,7 +16,6 @@ export class Selection {
 
   private announce(): void {
     void emit(SELECTION_EVENT, { ...this.scope, ids: Array.from(this.ids) }).catch(() => {
-      // Outside Tauri: nothing listens.
     });
   }
 
@@ -63,7 +54,6 @@ export class Selection {
     this.editing = null;
   }
 
-  /** Drops ids that no longer exist in the document. */
   prune(exists: (id: string) => boolean): void {
     const next = Array.from(this.ids).filter(exists);
     if (next.length !== this.ids.size) this.set(next);

@@ -1,5 +1,4 @@
 <script lang="ts" module>
-  // State that survives going to a detail page and back (same session).
   const memo: {
     tab: string;
     query: string;
@@ -32,13 +31,6 @@
 </script>
 
 <script lang="ts">
-  /**
-   * Catálogo (`/llm/catalog`): 3.4k components from the pinned mirror, user
-   * sources and plugin marketplaces, plus the official MCP Registry live.
-   * Tabs by kind, search, facets with counts, "works in" chips of the tools
-   * detected on this machine, sort, grid/list, pages of 48, collections in
-   * the sidebar and the stack drawer (layout).
-   */
   import { onMount, untrack } from "svelte";
   import { goto } from "$app/navigation";
   import { t } from "$lib/i18n";
@@ -115,13 +107,11 @@
   let reloadTick = $state(0);
   let matrixTick = $state(0);
 
-  // registry (live)
   let regHits = $state<SearchHit[]>([]);
   let regCursor = $state<string | null>(null);
   let regFrom = $state("");
   let regLoading = $state(false);
 
-  // collection view
   let collHits = $state<SearchHit[]>([]);
   let collMissing = $state<string[]>([]);
 
@@ -159,7 +149,6 @@
   let pages = $derived(Math.max(1, Math.ceil(total / PAGE)));
   let page = $derived(Math.floor(offset / PAGE) + 1);
 
-  // keep the memo in sync
   $effect(() => {
     Object.assign(memo, {
       tab,
@@ -178,7 +167,6 @@
     });
   });
 
-  // debounce the query
   $effect(() => {
     const q = query;
     const h = setTimeout(() => {
@@ -190,7 +178,6 @@
     return () => clearTimeout(h);
   });
 
-  // search + facets
   let seq = 0;
   $effect(() => {
     const f = filters;
@@ -222,7 +209,6 @@
       });
   });
 
-  // compat once the targets arrive
   $effect(() => {
     const tg = targets;
     void matrixTick;
@@ -230,7 +216,6 @@
     if (tg.length && list.length) void compatFor(list, tg).then((c) => (compat = { ...untrack(() => compat), ...c }));
   });
 
-  // registry live search
   let regSeq = 0;
   async function registry(more = false) {
     const my = ++regSeq;
@@ -256,7 +241,6 @@
     if (registryMode) untrack(() => registry(false));
   });
 
-  // collection view
   $effect(() => {
     const c = selectedCollection;
     if (!c) return;
@@ -293,7 +277,6 @@
       const v = localStorage.getItem(VIEW_KEY);
       if (v === "list" || v === "grid") view = v;
     } catch {
-      /* default */
     }
     catalogMeta().then((m) => (meta = m)).catch(() => {});
     agentkitTargets().then((x) => (targets = x)).catch(() => {});
@@ -307,7 +290,6 @@
     try {
       localStorage.setItem(VIEW_KEY, v);
     } catch {
-      /* not remembered */
     }
   }
 
@@ -359,7 +341,6 @@
     }
   }
 
-  // collection item actions
   async function collAction(fn: () => Promise<unknown>) {
     try {
       await fn();

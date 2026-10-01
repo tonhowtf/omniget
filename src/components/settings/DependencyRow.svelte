@@ -10,7 +10,6 @@
     installed: boolean;
     version: string | null;
     source?: string;
-    /** Absolute path where the binary was found */
     path?: string | null;
     outdated?: boolean;
     busy: boolean;
@@ -32,10 +31,7 @@
     }
   }
 
-  // Only `name` may retrigger this. The loaders read and write their own
-  // state, so tracking them turns each completed round trip into the next
-  // one — an unbounded loop that reaches ensure_ytdlp() and spawns a
-  // yt-dlp and a deno process every pass (#281).
+  // WHY: only name may retrigger this effect: anything else loops into ensure_ytdlp() and spawns yt-dlp and deno every pass (#281).
   $effect(() => {
     const dep = name;
     untrack(() => {
@@ -106,7 +102,6 @@
     }
   });
 
-  // #222: yt-dlp e FFmpeg aceitam um binario apontado pelo usuario.
   let supportsCustomFile = $derived(["yt-dlp", "FFmpeg"].includes(name));
 
   let customPath = $state<string | null>(null);

@@ -1,6 +1,3 @@
-// App-level state of /video: server status, roots, scan progress and a
-// library version that views can watch to reload after a scan.
-
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import * as api from "./api";
@@ -22,7 +19,6 @@ export const app = $state<{
   loaded: boolean;
   error: string | null;
   scan: ScanProgress | null;
-  /** bumps on every library change; views read it inside $effect to reload */
   version: number;
   incognito: boolean;
 }>({
@@ -39,7 +35,6 @@ export function setIncognito(on: boolean) {
   try {
     localStorage.setItem(INCOGNITO_KEY, on ? "1" : "0");
   } catch {
-    /* session only */
   }
 }
 
@@ -58,7 +53,6 @@ export async function refreshStatus() {
 let unlisten: UnlistenFn[] = [];
 let listening = false;
 
-/** Subscribes to backend events once per mount of the app. */
 export async function startListening(): Promise<() => void> {
   if (listening) return () => {};
   listening = true;
@@ -78,7 +72,6 @@ export async function startListening(): Promise<() => void> {
       }),
     );
   } catch {
-    /* outside Tauri */
   }
   return () => {
     for (const u of unlisten) u();
@@ -109,11 +102,6 @@ export async function startScan() {
   }
 }
 
-/**
- * Plays a loose file that may not be in the library yet. Needs the backend
- * command `video_open_path` (requested in the W3 handoff); returns null when
- * it doesn't exist so the caller can fall back to adding the folder.
- */
 export async function openPathInfo(path: string): Promise<PlaybackInfo | null> {
   try {
     return await invoke<PlaybackInfo>("video_open_path", { path });

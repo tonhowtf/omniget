@@ -1,11 +1,4 @@
 <script lang="ts">
-  /**
-   * One budget incident (3.3, 80#P3): a scope crossed its hard ceiling (or
-   * someone refused a checkpoint), so it starts nothing. Two answers: raise
-   * the ceiling above what is used and resume (paused Loops start again), or
-   * keep it paused. The same answers exist in the CLI:
-   * `omniget agent budget raise <id> <amount>`.
-   */
   import { t } from "$lib/i18n";
   import {
     formatAmount,

@@ -1,6 +1,4 @@
 <script lang="ts">
-  // Everything played, newest first, grouped by day. Searchable; clearing asks
-  // inside the page. "Play again" starts from the beginning instead of resuming.
   import { onMount } from "svelte";
   import { t } from "$lib/i18n";
   import { showToast } from "$lib/stores/toast-store.svelte";

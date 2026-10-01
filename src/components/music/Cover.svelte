@@ -12,7 +12,6 @@
     icon = "note",
   }: {
     hash: string | null | undefined;
-    /** text the placeholder colour is derived from (album or title) */
     seed?: string;
     size?: number | string;
     radius?: number;

@@ -1,7 +1,3 @@
-// Saúde da config por ferramenta e monitor de releases (/llm/tools).
-// Invokes de `clitools_config_files` e `clitools_updates` + helpers puros
-// (agrupamento, prompt do "otimizar com um agente", relógio diário).
-
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type { StatsKind } from "$lib/central/guard";
@@ -19,7 +15,6 @@ type ConfigEntry = {
   size: number;
   files: number;
   truncated: boolean;
-  /** Pasta que contém outras entradas (ex.: ~/.cursor): não somada nem varrida. */
   container: boolean;
   alt: boolean;
   surface: string | null;
@@ -80,7 +75,6 @@ export function onUpdates(fn: (r: UpdatesReport) => void): Promise<UnlistenFn> {
   return listen<UpdatesReport>(UPDATES_EVENT, (e) => fn(e.payload));
 }
 
-/** Entradas agrupadas por escopo, na ordem global → projeto → local. */
 export function byScope(entries: ConfigEntry[]): [string, ConfigEntry[]][] {
   const order = ["global", "project", "local"];
   const map = new Map<string, ConfigEntry[]>();
@@ -98,7 +92,6 @@ export function formatBytes(n: number): string {
   return `${(n / 1024 / 1024).toFixed(1)} MB`;
 }
 
-/** Junta a entrada de stats de vários escopos (o guard aceita uma só). */
 export function mergeStatsInput(
   input: ConfigFiles["stats_input"],
   scopes: string[],
@@ -113,10 +106,6 @@ export function mergeStatsInput(
   return out;
 }
 
-/**
- * Prompt do Job "otimizar com um agente": revisar os arquivos listados (só
- * leitura, propor mudanças), com os números das estatísticas como contexto.
- */
 export function optimizePrompt(args: {
   toolName: string;
   files: ConfigEntry[];
@@ -150,12 +139,6 @@ Do not open credential files (auth.json, credentials*, oauth*, *token*). Do not 
 const LAST_AUTO_KEY = "omniget.central.tools.updates.last-auto";
 const DAY_MS = 24 * 3600 * 1000;
 
-/**
- * Relógio da checagem diária: roda só enquanto a janela está visível. Ao
- * ficar visível, se venceu (≥ 24 h desde a última), pede `clitools_updates`
- * com `auto` (o backend também respeita as 24 h) e agenda a próxima. Devolve
- * a função que desliga.
- */
 export function startDailyUpdates(onReport?: (r: UpdatesReport) => void): () => void {
   let timer: ReturnType<typeof setTimeout> | null = null;
   let stopped = false;
@@ -171,7 +154,6 @@ export function startDailyUpdates(onReport?: (r: UpdatesReport) => void): () => 
     try {
       localStorage.setItem(LAST_AUTO_KEY, String(at));
     } catch {
-      /* sem storage: o backend ainda segura as 24 h */
     }
   };
   const clear = () => {
@@ -182,7 +164,6 @@ export function startDailyUpdates(onReport?: (r: UpdatesReport) => void): () => 
     clear();
     if (stopped || document.visibilityState !== "visible") return;
     const wait = Math.max(0, last() + DAY_MS - Date.now());
-    // setTimeout aceita até ~24,8 dias; 24 h cabe.
     timer = setTimeout(run, Math.min(wait, DAY_MS) + 1000);
   };
   const run = async () => {
@@ -194,7 +175,7 @@ export function startDailyUpdates(onReport?: (r: UpdatesReport) => void): () => 
         mark(r.from_cache ? r.checked_at * 1000 : Date.now());
         onReport?.(r);
       } catch {
-        mark(Date.now() - DAY_MS + 3600 * 1000); // sem rede: tenta em 1 h
+        mark(Date.now() - DAY_MS + 3600 * 1000);
       }
     }
     schedule();

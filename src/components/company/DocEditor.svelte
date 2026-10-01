@@ -1,9 +1,4 @@
 <script lang="ts">
-  /**
-   * An issue's documents as tabs: read, edit against the revision you opened
-   * (`base_rev`), browse revisions, and lock a document so agents cannot
-   * rewrite it.
-   */
   import { t } from "$lib/i18n";
   import { rpc, errorText, type Document, type DocumentRev } from "$lib/company/rpc";
   import IssueMarkdown from "./IssueMarkdown.svelte";
@@ -13,7 +8,6 @@
   let { company, issue, documents }: { company: string; issue: string; documents: Document[] } = $props();
 
   let active = $state<string | null>(null);
-  /** "view" | "edit" | "history" */
   let mode = $state<"view" | "edit" | "history">("view");
   let draft = $state("");
   let summary = $state("");

@@ -1,7 +1,3 @@
-// Roles of the open workspace (workspace roles + global library), shared by
-// the library, the editor and the picker. Refreshed on demand and after
-// every write made through it.
-
 import {
   errorText,
   rolesAssign,

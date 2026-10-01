@@ -1,7 +1,4 @@
 <script lang="ts">
-  // OmniTube settings (inside /youtube). Every TubeSettings field lives here,
-  // grouped by what the person is trying to do, plus the auto-download rules,
-  // disk usage and local subscriptions.
   import { onMount, tick } from "svelte";
   import { open } from "@tauri-apps/plugin-dialog";
   import { t } from "$lib/i18n";
@@ -271,7 +268,6 @@
   </nav>
 
   <div class="ts-body">
-    <!-- Account -->
     <Section id="account" icon="tube" title={$t("tube.settings.sec_account") as string} desc={$t("tube.settings.sec_account_desc") as string}>
       <div class="ts-account">
         {#if !status && !statusError}
@@ -313,7 +309,6 @@
       {/if}
     </Section>
 
-    <!-- Playback -->
     <Section id="playback" icon="queue" title={$t("tube.settings.sec_playback") as string} desc={$t("tube.settings.sec_playback_desc") as string}>
       <Row title={$t("tube.settings.default_quality") as string} desc={$t("tube.settings.default_quality_desc") as string}>
         <select class="ts-select" value={p.default_quality} onchange={(e) => set({ default_quality: e.currentTarget.value as TubeSettings["default_quality"] })} aria-label={$t("tube.settings.default_quality") as string}>
@@ -378,7 +373,6 @@
       </Row>
     </Section>
 
-    <!-- SponsorBlock -->
     <Section id="sponsorblock" icon="sponsorblock" title="SponsorBlock" desc={$t("tube.settings.sec_sponsorblock_desc") as string}>
       <Row title={$t("tube.settings.sb_enabled") as string} desc={$t("tube.settings.sb_enabled_desc") as string}>
         <Toggle checked={p.sponsorblock} label={$t("tube.settings.sb_enabled") as string} onchange={(v) => set({ sponsorblock: v })} />
@@ -433,7 +427,6 @@
       </Row>
     </Section>
 
-    <!-- DeArrow + RYD -->
     <Section id="dearrow" icon="dearrow" title={$t("tube.settings.sec_dearrow") as string} desc={$t("tube.settings.sec_dearrow_desc") as string}>
       <Row title={$t("tube.settings.dearrow") as string} desc={$t("tube.settings.dearrow_desc") as string}>
         <Toggle checked={p.dearrow} label={$t("tube.settings.dearrow") as string} onchange={(v) => set({ dearrow: v })} />
@@ -446,7 +439,6 @@
       </Row>
     </Section>
 
-    <!-- Distractions -->
     <Section id="distractions" icon="shorts-off" title={$t("tube.settings.sec_distractions") as string} desc={$t("tube.settings.sec_distractions_desc") as string}>
       <div class="ts-presets" role="radiogroup" aria-label={$t("tube.settings.presets") as string}>
         {#each PRESET_IDS as id (id)}
@@ -498,7 +490,6 @@
       </Row>
     </Section>
 
-    <!-- Filters -->
     <Section id="filters" icon="history" title={$t("tube.settings.sec_filters") as string} desc={$t("tube.settings.sec_filters_desc") as string}>
       <Row title={$t("tube.settings.blocked_channels") as string} desc={$t("tube.settings.blocked_channels_desc") as string} stack>
         {#if p.blocked_channels.length}
@@ -544,7 +535,6 @@
       </Row>
     </Section>
 
-    <!-- Appearance -->
     <Section id="appearance" icon="home" title={$t("tube.settings.sec_appearance") as string} desc={$t("tube.settings.sec_appearance_desc") as string}>
       <Row title={$t("tube.settings.look") as string} desc={$t("tube.settings.look_desc") as string}>
         <Seg
@@ -591,7 +581,6 @@
       </Row>
     </Section>
 
-    <!-- Downloads & automation -->
     <Section id="downloads" icon="autodownload" title={$t("tube.settings.sec_downloads") as string} desc={$t("tube.settings.sec_downloads_desc") as string}>
       <Row title={$t("tube.settings.download_folder") as string} desc={p.download_folder || ($t("tube.settings.download_folder_default") as string)}>
         <button class="yt-btn yt-btn--s" onclick={chooseDownloadFolder}><TIcon name="folder" size={16} />{$t("tube.settings.choose")}</button>
@@ -700,7 +689,6 @@
       {/if}
     </Section>
 
-    <!-- Import / export -->
     <Section id="import" icon="import" title={$t("tube.settings.sec_import") as string} desc={$t("tube.settings.sec_import_desc") as string}>
       <Row title={$t("tube.settings.import_row") as string} desc={$t("tube.settings.import_row_desc") as string}>
         <button class="yt-btn yt-btn--inverted" onclick={() => go({ name: "import" })}><TIcon name="import" size={18} />{$t("tube.settings.import_open")}</button>

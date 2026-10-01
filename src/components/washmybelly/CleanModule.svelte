@@ -7,8 +7,6 @@
   import DuplicatesPanel from "./DuplicatesPanel.svelte";
   import EmptyFoldersPanel from "./EmptyFoldersPanel.svelte";
 
-  /// Clean up: four tabs over one plan-and-receipt flow. Every tab keeps
-  /// its scan while the person moves between them; nothing scans by itself.
   let { caps }: { caps: Caps } = $props();
 
   type Tab = "junk" | "artifacts" | "duplicates" | "empty";
@@ -21,7 +19,6 @@
   const mod = moduleById("clean");
 
   let tab = $state<Tab>("junk");
-  // A tab is mounted the first time it is shown, then kept.
   let seen = $state(new Set<Tab>(["junk"]));
 
   function pick(id: Tab) {

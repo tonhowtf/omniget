@@ -1,9 +1,4 @@
 <script lang="ts">
-  // Terminal drawer/panel: tabs, each tab a group of up to four split panes.
-  // The layout (tabs, pane ids) is remembered per `storageKey`; the sessions
-  // themselves live in the app process, so closing this panel or the window and
-  // coming back reattaches every pane with its history and the program still
-  // running.
   import { onMount } from "svelte";
   import { t } from "$lib/i18n";
   import {
@@ -32,13 +27,10 @@
     onAddToChat,
     onClosePanel,
   }: {
-    /** Layout scope (a thread id, "drawer", …). */
     storageKey?: string;
     cwd?: string | null;
-    /** argv for new terminals; empty = default shell. */
     command?: string[];
     env?: Record<string, string>;
-    /** Pre-typed (not submitted) into the first terminal opened. */
     initialInput?: string;
     fontSize?: number;
     onAddToChat?: (sel: TerminalSelection) => void;
@@ -53,7 +45,6 @@
   let ended = $state<Record<string, boolean>>({});
   let hasSel = $state<Record<string, boolean>>({});
   let apis = $state<Record<string, ViewApi | undefined>>({});
-  /** The pane that receives `initialInput` (only a fresh panel's first one). */
   let firstPane = $state<string | null>(null);
 
   const current = $derived(tabs.find((x) => x.key === activeTab) ?? tabs[0]);
@@ -62,7 +53,6 @@
     try {
       localStorage.setItem(lsKey(), JSON.stringify({ tabs, activeTab }));
     } catch {
-      // Layout persistence is optional.
     }
   }
 
@@ -120,7 +110,6 @@
     for (const id of [...tab.panes]) await closePane(id);
   }
 
-  /** Replaces an ended session with a fresh one in the same pane. */
   async function restart(id: string) {
     await ptyClose(id, true).catch(() => {});
     const tab = tabs.find((x) => x.panes.includes(id));
@@ -173,7 +162,6 @@
       addTab();
       firstPane = tabs[0]?.active ?? null;
     }
-    // Labels for panes before their views mount.
     void ptyList()
       .then((list: PtySessionInfo[]) => {
         for (const s of list) {

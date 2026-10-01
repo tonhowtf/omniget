@@ -1,6 +1,4 @@
 <script lang="ts">
-  // Reflowable and fixed-layout books (EPUB, MOBI/AZW3, FB2, PDF, and
-  // TXT/Markdown/HTML converted on the fly) through the vendored foliate-js.
   import { onDestroy, onMount, tick, untrack } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { open as openUrl } from "@tauri-apps/plugin-shell";
@@ -69,8 +67,6 @@
   let dir = $state<"ltr" | "rtl">("ltr");
 
   const isBookmarked = $derived(notes.some((n) => n.kind === "bookmark" && n.progress != null && Math.abs(n.progress - loc.fraction) < 0.004));
-
-  // ---------- open ----------
 
   async function fileFor(b: Book): Promise<{ url: string; name: string }> {
     await ensureStatus();
@@ -150,7 +146,6 @@
   function onRelocate(e: CustomEvent) {
     const d = e.detail;
     loc = {
-      // foliate can report past 1 on a book that fits in one screen.
       fraction: Math.min(1, Math.max(0, d.fraction ?? 0)),
       cfi: d.cfi ?? "",
       chapter: d.tocItem?.label ?? "",
@@ -174,7 +169,6 @@
         await invoke("read_save_progress", { id: book.id, progress: loc.fraction, location: loc.cfi, pages });
         patchBookLocal({ ...book, progress: loc.fraction, location: loc.cfi, status: book.status === "unread" ? "reading" : book.status, last_read_at: Date.now() });
       } catch {
-        /* next relocate retries */
       }
     }, 900);
   }
@@ -242,8 +236,6 @@
     }
     footnoteHandler.handle(view.book, e)?.catch(() => undefined);
   }
-
-  // ---------- selection & annotations ----------
 
   function frameRect(range: Range) {
     const r = range.getBoundingClientRect();
@@ -333,8 +325,6 @@
     clearSelection();
   }
 
-  // ---------- dictionary & AI ----------
-
   async function lookup(word: string, context: string) {
     const w = word.trim().split(/\s+/).slice(0, 4).join(" ");
     dict = { word: w, html: "", loading: true, wiki: "" };
@@ -350,7 +340,6 @@
           .join("");
       }
     } catch {
-      /* offline */
     }
     try {
       const r = await fetch(`https://${lang}.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(w)}`);
@@ -359,7 +348,6 @@
         if (j.type !== "disambiguation") dict.wiki = j.extract ?? "";
       }
     } catch {
-      /* offline */
     }
     if (!dict.html && !dict.wiki) {
       try {
@@ -369,7 +357,6 @@
       }
     }
     dict.loading = false;
-    // Sanitize third-party HTML to plain structure.
     dict.html = dict.html.replace(/<(?!\/?(p|i|b|ol|ul|li|em|strong)\b)[^>]*>/gi, "");
   }
 
@@ -383,7 +370,6 @@
     showToast("success", tr("read.reader.word_saved"));
   }
 
-  /** Text from the start of the book up to where the reader is. */
   async function textSoFar(maxChars = 120_000) {
     const secs = view.book.sections as any[];
     const parts: string[] = [];
@@ -403,7 +389,6 @@
               r.setEnd(range.endContainer, range.endOffset);
               txt = r.toString();
             } catch {
-              /* keep whole section */
             }
           }
         }
@@ -441,8 +426,6 @@
     }
   }
 
-  // ---------- search ----------
-
   let searchRun = 0;
   async function search() {
     const q = searchQ.trim();
@@ -473,8 +456,6 @@
       if (run === searchRun) searching = 0;
     }
   }
-
-  // ---------- TTS ----------
 
   let ttsGen = 0;
   function speakText(text: string): Promise<void> {
@@ -517,7 +498,6 @@
     clearSelection();
     while (speaking && gen === ttsGen) {
       if (!ssml) {
-        // End of section: move on and keep reading.
         const before = loc.index;
         await view.renderer.nextSection?.();
         await tick();
@@ -543,8 +523,6 @@
     speechSynthesis.cancel();
   }
 
-  // ---------- speed reading (RSVP) ----------
-
   let rsvp = $state<{ words: string[]; i: number; playing: boolean } | null>(null);
   let rsvpTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -569,7 +547,6 @@
   function tickRsvp() {
     if (!rsvp || !rsvp.playing) return;
     const w = rsvp.words[rsvp.i] ?? "";
-    // Longer words and sentence ends get a little more time.
     const base = 60000 / Math.max(100, prefs.rsvpWpm);
     const extra = /[.!?;:]$/.test(w) ? 2 : /,$/.test(w) ? 1.4 : w.length > 9 ? 1.3 : 1;
     rsvpTimer = setTimeout(() => {
@@ -596,13 +573,10 @@
     rsvp = null;
   }
 
-  /** Optimal recognition point: the letter the eye should land on. */
   function orp(w: string) {
     const k = w.length <= 1 ? 0 : w.length <= 5 ? 1 : w.length <= 9 ? 2 : 3;
     return [w.slice(0, k), w[k] ?? "", w.slice(k + 1)];
   }
-
-  // ---------- misc ----------
 
   function addRuler(doc: Document) {
     const bar = doc.createElement("div");
@@ -620,7 +594,6 @@
       const r = await invoke<{ percentage: number; device: string } | null>("read_kosync_pull", { id: book.id });
       if (r && r.percentage > loc.fraction + 0.005) remoteSync = r;
     } catch {
-      /* sync off or offline */
     }
   }
 
@@ -717,7 +690,6 @@
       view?.remove();
       footnote?.remove();
     } catch {
-      /* already gone */
     }
     if (fullscreen) void getCurrentWindow().setFullscreen(false).catch(() => undefined);
   });

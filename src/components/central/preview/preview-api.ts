@@ -1,6 +1,3 @@
-// Front glue of the thread Browser tab and SnapShot. Commands live in
-// src-tauri/src/commands/central/preview.rs; the preview itself is a native
-// webview window anchored over the tab (see src-tauri/src/preview/mod.rs).
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
@@ -57,14 +54,12 @@ export function onPreviewState(cb: (s: PreviewState) => void): Promise<UnlistenF
   return listen<PreviewState>(EVENT_STATE, (e) => cb(e.payload));
 }
 
-/** "CODE: message" → message (the code stays in the title for support). */
 export function errText(e: unknown): string {
   const s = typeof e === "string" ? e : e instanceof Error ? e.message : String(e);
   const m = /^[A-Z][A-Z0-9_]+:\s*(.*)$/s.exec(s);
   return m ? m[1] : s;
 }
 
-/** Last URL typed per thread, so reopening the tab goes back to it. */
 const LAST_KEY = "omniget.central.preview.last.v1";
 export function lastUrl(threadId: string): string | null {
   try {
@@ -82,9 +77,7 @@ export function rememberUrl(threadId: string, url: string) {
     if (keys.length > 200) for (const k of keys.slice(0, keys.length - 200)) delete m[k];
     localStorage.setItem(LAST_KEY, JSON.stringify(m));
   } catch {
-    /* private mode */
   }
 }
 
-/** Threads whose right panel shows the Browser surface (memory only). */
 export const browserTabs = new Set<string>();

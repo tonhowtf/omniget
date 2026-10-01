@@ -1,10 +1,4 @@
 <script lang="ts">
-  /**
-   * "Run now": one Job with a catalog agent (or command) as the role and the
-   * runner the user picks. A coding-CLI runner can go into OmniGet's sandbox
-   * (Docker on a copy of the project, or E2B), with the key from the vault
-   * in the child's environment and the result as a diff to review.
-   */
   import { t } from "$lib/i18n";
   import { showToast } from "$lib/stores/toast-store.svelte";
   import ProjectPicker from "$components/central/catalog/ProjectPicker.svelte";

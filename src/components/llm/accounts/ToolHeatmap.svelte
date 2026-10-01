@@ -1,22 +1,8 @@
 <script lang="ts">
-  /**
-   * Tool calls by weekday × hour — magnitude over two ordered categories, so:
-   * a heatmap on a **single hue**, light to dark, five steps including "none".
-   * Never a rainbow, never two hues: the only thing the colour says here is
-   * "more", and a second hue would invent a second meaning (dataviz: sequential
-   * = one hue).
-   *
-   * It is a real `<table>`, not a grid of divs: the row and column headers are
-   * the axis, every cell carries its own number in `aria-label`, and a screen
-   * reader (or anyone who cannot resolve five steps of one hue) gets the data
-   * instead of a picture. Hover shows the exact count; the busiest cell is
-   * labelled directly, everything else stays quiet.
-   */
   import { locale, t } from "$lib/i18n";
   import { cellLevel, gridMax, gridTotal } from "$lib/stores/llm-accounts-store.svelte";
 
   interface Props {
-    /** 7 rows (Mon..Sun) × 24 columns (local hour). */
     grid: number[][];
   }
 
@@ -25,10 +11,8 @@
   let max = $derived(gridMax(grid));
   let total = $derived(gridTotal(grid));
 
-  /** Short weekday names in the app's language; Monday first. */
   let days = $derived.by(() => {
     const fmt = new Intl.DateTimeFormat($locale || "en", { weekday: "short" });
-    // 2024-01-01 was a Monday.
     return Array.from({ length: 7 }, (_, i) => fmt.format(new Date(Date.UTC(2024, 0, 1 + i))));
   });
 
@@ -110,7 +94,6 @@
   }
   table {
     border-collapse: separate;
-    /* 2px of surface between marks, so adjacent cells never fuse. */
     border-spacing: 2px;
     table-layout: fixed;
   }
@@ -138,7 +121,6 @@
     background: var(--step);
     --step: var(--surface-hi);
   }
-  /* One hue, four steps plus an empty step drawn in the surface itself. */
   .level-0 {
     --step: color-mix(in srgb, var(--accent) 6%, var(--surface-hi));
   }

@@ -1,8 +1,3 @@
-// Portal client: typed calls to the `canvas_portal_*` commands, the portal
-// events (`canvas://portal-state|drive|closed`) and the dormant snapshot
-// cache. Plain TS with listener sets; components copy what they need into
-// their own $state.
-
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 
@@ -22,25 +17,19 @@ export interface PortalState {
   scope: StorageScope;
   userAgent?: string;
   viewport: [number, number];
-  /** Host whose untrusted certificate the portal refused (warning + Proceed). */
   certError?: string;
   muted?: boolean;
-  /** Portal that opened this one with window.open. */
   openerId?: string;
-  /** Portal whose session (cookies, storage) this one uses. */
   sharesSessionWith?: string;
 }
 
 export interface PortalDrive {
   nodeId: string;
-  /** `agent:<nodeId>` of the driving agent. */
   by: string;
-  /** Verb, `<verb>:done` once it finished. */
   method: string;
   at: number;
 }
 
-/** Placement in CSS px of the main webview. */
 export interface PortalBounds {
   x: number;
   y: number;
@@ -84,12 +73,10 @@ export function navigatePortal(
   return invoke<PortalState>('canvas_portal_navigate', { nodeId, ...to });
 }
 
-/** Preset name (`ios`, `android`, `chrome`...) or raw UA; empty = default. */
 export function setPortalUserAgent(nodeId: string, userAgent: string | null): Promise<PortalState> {
   return invoke<PortalState>('canvas_portal_set_user_agent', { nodeId, userAgent });
 }
 
-/** Accepts the refused certificate for this portal only and reloads. */
 export function trustPortalCert(nodeId: string): Promise<PortalState> {
   return invoke<PortalState>('canvas_portal_trust_cert', { nodeId });
 }
@@ -106,8 +93,6 @@ export function portalStates(): Promise<PortalState[]> {
   return invoke<PortalState[]>('canvas_portal_states');
 }
 
-// ---- dormant snapshots ---------------------------------------------------
-
 const snapshots = new Map<string, string>();
 const inflight = new Map<string, Promise<string | null>>();
 const snapListeners = new Set<(nodeId: string, url: string) => void>();
@@ -116,7 +101,6 @@ export function lastSnapshot(nodeId: string): string | undefined {
   return snapshots.get(nodeId);
 }
 
-/** Takes a native snapshot now; keeps the previous one when it fails. */
 export function refreshSnapshot(nodeId: string): Promise<string | null> {
   const running = inflight.get(nodeId);
   if (running) return running;
@@ -136,8 +120,6 @@ export function onSnapshot(fn: (nodeId: string, url: string) => void): () => voi
   snapListeners.add(fn);
   return () => snapListeners.delete(fn);
 }
-
-// ---- events --------------------------------------------------------------
 
 type Handlers = {
   state: Set<(s: PortalState) => void>;
@@ -160,7 +142,6 @@ function start(): void {
     listen<PortalDrive>(EVENT_DRIVE, (e) => {
       drives.set(e.payload.nodeId, e.payload);
       for (const h of handlers.drive) h(e.payload);
-      // Agent actions change the page: refresh the dormant texture once done.
       if (e.payload.method.endsWith(':done') && !states.get(e.payload.nodeId)?.visible) {
         void refreshSnapshot(e.payload.nodeId);
       }
@@ -194,16 +175,12 @@ export function onPortalClosed(fn: (nodeId: string) => void): () => void {
   return () => handlers.closed.delete(fn);
 }
 
-// ---- presets -------------------------------------------------------------
-
 interface DevicePreset {
   id: string;
-  /** i18n key under canvas.portal.device.* */
   key: string;
   label: string;
   width: number;
   height: number;
-  /** UA preset sent to Rust (`null` = engine default). */
   ua: string | null;
 }
 
@@ -215,7 +192,6 @@ export const DEVICE_PRESETS: DevicePreset[] = [
   { id: 'pixel', key: 'canvas.portal.device.android', label: 'Android phone', width: 412, height: 915, ua: 'android' },
 ];
 
-/** `example.com` → `https://example.com`; `:5173` → localhost. */
 export function normalizeUrl(raw: string): string {
   const s = raw.trim();
   if (!s) return '';

@@ -2,11 +2,6 @@
   import { t } from "$lib/i18n";
   import { formatClock, frametimeAxis, nearest, seriesPaths, timeX, type Chart } from "$lib/washmybelly/perf";
 
-  /// Frametime over the capture: the slowest frame of each slice as a line
-  /// over a soft area, the fastest–slowest band behind it, dashed guides at
-  /// 60 and 30 FPS, and ticks on top for stutters (amber) and freezes (red).
-  /// Hover shows the moment and the range. Line, area gradient and hover
-  /// pill ported from Motion's "Line graph" (motiondotdev, 21st.dev).
   let { chart, height = 180 }: { chart: Chart; height?: number } = $props();
 
   let width = $state(0);

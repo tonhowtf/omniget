@@ -1,7 +1,4 @@
 <script lang="ts">
-  // PR surface: repo state of the thread's folder (branch, upstream,
-  // ahead/behind, changes), the smart git button (commit / push / PR) and
-  // the PR of this branch with a link to open it.
   import { t } from "$lib/i18n";
   import GitActionsButton from "$components/central/vcs/GitActionsButton.svelte";
   import type { PrInfo, RepoStatus } from "$lib/central/vcs";

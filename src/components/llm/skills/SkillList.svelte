@@ -1,5 +1,4 @@
 <script lang="ts">
-  /** The installed skills, one card each, with the empty state. */
   import { t } from "$lib/i18n";
   import { agentsUsingSkill, type SkillManifest } from "$lib/stores/llm-skills-store.svelte";
   import SkillCard from "./SkillCard.svelte";
@@ -11,7 +10,6 @@
     onremove,
   }: {
     skills?: SkillManifest[];
-    /** Roster entries, to show which agents have each skill active. */
     agents?: { name: string; skills?: string[] }[];
     busy?: string | null;
     onremove?: (name: string) => void;

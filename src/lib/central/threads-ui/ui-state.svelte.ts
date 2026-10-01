@@ -1,9 +1,3 @@
-// UI-only state of the threads screen, kept outside the engine store:
-// per-thread drafts (persisted, debounced), the send queue (memory only: "a
-// queued message is a live intent, not a draft"), right-panel state with the
-// "never yank the panel" counter, disclosure sets, live context usage from
-// `threads://event`, and an undo toast.
-
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type { ThreadsEventEnvelope } from "$lib/central/threads/types";
 
@@ -13,9 +7,7 @@ export type Chip = {
   id: string;
   kind: ChipKind;
   label: string;
-  /** Text sent to the agent for this chip (context block or token). */
   value: string;
-  /** Absolute path for attachments. */
   path?: string;
   title?: string;
 };
@@ -27,7 +19,6 @@ export type QueuedMessage = {
   text: string;
   chips: Chip[];
   createdAt: string;
-  /** Held at the head after a failed send or a Stop. */
   hold: boolean;
 };
 
@@ -55,7 +46,6 @@ function writeJson(key: string, value: unknown) {
   try {
     localStorage.setItem(key, JSON.stringify(value));
   } catch {
-    /* quota or private mode: drafts stay in memory */
   }
 }
 
@@ -80,8 +70,6 @@ class ThreadsUiState {
   #undoTimer: ReturnType<typeof setTimeout> | null = null;
   #unlisten: UnlistenFn | null = null;
   #listening = false;
-
-  // ── Drafts ────────────────────────────────────────────────────────────
 
   draft(threadId: string): Draft {
     return this.drafts[threadId] ?? { text: "", chips: [] };
@@ -113,8 +101,6 @@ class ThreadsUiState {
     writeJson(DRAFTS_KEY, $state.snapshot(this.drafts));
   }
 
-  // ── Queue ─────────────────────────────────────────────────────────────
-
   queue(threadId: string): QueuedMessage[] {
     return this.queues[threadId] ?? [];
   }
@@ -142,7 +128,6 @@ class ThreadsUiState {
     this.queues = { ...this.queues, [threadId]: [{ ...item, hold: true }, ...this.queue(threadId)] };
   }
 
-  /** Stop drains the queue back into the composer draft. */
   drainToDraft(threadId: string) {
     const list = this.queue(threadId);
     if (!list.length) return;
@@ -153,13 +138,10 @@ class ThreadsUiState {
     this.setDraft(threadId, { text, chips });
   }
 
-  // ── Panel ─────────────────────────────────────────────────────────────
-
   panel(threadId: string): PanelState {
     return this.panels[threadId] ?? { open: false, tab: null, touched: 0, diffScope: "turn", diffTurn: null, reveal: null };
   }
 
-  /** A user choice: bumps `touched` so proactive opens stop. */
   setPanel(threadId: string, patch: Partial<PanelState>, byUser = true) {
     const cur = this.panel(threadId);
     const next = { ...cur, ...patch, touched: byUser ? cur.touched + 1 : cur.touched };
@@ -167,15 +149,12 @@ class ThreadsUiState {
     writeJson(PANEL_KEY, $state.snapshot(this.panels));
   }
 
-  /** Proactive open (e.g. diff after a big turn): refused once the user touched the panel. */
   proactiveOpen(threadId: string, tab: PanelTab, patch: Partial<PanelState> = {}): boolean {
     const cur = this.panel(threadId);
     if (cur.touched > 0) return false;
     this.setPanel(threadId, { open: true, tab, ...patch }, false);
     return true;
   }
-
-  // ── Disclosure sets ───────────────────────────────────────────────────
 
   #toggle(map: "expandedFolds" | "collapsedFolds" | "expandedGroups" | "interruptedHere", threadId: string, id: string, on?: boolean) {
     const cur = new Set(this[map][threadId] ?? []);
@@ -207,12 +186,9 @@ class ThreadsUiState {
     this.#toggle("interruptedHere", threadId, turnId, true);
   }
 
-  /** Starting the next turn collapses the previous one if it was expanded. */
   collapseAllFolds(threadId: string) {
     this.expandedFolds = { ...this.expandedFolds, [threadId]: [] };
   }
-
-  // ── Selection and sidebar ─────────────────────────────────────────────
 
   select(threadId: string | null) {
     this.selected = threadId;
@@ -222,8 +198,6 @@ class ThreadsUiState {
   saveSidebar() {
     writeJson(SIDEBAR_KEY, $state.snapshot(this.sidebar));
   }
-
-  // ── Undo toast ────────────────────────────────────────────────────────
 
   showUndo(message: string, undo: () => void | Promise<void>, ms = 6000) {
     if (this.#undoTimer) clearTimeout(this.#undoTimer);
@@ -243,8 +217,6 @@ class ThreadsUiState {
   dismissUndo() {
     this.undo = null;
   }
-
-  // ── Live usage (driver-reported window) ───────────────────────────────
 
   async listenUsage() {
     if (this.#listening) return;

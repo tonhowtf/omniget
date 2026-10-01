@@ -1,16 +1,3 @@
-/**
- * Bot avatars (libraries.dev `bot-avatars`) as a React island inside Svelte.
- *
- * `bot-avatars` ships only a React component, so this action loads React,
- * React DOM and the package with a dynamic import (they land in their own
- * chunk, fetched the first time a card opens in the limits-strip window and
- * never by any other screen) and renders one `<BotAvatar>` into the node.
- *
- * Only documented props are passed: `type`, `state` ("default" | "working"),
- * `size`, `paused`, plus pass-through canvas attributes. The package runs one
- * shared frame loop, leaves it when the avatar is offscreen or the tab is
- * hidden, and draws a still pose under prefers-reduced-motion.
- */
 import type { BotAvatarType } from "bot-avatars";
 
 type BotOptions = {
@@ -69,7 +56,6 @@ export function bot(node: HTMLElement, options: BotOptions) {
     },
     destroy() {
       gone = true;
-      // React warns when a root unmounts during a render; the next microtask is safe.
       const i = island;
       island = null;
       if (i) queueMicrotask(() => i.unmount());

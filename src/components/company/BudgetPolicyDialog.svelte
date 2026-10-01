@@ -1,8 +1,4 @@
 <script lang="ts">
-  /**
-   * Create or edit a budget policy (`budget.set`). A policy is keyed by
-   * scope + metric + window, so editing keeps those three fixed.
-   */
   import { untrack } from "svelte";
   import { t } from "$lib/i18n";
   import { rpc, errorText, type BudgetPolicy, type Project, type Staff } from "$lib/company/rpc";
@@ -15,7 +11,6 @@
     onclose,
   }: { company: string; staff: Staff[]; projects: Project[]; policy?: BudgetPolicy | null; onclose: () => void } = $props();
 
-  /** The form edits a copy taken when it opens. */
   const initial = untrack(() => policy);
   const editing = !!initial;
   let scopeType = $state<"company" | "agent" | "project">(initial?.scope_type ?? "company");

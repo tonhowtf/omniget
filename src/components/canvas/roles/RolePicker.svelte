@@ -1,7 +1,4 @@
 <script lang="ts">
-  // Role picker (Maestri 0.48.1): each row shows the name, how many terminals
-  // use it and, behind a chevron, the instructions. "No role" clears it.
-  // Picking calls `onpick`; assigning (and the restart) is the caller's.
   import { onMount } from "svelte";
   import { t } from "$lib/i18n";
   import { roles } from "$lib/canvas/roles/store.svelte";

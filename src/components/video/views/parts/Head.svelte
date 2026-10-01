@@ -1,5 +1,4 @@
 <script lang="ts">
-  // Page header: optional back arrow, title, subtitle and trailing actions.
   import type { Snippet } from "svelte";
   import { t } from "$lib/i18n";
   import { back, ui } from "$lib/video/ui.svelte";

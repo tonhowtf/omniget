@@ -1,7 +1,6 @@
 <script lang="ts">
   import { healthTone } from "$lib/washmybelly/ui";
 
-  /// Activity-ring style score (0–100). `label` goes under the number.
   let { score, size = 120, label = "" }: { score: number; size?: number; label?: string } = $props();
 
   let stroke = $derived(Math.max(6, Math.round(size / 11)));

@@ -1,7 +1,4 @@
 <script lang="ts">
-  // Selection outline and handles in screen pixels (never thinner or thicker
-  // with zoom): dashed outline per item, bounds with 8 resize handles, and the
-  // four connection ports of a single selected node.
   import { useEngine } from "$lib/canvas/engine.svelte";
   import { drawingBounds } from "$lib/canvas/model/store.svelte";
   import type { Rect } from "$lib/canvas/model/types";

@@ -19,7 +19,6 @@ export const CORE_NAV_ITEMS: NavItem[] = [
   { href: "/about", labelKey: "nav.about", icon: "about", group: "app", order: 50 },
 ];
 
-/** Routes that live inside a hub keep the hub's sidebar item lit. */
 export const NAV_ALIASES: Record<string, string[]> = {
   "/superpowers": ["/league", "/music", "/washmybelly", "/video", "/global", "/meetings", "/telegram", "/youtube", "/read"],
 };

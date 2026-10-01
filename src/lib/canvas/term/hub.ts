@@ -1,8 +1,3 @@
-// The one frame subscription of this webview: owns the Channel, the slot →
-// terminal map, the grids and the credit. The LOD module tells it which
-// terminals are visible; the GL pass reads its grids and reports each drawn
-// frame so the credit goes back to Rust.
-
 import { StyleTable, TermGrid, applySections } from './grid';
 import { decodeFrame, toArrayBufferView, type WireFrame, type WireSection } from './wire';
 import {
@@ -20,18 +15,14 @@ import {
 import { AGENT_SOURCES, agentStateFromName, agentStateFromWire, termLive } from './state.svelte';
 import { META_ALIVE, MODE_ALT_SCREEN, PROGRESS_INDETERMINATE, PROGRESS_NONE } from './wire';
 
-/** Copies META/AGENT/selection facts of a grid into the reactive chrome state (only on change). */
 function publishLive(g: TermGrid): void {
   g.liveDirty = false;
   const live = termLive(g.id);
   const m = g.meta;
   if (m) {
     live.modes = m.modes;
-    // A live process under this id (restarted by a routine, a role swap,
-    // the MCP) clears the old "exited" badge.
     if (m.modes & META_ALIVE) {
       if (live.exited) live.exited = null;
-      // Commands that hit the gap between two processes (unloaded, restarting).
       if (live.error.includes('PTY_NOT_FOUND')) live.error = '';
     }
     const alt = (m.modes & MODE_ALT_SCREEN) !== 0;
@@ -57,9 +48,7 @@ function publishLive(g: TermGrid): void {
   if (live.hasSelection !== has) live.hasSelection = has;
 }
 
-/** Credit goes back after this long even if nothing got drawn (hidden canvas, card-only frames). */
 const CREDIT_FALLBACK_MS = 120;
-/** Frames kept while waiting for the SlotInfo of a new slot. */
 const BACKLOG_MAX = 32;
 
 type Backlog = { frame: WireFrame; sections: WireSection[] };
@@ -79,10 +68,8 @@ class TermHub {
   private creditTimer: ReturnType<typeof setTimeout> | null = null;
   private unlisten: Array<() => void> = [];
   private listening = false;
-  /** Called whenever something changed that needs a redraw. */
   redraw: () => void = () => {};
   lastError = '';
-  /** Bumped per applied frame (cheap "did anything change" check for the pass). */
   version = 0;
 
   grid(id: string): TermGrid | undefined {
@@ -100,7 +87,6 @@ class TermHub {
     return g;
   }
 
-  /** Declares the visible set; coalesced, at most one request in flight. */
   setVisible(list: Visible[]): void {
     const key = list.map((v) => `${v.id}:${v.lod}`).join('|');
     if (key === this.wantKey) return;
@@ -134,7 +120,6 @@ class TermHub {
         this.setSlots(slots);
       } catch (e) {
         this.lastError = errorText(e);
-        // Retry on the next change; keep what we had.
         this.sentKey = key;
       } finally {
         this.inflight = null;
@@ -202,7 +187,6 @@ class TermHub {
     termFrameDone(seq).catch((e) => (this.lastError = errorText(e)));
   }
 
-  /** The pass drew a frame with everything applied so far: return the credit now. */
   afterDraw(): void {
     if (!this.creditSeq) return;
     if (this.creditTimer) {
@@ -237,7 +221,6 @@ class TermHub {
       .catch(() => {});
   }
 
-  /** Drops the subscription (canvas unmounted). Grids are kept for a remount. */
   async stop(): Promise<void> {
     if (this.creditTimer) clearTimeout(this.creditTimer);
     this.creditTimer = null;
@@ -252,7 +235,6 @@ class TermHub {
     this.wantKey = '';
     this.sentKey = '';
     this.styles.clear();
-    // Slots restart with the next subscription; stale grids get a FULL.
     this.grids.clear();
     if (was) await termUnsubscribe().catch(() => {});
   }

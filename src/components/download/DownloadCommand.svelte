@@ -7,7 +7,6 @@
   type Props = { id: number; command: CommandRecord | null | undefined; status: DownloadStatus };
   let { id, command, status }: Props = $props();
 
-  // Aberto por padrão só em erro: é quando o usuário precisa ver o comando.
   let open = $state(false);
   let openedFor = $state<number | null>(null);
   $effect(() => {

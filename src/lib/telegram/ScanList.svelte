@@ -1,6 +1,4 @@
 <script lang="ts">
-  // Running history scans (whole-chat preview, auto-save backfill) with
-  // their live numbers and a cancel button. `only` limits it to some ids.
   import { t } from "$lib/i18n";
   import TgIcon from "./TgIcon.svelte";
   import { scans, cancelScan } from "./session.svelte";

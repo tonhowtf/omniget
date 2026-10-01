@@ -1,9 +1,4 @@
 <script lang="ts">
-  // "Escolher este" (roteiro 3.8): mostra o que vai acontecer (branch alvo,
-  // conflitos, se a branch está em checkout no clone do usuário e o que
-  // bloqueia o merge lá), pede confirmação explícita, integra (no checkout:
-  // o merge do 3.5 com os hooks do usuário; fora dele, só o ref) e, depois,
-  // remove as outras colunas (worktrees e branches).
   import { untrack } from "svelte";
   import { t } from "$lib/i18n";
   import { vcsBranches, type BranchInfo } from "$lib/central/vcs";

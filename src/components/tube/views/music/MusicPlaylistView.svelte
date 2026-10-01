@@ -1,6 +1,4 @@
 <script lang="ts">
-  // Music playlist page (also "Liked music" = LM): header like the album's,
-  // then the songs with cover, artists and album columns.
   import { t } from "$lib/i18n";
   import * as api from "$lib/tube/api";
   import { mplayer, playPlaylist, playSongs, toggle } from "$lib/tube/music.svelte";
@@ -70,7 +68,6 @@
     void load();
   });
 
-  // Local list first: it plays instantly and matches what is on screen.
   function playFrom(i: number) {
     if (!songs.length) return;
     void playSongs(songs, i, ctx);

@@ -1,7 +1,3 @@
-/// Windows tweaks from `wmb_tweaks_list` and the pure logic of the screen:
-/// sections by category, exclusive groups as radios, what can be picked,
-/// and which plan items a selection becomes.
-
 import type { Risk } from "./api";
 
 type TweakState = "applied" | "not_applied" | "partial" | "unknown";
@@ -49,7 +45,6 @@ export type TweakList = {
 
 export type Row = { kind: "item"; item: TweakItem } | { kind: "group"; group: TweakGroup; items: TweakItem[] };
 
-/// The order categories are shown in (the list only sends the ones present).
 export const CATEGORY_ORDER = [
   "performance",
   "gaming",
@@ -81,8 +76,6 @@ function matches(it: TweakItem, q: string): boolean {
   return it.label.toLowerCase().includes(s) || it.description.toLowerCase().includes(s);
 }
 
-/// Rows of one category (or every category with `null`): plain items, and
-/// each exclusive group once, where its first member would be.
 export function rowsFor(list: TweakList | null, category: string | null, query = ""): Row[] {
   if (!list) return [];
   const q = query.trim();
@@ -105,13 +98,10 @@ export function rowsFor(list: TweakList | null, category: string | null, query =
   return rows;
 }
 
-/// Can be picked: offered on this machine and not already in place.
 export function canPick(it: TweakItem): boolean {
   return it.available && it.state !== "applied";
 }
 
-/// Pick or unpick one tweak. Picking a group member drops the other
-/// members: only one of them can be in place.
 export function togglePick(list: TweakList, selected: Set<string>, it: TweakItem): Set<string> {
   const next = new Set(selected);
   if (next.has(it.id)) {
@@ -127,13 +117,11 @@ export function togglePick(list: TweakList, selected: Set<string>, it: TweakItem
   return next;
 }
 
-/// Plan item ids for `wmb_plan` (kind `tweaks`), picked items only.
 export function pickedItemIds(list: TweakList | null, selected: Set<string>): string[] {
   if (!list) return [];
   return list.items.filter((i) => selected.has(i.id) && canPick(i)).map((i) => i.item_id);
 }
 
-/// Picked items that need their own warning first (memory integrity).
 export function extremePicks(list: TweakList | null, selected: Set<string>): TweakItem[] {
   if (!list) return [];
   return list.items.filter((i) => selected.has(i.id) && i.risk === "extreme");
@@ -143,7 +131,6 @@ export function pickedNeedRestart(list: TweakList | null, selected: Set<string>)
   return !!list?.items.some((i) => selected.has(i.id) && i.needs_restart);
 }
 
-/// Drop picks that are gone or no longer pickable after a reload.
 export function prunePicks(list: TweakList, selected: Set<string>): Set<string> {
   const ok = new Set(list.items.filter(canPick).map((i) => i.id));
   return new Set([...selected].filter((id) => ok.has(id)));
@@ -154,7 +141,6 @@ export function appliedCount(list: TweakList | null, category: string | null = n
   return list.items.filter((i) => (category === null || i.category === category) && i.state === "applied").length;
 }
 
-/// "Back to the Windows default" is offered once the tweak is (partly) in place.
 export function canRevert(it: TweakItem): boolean {
   return it.has_default && !!it.default_item_id && (it.state === "applied" || it.state === "partial") && it.reason !== "unreadable";
 }
@@ -182,7 +168,6 @@ export function sourceName(source: string): string {
   return SOURCES[source] ?? source;
 }
 
-/// Drop the pick of one exclusive group (back to what Windows has now).
 export function clearGroup(list: TweakList, selected: Set<string>, groupId: string): Set<string> {
   const g = list.groups.find((x) => x.id === groupId);
   const members = new Set(g?.members ?? []);

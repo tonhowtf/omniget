@@ -1,6 +1,4 @@
 <script lang="ts">
-  // Album tile. On hover the record slides out of its sleeve (idea from the
-  // "Vinyl Album Card" on 21st.dev, redone in CSS so it costs nothing at rest).
   import { t } from "$lib/i18n";
   import { coverUrl } from "$lib/music/library-store.svelte";
   import type { Album } from "$lib/music/types";

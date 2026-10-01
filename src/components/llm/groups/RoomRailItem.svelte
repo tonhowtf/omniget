@@ -1,5 +1,4 @@
 <script lang="ts">
-  /** One group room in the rail: its name, who is in it, and whether it is working. */
   import { t } from "$lib/i18n";
   import type { Room } from "$lib/llm/types";
   import { getAgent, getRoomLive } from "$lib/stores/llm-store.svelte";

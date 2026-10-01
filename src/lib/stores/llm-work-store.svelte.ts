@@ -1,19 +1,3 @@
-/**
- * "Work" across the /llm section (roadmap 3.9): the live list the header
- * badge and `/llm/work` read, and the one-time notifications.
- *
- * Nothing here polls. Jobs, loops, questions and runs come from the jobs
- * store (`llm://job`, `llm://loop`, `llm://tool-ask`, `assist://run`), the
- * threads from the Central's store (`threads://event`), and the missions from
- * one list read plus a re-read on `assist://mission`. The derivation itself
- * is pure (`$lib/llm/work`).
- *
- * Notifications are in-app toasts, once per (item, turn, status): the keys
- * already announced are kept in `localStorage`, so reopening the app does not
- * announce the same question again (82#P8). The OS notifications stay with
- * the backend's gate (`llm_attention.rs`), which only speaks when the window
- * is not looking at the job.
- */
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { get } from "svelte/store";
@@ -47,11 +31,9 @@ const SEEN_KEY = "omniget.llm.work.notified";
 
 let missions = $state<MissionRow[]>([]);
 let missionsError = $state<string | null>(null);
-/** Ticks once a minute while something is on screen, so "done recently" ages out. */
 let now = $state(Date.now());
 let started = false;
 let missionReload: ReturnType<typeof setTimeout> | null = null;
-/** Finishes before this moment are history, not news. */
 const sessionStart = Date.now();
 
 async function reloadMissions(): Promise<void> {
@@ -72,7 +54,6 @@ function scheduleMissionReload(): void {
   }, 150);
 }
 
-/** Idempotent: the /llm layout calls it on every mount. */
 export function initWorkStore(): void {
   if (started) return;
   started = true;
@@ -85,13 +66,11 @@ export function initWorkStore(): void {
   });
 }
 
-/** Moves the clock the "done recently" window reads. */
 export function tickWorkClock(at = Date.now()): void {
   now = at;
 }
 
 export function getWorkItems(): WorkItem[] {
-  // A source that answered nothing (an old backend) counts as empty.
   return deriveWork({
     jobs: getJobs() ?? [],
     loops: getLoops() ?? [],
@@ -107,7 +86,6 @@ export function getWorkItems(): WorkItem[] {
   });
 }
 
-/** What could not be read, so the list never looks complete when it is not. */
 export function getWorkErrors(): string[] {
   const out: string[] = [];
   const jobsError = getJobsReadError();
@@ -132,7 +110,6 @@ function readSeen(): string[] {
     const list = raw ? (JSON.parse(raw) as unknown) : [];
     return Array.isArray(list) ? list.filter((k): k is string => typeof k === "string") : [];
   } catch {
-    // Storage blocked or corrupt: the worst case is one repeated toast.
     return [];
   }
 }
@@ -149,11 +126,6 @@ function pathOf(href: string): string {
   return href.split("?")[0] || "/";
 }
 
-/**
- * Announces what is new in `items` and records it. An item whose page is
- * the one on screen (`path`) is recorded without a toast: the person is
- * already looking at it.
- */
 export function announce(items: WorkItem[], path: string): WorkItem[] {
   const seen = readSeen();
   const fresh = freshNotifications(items, new Set(seen), sessionStart);

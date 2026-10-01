@@ -2,8 +2,6 @@
   import { t } from "$lib/i18n";
   import type { AppSort } from "$lib/washmybelly/apps";
 
-  /// Search, origin chips (only the origins present, each with its count)
-  /// and the sort control above the app list.
   let {
     query = $bindable(""),
     sources = $bindable(new Set<string>()),

@@ -1,12 +1,4 @@
 <script lang="ts">
-  /**
-   * "See plan": what an install will do, before anything is written. Units by
-   * tool (status, compatibility, what is lost, collision renames), the
-   * commands that tools will execute (hooks, MCP launchers, statuslines)
-   * always on top and highlighted, conflicts, and the diff of every file.
-   * "Install" applies the plan (`agentkit_apply`); the result offers undo
-   * (`agentkit_restore` of the transaction).
-   */
   import { t } from "$lib/i18n";
   import DiffViewer from "$components/central/vcs/DiffViewer.svelte";
   import {
@@ -29,11 +21,9 @@
     autoApply = false,
   }: {
     plan: InstallPlan;
-    /** Apply right away (the "Install" button): the dialog then shows the result. */
     autoApply?: boolean;
     onclose?: () => void;
     onapplied?: (r: ApplyReport) => void;
-    /** Called on AGENTKIT_PLAN_STALE: the parent plans again. */
     onreplan?: () => void;
   } = $props();
 

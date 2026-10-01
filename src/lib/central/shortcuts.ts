@@ -1,29 +1,13 @@
-// Atalhos da Central: tabela com condição `when` (porte ajustado da tabela
-// padrão do T3 Code, estudo 76/02 §6.7), gramática de tecla e de `when`,
-// casamento com o evento de teclado e rótulos (glifos no macOS).
-//
-// Regra = { key, command, when? }. Resolução do fim para o começo (a última
-// regra vence); regras do usuário para um comando substituem TODAS as padrão
-// daquele comando. `mod` = ⌘ no macOS, Ctrl no resto.
-
 export type WhenContext = {
-  /** Foco num campo de texto (input, textarea, select, contenteditable). */
   editableFocus: boolean;
-  /** Foco dentro de um terminal xterm. */
   terminalFocus: boolean;
-  /** Há uma thread aberta. */
   threadOpen: boolean;
-  /** O painel direito está aberto. */
   panelOpen: boolean;
-  /** Um turno está rodando na thread aberta. */
   running: boolean;
-  /** Há aprovação pendente na thread aberta. */
   approvalPending: boolean;
-  /** Há pergunta (user input) pendente na thread aberta. */
   questionPending: boolean;
   paletteOpen: boolean;
   helpOpen: boolean;
-  /** Algum outro diálogo modal aberto. */
   modalOpen: boolean;
   isMac: boolean;
   [extra: string]: boolean;
@@ -40,12 +24,8 @@ export type ShortcutRule = {
 type CommandInfo = {
   id: string;
   group: ShortcutGroup;
-  /** Tratado pelo próprio componente (composer, gaveta de aprovação,
-   *  terminal): a tabela documenta; o provider só dispara se receber handler. */
   native?: boolean;
 };
-
-// ── Comandos ─────────────────────────────────────────────────────────────
 
 export const COMMANDS: CommandInfo[] = [
   { id: "thread.new", group: "threads" },
@@ -102,7 +82,6 @@ const NOT_TYPING = "!editableFocus && !terminalFocus";
 const THREAD_KEYS = "threadOpen && !terminalFocus && !paletteOpen";
 
 export const DEFAULT_RULES: ShortcutRule[] = [
-  // Threads
   { key: "mod+n", command: "thread.new", when: "!terminalFocus" },
   { key: "mod+shift+n", command: "thread.newInProject", when: "!terminalFocus" },
   { key: "mod+shift+[", command: "thread.previous" },
@@ -119,7 +98,6 @@ export const DEFAULT_RULES: ShortcutRule[] = [
   { key: "mod+shift+k", command: "thread.fork", when: `${THREAD_KEYS} && !running` },
   { key: "mod+alt+n", command: "project.add", when: "!terminalFocus" },
   { key: "mod+b", command: "sidebar.toggle", when: "!terminalFocus" },
-  // Painel direito (letras do lançador com ⌥; letras puras seguem no lançador)
   { key: "mod+j", command: "panel.toggle", when: "threadOpen" },
   { key: "mod+w", command: "panel.close", when: "panelOpen && !terminalFocus" },
   { key: "mod+d", command: "panel.diff", when: THREAD_KEYS },
@@ -130,7 +108,6 @@ export const DEFAULT_RULES: ShortcutRule[] = [
   { key: "alt+p", command: "panel.plan", when: THREAD_KEYS },
   { key: "alt+a", command: "panel.agents", when: THREAD_KEYS },
   { key: "alt+r", command: "panel.pr", when: THREAD_KEYS },
-  // Composer
   { key: "mod+l", command: "composer.focus", when: "threadOpen && !paletteOpen" },
   { key: "mod+shift+m", command: "composer.model", when: THREAD_KEYS },
   { key: "mod+shift+a", command: "composer.mode", when: THREAD_KEYS },
@@ -143,7 +120,6 @@ export const DEFAULT_RULES: ShortcutRule[] = [
   { key: "escape", command: "turn.interrupt", when: `running && ${NOT_TYPING} && !paletteOpen && !helpOpen && !modalOpen` },
   { key: "mod+alt+up", command: "turn.previous", when: `threadOpen && ${NOT_TYPING}` },
   { key: "mod+alt+down", command: "turn.next", when: `threadOpen && ${NOT_TYPING}` },
-  // Aprovações e perguntas (fora de campo de texto)
   { key: "y", command: "approval.approve", when: `approvalPending && ${NOT_TYPING}` },
   { key: "s", command: "approval.approveSession", when: `approvalPending && ${NOT_TYPING}` },
   { key: "a", command: "approval.approveAlways", when: `approvalPending && ${NOT_TYPING}` },
@@ -151,7 +127,6 @@ export const DEFAULT_RULES: ShortcutRule[] = [
   { key: "[", command: "approval.previous", when: `approvalPending && ${NOT_TYPING}` },
   { key: "]", command: "approval.next", when: `approvalPending && ${NOT_TYPING}` },
   { key: "1", command: "question.answer", when: `questionPending && ${NOT_TYPING}` },
-  // App
   { key: "mod+k", command: "palette.toggle", when: "!terminalFocus" },
   { key: "?", command: "help.toggle", when: `${NOT_TYPING} && !paletteOpen` },
   { key: "mod+/", command: "help.toggle", when: "!terminalFocus" },
@@ -159,7 +134,6 @@ export const DEFAULT_RULES: ShortcutRule[] = [
   { key: "mod+shift+o", command: "nav.catalog", when: "!terminalFocus" },
   { key: "mod+shift+h", command: "nav.sessions", when: "!terminalFocus" },
   { key: "mod+,", command: "nav.settings" },
-  // Terminal
   { key: "mod+k", command: "terminal.clear", when: "terminalFocus" },
   { key: "mod+w", command: "terminal.close", when: "terminalFocus" },
 ];
@@ -168,13 +142,11 @@ export function commandInfo(id: string): CommandInfo | undefined {
   return COMMANDS.find((c) => c.id === id);
 }
 
-/** Chave i18n do nome de um comando (`thread.jump.3` → `…cmd.thread_jump`). */
 export function commandLabelKey(id: string): string {
   const base = id.startsWith("thread.jump.") ? "thread.jump" : id;
   return `llm.central.shortcuts.cmd.${base.replace(/\./g, "_")}`;
 }
 
-/** Regras do usuário substituem todas as padrão do mesmo comando (máx. 256). */
 export function mergeRules(defaults: ShortcutRule[], user: ShortcutRule[]): ShortcutRule[] {
   const overridden = new Set(user.map((r) => r.command));
   return [...defaults.filter((r) => !overridden.has(r.command)), ...user].slice(0, 256);
@@ -182,7 +154,6 @@ export function mergeRules(defaults: ShortcutRule[], user: ShortcutRule[]): Shor
 
 const USER_KEY = "omniget.central.shortcuts.v1";
 
-/** Regras do usuário guardadas (localStorage), validadas. */
 export function loadUserRules(): ShortcutRule[] {
   try {
     const v = JSON.parse(localStorage.getItem(USER_KEY) ?? "[]");
@@ -199,8 +170,6 @@ export function loadUserRules(): ShortcutRule[] {
     return [];
   }
 }
-
-// ── Gramática de tecla ───────────────────────────────────────────────────
 
 type ParsedKey = {
   key: string;
@@ -223,7 +192,6 @@ const KEY_ALIASES: Record<string, string> = {
   plus: "+",
 };
 
-/** `mod+shift+[` → ParsedKey; `+` final é a própria tecla mais. */
 function parseKey(spec: string): ParsedKey | null {
   let s = spec.trim().toLowerCase();
   if (!s) return null;
@@ -265,7 +233,6 @@ const CODE_KEYS: Record<string, string> = {
   Space: " ",
 };
 
-/** Tecla física do evento, independente do layout e do ⌥ do macOS. */
 function codeKey(code: string): string | null {
   if (code.startsWith("Key") && code.length === 4) return code.slice(3).toLowerCase();
   if (code.startsWith("Digit") && code.length === 6) return code.slice(5);
@@ -280,7 +247,6 @@ function eventKey(key: string): string {
 
 type KeyEventLike = Pick<KeyboardEvent, "key" | "code" | "metaKey" | "ctrlKey" | "shiftKey" | "altKey">;
 
-/** O evento casa com a tecla? Modificadores exatos (salvo `?`, que já implica ⇧). */
 function matchKey(p: ParsedKey, e: KeyEventLike, isMac: boolean): boolean {
   const wantMeta = p.meta || (p.mod && isMac);
   const wantCtrl = p.ctrl || (p.mod && !isMac);
@@ -289,12 +255,9 @@ function matchKey(p: ParsedKey, e: KeyEventLike, isMac: boolean): boolean {
   if (e.shiftKey !== p.shift) return false;
   const k = eventKey(e.key);
   if (k === p.key) return true;
-  // ⌥/⇧ trocam o caractere (⌥D = ∂, ⇧[ = {): cai para a tecla física.
   const c = codeKey(e.code);
   return c !== null && c === p.key;
 }
-
-// ── Gramática de `when` ──────────────────────────────────────────────────
 
 type WhenNode =
   | { t: "id"; name: string }
@@ -305,7 +268,6 @@ type WhenNode =
 
 const whenCache = new Map<string, WhenNode | null>();
 
-/** `a && !(b || c)`; identificadores, `!`, `&&`, `||`, parênteses, true/false. */
 function parseWhen(src: string): WhenNode | null {
   if (whenCache.has(src)) return whenCache.get(src)!;
   const result = parseWhenUncached(src);
@@ -378,19 +340,12 @@ function evalWhen(node: WhenNode, ctx: Partial<WhenContext>): boolean {
   }
 }
 
-/** `when` ausente = sempre; `when` inválido = nunca. */
 function whenHolds(when: string | undefined, ctx: Partial<WhenContext>): boolean {
   if (!when || !when.trim()) return true;
   const n = parseWhen(when);
   return n ? evalWhen(n, ctx) : false;
 }
 
-// ── Resolução ────────────────────────────────────────────────────────────
-
-/**
- * Comando do evento: percorre do fim para o começo e devolve a primeira regra
- * cuja tecla casa, cujo `when` vale e que `accept` aceita (ex.: tem handler).
- */
 export function resolve(
   rules: ShortcutRule[],
   e: KeyEventLike,
@@ -409,8 +364,6 @@ export function resolve(
   return null;
 }
 
-// ── Rótulos ──────────────────────────────────────────────────────────────
-
 const KEY_LABELS: Record<string, [string, string]> = {
   up: ["↑", "Up"],
   down: ["↓", "Down"],
@@ -424,7 +377,6 @@ const KEY_LABELS: Record<string, [string, string]> = {
   " ": ["Space", "Space"],
 };
 
-/** Rótulo de uma tecla: `⌃⌥⇧⌘K` no macOS, `Ctrl+Alt+Shift+K` no resto. */
 export function keyLabel(spec: string, isMac: boolean): string {
   const p = parseKey(spec);
   if (!p) return spec;
@@ -441,7 +393,6 @@ export function keyLabel(spec: string, isMac: boolean): string {
   return parts.join("+");
 }
 
-/** Teclas de um comando (para chips na paleta e na ajuda). */
 export function keysFor(rules: ShortcutRule[], command: string): ShortcutRule[] {
   return rules.filter((r) => r.command === command);
 }
@@ -453,7 +404,6 @@ export function detectMac(): boolean {
   return /mac|iphone|ipad/i.test(platform);
 }
 
-/** Contexto que dá para ler do DOM (foco, diálogos). */
 export function domContext(root: Document = document): Pick<WhenContext, "editableFocus" | "terminalFocus" | "modalOpen"> {
   const el = root.activeElement as HTMLElement | null;
   const terminalFocus = !!el?.closest?.(".xterm");

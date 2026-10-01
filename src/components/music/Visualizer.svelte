@@ -1,7 +1,4 @@
 <script lang="ts">
-  // Live spectrum from the player's AnalyserNode. Bars use a log frequency
-  // scale (what the ear hears), the wave mode draws the time domain, and the
-  // circle mode wraps the bars around the centre (for the now-playing cover).
   import { onMount } from "svelte";
   import { registerSemantic } from "$lib/native-agent/semantic";
   import { getAnalyser, player } from "$lib/music/player-store.svelte";
@@ -53,7 +50,6 @@
 
     const draw = (now: number) => {
       raf = requestAnimationFrame(draw);
-      // reduced motion: 8 fps is enough to show the music is alive
       if (reduce && now - last < 120) return;
       last = now;
       const a = getAnalyser();
@@ -90,7 +86,6 @@
         let v = 0;
         for (let i = i0; i < i1 && i < freq.length; i++) v = Math.max(v, freq[i]);
         const target = v / 255;
-        // fast attack, slow release
         smooth[b] = target > smooth[b] ? target : smooth[b] * 0.9 + target * 0.1;
       }
       if (mode === "circle") drawCircle();

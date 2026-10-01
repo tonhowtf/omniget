@@ -11,10 +11,6 @@
   import PlanReview from "./ui/PlanReview.svelte";
   import StartupRow from "./StartupRow.svelte";
 
-  /// Startup: what opens at login or runs in the background, by type.
-  /// Each switch turns one item off or on through a one-item plan (nothing
-  /// is deleted, the receipt can undo it); several can be picked and turned
-  /// off together. System items are shown read only with the reason.
   let { caps }: { caps: Caps } = $props();
 
   const mod = moduleById("startup");
@@ -59,7 +55,6 @@
     void load();
   });
 
-  // System items are only fetched when the filter asks for them.
   $effect(() => {
     if (!thirdOnly && !loadedSystem && !loading) void load();
   });

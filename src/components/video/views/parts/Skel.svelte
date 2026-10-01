@@ -1,5 +1,4 @@
 <script lang="ts">
-  // Loading placeholders shaped like the content that is coming.
   let {
     kind = "grid",
     count = 8,

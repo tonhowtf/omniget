@@ -1,8 +1,4 @@
 <script lang="ts">
-  // Visualizador de diff próprio (sem lib): unificado e dividido, números de
-  // linha, dobra de contexto, destaque leve por regex, virtualização por
-  // altura fixa de linha e seleção de linhas que vira comentário/contexto
-  // para o chat.
   import { tick, untrack } from "svelte";
   import { t } from "$lib/i18n";
   import { compactCount, type FileDiff, type ReviewComment } from "$lib/central/vcs";
@@ -30,17 +26,12 @@
     height?: string;
     toolbar?: boolean;
     collapsedByDefault?: boolean;
-    /** Rola até este arquivo (e o abre) quando muda. */
     revealPath?: string | null;
-    /** Seleção de linhas → comentário ou "adicionar ao chat" (texto vazio). */
     oncomment?: (c: ReviewComment) => void;
-    /** Clique num trecho oculto entre hunks: o pai pode pedir o diff com mais contexto. */
     onrequestcontext?: () => void;
     emptyText?: string | null;
-    /** Botão por hunk (revisão de job, 3.5): arquivo e posição do hunk no arquivo. */
     onhunk?: (path: string, index: number) => void;
     hunkLabel?: string;
-    /** Se o botão daquele hunk fica ativo (um hunk cortado pelo limite, não). */
     hunkEnabled?: (path: string, index: number) => boolean;
   } = $props();
 
@@ -56,7 +47,6 @@
 
   const parsed: ParsedPatch[] = $derived(files.map((f) => parsePatch(f.patch)));
 
-  // HTML destacado por linha (estado de comentário de bloco por lado).
   const hlCache = new WeakMap<DiffLine, string>();
   function highlightFile(i: number) {
     const p = parsed[i];
@@ -153,7 +143,6 @@
     return { items: p.slice(a, b), padTop: p[a].top };
   });
 
-  // Cabeçalho fixo do arquivo em que o topo da vista está.
   const stickyFile = $derived.by(() => {
     const tops = layout.fileTop;
     let idx = -1;
@@ -207,8 +196,6 @@
     });
   });
 
-  // ---- seleção de linhas ----
-
   type Side = "unified" | "left" | "right";
   let sel = $state<{ file: number; side: Side; a: number; b: number } | null>(null);
   let dragging = $state(false);
@@ -222,8 +209,6 @@
     commentText = "";
   }
 
-  // Reinicia o estado quando a lista de arquivos muda de identidade (depois
-  // de `sel`, que o efeito limpa: declarar antes quebra a montagem).
   let lastFiles: FileDiff[] | null = null;
   $effect.pre(() => {
     if (files !== lastFiles) {
@@ -231,8 +216,6 @@
       collapsed = new Set(collapsedByDefault ? files.map((_, i) => i) : []);
       folds = new Map();
       clearSelection();
-      // A shorter list clamps the scroller without always firing `scroll`:
-      // a stale `scrollTop` would pin one file's header over another's lines.
       void tick().then(() => {
         if (scroller) scrollTop = scroller.scrollTop;
       });

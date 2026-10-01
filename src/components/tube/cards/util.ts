@@ -1,4 +1,3 @@
-// Small helpers shared by the OmniTube cards and video screens.
 import { go, type Route } from "$lib/tube/ui.svelte";
 import { openVideo } from "$lib/tube/video.svelte";
 import { showToast } from "$lib/stores/toast-store.svelte";
@@ -30,7 +29,6 @@ export function itemUrl(item: Item): string {
   }
 }
 
-/** In-app deep link, used as the `href` of cards (so the element is a real link). */
 export function watchHref(id: string, list?: string | null): string {
   return `/youtube?v=${encodeURIComponent(id)}${list ? `&list=${encodeURIComponent(list)}` : ""}`;
 }
@@ -43,7 +41,6 @@ export function playlistHref(id: string): string {
   return `/youtube?list=${encodeURIComponent(id)}`;
 }
 
-/** Open the watch page. `openVideo` (W5) owns the mini-player handoff; the route is the fallback. */
 export function openWatch(id: string, opts: { list?: string | null; index?: number | null; t?: number | null } = {}) {
   try {
     openVideo(id, opts);
@@ -60,7 +57,6 @@ export function openPlaylist(id: string) {
   go({ name: "playlist", id });
 }
 
-/** Where a "More" / "See all" nav goes, when we have a screen for it. */
 export function routeForNav(nav: Nav | null | undefined): Route | null {
   if (!nav) return null;
   const b = nav.browse_id;
@@ -74,7 +70,6 @@ export function routeForNav(nav: Nav | null | undefined): Route | null {
   return null;
 }
 
-/** Follow a text run from a description or comment. Returns true when handled. */
 export async function followRun(run: TextRun, onSeek?: (t: number) => void, currentVideo?: string): Promise<void> {
   if (run.t != null && (!run.video_id || run.video_id === currentVideo) && onSeek) {
     onSeek(run.t);
@@ -109,8 +104,6 @@ export async function copyText(text: string, okMsg: string) {
   showToast("success", okMsg);
 }
 
-// Resolved stream sets, shared by the hover preview and the download menu so
-// opening "Download" on a card you just previewed costs nothing.
 const streamCache = new Map<string, Promise<StreamSet>>();
 
 export function streamsFor(id: string): Promise<StreamSet> {
@@ -118,7 +111,6 @@ export function streamsFor(id: string): Promise<StreamSet> {
   if (hit) return hit;
   const p = api.streams(id).then(
     (s) => {
-      // Drop it a bit before the URLs expire.
       const ttl = Math.max(60_000, s.expires_ms - Date.now() - 5 * 60_000);
       setTimeout(() => streamCache.delete(id), ttl);
       return s;
@@ -136,7 +128,6 @@ export function streamUrl(set: StreamSet, itag: number): string {
   return `${set.base}/${itag}?k=${encodeURIComponent(set.token)}`;
 }
 
-/** Local day bucket for grouping feeds and history. */
 export function dayBucket(ms: number, now = Date.now()): "today" | "yesterday" | "week" | "month" | "older" {
   const d = new Date(ms);
   const start = new Date(now);
@@ -162,6 +153,5 @@ export function lsSet(key: string, value: unknown) {
   try {
     localStorage.setItem(key, JSON.stringify(value));
   } catch {
-    // private mode / quota: the preference just isn't remembered
   }
 }

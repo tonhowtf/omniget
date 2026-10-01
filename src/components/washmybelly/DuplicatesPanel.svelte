@@ -26,9 +26,6 @@
   import CleanRoots from "./CleanRoots.svelte";
   import DuplicatesGroup from "./DuplicatesGroup.svelte";
 
-  /// Exact duplicates in the folders the person picks. Each group keeps
-  /// one file; the copies go to the Trash, or, on an APFS disk, become
-  /// clones of the kept file that take no extra space.
   let { caps }: { caps: Caps } = $props();
 
   const SIZES = [

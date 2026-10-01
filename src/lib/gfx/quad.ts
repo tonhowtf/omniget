@@ -1,7 +1,3 @@
-// Interleaved quad writer shared by every sprite-style pass (world batcher,
-// calibration scene, canvas sprite pass). Pure: typed arrays only.
-
-/** x, y, u, v, r, g, b, a */
 const FLOATS_PER_VERTEX = 8;
 const VERTS_PER_QUAD = 4;
 export const FLOATS_PER_QUAD = FLOATS_PER_VERTEX * VERTS_PER_QUAD;
@@ -9,7 +5,6 @@ export const INDICES_PER_QUAD = 6;
 
 export interface Quad {
   page: number;
-  /** Top-left in device pixels. */
   sx: number;
   sy: number;
   w: number;
@@ -27,11 +22,9 @@ function unpackTint(tint: number): [number, number, number] {
   return [((tint >> 16) & 0xff) / 255, ((tint >> 8) & 0xff) / 255, (tint & 0xff) / 255];
 }
 
-/** Writes one quad (4 vertices) at `floatOffset`; returns the next float offset. */
 export function writeQuad(out: Float32Array, floatOffset: number, q: Quad): number {
   const [r, g, b] = unpackTint(q.tint ?? 0xffffff);
   const a = q.alpha ?? 1;
-  // Mirroring swaps the U coordinates; the art is never duplicated.
   const ul = q.flip ? q.u1 : q.u0;
   const ur = q.flip ? q.u0 : q.u1;
   const x0 = q.sx;
@@ -57,7 +50,6 @@ export function writeQuad(out: Float32Array, floatOffset: number, q: Quad): numb
   return o;
 }
 
-/** Shared static index buffer: 0,1,2, 0,2,3 per quad. */
 export function buildIndices(quads: number): Uint16Array {
   const idx = new Uint16Array(quads * INDICES_PER_QUAD);
   for (let i = 0; i < quads; i++) {

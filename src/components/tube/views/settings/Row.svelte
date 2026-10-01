@@ -1,6 +1,4 @@
 <script lang="ts">
-  // One setting: title + short description on the left, control on the right
-  // (or below, with `stack`, for wide controls).
   import type { Snippet } from "svelte";
 
   let {

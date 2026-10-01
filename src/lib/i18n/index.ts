@@ -5,9 +5,6 @@ import en from "./en.json";
 type Payload = [payload?: Record<string, unknown>];
 
 const config = {
-  // O inglês vai embutido no bundle principal e serve de fallback: se o
-  // carregamento assíncrono do idioma falhar no webview, a UI nunca fica sem
-  // texto (era o sintoma no app empacotado: todos os `$t` vazios).
   initLocale: "en",
   fallbackLocale: "en",
   translations: { en },
@@ -88,12 +85,6 @@ const i18nInstance = new i18n<Payload>(config);
 
 export const { t, locale, locales, loading, loadTranslations } = i18nInstance;
 
-/**
- * Loaded locale data as `{ locale: { "flat.key": value } }`, with `{{placeholders}}`
- * still in place. `$t()` runs every value through the default parser, which
- * substitutes the placeholders (and drops the ones it has no payload for), so the
- * native tray menu reads its templates from here instead — see `$lib/tray-strings`.
- */
 export const rawTranslations = i18nInstance.translations as unknown as Readable<
   Record<string, Record<string, unknown>>
 >;

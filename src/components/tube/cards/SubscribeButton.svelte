@@ -1,7 +1,4 @@
 <script lang="ts">
-  // Subscribe / Subscribed (21st 818: the label slides, the bell swings).
-  // With an account it goes to YouTube; without one it is a local
-  // subscription (feed built from RSS), with its own notify toggle.
   import { t } from "$lib/i18n";
   import * as api from "$lib/tube/api";
   import { showToast } from "$lib/stores/toast-store.svelte";

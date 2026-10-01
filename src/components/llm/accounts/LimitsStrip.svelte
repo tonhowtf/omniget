@@ -1,17 +1,10 @@
 <script lang="ts">
-  // Settings of the limits strip. Off by default: nothing is read and no
-  // window exists until the master switch is on, and every reader has its own
-  // box. One read of the prefs on mount, one `limits://prefs` listener (the
-  // strip can be dragged to another edge), nothing polls.
   import { onMount } from "svelte";
   import { t } from "$lib/i18n";
   import { acquireLimitsMonitor, getLimitsMonitor, saveLimitsPrefs, type Edge, type Prefs, type ProviderInfo, type StripSize } from "$lib/stores/limits-monitor.svelte";
-  // `embedded`: mounted inside a Settings group, which already shows the title
-  // and the description, so this drops its own card and heading.
   let { embedded = false }: { embedded?: boolean } = $props();
   const EDGES: Edge[] = ["top", "right", "bottom", "left"];
   const SIZES: StripSize[] = ["s", "m", "l"];
-  /** The on/off looks of the strip, in the order they are listed. */
   const LOOKS = ["show_percent", "show_pace", "contrast"] as const;
   let monitor = $derived(getLimitsMonitor());
   let prefs = $derived(monitor.prefs);
@@ -307,7 +300,6 @@
   }
   .segment.active {
     background: var(--accent);
-    /* --accent-text is the accent itself in most themes: the label vanished. */
     color: var(--on-accent, #fff);
   }
   @media (prefers-reduced-motion: reduce) {

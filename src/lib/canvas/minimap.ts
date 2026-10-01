@@ -1,7 +1,3 @@
-// Minimap (02-motor-do-canvas §3.4): a separate Canvas 2D of 180×120 in L2.
-// Boxes coloured by kind and state (needs-you in red) plus the viewport
-// rectangle. Redrawn on document change and at most 10 Hz during gestures.
-
 import type { CanvasEngine } from './engine.svelte';
 import { drawingBounds } from './model/store.svelte';
 import { isTerminalKind, type Rect } from './model/types';
@@ -12,7 +8,6 @@ export const MINIMAP_W = 180;
 export const MINIMAP_H = 120;
 
 export interface MinimapTransform {
-  /** World rectangle shown. */
   world: Rect;
   scale: number;
   ox: number;

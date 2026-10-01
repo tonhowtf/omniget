@@ -1,12 +1,4 @@
 <script lang="ts">
-  /**
-   * Passo "Suas ferramentas de IA" do onboarding: detecta os CLIs de código
-   * (`clitools_detect`), mostra quais têm sessões (`sessions_sources`),
-   * oferece trazer as sessões recentes como threads (`threads_import_external`,
-   * só leitura, idempotente) e uma stack inicial em 1 clique (MCP de fetch +
-   * skill de depuração + perfil de permissões "dev") planejada pelo agentkit
-   * para as ferramentas detectadas: o plano aparece antes de aplicar.
-   */
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "$lib/i18n";
@@ -21,13 +13,10 @@
     type InstallPlan,
   } from "$lib/central/catalog";
 
-  /** Stack inicial: ids do catálogo (skill + perfil dev) + MCP de fetch próprio. */
   const STARTER_CATALOG_IDS = [
     "cct:skills/development/systematic-debugging",
     "cct:settings/permissions/development-mode",
   ];
-  // O item `cct:mcps/web/web-fetch` do catálogo aponta para um pacote npm que
-  // não existe; o servidor oficial de fetch é o Python `mcp-server-fetch` (uvx).
   const FETCH_MCP = JSON.stringify(
     { mcpServers: { fetch: { command: "uvx", args: ["mcp-server-fetch"], description: "Fetch web pages as Markdown" } } },
     null,

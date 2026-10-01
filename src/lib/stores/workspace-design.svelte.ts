@@ -1,9 +1,4 @@
 
-/**
- * Workspace presets (palettes in workspace-design.css). This module is an
- * adapter: the settings store is the only authority for mode/preset, and the
- * legacy localStorage key is read once by the store's appearance import.
- */
 export const PRESETS = [
   {
     "id": "amber-minimal",

@@ -1,19 +1,10 @@
 <script lang="ts">
-  /**
-   * Sidebar icon. Core sections use the Loop sticker art in
-   * static/icons/menu (32/64/128 px WebP, see assets/icons/menu for the
-   * masters); ids without art fall back to the
-   * macOS System Settings tile: a rounded square with a colour of its own and
-   * a chunky white glyph (Phosphor Fill, MIT, shipped in static/icons).
-   */
   let {
     icon,
     size = 22,
     active = false,
   }: { icon: string; size?: number; active?: boolean } = $props();
 
-  // glyph file + tile gradient per nav id. Colours follow Apple's system
-  // palette so the column reads like a native sidebar.
   const TILES: Record<string, { glyph: string; from: string; to: string }> = {
     home: { glyph: "house", from: "#5AA9FF", to: "#1E6FE8" },
     downloads: { glyph: "tray-arrow-down", from: "#FFB340", to: "#F28500" },
@@ -41,8 +32,6 @@
 
   let tile = $derived(TILES[icon] ?? TILES.fallback);
   let art = $derived(ART.has(icon));
-  // 1x/2x pair picked from the rendered size: the 32 px file covers the rail
-  // and the list at 1x, 64/128 cover retina and the Superpowers cards.
   let artSrc = $derived(size > 32 ? `/icons/menu/${icon}-64.webp` : `/icons/menu/${icon}-32.webp`);
   let artSrcset = $derived(
     size > 32

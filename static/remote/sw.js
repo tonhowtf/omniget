@@ -1,6 +1,3 @@
-/* OmniGet Remote service worker: keeps the app shell for offline use.
-   API calls and the event socket are never cached here; the app keeps the
-   last snapshot itself (localStorage). */
 const CACHE = "omniget-remote-v1";
 const SHELL = ["/remote/", "/remote/index.html", "/remote/app.js", "/remote/app.css", "/remote/icon.svg", "/remote/manifest.webmanifest"];
 
@@ -18,7 +15,6 @@ self.addEventListener("fetch", (e) => {
   const url = new URL(e.request.url);
   if (e.request.method !== "GET" || url.origin !== self.location.origin) return;
   if (!url.pathname.startsWith("/remote/") || url.pathname.startsWith("/remote/api/") || url.pathname.startsWith("/remote/ws")) return;
-  // Network first so a new build shows up; the cache answers offline.
   e.respondWith(
     fetch(e.request)
       .then((res) => {

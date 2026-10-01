@@ -1,5 +1,4 @@
 <script lang="ts">
-  // Forward the selected media to another chat. Always asks before sending.
   import { t } from "$lib/i18n";
   import { showToast } from "$lib/stores/toast-store.svelte";
   import TgModal from "./TgModal.svelte";
@@ -27,7 +26,6 @@
     busy = true;
     error = null;
     try {
-      // Telegram forwards up to 100 messages per request.
       const ids = [...messageIds].sort((a, b) => a - b);
       for (let i = 0; i < ids.length; i += 100) {
         await tg2.forward(from, to, ids.slice(i, i + 100), dropAuthor, dropCaptions);

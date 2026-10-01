@@ -1,8 +1,6 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
 
-  // Two columns: navigation (search on top) and the scrolling content column.
-  // The content is capped at 760 px and never forces horizontal scroll.
   let {
     nav,
     banner,

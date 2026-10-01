@@ -1,5 +1,4 @@
 <script lang="ts">
-  /** A task's log, redacted by the backend and read one page at a time. */
   import { t } from "$lib/i18n";
   import { errorText, missionLog, type LogPage } from "$lib/stores/assist-missions-store.svelte";
 

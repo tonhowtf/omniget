@@ -1,19 +1,4 @@
 <script lang="ts">
-  /**
-   * The security-scan badge, used on an installed skill's card and on a
-   * showcase entry the user already has.
-   *
-   * Two rules it must not break:
-   *
-   * 1. **It never says a skill is safe.** A clean scan reads "scanned", with
-   *    the number next to it; the tooltip spells out that this was one static
-   *    pass by one tool (`--no-llm`).
-   * 2. **A missing scan is its own state**, not a clean one. No scanner on the
-   *    machine shows "not scanned" — dimmer than a score, never a tick.
-   *
-   * The score is NVIDIA SkillSpector's `risk_assessment.score`, 0–100, where a
-   * high number means high risk.
-   */
   import { t } from "$lib/i18n";
   import {
     SCAN_RISK_THRESHOLD,

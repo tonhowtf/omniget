@@ -1,5 +1,4 @@
 <script lang="ts">
-  /** Where the person can watch: subscriptions, accepted ways, confirmed-only. */
   import { t } from "$lib/i18n";
   import {
     ACCESS_KINDS,

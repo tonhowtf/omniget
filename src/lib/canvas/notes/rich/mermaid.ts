@@ -1,14 +1,3 @@
-// Mermaid, drawn by us (Maestri renders ```mermaid natively in notes and
-// chat). A small parser + layered layout + SVG writer for the diagrams people
-// actually paste: flowchart/graph (TD/TB/BT/LR/RL, the common node shapes,
-// labelled and styled links, `&` fan-out), sequenceDiagram (participants,
-// actors, the arrow family, notes, loop/alt/opt frames) and pie. Anything
-// else returns null and the caller keeps the source as a code block.
-//
-// Output is an SVG string. Every piece of user text goes through `esc`.
-// Colours are CSS custom properties with fallbacks (`var(--text, #222)`) so
-// the diagram follows the theme; `resolveVars` bakes them for Copy as Image.
-
 type MermaidKind = 'flowchart' | 'sequence' | 'pie';
 
 export interface Rendered {
@@ -33,14 +22,12 @@ const C = {
   bg: 'var(--surface, #fff)',
 };
 
-/** Categorical palette for pie slices (legible on light and dark). */
 const PIE = ['#4e79a7', '#f28e2b', '#59a14f', '#e15759', '#76b7b2', '#edc948', '#b07aa1', '#ff9da7', '#9c755f', '#bab0ac'];
 
 export function esc(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-/** Rough text width at FONT px (no DOM needed; CJK counts double). */
 function textWidth(s: string, size = FONT): number {
   let w = 0;
   for (const ch of s) {
@@ -82,7 +69,6 @@ function cleanLines(src: string): string[] {
     .filter((l) => l.length > 0);
 }
 
-/** Diagram kind of a source, or null when we do not draw it. */
 export function mermaidKind(src: string): MermaidKind | null {
   const first = cleanLines(src)[0] ?? '';
   if (/^(graph|flowchart)\b/i.test(first)) return 'flowchart';
@@ -129,9 +115,6 @@ function markers(id: string): string {
 
 let seq = 0;
 const uid = () => `mm${(++seq).toString(36)}`;
-
-// ---------------------------------------------------------------------------
-// Flowchart
 
 type Shape = 'rect' | 'round' | 'stadium' | 'circle' | 'dcircle' | 'diamond' | 'hexagon' | 'cylinder' | 'subroutine' | 'asym' | 'para' | 'trap';
 
@@ -188,7 +171,6 @@ function skipWs(c: Cursor) {
   while (c.i < c.s.length && /\s/.test(c.s[c.i])) c.i++;
 }
 
-/** Node reference `id` + optional shape; returns id or null. */
 function parseNodeRef(c: Cursor, nodes: Map<string, FNode>, counter: { n: number }): string | null {
   skipWs(c);
   const m = /^[A-Za-z0-9_À-￿][\wÀ-￿]*(?:-(?!-|\.|>)[\wÀ-￿]+)*/.exec(c.s.slice(c.i));
@@ -207,7 +189,6 @@ function parseNodeRef(c: Cursor, nodes: Map<string, FNode>, counter: { n: number
       break;
     }
   }
-  // `:::class` suffix is styling; ignore it.
   const cls = /^:::[\w-]+/.exec(c.s.slice(c.i));
   if (cls) c.i += cls[0].length;
   let n = nodes.get(id);
@@ -234,7 +215,6 @@ function endOf(ch: string | undefined): FEdge['head'] {
 function parseLink(c: Cursor): LinkTok | null {
   skipWs(c);
   const rest = c.s.slice(c.i);
-  // Text form: `-- text -->`, `== text ==>`, `-. text .->`
   let m = /^([<xo]?)(--|==|-\.)\s+([^\n]*?)\s+(-{2,}|={2,}|\.-+|-\.-*)([>xo]?)(?=\s|[\w"(\[{]|$)/.exec(rest);
   if (m && !/^[-=.]/.test(m[3])) {
     c.i += m[0].length;
@@ -248,7 +228,6 @@ function parseLink(c: Cursor): LinkTok | null {
   }
   m = /^([<xo]?)(~~~|-{2,}|={2,}|-\.+-)([>xo]?)(?:\s*\|([^|]*)\|)?/.exec(rest);
   if (!m) return null;
-  // `A --o B` vs a node named `o...`: an end char must be followed by space or a node.
   c.i += m[0].length;
   const body = m[2];
   return {
@@ -356,13 +335,11 @@ function sizeNode(n: FNode) {
   n.h = Math.max(h, 34);
 }
 
-/** Longest-path ranks with back edges (cycles) ignored; barycenter ordering. */
 function layoutFlow(g: FlowGraph) {
   const nodes = [...g.nodes.values()].sort((a, b) => a.seen - b.seen);
   nodes.forEach(sizeNode);
   const out = new Map<string, string[]>();
   for (const n of nodes) out.set(n.id, []);
-  // DFS to find back edges.
   const state = new Map<string, number>();
   const back = new Set<FEdge>();
   const adj = new Map<string, FEdge[]>();
@@ -381,7 +358,6 @@ function layoutFlow(g: FlowGraph) {
   };
   for (const n of nodes) if (!state.get(n.id)) visit(n.id);
   const fwd = g.edges.filter((e) => !back.has(e) && e.from !== e.to);
-  // Ranks by relaxation (graph is a DAG now).
   const rank = new Map<string, number>(nodes.map((n) => [n.id, 0]));
   for (let pass = 0; pass < nodes.length; pass++) {
     let changed = false;
@@ -394,7 +370,6 @@ function layoutFlow(g: FlowGraph) {
     }
     if (!changed) break;
   }
-  // Pull sources down next to their first child (avoids long first edges).
   for (const n of nodes) {
     const ins = fwd.filter((e) => e.to === n.id);
     const outs = fwd.filter((e) => e.from === n.id);
@@ -424,7 +399,6 @@ function layoutFlow(g: FlowGraph) {
       layer.forEach((n, i) => (n.order = i));
     }
   }
-  // Coordinates. Main axis = rank; cross axis = order.
   const vertical = g.dir === 'TB' || g.dir === 'BT';
   const hasLabels = g.edges.some((e) => e.label);
   const RANK_GAP = hasLabels ? 64 : 48;
@@ -506,7 +480,6 @@ function shapeSvg(n: FNode): string {
   }
 }
 
-/** Point where the ray from the centre towards (tx,ty) leaves the node box. */
 function border(n: FNode, tx: number, ty: number): { x: number; y: number } {
   const dx = tx - n.x;
   const dy = ty - n.y;
@@ -554,13 +527,11 @@ function flowchart(src: string): Rendered | null {
     let d: string;
     let mid: { x: number; y: number };
     if (a === b) {
-      // Self loop on the right/bottom side.
       const s = { x: a.x + a.w / 2, y: a.y - 6 };
       const t = { x: a.x + a.w / 2, y: a.y + 6 };
       d = `M${r(s.x)},${r(s.y)} C${r(s.x + 40)},${r(s.y - 30)} ${r(t.x + 40)},${r(t.y + 30)} ${r(t.x)},${r(t.y)}`;
       mid = { x: a.x + a.w / 2 + 34, y: a.y };
     } else if (back.has(e)) {
-      // Back edges run around the outside (right in TB/BT, below in LR/RL).
       const far = vertical
         ? Math.max(...[...g.nodes.values()].filter((n) => between(n.rank, a.rank, b.rank)).map((n) => n.x + n.w / 2)) + 26
         : Math.max(...[...g.nodes.values()].filter((n) => between(n.rank, a.rank, b.rank)).map((n) => n.y + n.h / 2)) + 26;
@@ -579,7 +550,6 @@ function flowchart(src: string): Rendered | null {
       const s = border(a, vertical ? a.x : b.x, vertical ? b.y : a.y);
       const t = border(b, vertical ? b.x : a.x, vertical ? a.y : b.y);
       const k = vertical ? (t.y - s.y) / 2 : (t.x - s.x) / 2;
-      // Edges that skip a rank bow sideways so the node in between does not hide them.
       const skip = Math.abs(b.rank - a.rank) > 1 && [...g.nodes.values()].some((n) => n !== a && n !== b && strictlyBetween(n.rank, a.rank, b.rank) && (vertical ? Math.abs(n.x - (a.x + b.x) / 2) < n.w / 2 + 6 : Math.abs(n.y - (a.y + b.y) / 2) < n.h / 2 + 6));
       const bow = skip ? (vertical ? a.w / 2 + 30 : a.h / 2 + 30) : 0;
       const c1 = vertical ? { x: s.x + bow, y: s.y + k } : { x: s.x + k, y: s.y + bow };
@@ -603,9 +573,6 @@ function flowchart(src: string): Rendered | null {
   const body = `<g transform="translate(${PAD},${PAD})">${edgesSvg}${nodesSvg}${labelsSvg}</g>`;
   return wrapSvg('flowchart', width + PAD * 2 + (vertical ? hasBack : 0), height + PAD * 2 + (vertical ? 0 : hasBack), body, markers(id));
 }
-
-// ---------------------------------------------------------------------------
-// Sequence diagram
 
 interface SPart {
   id: string;
@@ -678,7 +645,6 @@ function sequence(src: string): Rendered | null {
   const id = uid();
   const BOX_H = 36;
   const idx = new Map(parts.map((p, i) => [p.id, i]));
-  // Column gaps: fit the widest message between each neighbouring pair.
   const gap = parts.map(() => 0);
   for (const s of steps) {
     if (s.t !== 'msg') continue;
@@ -801,9 +767,6 @@ function byIdX(parts: SPart[], id: string): number {
   return parts.find((p) => p.id === id)?.x ?? 0;
 }
 
-// ---------------------------------------------------------------------------
-// Pie
-
 function parsePie(src: string): { title: string; showData: boolean; slices: { label: string; value: number }[] } {
   const lines = cleanLines(src);
   const head = /^pie\b\s*(showData)?\s*(?:title\s+(.*))?$/i.exec(lines[0] ?? '');
@@ -866,15 +829,10 @@ function pie(src: string): Rendered | null {
   return wrapSvg('pie', width, height, titleSvg + body);
 }
 
-// ---------------------------------------------------------------------------
-// Export
-
-/** Replaces `var(--x, fallback)` with the values computed on `host`. */
 export function resolveVars(svg: string, host: Element | null): string {
   const cs = host && typeof getComputedStyle === 'function' ? getComputedStyle(host) : null;
   const re = /var\(\s*(--[\w-]+)\s*(?:,\s*((?:[^()]|\([^()]*(?:\([^()]*\)[^()]*)*\))*))?\)/;
   let out = svg;
-  // Innermost first, repeatedly (fallbacks can nest vars).
   for (let guard = 0; guard < 2000 && re.test(out); guard++) {
     out = out.replace(re, (_m, name: string, fb?: string) => {
       const v = cs?.getPropertyValue(name).trim();

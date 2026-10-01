@@ -1,9 +1,4 @@
 <script lang="ts">
-  // "Ask about this selection" (Maestri Design mode): the crop of the picked
-  // region, the element's selector, a comment, attachments (clip button or
-  // paste) and the agent corded to the portal that receives it. Mounted on
-  // <body> so it escapes the camera transform; covering the portal makes the
-  // policy put the native page to sleep while the sheet is open.
   import { convertFileSrc } from "@tauri-apps/api/core";
   import { t } from "$lib/i18n";
   import { toBody } from "$lib/canvas/to-body";

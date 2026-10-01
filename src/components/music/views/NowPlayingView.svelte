@@ -13,7 +13,6 @@
   let cur = $derived(player.current);
   let lib = $derived(library());
 
-  /** Tracks that mix well after this one: compatible key, tempo within 6%. */
   let harmonic = $derived.by(() => {
     void lib.version;
     const c = cur;
@@ -21,7 +20,6 @@
     return lib.tracks
       .filter((x) => x.id !== c.id && x.camelot && x.bpm && camelotCompatible(c.camelot, x.camelot))
       .map((x) => {
-        // half/double time counts as a match too
         const ratio = [x.bpm! / c.bpm!, (x.bpm! * 2) / c.bpm!, x.bpm! / (c.bpm! * 2)].map((r) => Math.abs(1 - r));
         return { x, d: Math.min(...ratio) };
       })

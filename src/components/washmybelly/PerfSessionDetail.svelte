@@ -8,9 +8,6 @@
   import FrametimeChart from "./FrametimeChart.svelte";
   import FrametimeHistogram from "./FrametimeHistogram.svelte";
 
-  /// One capture: the five numbers people ask about, the frametime over
-  /// time, the histogram, the rest of the statistics and what the sensors
-  /// said around the bad frames.
   let { sessionId, onDelete }: { sessionId: string; onDelete?: () => void } = $props();
 
   let summary = $state<Summary | null>(null);

@@ -1,18 +1,10 @@
-/**
- * Review of a job's changes (3.5): hunks with ids and the discard of one,
- * notes that go back to the agent, integrate or discard a worktree job's
- * branch, and the walkthrough on demand. Typed invokes of `llm_job_*` and
- * the pure pieces the panel needs (tested in job-review.test.ts).
- */
 import { invoke } from "@tauri-apps/api/core";
 import type { FileDiff, FileStatus, ReviewComment } from "$lib/central/vcs";
 import type { Job } from "$lib/stores/llm-jobs-store.svelte";
 
 export type Hunk = {
-  /** `path:sha1(@@ line + body)[..8]`, computed by the backend only. */
   id: string;
   path: string;
-  /** Position among the hunks of its file (the viewer's hunk index). */
   index: number;
   header: string;
   old_start: number;
@@ -21,9 +13,7 @@ export type Hunk = {
   new_lines: number;
   additions: number;
   deletions: number;
-  /** The hunk alone, byte for byte: what a discard sends back. */
   patch: string;
-  /** False when the diff's size limit cut it: shown, never acted on. */
   complete: boolean;
 };
 
@@ -33,7 +23,6 @@ export type HunksView = {
   complete: boolean;
   clipped: boolean;
   mode: "worktree" | "shared";
-  /** A hunk can be discarded now (the job ended, its folder is there). */
   actionable: boolean;
   hunks: Hunk[];
   files: { path: string; patch: string }[];
@@ -56,7 +45,6 @@ export type IntegratePreview = {
   job_id: string;
   branch: string;
   target_branch: string | null;
-  /** Why the merge cannot start (dirty checkout, detached HEAD…), or null. */
   blocker: string | null;
   commits: string[];
   up_to_date: boolean;
@@ -91,11 +79,6 @@ export type Walkthrough = {
 
 const STATUS: Record<string, FileStatus> = { A: "added", D: "deleted", M: "modified", R: "renamed" };
 
-/**
- * The files of a job's diff as the Central's DiffViewer takes them: the
- * counts from the job's file list, the patch of each file from the hunks
- * view (the same bytes the hunk ids were computed from).
- */
 export function viewerFiles(
   files: { path: string; status: string; additions: number | null; deletions: number | null; binary?: boolean }[],
   view: HunksView,
@@ -116,16 +99,10 @@ export function viewerFiles(
   });
 }
 
-/** The hunk the viewer shows as hunk `index` of `path`. */
 export function hunkAt(view: HunksView, path: string, index: number): Hunk | null {
   return view.hunks.find((h) => h.path === path && h.index === index) ?? null;
 }
 
-/**
- * A note from a selection of the viewer. Lines of the new version; a
- * selection of removed lines only has no new line to point at, so it
- * becomes a note on the file that says which removed lines it means.
- */
 export function noteFromComment(c: ReviewComment): { path: string; start_line: number | null; end_line: number | null; body: string } {
   if (c.side === "old") {
     return { path: c.path, start_line: null, end_line: null, body: `(on removed lines ${c.rangeLabel}) ${c.text.trim()}` };
@@ -133,14 +110,12 @@ export function noteFromComment(c: ReviewComment): { path: string; start_line: n
   return { path: c.path, start_line: c.start, end_line: c.end, body: c.text.trim() };
 }
 
-/** `L3`, `L3–9` or `file` for a note. */
 export function noteRange(n: Pick<JobNote, "start_line" | "end_line">): string {
   if (n.start_line == null) return "file";
   if (n.end_line == null || n.end_line === n.start_line) return `L${n.start_line}`;
   return `L${n.start_line}–${n.end_line}`;
 }
 
-/** The error code of a backend message (`CODE: detail`). */
 export function errorCode(e: unknown): string {
   const text = String(e);
   const m = /^([A-Z][A-Z0-9_]+):/.exec(text);

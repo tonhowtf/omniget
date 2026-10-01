@@ -1,5 +1,4 @@
 <script lang="ts">
-  // Album page: immersive header, numbered track list, "Other versions".
   import { t } from "$lib/i18n";
   import * as api from "$lib/tube/api";
   import { mplayer, toggle } from "$lib/tube/music.svelte";
@@ -26,7 +25,6 @@
   let ctx = $derived(album ? `album:${album.id}` : "");
   let isCtx = $derived(!!album && mplayer.context === ctx);
   let names = $derived(new Set((album?.artists ?? []).map((a) => a.name)));
-  // Compilations list each track's artist; plain albums don't repeat it.
   let showArtists = $derived(!!album && album.tracks.some((s) => s.artists.length && !s.artists.every((a) => names.has(a.name))));
   let asItem = $derived<AlbumItem | null>(
     album

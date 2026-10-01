@@ -1,6 +1,4 @@
 <script lang="ts">
-  // Timestamped notes for the current video: N opens a draft 3 s back (or the
-  // A-B range), optional frame capture, inline edit, Markdown export.
   import { t } from "$lib/i18n";
   import { showToast } from "$lib/stores/toast-store.svelte";
   import * as api from "$lib/video/api";

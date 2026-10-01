@@ -1,8 +1,4 @@
 <script lang="ts">
-  // Omni as the canvas companion (the Maestri "Ombro"): what each agent just
-  // finished, where it is blocked or why it failed, with three next steps.
-  // A click on a step pastes it into that agent and submits it. The same
-  // summaries show in the floating pet's balloon, outside the main window.
   import { onMount } from "svelte";
   import { locale, t } from "$lib/i18n";
   import {
@@ -26,11 +22,9 @@
 
   interface Props {
     workspaceId?: string;
-    /** Terminal nodes of the current floor, for "Ask Omni". */
     terminals?: Array<{ id: string; title: string }>;
     onFocusNode?: (nodeId: string) => void;
     onClose?: () => void;
-    /** Fill a whole window (Omni's own window) instead of a popover. */
     fill?: boolean;
   }
   let { workspaceId, terminals = [], onFocusNode, onClose, fill = false }: Props = $props();
@@ -83,7 +77,6 @@
     busy = `${entry.id}:${index}`;
     error = "";
     try {
-      // The step as shown (in this window's language) is what the agent gets.
       const text = entrySuggestions(entry, tr)[index];
       await act(entry.id, index, entry.i18n ? text : undefined);
       sentId = entry.id;

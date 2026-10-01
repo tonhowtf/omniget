@@ -32,10 +32,8 @@ PRELUDE = 1000
 DIR = pathlib.Path(os.environ.get('FAKE_CODEX_DIR', '.'))
 LOCK = threading.Lock()
 
-
 def tokens(text):
     return (len(text) + 3) // 4
-
 
 def main():
     DIR.mkdir(parents=True, exist_ok=True)
@@ -138,7 +136,6 @@ def main():
         elif mid is not None:
             send({'id': mid, 'error': {'code': -32601, 'message': f'unknown method {method}'}})
     return 0
-
 
 if __name__ == '__main__':
     sys.exit(main())

@@ -1,16 +1,3 @@
-/**
- * Página "Back up your extension list".
- *
- * Lê `chrome.management.getAll()` e transforma a lista em três arquivos:
- * JSON (completo, para reimportar), HTML (leitura, com as MV2 no topo) e
- * Markdown. Nada sai da máquina.
- *
- * A permissão `management` é opcional de propósito: ela não vem declarada em
- * `permissions`, então a extensão não pede acesso à lista de extensões de
- * ninguém que não clicar no botão. `chrome.permissions.request` só funciona a
- * partir de um gesto do usuário — daí o botão "Allow access and scan".
- */
-
 import {
   backupFileName,
   buildBackup,
@@ -65,7 +52,6 @@ async function hasPermission() {
   }
 }
 
-/** `chrome.management.getAll()` com promessa, tolerando o callback antigo. */
 function getAllExtensions() {
   return new Promise((resolve, reject) => {
     if (!chrome.management?.getAll) {
@@ -174,7 +160,6 @@ function saveFile(content, fileName, mime) {
   document.body.append(link);
   link.click();
   link.remove();
-  // Um tick é suficiente: o download já pegou o blob.
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
@@ -188,8 +173,6 @@ async function scan() {
     return;
   }
 
-  // Tenta o manifest de verdade quando a outra extensão o deixa legível;
-  // o resto cai na inferência por permissão.
   const enriched = await withProbedManifestVersions(raw);
   backup = buildBackup(enriched, { browser: "Chrome" });
 

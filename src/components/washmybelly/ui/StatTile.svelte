@@ -1,8 +1,6 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
 
-  /// A number with its label. `tone` colours the value; `onClick` makes the
-  /// whole tile a button; `trailing` holds a sparkline or a ring.
   let {
     label,
     value,

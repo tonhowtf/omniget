@@ -4,9 +4,6 @@
   import { addRoots, baseName } from "$lib/washmybelly/clean";
   import { tildify } from "$lib/washmybelly/format";
 
-  /// The folders a scan looks in: removable chips plus "Choose folder"
-  /// (the system folder picker, several at once). With no folder chosen,
-  /// `placeholder` says what the scan falls back to.
   let {
     roots = $bindable<string[]>([]),
     placeholder = "",
@@ -18,7 +15,6 @@
       const picked = await openDialog({ directory: true, multiple: true });
       roots = addRoots(roots, picked as string | string[] | null);
     } catch {
-      // The picker was closed or is not available: nothing changes.
     }
   }
 

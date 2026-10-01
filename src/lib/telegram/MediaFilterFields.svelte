@@ -1,5 +1,4 @@
 <script lang="ts">
-  // Media type chips plus size, keyword and extension filters.
   import { t } from "$lib/i18n";
   import TgIcon from "./TgIcon.svelte";
   import { MEDIA_TYPES } from "./api";

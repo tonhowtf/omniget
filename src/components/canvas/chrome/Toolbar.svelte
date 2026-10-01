@@ -1,8 +1,4 @@
 <script lang="ts">
-  // Top toolbar: tools (select, hand, draw, shapes, eraser, connect), the "+"
-  // spawn menu, undo/redo, the panels and the drawing style of the active
-  // tool. It never scrolls: items that do not fit the width go, by priority,
-  // into the "more" menu at the end (the active tool always stays visible).
   import { t } from "$lib/i18n";
   import { useEngine } from "$lib/canvas/engine.svelte";
   import { DRAW_TOOLS, SHAPE_TOOLS, type ToolName } from "$lib/canvas/interaction/tools";
@@ -12,7 +8,6 @@
   const engine = useEngine();
   const COLORS = ["#e8e6e3", "#1d1d1f", "#e5484d", "#f5a524", "#46a758", "#3e8ef7", "#8e4ec6"];
 
-  // Panels: partituras (book), routines (clock), roles (person).
   const PANEL_ICONS = {
     book: "M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2V5z M6 19h13 M8 7h8",
     clock: "M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18z M12 7v5l3 2",
@@ -27,7 +22,6 @@
   interface Item {
     id: string;
     group: number;
-    /** Lower stays visible longer. */
     prio: number;
     icon: string;
     key: string;
@@ -83,10 +77,10 @@
     panel("visit", 16, PANEL_ICONS.share, "canvas.engine.share", "Share and visit"),
   ];
 
-  const BTN = 32; // 30px button + 2px gap
-  const SEP = 11; // 1px line + 2×4px margin + gap
-  const PAD = 12; // bar padding + border
-  const FIXED = BTN + SEP + BTN; // "+" and its separator, "more"
+  const BTN = 32;
+  const SEP = 11;
+  const PAD = 12;
+  const FIXED = BTN + SEP + BTN;
 
   let avail = $state(0);
   let menuOpen = $state(false);
@@ -102,7 +96,6 @@
     $t("canvas.engine.help.attention", { default: `${mod}⇧A: next agent that needs you` }),
   ]);
 
-  /** Ids that fit, chosen by priority (active tool and open panel first). */
   const visible = $derived.by(() => {
     const room = (avail || 10_000) - PAD - FIXED;
     const ranked = [...ITEMS].sort((a, b) => rank(a) - rank(b));

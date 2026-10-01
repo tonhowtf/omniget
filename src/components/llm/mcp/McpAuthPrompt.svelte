@@ -1,7 +1,4 @@
 <script lang="ts">
-  // Desktop half of `auth_connection_request`: an AI client asked the person
-  // to connect a login. The person opens the cookie settings, then marks the
-  // request done or denies it. Nothing here is sent to the client.
   import { invoke } from "@tauri-apps/api/core";
   import { listen } from "@tauri-apps/api/event";
   import { goto } from "$app/navigation";
@@ -42,7 +39,6 @@
     void refresh();
     let unlisten: (() => void) | null = null;
     listen("mcp-auth-request", () => void refresh()).then((un) => { unlisten = un; });
-    // Expired requests leave the list without an event.
     const timer = setInterval(() => void refresh(), 60_000);
     return () => { unlisten?.(); clearInterval(timer); };
   });

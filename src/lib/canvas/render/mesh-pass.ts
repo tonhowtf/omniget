@@ -1,9 +1,3 @@
-// Drawings as one static triangle mesh (rebuilt per changed drawing, cached by
-// record identity) plus a dynamic mesh for the stroke or shape in progress
-// (02-motor-do-canvas §6.1: "enquanto desenha, buffer dinâmico; ao soltar,
-// lote estático"). Vertices are relative to a batch origin; the camera offset
-// is subtracted in float64 on the CPU before it reaches the shader.
-
 import { linkProgram } from '$lib/gfx/gl';
 import type { CanvasEngine } from '../engine.svelte';
 import { buildDrawing, setDefaultInk } from '../draw/build';
@@ -115,7 +109,6 @@ export function createMeshPass(engine: CanvasEngine): GlPass {
 
   let inkDark: boolean | null = null;
   const rebuild = () => {
-    // Drawings saved without a colour use the theme ink (dark ink on light).
     const dark = prefersDark();
     if (dark !== inkDark) {
       inkDark = dark;
@@ -180,7 +173,6 @@ export function createMeshPass(engine: CanvasEngine): GlPass {
     return dynamic.verts > 0;
   };
 
-  /** `rev` null = upload every time (the draft mesh). */
   const drawBuffer = (g: WebGL2RenderingContext, mb: MeshBuffer, rev: number | null) => {
     if (mb.verts === 0) return;
     g.bindVertexArray(mb.vao);

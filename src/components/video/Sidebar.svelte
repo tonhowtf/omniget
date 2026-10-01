@@ -1,7 +1,4 @@
 <script lang="ts">
-  // Watch navigation (after the 21st "Animated Sidebar"): grouped sections
-  // that fold into an icon rail on narrow windows, connected Jellyfin servers,
-  // scan progress and the privacy switch.
   import { t } from "$lib/i18n";
   import * as api from "$lib/video/api";
   import { app, setIncognito } from "$lib/video/app.svelte";

@@ -1,6 +1,4 @@
 <script lang="ts">
-  // A file dropped on the canvas: an image previews in the node (M-B30);
-  // anything else shows its type badge, name and path.
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "$lib/i18n";
   import type { CanvasNode } from "$lib/canvas/model/types";
@@ -17,7 +15,6 @@
 
   let preview = $state<string | null>(null);
 
-  // The image is read through Rust (the asset protocol only covers app data).
   $effect(() => {
     const p = path;
     const img = isImage;
@@ -46,7 +43,6 @@
     <div class="badge">{ext || "FILE"}</div>
     <div class="meta">
       <div class="name">{name || $t("canvas.engine.fileMissing", { default: "No file" })}</div>
-      <!-- The path is ellipsised at its start (rtl box) but reads left to right. -->
       {#if path}<div class="path" title={path}><bdi dir="ltr">{path}</bdi></div>{/if}
     </div>
   {/if}

@@ -1,6 +1,4 @@
 <script lang="ts">
-  // Empty and error states: the OmniTube illustration, a line of text and
-  // optional actions. Errors always offer "Try again".
   import type { Snippet } from "svelte";
   import { t } from "$lib/i18n";
 

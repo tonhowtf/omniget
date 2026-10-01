@@ -1,6 +1,4 @@
 <script lang="ts">
-  // 72px mini guide (spec §2.3): icon 24 + 10px label per entry, filled icon
-  // on the active one.
   import { t } from "$lib/i18n";
   import { agentActions } from "$lib/native-agent/actions";
   import { tubePrefs } from "$lib/tube/prefs.svelte";

@@ -5,8 +5,6 @@
   import { t } from "$lib/i18n";
   import { formatBytes, type PlanPreview, type ReceiptSummary } from "$lib/washmybelly/api";
 
-  // An external MCP client (Claude Code, Codex...) asked to run a washmybelly
-  // plan or undo a receipt. Nothing runs until the person answers here.
   type Pending = {
     approval: { id: string; target: string; client: string; created: number };
     detail: (PlanPreview & Partial<ReceiptSummary>) | null;

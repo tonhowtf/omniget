@@ -1,10 +1,4 @@
 <script lang="ts">
-  /**
-   * Add or edit one external MCP server: stdio (command, arguments, env, cwd)
-   * or Streamable HTTP (url, headers). The free-text fields are parsed by the
-   * pure helpers in `$lib/llm/mcp`, so what the form saves is exactly what the
-   * tests cover. Saving does not connect; testing does.
-   */
   import { untrack } from "svelte";
   import { t } from "$lib/i18n";
   import {
@@ -30,8 +24,6 @@
     oncancel: () => void;
   } = $props();
 
-  // Seeded once on purpose: the parent re-keys this component when it hands
-  // over another server, same contract as RosterEditor.
   const seed = untrack(() => structuredClone($state.snapshot(config)) as McpServerConfig);
   const isNew = untrack(() => !existingIds.includes(seed.id));
 

@@ -4,10 +4,6 @@
   import SettingRow from "./rebrand/SettingRow.svelte";
   import SettingsSaveBar from "./rebrand/SettingsSaveBar.svelte";
 
-  // Proxy is a transactional form (Save/Discard). The password never comes back
-  // from the backend: `has_password` only says one is stored, and the draft carries
-  // a keep/set/remove operation that lives in memory until it is saved.
-
   type ProxyDraft = {
     enabled: boolean;
     proxy_type: string;
@@ -49,7 +45,6 @@
   }
 
   function save() {
-    // Port 1–65535 and a host are required only while the proxy is on.
     if (form && !form.reportValidity()) return;
     void draft.save();
   }

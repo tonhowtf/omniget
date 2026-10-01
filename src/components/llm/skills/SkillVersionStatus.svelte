@@ -1,10 +1,4 @@
 <script lang="ts">
-  /**
-   * Version state of one installed skill: the hash on disk, whether it still
-   * matches what OmniGet recorded at install (drift = edited outside
-   * OmniGet: bots stop using it until repaired), what it declares it needs,
-   * and the two repairs.
-   */
   import { onMount } from "svelte";
   import { t } from "$lib/i18n";
   import { getBusySkill, getSkillStatus, loadSkillStatus, repairSkill } from "$lib/stores/llm-skills-store.svelte";

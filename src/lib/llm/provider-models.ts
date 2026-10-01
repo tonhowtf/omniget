@@ -1,6 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
 
-/** Response from src-tauri/src/commands/llm/models.rs, including cache hits. */
 interface ProviderModelsResponse {
   provider: string;
   models: string[];

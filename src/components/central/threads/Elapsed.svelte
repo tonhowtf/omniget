@@ -1,6 +1,4 @@
 <script lang="ts">
-  // Self-ticking elapsed time: writes textContent once a second, so nothing
-  // else re-renders (T3 `WorkingTimer`).
   import { formatDuration } from "$lib/central/threads-ui/format";
 
   let { since, prefix = "" }: { since: string; prefix?: string } = $props();

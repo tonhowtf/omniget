@@ -7,16 +7,10 @@ import {
 } from "./settings-store.svelte";
 import { isApiError } from "./settings-v3-types";
 
-/**
- * In-memory drafts for forms with Save/Discard (proxy, fonts, hotkeys). One
- * draft per id survives tab changes inside Settings; nothing goes to
- * localStorage, so a secret typed into a draft lives only in this WebView.
- */
 type SettingsDraft<T extends Record<string, unknown>> = {
   readonly value: T;
   readonly dirty: boolean;
   readonly saving: boolean;
-  /** Stable code; the UI translates it with settings.rebrand.state.save_failed. */
   readonly error: string | null;
   save(): Promise<boolean>;
   discard(): void;
@@ -72,9 +66,7 @@ function makeDraft(options: SettingsDraftOptions<Record<string, unknown>>): { dr
     const current = getSettings();
     if (!current) return;
     const dirty = state.base !== null && !same(state.value, state.base);
-    // A reset starts a new generation: drafts go back to the confirmed values.
     if (reason === "reset" || !dirty) { resync(); if (reason === "reset") state.error = null; return; }
-    // Keep the newer intent; only follow the confirmed base.
     state.base = clone(options.read(current));
   });
 
@@ -90,7 +82,6 @@ function makeDraft(options: SettingsDraftOptions<Record<string, unknown>>): { dr
       const snapshotOfDraft = clone(state.value);
       try {
         await saveSettingsForm(options.toPatch(snapshotOfDraft), options.secretOperations?.(snapshotOfDraft));
-        // Values typed after Save was pressed stay a draft.
         if (same(state.value, snapshotOfDraft)) resync();
         else { const current = getSettings(); if (current) state.base = clone(options.read(current)); }
         return true;
@@ -112,7 +103,6 @@ function makeDraft(options: SettingsDraftOptions<Record<string, unknown>>): { dr
 export function createSettingsDraft<T extends Record<string, unknown>>(options: SettingsDraftOptions<T>): SettingsDraft<T> {
   const existing = drafts.get(options.id);
   if (existing) {
-    // Keep the draft text; take the newest mapping functions from the caller.
     existing.options.read = options.read as Entry["options"]["read"];
     existing.options.toPatch = options.toPatch as Entry["options"]["toPatch"];
     existing.options.secretOperations = options.secretOperations as Entry["options"]["secretOperations"];
@@ -124,7 +114,6 @@ export function createSettingsDraft<T extends Record<string, unknown>>(options: 
   return draft as SettingsDraft<T>;
 }
 
-/** Test seam and app-reset helper: forget every draft (memory only). */
 export function clearSettingsDrafts(): void {
   for (const entry of drafts.values()) entry.stop();
   drafts.clear();

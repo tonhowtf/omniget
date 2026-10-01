@@ -1,5 +1,4 @@
 <script lang="ts">
-  /** Project folder: native folder dialog + recent folders + the LLM workspace folder. */
   import { onMount } from "svelte";
   import { open as openDialog } from "@tauri-apps/plugin-dialog";
   import { t } from "$lib/i18n";
@@ -35,7 +34,6 @@
       const r = await openDialog({ directory: true, multiple: false, defaultPath: value ?? undefined });
       if (typeof r === "string" && r) set(r);
     } catch {
-      /* dialog closed */
     }
   }
 

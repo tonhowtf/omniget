@@ -1,6 +1,4 @@
 <script lang="ts">
-  // Ask the AI about this video. Answers come from the transcript, and every
-  // [mm:ss] citation is a button that seeks there.
   import { t } from "$lib/i18n";
   import * as api from "$lib/video/api";
   import { splitCitations } from "$lib/video/format";

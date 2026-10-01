@@ -11,10 +11,6 @@
   import PlanReview from "./ui/PlanReview.svelte";
   import PrivacyItemRow from "./PrivacyItemRow.svelte";
 
-  /// Settings tab: the privacy.sexy catalog grouped by category, each item
-  /// with the state read from the system. Presets apply only recommended,
-  /// readable, not-yet-applied items; items that weaken security stay
-  /// hidden behind their own warning and never join a preset.
   let { privacySourceUrl = "" }: { privacySourceUrl?: string } = $props();
 
   let catalog = $state<PrivacyCatalog | null>(null);

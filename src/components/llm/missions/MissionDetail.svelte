@@ -1,11 +1,4 @@
 <script lang="ts">
-  /**
-   * One mission: where it stands in plain words, what "done" means and which
-   * criteria have evidence, the tasks, the budget (known spend plus calls of
-   * unknown cost, never shown as free), a box to correct the context, and
-   * what you can do next. A blocked mission shows the diagnosis summary and
-   * its suggested actions first. Infrastructure stays collapsed.
-   */
   import { tick } from "svelte";
   import { goto } from "$app/navigation";
   import { t } from "$lib/i18n";
@@ -26,7 +19,6 @@
   import TaskLog from "./TaskLog.svelte";
   import TaskChanges from "./TaskChanges.svelte";
 
-  // Receipt statuses that have a translated label (mission.status.*); anything else is shown as sent.
   const RECEIPT_STATUSES = ["pass", "fail", "unknown", "missing", "stale", "awaiting_human"];
 
   let { missionId, ondeleted }: { missionId: string; ondeleted?: () => void } = $props();
@@ -43,7 +35,6 @@
   let reviseReason = $state("");
   let openLog = $state<string | null>(null);
   let openChanges = $state<string | null>(null);
-  /** The jobs a task ran (its `task:<id>:job:<job>` effects), oldest first. */
   function taskJobs(taskId: string, effects: { key: string; task_id: string | null; kind: string }[]): string[] {
     return effects
       .filter((e) => e.task_id === taskId && e.kind === "agent_turn")
@@ -54,7 +45,6 @@
   let exportPath = $state("");
   let answering = $state<string | null>(null);
   let noteBox = $state<HTMLTextAreaElement | null>(null);
-  // Inline "raise the limits" form (U1): blank fields keep their value.
   let budgetOpen = $state(false);
   let bfTokens = $state("");
   let bfMinutes = $state("");
@@ -71,7 +61,6 @@
   let resumable = $derived(!!m && (m.state === "paused" || m.state === "blocked" || m.state === "partial"));
   let activeReceipts = $derived(detail?.receipts.filter((r) => !r.invalidated_ms) ?? []);
   let staleReceipts = $derived(detail?.receipts.filter((r) => r.invalidated_ms) ?? []);
-  // Tool approvals this mission's turns wait for (the chat does not drive them).
   let limitKind = $derived(m ? budgetBlockKind(m.block) : null);
   let external = $derived(!!m && isExternalMission(m));
   let clientName = $derived(m && external ? externalClientName(m, clientNames) : null);
@@ -125,7 +114,6 @@
     if (external) void mcpClientNames().then((n) => (clientNames = n));
   });
 
-  // Live: an event for this mission refreshes it quietly.
   $effect(() => {
     const n = getMissionTick();
     const ev = getLastMissionEvent();
@@ -165,7 +153,6 @@
       case "start": return void act(() => startMission(id));
       case "pause": return void act(() => pauseMission(id));
       case "resume": return void act(() => resumeMission(id, note).then(() => (note = "")));
-      // The check runs in the background; its result arrives as a mission event.
       case "verify": return void act(async () => {
         const r = await verifyMission(id);
         notice = $t(r.already_running ? "mission.detail.verify_already_running" : "mission.detail.verify_started");
@@ -191,7 +178,6 @@
         else openBudget();
       }
     };
-    // The limits form is its own confirmation: it opens at once and asks before changing anything.
     if (plan.confirm && !(plan.kind === "local" && plan.local === "edit_form")) {
       ask(a.label || $t(`mission.suggested.${a.id}`), go);
       return;
@@ -268,7 +254,6 @@
     void act(() => missionDiagnostics(id, chosen), $t("mission.detail.exported", { path: chosen }));
   }
 
-  /** The same export to a path typed by hand (no native dialog). */
   function exportTyped() {
     if (!m) return;
     const id = m.id;
@@ -621,7 +606,6 @@
   .notice.approval { background: color-mix(in srgb, var(--orange) 16%, transparent); border: var(--hairline) solid color-mix(in srgb, var(--orange) 45%, transparent); }
   .approval-item { display: flex; flex-direction: column; gap: 6px; padding-top: var(--space-2); border-top: var(--hairline) solid var(--separator); }
   .typed { max-width: 560px; }
-  /* Middle-truncated by shortPath (the folder name stays visible); wraps instead of cutting the end. */
   .path { display: inline-block; max-width: 100%; overflow-wrap: anywhere; vertical-align: bottom; }
   .budget-form { display: flex; flex-direction: column; gap: var(--space-2); padding-top: var(--space-2); border-top: var(--hairline) solid var(--separator); }
   .bf-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: var(--space-2) var(--space-3); }

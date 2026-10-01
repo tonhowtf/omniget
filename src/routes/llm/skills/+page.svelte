@@ -1,11 +1,5 @@
 <script lang="ts">
   import SurfaceGuide from "$components/llm/SurfaceGuide.svelte";
-  /**
-   * Skills tab: the installed Agent Skills (origin, allowed tools, agents
-   * using each one), the three install sources and the OpenRouterTeam
-   * showcase. Every read is one command on mount; nothing polls and nothing
-   * reaches the network until the user clicks an install.
-   */
   import { onMount } from "svelte";
   import { t } from "$lib/i18n";
   import { getAgents, loadRoster } from "$lib/stores/llm-store.svelte";
@@ -68,8 +62,6 @@
     void loadCatalog();
     void loadRoster();
     void loadScanner();
-    // An install the user left undecided comes back instead of rotting in a
-    // quarantine folder nobody can name again.
     void loadPendingInstall();
   });
 
@@ -78,11 +70,6 @@
     installing = true;
   }
 
-  /**
-   * An install that came back parked is not a failure and not a success: the
-   * source dialog closes so the scan dialog is the only thing on screen, but
-   * nothing has been installed.
-   */
   function settle(installed: boolean) {
     if (installed || getPendingInstall()) installing = false;
   }
@@ -123,8 +110,6 @@
   {/if}
 
   {#if isScannerAvailable() === false}
-    <!-- Say it plainly: with no scanner installed nothing is checked, and the
-         "not scanned" badges on the cards below mean exactly that. -->
     <p class="notice" role="status">{$t("llm.skills.scanner_missing")}</p>
   {/if}
 
@@ -231,8 +216,6 @@
     font-size: var(--text-sm);
   }
 
-  /* Block layout on purpose, same reason as the roster page: as a flex column
-     the grids would shrink to the viewport and clip their own cards. */
   .skills-page {
     flex: 1;
     min-height: 0;

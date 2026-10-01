@@ -1,7 +1,4 @@
 <script lang="ts">
-  // Watch shell: sidebar, top bar (back, search, open link, scan), the view
-  // picked by `ui.view`, and the player overlay. Folders, files and links can
-  // be dropped on the window; a link pasted anywhere plays right away.
   import { onDestroy, onMount } from "svelte";
   import { getCurrentWebview } from "@tauri-apps/api/webview";
   import { page } from "$app/state";
@@ -61,14 +58,12 @@
     try {
       localStorage.setItem(WELCOMED_KEY, "1");
     } catch {
-      /* session only */
     }
   }
 
   let roots = $derived(app.status?.roots ?? []);
   let showWelcome = $derived(app.loaded && !roots.length && !welcomed && ui.view.name === "home");
 
-  // `/video?key=…&t=…` (an omniget://watch link from exported notes)
   let lastDeepLink = "";
   $effect(() => {
     const key = page.url.searchParams.get("key");
@@ -109,7 +104,6 @@
         })
         .catch(() => {});
     } catch {
-      /* outside Tauri */
     }
     return () => {
       disposed = true;
@@ -137,7 +131,6 @@
         await openResolved(info);
         return;
       }
-      // no direct-file command yet: add the folder and play once scanned
       await addRoot(parentDir(path), "library");
       showToast("info", $t("video.drop.added_folder", { name: baseName(parentDir(path)) }) as string);
     } catch (e) {
@@ -234,7 +227,6 @@
     }, 200);
   }
 
-  // ---- inline search results (library + transcripts) ----
   let found = $state<{ q: string; items: MediaItem[]; hits: TranscriptHit[]; loading: boolean }>({ q: "", items: [], hits: [], loading: false });
 
   $effect(() => {

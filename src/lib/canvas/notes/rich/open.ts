@@ -1,10 +1,3 @@
-// ⌘⇧-click on a path in a note or chat message (Maestri: file paths are
-// links; ⌘⇧ opens them in the app). A folder becomes a file tree beside the
-// anchor; a note file (.md/.markdown/.txt) an external note; anything else an
-// editor, from the workspace folder when the file lives there, otherwise from
-// a small tree rooted at the file's folder (the editor may only read inside a
-// root the workspace knows).
-
 import type { CanvasEngine } from '../../engine.svelte';
 import { nearestFreeSpot } from '../../interaction/snap';
 import type { CanvasNode } from '../../model/types';
@@ -31,7 +24,6 @@ export function dirOf(abs: string): string {
   return i <= 0 ? abs.slice(0, i + 1) || '/' : abs.slice(0, i);
 }
 
-/** Opens `abs` on the canvas beside `anchor`. */
 export function openPathOnCanvas(engine: CanvasEngine, anchor: CanvasNode | null, abs: string, isDir: boolean, line?: number): CanvasNode {
   if (isDir) {
     const spot = besideSpot(engine, anchor, 320, 420);
@@ -54,7 +46,6 @@ export function openPathOnCanvas(engine: CanvasEngine, anchor: CanvasNode | null
   const wd = workspaceDir(engine);
   const rel = wd ? relativeTo(wd, abs) : null;
   if (wd && rel) return openEditorBeside(engine, anchor, wd, rel, line);
-  // Outside the workspace: a tree on the file's folder makes it readable.
   const dir = dirOf(abs);
   const tree =
     engine.store.nodes.find((n) => n.kind === 'filetree' && n.data.rootPath === dir) ??

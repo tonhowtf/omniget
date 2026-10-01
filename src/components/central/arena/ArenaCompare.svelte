@@ -1,9 +1,4 @@
 <script lang="ts">
-  // Comparação lado a lado (roteiro 3.8, S23): arquivo × coluna, com os
-  // arquivos em que as colunas divergem primeiro e marcados. Cada célula diz
-  // o que a coluna fez no arquivo (igual à base, A/M/D e +/−); a cor da
-  // célula é o "resultado": colunas com a mesma cor chegaram ao mesmo
-  // conteúdo. Os arquivos iguais em todas ficam recolhidos.
   import { untrack } from "svelte";
   import { t } from "$lib/i18n";
   import { arenaCompare, arenaError, type ArenaCompare, type ArenaView } from "$lib/central/arena";
@@ -16,7 +11,6 @@
   let loading = $state(false);
   let showAgreed = $state(false);
 
-  // Recarrega quando alguma coluna grava um commit novo.
   let key = $derived(`${arena.arenaId}:${arena.entries.map((e) => `${e.status}:${e.commitSha ?? ""}`).join(",")}`);
   $effect(() => {
     void key;

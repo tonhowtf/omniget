@@ -1,9 +1,4 @@
 <script lang="ts">
-  /**
-   * The run mode picker (2.7): one select in the chat composer and in the
-   * job form. Full access is never one click away: picking it asks for a
-   * second, explicit confirmation before `onchange` fires.
-   */
   import { t } from "$lib/i18n";
   import { RUN_MODES, type RunMode } from "$lib/stores/llm-run-mode.svelte";
 

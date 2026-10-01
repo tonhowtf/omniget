@@ -63,7 +63,6 @@
     }
   }
 
-  // The big frame follows the handle that moved last, once it stops moving.
   function showFrame(at: number) {
     if (!path) return;
     previewAt = at;
@@ -74,7 +73,6 @@
         const img = await invoke<string>("trim_frame", { input: path, at: Math.min(at, Math.max(0, duration - 0.05)) });
         if (ticket === asked) preview = img;
       } catch {
-        // The strip is still there; a missing preview frame is not worth an error.
       }
     }, 150);
   }

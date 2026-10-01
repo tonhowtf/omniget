@@ -31,7 +31,6 @@ DEST = os.path.join(ROOT, "src-tauri", "omniget-core", "data", "washmybelly", "m
 
 ARRAYS = ["SYSTEM_CRITICAL_BUNDLES", "DATA_PROTECTED_BUNDLES"]
 
-# should_protect_data(): patterns matched against the last component.
 NAME_EXTRA = """
 com.apple.*
 loginwindow
@@ -84,7 +83,6 @@ com.getpostman.*
 com.insomnia.*
 """
 
-# should_protect_path() steps 1, 2, 4, 5 and the base.sh whitelists.
 PATH_EXTRA = """
 ipath *systemsettings*
 ipath *systempreferences*
@@ -181,7 +179,6 @@ path */Library/Autosave Information*
 path */Library/Caches/Calendar Cache*
 """
 
-
 def array(text, name):
     m = re.search(r"readonly " + name + r"=\((.*?)\n\)", text, re.S)
     if not m:
@@ -192,7 +189,6 @@ def array(text, name):
         for q in re.findall(r'"([^"]+)"', line):
             out.append(q)
     return out
-
 
 def main():
     if len(sys.argv) != 2:
@@ -248,7 +244,6 @@ def main():
         f.write("- The macOS cleanup targets in `clean/rules_macos.rs` marked `source: \"Mole\"` were ported by hand\n")
         f.write("  from `lib/clean/{user,dev,app_caches,brew,system}.sh` of the same commit.\n")
     print(f"{len(seen)} patterns")
-
 
 if __name__ == "__main__":
     main()

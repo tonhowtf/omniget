@@ -1,6 +1,3 @@
-// Remappable player shortcuts. A binding is the KeyboardEvent.key value, so
-// "N" means Shift+n. Overrides persist per device in localStorage.
-
 export type KeyAction =
   | "toggle"
   | "toggle_alt"
@@ -72,7 +69,6 @@ const DEFAULT_KEYS: Record<KeyAction, string> = {
   shortcuts: "?",
 };
 
-/** Groups for the shortcut sheet, in display order. */
 export const KEY_GROUPS: { id: string; actions: KeyAction[] }[] = [
   { id: "playback", actions: ["toggle", "toggle_alt", "back10", "fwd10", "back5", "fwd5", "frame_back", "frame_fwd", "next", "prev"] },
   { id: "sound_view", actions: ["vol_up", "vol_down", "mute", "fullscreen", "pip", "panel", "info"] },
@@ -98,11 +94,9 @@ function save() {
   try {
     localStorage.setItem(KEYS_KEY, JSON.stringify($state.snapshot(keymap)));
   } catch {
-    /* storage unavailable: bindings last for this session */
   }
 }
 
-/** Binds `key` to `action`, unbinding whatever action used it before. */
 export function rebind(action: KeyAction, key: string) {
   for (const a of Object.keys(keymap) as KeyAction[]) {
     if (a !== action && keymap[a] === key) keymap[a] = "";
@@ -120,11 +114,9 @@ export function actionFor(key: string): KeyAction | null {
   for (const a of Object.keys(keymap) as KeyAction[]) {
     if (keymap[a] === key) return a;
   }
-  // digits are fixed: 0-9 jump to 0-90 %
   return null;
 }
 
-/** Human label for a binding ("Space", "←"). */
 export function keyLabel(key: string): string {
   const names: Record<string, string> = {
     " ": "Space",

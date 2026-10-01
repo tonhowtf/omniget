@@ -1,5 +1,4 @@
 <script lang="ts">
-  // Free text on the canvas: plain text, edited in place when focused.
   import { canvasPrefs } from "$lib/canvas/prefs.svelte";
   import { t } from "$lib/i18n";
   import type { CanvasNode } from "$lib/canvas/model/types";
@@ -19,8 +18,6 @@
   let draft = $state("");
   let area = $state<HTMLTextAreaElement | null>(null);
   const text = $derived(String(node.data.text ?? ""));
-  // Maestri's text block (M-B29): size 8 to 200, regular/medium/bold,
-  // sans/serif/mono, a #RRGGBB color or the theme's text color.
   const size = $derived(Math.min(200, Math.max(8, Number(node.data.fontSize ?? 20) || 20)));
   const WEIGHTS: Record<string, number> = { regular: 400, medium: 500, bold: 700 };
   const weight = $derived(WEIGHTS[String(node.data.fontWeight ?? "regular")] ?? 400);
@@ -45,9 +42,6 @@
     }
   });
 
-  // The block grows with its text and font (M-B29): a bigger size or a
-  // longer line never gets cut by the 240×60 default. It only grows; a
-  // smaller size keeps the box the person drew.
   let box = $state<HTMLDivElement | null>(null);
   $effect(() => {
     void size;
@@ -105,7 +99,6 @@
   }
   .body {
     white-space: pre-wrap;
-    /* Words never break mid-word: a long one widens the block instead. */
     overflow-wrap: normal;
   }
   .empty {

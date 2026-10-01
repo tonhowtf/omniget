@@ -1,11 +1,3 @@
-// The video player engine and its state. One <video> element (owned by
-// Player.svelte and attached here) plays every source: direct files, ffmpeg
-// remux/transcode streams that start at `offset` (seek reloads the URL with
-// `ss=`), and HLS through hls.js or the native WebKit engine.
-//
-// Progress goes to the backend every 5 s while playing and on pause, seek and
-// close; Jellyfin items also report to the server.
-
 import { get } from "svelte/store";
 import { t } from "$lib/i18n";
 import * as api from "./api";
@@ -44,7 +36,6 @@ function saveLocal() {
       JSON.stringify({ ambient: player.ambient, subPos: player.subs.pos, panel: player.panel } satisfies LocalPrefs),
     );
   } catch {
-    /* session only */
   }
 }
 
@@ -53,21 +44,17 @@ export const player = $state({
   info: null as PlaybackInfo | null,
   loading: false,
   error: null as string | null,
-  /** title shown while a source resolves */
   pendingTitle: "",
 
   playing: false,
   buffering: false,
   ended: false,
-  /** seconds, absolute (offset included) */
   position: 0,
   duration: 0,
   volume: 1,
   muted: false,
   speed: 1,
-  /** temporary rate (Shift held) */
   hold: false,
-  /** modes that already failed for this item, in order */
   tried: [] as PlayMode[],
   fullscreen: false,
   audioIndex: null as number | null,
@@ -107,7 +94,6 @@ export const player = $state({
   cardDraft: null as { front: string; back: string; t_ms: number | null } | null,
 });
 
-// ---- engine internals (not reactive) ----
 let el: HTMLVideoElement | null = null;
 let hls: { destroy(): void } | null = null;
 let offset = 0;
@@ -136,8 +122,6 @@ export function osd(text: string) {
   if (osdTimer) clearTimeout(osdTimer);
   osdTimer = setTimeout(() => (player.osd = null), 1200);
 }
-
-// ---- element wiring ----
 
 export function attach(video: HTMLVideoElement) {
   el = video;
@@ -280,8 +264,6 @@ function curDuration(): number {
   return info.duration_ms / 1000;
 }
 
-// ---- events ----
-
 function onMeta() {
   if (!el || !player.info) return;
   player.duration = curDuration();
@@ -289,7 +271,6 @@ function onMeta() {
     el.currentTime = pendingStart;
     pendingStart = 0;
   }
-  // "direct" that decodes audio but no picture (HEVC on some webviews): next tier
   const i = player.info.info;
   if (player.info.mode === "direct" && el.videoWidth === 0 && i.vcodec && (i.width ?? 0) > 0) {
     void tryFallback();
@@ -345,7 +326,6 @@ function onEnded() {
 function onError() {
   if (!el || !player.info) return;
   const code = el.error?.code ?? 0;
-  // 1 = aborted by us (src change)
   if (code === 1) return;
   void tryFallback();
 }
@@ -383,18 +363,14 @@ function onTime() {
   const dt = pos - lastPos;
   lastPos = pos;
   player.position = pos;
-  // a jump that didn't go through seek() (PiP controls, media keys): the
-  // skipped stretch must not count as watched
   if (dt > 5 || dt < -1) watchedFrom = Math.round(pos * 1000);
 
-  // A-B loop
   const { a, b } = player.ab;
   if (a != null && b != null && pos >= b) {
     seek(a);
     return;
   }
 
-  // skip silence
   if (player.skipSilence !== "off" && player.silences.length) {
     const s = silenceAt(pos);
     if (player.skipSilence === "skip" && s && s[1] - pos > 0.25) {
@@ -417,7 +393,6 @@ function onTime() {
     applyRate();
   }
 
-  // auto-pause at the end of each line
   if (player.autoPause && player.playing) {
     const cues = lineCues();
     const ms = pos * 1000 - (cues === player.cues ? player.subs.delayMs : 0);
@@ -445,14 +420,12 @@ function inBuffer(sec: number): boolean {
   for (let i = 0; i < el.buffered.length; i++) {
     if (local >= el.buffered.start(i) && local <= el.buffered.end(i)) return true;
   }
-  // HLS tiers: anything ffmpeg already wrote is seekable without a reload
   for (let i = 0; i < el.seekable.length; i++) {
     if (local >= el.seekable.start(i) && local <= el.seekable.end(i) - 1) return true;
   }
   return false;
 }
 
-// ~30 fps position for subtitles, the scrubber, A-B and line pauses
 let lastFrame = 0;
 function frame(now: number) {
   if (!el) return;
@@ -501,8 +474,6 @@ async function report(playing: boolean, event: "progress" | "stop" = "progress")
   }
 }
 
-// ---- opening and closing ----
-
 async function resolve(source: SourceRef, title?: string): Promise<PlaybackInfo> {
   switch (source.kind) {
     case "local":
@@ -524,7 +495,6 @@ async function resolve(source: SourceRef, title?: string): Promise<PlaybackInfo>
   }
 }
 
-/** Opens the player for any source (local file, link, Jellyfin, IPTV, add-on). */
 export async function openPlayer(source: SourceRef, opts: { title?: string; startMs?: number } = {}): Promise<void> {
   finishSession();
   el?.pause();
@@ -542,7 +512,6 @@ export async function openPlayer(source: SourceRef, opts: { title?: string; star
   }
 }
 
-/** Resolves a web page link with yt-dlp and plays it. */
 export async function openLink(url: string): Promise<void> {
   finishSession();
   player.open = true;
@@ -559,7 +528,6 @@ export async function openLink(url: string): Promise<void> {
   }
 }
 
-/** Plays an already resolved PlaybackInfo (loose files, links, source views). */
 export async function openResolved(info: PlaybackInfo, startMs?: number): Promise<void> {
   if (player.info && player.info.key !== info.key) finishSession();
   player.open = true;
@@ -646,7 +614,6 @@ async function loadSideData(info: PlaybackInfo) {
         if (player.info?.key === key) player.folder = rows.sort((x, y) => x.path.localeCompare(y.path, undefined, { numeric: true, sensitivity: "base" }));
       }
     } catch {
-      /* the lessons tab just stays empty */
     }
   }
   if (info.course_id != null) {
@@ -659,7 +626,6 @@ async function loadSideData(info: PlaybackInfo) {
   }
 }
 
-/** Reports the last position of the current item and resets per-item timers. */
 function finishSession() {
   const info = player.info;
   if (!info) return;
@@ -691,8 +657,6 @@ export function closePlayer() {
   clearMediaSession();
 }
 
-// ---- transport ----
-
 export function toggle() {
   if (!el || !player.info) return;
   if (player.ended) {
@@ -721,8 +685,6 @@ export function seek(sec: number, doReport = true) {
   if (info.seek_reloads) {
     if (inBuffer(sec)) el.currentTime = sec - offset;
     else {
-      // the ffmpeg tiers are HLS: reload through loadSource so hls.js (or
-      // WebKit) gets a playlist that starts at `sec`
       const playing = !el.paused;
       void loadSource(info, sec, currentUrl()).then(() => {
         if (!playing) el?.pause();
@@ -736,7 +698,6 @@ export function seek(sec: number, doReport = true) {
   watchedFrom = Math.round(sec * 1000);
 }
 
-/** The URL of the current tier with any audio override (seek reloads keep it). */
 let audioUrl: string | null = null;
 function currentUrl(): string {
   return audioUrl ?? player.info?.url ?? "";
@@ -802,7 +763,6 @@ export function setAudio(index: number, quiet = false) {
   if (tracks && tracks.length === info.audio_tracks.length && pos >= 0) {
     for (let i = 0; i < tracks.length; i++) tracks[i].enabled = i === pos;
   } else if (info.source.kind === "local") {
-    // the server picks the audio stream with ai=; a direct file becomes a remux
     let url = currentUrl();
     if (/\/f\/\d+/.test(url)) {
       url = url.replace(/\/f\/(\d+)/, "/m/$1");
@@ -816,8 +776,6 @@ export function setAudio(index: number, quiet = false) {
   savePrefs({ audio_index: index });
 }
 
-// ---- subtitles ----
-
 const vttCache = new Map<string, Cue[]>();
 
 async function fetchCues(url: string): Promise<Cue[]> {
@@ -830,7 +788,6 @@ async function fetchCues(url: string): Promise<Cue[]> {
   return cues;
 }
 
-/** Selects a subtitle track for slot 1 (main) or 2 (dual subtitles); null turns it off. */
 export async function selectSubtitle(id: string | null, slot: 1 | 2 = 1, remember = true) {
   const info = player.info;
   if (!info) return;
@@ -871,7 +828,6 @@ export function subtitleDelay(deltaMs: number) {
   savePrefs({ subtitle_delay_ms: player.subs.delayMs });
 }
 
-/** Shifts the subtitles so the next line starts right now. */
 export function nextLineNow() {
   const cues = player.cues;
   if (!cues.length) return;
@@ -891,9 +847,6 @@ export function setSubStyle(patch: { size?: number; bg?: boolean; pos?: number }
   saveLocal();
 }
 
-// ---- study: lines, A-B, silence ----
-
-/** Cues used for line navigation: the main subtitle, else the transcript. */
 function lineCues(): Cue[] {
   return player.cues.length ? player.cues : player.transcript;
 }
@@ -917,7 +870,6 @@ export function jumpLine(dir: -1 | 0 | 1) {
   const d = lineDelay(cues);
   const ms = curPos() * 1000 - d;
   let i = cueBefore(cues, ms);
-  // "previous" while early inside a line goes to the line before it
   if (dir === -1 && i >= 0 && ms - cues[i].start_ms < 800) i -= 1;
   else if (dir === 1) i += 1;
   i = Math.min(Math.max(0, i), cues.length - 1);
@@ -977,7 +929,6 @@ async function loadSilences() {
     const key = info.key;
     let s = await api.silences(info.source.id);
     if (player.info?.key !== key) return;
-    // the backend reports seconds; tolerate milliseconds
     const dur = info.duration_ms / 1000;
     if (dur > 0 && s.some((x) => x[1] > dur * 1.5)) s = s.map((x) => [x[0] / 1000, x[1] / 1000] as [number, number]);
     player.silences = s.sort((x, y) => x[0] - y[0]);
@@ -985,8 +936,6 @@ async function loadSilences() {
     osd(String(e));
   }
 }
-
-// ---- notes, transcript, cards ----
 
 export function startNote() {
   if (!player.info) return;
@@ -1059,7 +1008,6 @@ export async function transcribe() {
   }
 }
 
-/** Opens the card composer with the line under the playhead. */
 export function startCard() {
   if (!player.info) return;
   el?.pause();
@@ -1079,8 +1027,6 @@ export async function saveCard() {
   player.cardDraft = null;
   osd(tr("video.study.card_added"));
 }
-
-// ---- next / previous ----
 
 export function playNext() {
   const next = player.info?.next;
@@ -1108,8 +1054,6 @@ export function cancelNext() {
   nextTimer = null;
   player.nextIn = null;
 }
-
-// ---- view ----
 
 export function togglePanel(tab?: PanelTab) {
   if (!tab) player.panel = player.panel ? null : "lessons";
@@ -1170,8 +1114,6 @@ export async function openExternal(which: "mpv" | "iina" | "vlc" | null = null) 
   }
 }
 
-// ---- preferences ----
-
 function prefScope(): string | null {
   const info = player.info;
   if (!info) return null;
@@ -1210,8 +1152,6 @@ function flushPrefs() {
   prefPending = {};
 }
 
-// ---- media session (hardware keys, Now Playing) ----
-
 function updateMediaSession() {
   const info = player.info;
   if (!info || !("mediaSession" in navigator)) return;
@@ -1224,7 +1164,6 @@ function updateMediaSession() {
     navigator.mediaSession.setActionHandler("nexttrack", info.next ? () => playNext() : null);
     navigator.mediaSession.setActionHandler("previoustrack", info.prev ? () => playPrev() : null);
   } catch {
-    /* not supported by this webview */
   }
 }
 
@@ -1233,6 +1172,5 @@ function clearMediaSession() {
   try {
     navigator.mediaSession.metadata = null;
   } catch {
-    /* ignore */
   }
 }

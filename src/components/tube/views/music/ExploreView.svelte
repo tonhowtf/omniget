@@ -1,6 +1,4 @@
 <script lang="ts">
-  // Explore: three big entry buttons (New releases, Charts, Moods & genres),
-  // then the FEmusic_explore shelves.
   import { onMount } from "svelte";
   import { t } from "$lib/i18n";
   import * as api from "$lib/tube/api";

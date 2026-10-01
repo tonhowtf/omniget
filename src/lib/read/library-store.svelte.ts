@@ -1,7 +1,3 @@
-// The reading library as the webview sees it: books, shelves, followed
-// series, the local server's address and live scan progress. One instance
-// for the whole app.
-
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type { Book, QueueItem, ReadStatusInfo, Series, Shelf } from "./types";
@@ -74,7 +70,6 @@ export async function loadLibrary(force = false) {
   startListening();
 }
 
-/** Re-reads everything soon; many events arrive in bursts. */
 export function scheduleRefresh(ms = 250) {
   if (refreshTimer) clearTimeout(refreshTimer);
   refreshTimer = setTimeout(() => {
@@ -88,7 +83,6 @@ export async function refreshSeries() {
     state.series = await invoke<Series[]>("read_series_list", { onlyLibrary: true });
     state.version++;
   } catch {
-    /* keep */
   }
 }
 
@@ -97,7 +91,6 @@ export async function refreshShelves() {
     state.shelves = await invoke<Shelf[]>("read_shelves");
     state.version++;
   } catch {
-    /* keep */
   }
 }
 
@@ -141,8 +134,6 @@ function startListening() {
   ]).then((u) => (listening = u));
 }
 
-// ---------- URLs from the local server ----------
-
 function base() {
   const s = state.status;
   return s ? `http://127.0.0.1:${s.port}` : "";
@@ -164,7 +155,6 @@ export function pageUrl(bookId: number, n: number) {
   return s ? `${base()}/pg/${bookId}/${n}?k=${s.token}` : "";
 }
 
-/** A remote cover through the image proxy (sources that check Referer). */
 export function proxiedImage(url: string | null | undefined, referer = "") {
   const s = state.status;
   if (!url || !s) return url ?? "";
@@ -176,7 +166,6 @@ export function proxiedImage(url: string | null | undefined, referer = "") {
 export function seriesCover(s: Pick<Series, "cover" | "cover_url" | "source" | "url">) {
   if (s.cover) return coverUrl(s.cover);
   if (!s.cover_url) return "";
-  // Declarative sources' CDNs often want the site as Referer.
   return s.source.startsWith("decl:") ? proxiedImage(s.cover_url, s.url) : s.cover_url;
 }
 

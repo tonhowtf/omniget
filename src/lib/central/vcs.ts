@@ -1,13 +1,7 @@
-// Invokes tipados dos comandos `vcs_*` da Central (git das threads): status,
-// worktree por thread, checkpoints por turno, diffs, restauração e as ações
-// do botão dividido (commit, push, PR). Os erros chegam como "CODE: mensagem".
-
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
 const WORKTREE_SETUP_EVENT = "central://vcs/worktree-setup";
-
-// ---- tipos (espelham os structs Rust, campos em snake_case) ----
 
 type StatusFile = {
   path: string;
@@ -185,65 +179,48 @@ export type PrInfo = {
 export type PrRequest = { title: string; body?: string; base?: string | null; draft?: boolean };
 export type PrCreateResult = { status: "created" | "opened_existing"; pr: PrInfo };
 
-/** Uma seleção de linhas no DiffViewer, pronta para virar contexto no chat. */
 export type ReviewComment = {
   path: string;
-  /** "old" (só linhas removidas), "new" (adicionadas/contexto) ou "mixed". */
   side: "old" | "new" | "mixed";
   start: number;
   end: number;
-  /** Ex.: "+12 to +18", "-4", "L3 to L9". */
   rangeLabel: string;
-  /** Mini hunk autocontido (@@ … @@ + linhas com marcador). */
   diff: string;
-  /** Texto do comentário (vazio em "adicionar ao chat" direto). */
   text: string;
-  /** Linguagem para a cerca de código. */
   language: string;
 };
 
-/** Separa "CODE: mensagem" do erro de um invoke. */
 export function vcsError(e: unknown): { code: string | null; message: string } {
   const s = typeof e === "string" ? e : e instanceof Error ? e.message : String(e);
   const m = /^(ERR_[A-Z_]+):\s*([\s\S]*)$/.exec(s);
   return m ? { code: m[1], message: m[2] } : { code: null, message: s };
 }
 
-// ---- repositório ----
-
 export const vcsStatus = (path: string) => invoke<RepoStatus>("vcs_status", { path });
 export const vcsBranches = (path: string) => invoke<BranchInfo[]>("vcs_branches", { path });
 export const vcsLog = (path: string, n = 50, rev?: string) => invoke<LogEntry[]>("vcs_log", { path, n, rev: rev ?? null });
 
-// ---- worktrees ----
-
 export const vcsWorktreeCreate = (request: WorktreeRequest) => invoke<WorktreeInfo>("vcs_worktree_create", { request });
 export const vcsWorktreeCancel = (thread: string) => invoke<boolean>("vcs_worktree_cancel", { thread });
 
-/** Assina o progresso do setup de worktree (filtra pela thread se dada). */
 export function onWorktreeSetup(cb: (s: SetupSnapshot) => void, thread?: string): Promise<UnlistenFn> {
   return listen<SetupSnapshot>(WORKTREE_SETUP_EVENT, (ev) => {
     if (!thread || ev.payload.thread === thread) cb(ev.payload);
   });
 }
 
-// ---- checkpoints e diffs ----
-
 export const vcsCheckpointCapture = (path: string, thread: string, turn: number) =>
   invoke<Checkpoint>("vcs_checkpoint_capture", { path, thread, turn });
 export const vcsCheckpointList = (path: string, thread: string) =>
   invoke<Checkpoint[]>("vcs_checkpoint_list", { path, thread });
-/** Apaga os checkpoints depois de `afterTurn`; sem ele, todos. */
 export const vcsCheckpointDelete = (path: string, thread: string, afterTurn?: number) =>
   invoke<number>("vcs_checkpoint_delete", { path, thread, afterTurn: afterTurn ?? null });
 
 export const vcsDiffTurn = (path: string, thread: string, turn: number, options?: DiffOptions) =>
   invoke<DiffResult>("vcs_diff_turn", { path, thread, turn, options: options ?? null });
-/** Base (turno 0) → `toTurn`, ou → a árvore viva se omitido. */
 export const vcsDiffFull = (path: string, thread: string, toTurn?: number, options?: DiffOptions) =>
   invoke<DiffResult>("vcs_diff_full", { path, thread, toTurn: toTurn ?? null, options: options ?? null });
 
-/** Fora de uma worktree do OmniGet exige `confirm: true` (senão ERR_VCS_UNSAFE). */
 export const vcsRestoreTurn = (
   path: string,
   thread: string,
@@ -258,8 +235,6 @@ export const vcsRestoreTurn = (
     dropLater: opts.dropLater ?? false,
   });
 
-// ---- ações ----
-
 export const vcsWorkingChanges = (path: string) => invoke<ChangeSummary[]>("vcs_working_changes", { path });
 export const vcsCommitSuggest = (path: string) => invoke<CommitSuggestion>("vcs_commit_suggest", { path });
 export const vcsCommit = (path: string, message?: string | null, files?: string[] | null) =>
@@ -271,9 +246,6 @@ export const vcsPrCreate = (path: string, request: PrRequest) =>
 export const vcsPrView = (path: string, reference?: string) =>
   invoke<PrInfo | null>("vcs_pr_view", { path, reference: reference ?? null });
 
-// ---- utilidades ----
-
-/** 1234 → "1.2k". */
 export function compactCount(n: number): string {
   if (n < 1000) return String(n);
   if (n < 10000) return (n / 1000).toFixed(1).replace(/\.0$/, "") + "k";
@@ -281,8 +253,6 @@ export function compactCount(n: number): string {
   return (n / 1_000_000).toFixed(1).replace(/\.0$/, "") + "M";
 }
 
-// Same rules as `core::vcs::actions::suggest_commit_message`, so the commit
-// dialog can redo the message for the files left checked.
 const isDoc = (p: string) => {
   const l = p.toLowerCase();
   return /\.(md|mdx|txt|rst)$/.test(l) || l.startsWith("docs/");

@@ -1,11 +1,4 @@
 <script lang="ts">
-  /**
-   * The /llm header's view of all work (3.9, stage 1): "Needs you (N)" when
-   * something waits for a person, else the strongest pill with its count.
-   * Mounted by the /llm layout, so it is on every /llm route; it follows the
-   * stores' events (no timer except the minute that ages "done recently"),
-   * and it is where the one-time notifications are sent from.
-   */
   import { onMount } from "svelte";
   import { page } from "$app/state";
   import { t } from "$lib/i18n";
@@ -15,7 +8,6 @@
   let items = $derived(getWorkItems());
   let summary = $derived(summarize(items));
   let path = $derived(page.url.pathname.replace(/\/$/, "") || "/llm");
-  /** Without anything waiting: what runs, else what waits for review, else the queue. */
   let quiet = $derived(
     summary.running > 0
       ? { key: "llm.work.badge_running", count: summary.running, tone: "blue" }
@@ -32,7 +24,6 @@
     return () => clearInterval(clock);
   });
 
-  // Once per (item, turn, status), persisted: see `announce`.
   $effect(() => {
     announce(items, path);
   });

@@ -1,9 +1,4 @@
 <script lang="ts">
-  // Floor bar (bottom right, next to the minimap): the workspace's floors as
-  // chips, "+" to create one (clone or worktree on its own branch), ⚡ for
-  // the setup/run/teardown hooks, and Land / Delete for the current floor.
-  // The settings panel also holds the workspace environment (local, SSH,
-  // Docker, WSL).
   import { onDestroy, onMount } from "svelte";
   import { listen, type UnlistenFn } from "@tauri-apps/api/event";
   import { t } from "$lib/i18n";
@@ -50,22 +45,18 @@
   let busy = $state(false);
   let runs = $state<HookRun[]>([]);
 
-  // create form
   let name = $state("");
   let branch = $state("");
   let existingBranch = $state(false);
   let noGit = $state(false);
   let copyGround = $state(false);
 
-  // settings
   let hooks = $state<FloorHooks>({ setup: [], run: [], teardown: [], autoRunSetup: true });
   let env = $state<EnvRecord>({ kind: "local" });
   let providers = $state<EnvProviders>({ tmux: true, ssh: true, docker: true, sandbox: true, custom: true, wsl: false, runtimes: {} });
   let envStatus = $state("");
-  /** `~/.ssh/config` hosts for the SSH picker (their ProxyJump and keys come along with the alias). */
   let sshList = $state<SshHost[]>([]);
 
-  // delete
   let keepBranch = $state(true);
   let force = $state(false);
 
@@ -78,7 +69,6 @@
   };
 
   async function refresh() {
-    // A slow answer for the workspace we just left must not paint its floors here.
     const ws = workspaceId;
     try {
       const list = await listFloors(ws);
@@ -106,7 +96,6 @@
 
   $effect(() => {
     void workspaceId;
-    // Never show the previous workspace's floors while the new list loads.
     if (workspaceId !== shownFor) {
       shownFor = workspaceId;
       floors = [];

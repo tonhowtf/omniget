@@ -1,9 +1,3 @@
-// Thread detail → flat list of timeline rows (T3 `MessagesTimeline.logic.ts`):
-// turn folds ("Worked for 2m 14s"), tool groups with one-line summaries, a
-// live row with a stable key, answered questions, plan cards and a per-turn
-// footer with changed files, tokens and cost. Pure: UI state (what is
-// expanded) comes in as sets, so the virtual list can key rows by id.
-
 import type {
   ActivityRow,
   MessageRow,
@@ -59,7 +53,6 @@ export type Row =
       files: ChangedFile[];
       durationMs: number | null;
       answer: string;
-      /** Turn error not already shown by an error row. */
       error: string | null;
     };
 
@@ -67,9 +60,7 @@ type DeriveOptions = {
   expandedFolds: Set<string>;
   collapsedFolds: Set<string>;
   expandedGroups: Set<string>;
-  /** Turn ids interrupted in this session: they auto-expand. */
   interruptedHere: Set<string>;
-  /** Latest turn in the thread (for plan actionability). */
   latestTurnId: string | null;
   planMode: boolean;
 };
@@ -93,7 +84,6 @@ function turnDurationMs(t: TurnDetail, now = Date.now()): number {
   return Math.max(0, end - start);
 }
 
-/** One-line plaintext preview of a thought. */
 function thoughtPreview(text: string): string {
   const plain = text
     .replace(/```[\s\S]*?```/g, " ")
@@ -103,14 +93,12 @@ function thoughtPreview(text: string): string {
   return plain.length > 140 ? plain.slice(0, 139) + "…" : plain;
 }
 
-/** Output messages (`<turn>:<item>`) belong to the activity `<turn>:item:<item>`. */
 function outputKey(messageId: string): string | null {
   const i = messageId.lastIndexOf(":");
   if (i < 0) return null;
   return `${messageId.slice(0, i)}:item:${messageId.slice(i + 1)}`;
 }
 
-/** Files changed in a turn: driver diff first, then edit entries. */
 export function changedFilesOf(turn: TurnDetail): { files: ChangedFile[]; patches: DiffFileStat[] } {
   const diffAct = turn.activities.find((a) => a.kind === "turn.diff.updated");
   const unified = diffAct && typeof diffAct.payload.unifiedDiff === "string" ? (diffAct.payload.unifiedDiff as string) : null;
@@ -147,7 +135,7 @@ function itemsOf(turn: { messages: MessageRow[]; activities: ActivityRow[]; user
   let order = 0;
   for (const m of turn.messages) {
     if (m.role === "output") continue;
-    if (m.role === "plan") continue; // shown as the plan card
+    if (m.role === "plan") continue;
     items.push({ t: "msg", at: m.createdAt, order: order++, m });
   }
   for (const a of turn.activities) {
@@ -172,7 +160,6 @@ function itemsOf(turn: { messages: MessageRow[]; activities: ActivityRow[]; user
   return items;
 }
 
-/** Groups a run of work entries: 1 entry → plain row, ≥2 → summary toggle. */
 function pushWorkRun(out: Row[], run: WorkEntry[], opts: DeriveOptions, depth: number) {
   if (!run.length) return;
   const agents = run.filter((e) => e.agent);
@@ -198,7 +185,6 @@ function pushWorkRun(out: Row[], run: WorkEntry[], opts: DeriveOptions, depth: n
   }
 }
 
-/** Items → rows, grouping consecutive work; messages and errors break runs. */
 function rowsOf(items: Item[], opts: DeriveOptions, turn: TurnDetail | null, depth: number, terminalId: string | null): Row[] {
   const out: Row[] = [];
   let run: WorkEntry[] = [];
@@ -274,7 +260,6 @@ function deriveTurn(turn: TurnDetail, opts: DeriveOptions): Row[] {
   for (const u of userItems) if (u.t === "msg") out.push({ kind: "user", id: u.m.messageId, turn, message: u.m, revertTo: turn.turn.ordinal - 1 });
 
   if (live) {
-    // Trailing work collapses into one live row with a stable key.
     let cut = rest.length;
     while (cut > 0) {
       const it = rest[cut - 1];
@@ -303,7 +288,6 @@ function deriveTurn(turn: TurnDetail, opts: DeriveOptions): Row[] {
     return out;
   }
 
-  // Settled turn: fold everything before the terminal answer.
   let terminalIdx = -1;
   for (let i = rest.length - 1; i >= 0; i--) {
     const it = rest[i];
@@ -316,15 +300,12 @@ function deriveTurn(turn: TurnDetail, opts: DeriveOptions): Row[] {
   const failed = turn.turn.state === "failed";
   let before = terminalIdx >= 0 ? rest.slice(0, terminalIdx) : rest;
   let after = terminalIdx >= 0 ? rest.slice(terminalIdx + 1) : [];
-  // A single ordinary trailing tool joins the fold.
   if (after.length === 1 && after[0].t === "work" && !after[0].e.agent && after[0].e.kind !== "error" && after[0].e.kind !== "warning") {
     before = [...before, after[0]];
     after = [];
   }
-  // Questions, subagent runs and errors never fold.
   const foldable = before.filter((i) => !(i.t === "q" || (i.t === "work" && (i.e.agent || i.e.kind === "error" || i.e.kind === "warning"))));
   const pinned = before.filter((i) => !foldable.includes(i));
-  // Reasoning after the answer folds too.
   const afterReasoning = after.filter((i) => i.t === "msg" && i.m.role === "reasoning");
   after = after.filter((i) => !afterReasoning.includes(i));
   const hidden = [...foldable, ...afterReasoning];
@@ -362,7 +343,6 @@ function deriveTurn(turn: TurnDetail, opts: DeriveOptions): Row[] {
   return out;
 }
 
-/** Settled turns are cached by a cheap signature, so streaming only re-derives the live turn. */
 const turnCache = new Map<string, { sig: string; rows: Row[] }>();
 
 function turnSig(turn: TurnDetail, optsKey: string): string {
@@ -420,14 +400,12 @@ export function deriveRows(detail: ThreadDetail | undefined, opts: DeriveOptions
   return rows;
 }
 
-/** Latest context usage we know of: the most recent turn with usage. */
 export function latestUsage(detail: ThreadDetail | undefined): UsageRow | null {
   if (!detail) return null;
   for (let i = detail.turns.length - 1; i >= 0; i--) if (detail.turns[i].usage) return detail.turns[i].usage;
   return null;
 }
 
-/** Latest plan steps (Codex plan / Claude TodoWrite) across turns. */
 export function latestPlan(detail: ThreadDetail | undefined): { steps: PlanRow | null; proposed: PlanRow | null } {
   let steps: PlanRow | null = null;
   let proposed: PlanRow | null = null;
@@ -441,7 +419,6 @@ export function latestPlan(detail: ThreadDetail | undefined): { steps: PlanRow |
   return { steps, proposed };
 }
 
-/** Every subagent / task entry in the thread. */
 export function tasksOf(detail: ThreadDetail | undefined): WorkEntry[] {
   const map = new Map<string, WorkEntry>();
   for (const t of detail?.turns ?? []) {
@@ -454,7 +431,6 @@ export function tasksOf(detail: ThreadDetail | undefined): WorkEntry[] {
   return [...map.values()];
 }
 
-/** Rate-limit windows reported by the driver (latest). */
 export function rateLimitsOf(detail: ThreadDetail | undefined): { id: string; label: string; usedPercent?: number; resetsAt?: string }[] {
   for (const t of [...(detail?.turns ?? [])].reverse()) {
     const a = [...t.activities].reverse().find((x) => x.kind === "account.rate-limits.updated");
@@ -465,7 +441,6 @@ export function rateLimitsOf(detail: ThreadDetail | undefined): { id: string; la
   return [];
 }
 
-/** User prompts of the thread, newest last (for ↑ history). */
 export function userPrompts(detail: ThreadDetail | undefined): string[] {
   const out: string[] = [];
   for (const t of detail?.turns ?? []) for (const m of t.messages) if (m.role === "user" && m.text.trim()) out.push(m.text);

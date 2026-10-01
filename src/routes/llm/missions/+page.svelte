@@ -1,9 +1,4 @@
 <script lang="ts">
-  /**
-   * Activity → Missions: durable objectives with completion criteria. The
-   * list follows `assist://mission`; `?id=` opens one directly (the chat's
-   * mission chip links here). Presets stay below, collapsed.
-   */
   import { page } from "$app/state";
   import { t } from "$lib/i18n";
   import MissionsPanel from "$components/llm/missions/MissionsPanel.svelte";
@@ -14,7 +9,6 @@
   let creating = $state(false);
   let seedCriteria = $state<Criterion[]>([]);
 
-  // "New mission" after a preset starts blank again.
   $effect(() => {
     if (!creating) seedCriteria = [];
   });

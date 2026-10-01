@@ -1,6 +1,4 @@
 <script lang="ts">
-  // Loading placeholders (21st "Skeleton media") in the shape of what is
-  // coming: grid cards, 9:16 shorts, search rows or compact "up next" rows.
   import Grid from "./Grid.svelte";
 
   let {

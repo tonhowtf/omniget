@@ -36,7 +36,6 @@
       const i = jobs.findIndex((x) => x.id === j.id);
       jobs = i >= 0 ? jobs.map((x) => (x.id === j.id ? j : x)) : [...jobs, j];
       if (j.state === "done" && addLib) {
-        // new files were indexed in Rust; pull them once the burst settles
         if (reloadTimer) clearTimeout(reloadTimer);
         reloadTimer = setTimeout(() => void loadLibrary(true), 800);
       }

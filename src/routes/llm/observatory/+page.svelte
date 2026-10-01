@@ -1,18 +1,5 @@
 <script lang="ts">
   import SurfaceGuide from "$components/llm/SurfaceGuide.svelte";
-  /**
-   * Observatory — the instrument panel of the LLM section.
-   *
-   * Top to bottom: quota as energy (one `QuotaMeter` per account, in router
-   * order, with the active candidate marked), cost per day, one card per agent
-   * (throughput, first token, tokens, cache, cost, Context Guardian, timeline),
-   * the wire probe, and the diagnostics list.
-   *
-   * Cadence: the page creates no timer. It pulls one snapshot on mount and
-   * then rides `llm://telemetry`, which the backend pushes at 2 Hz only while
-   * a turn is alive. Leaving the route unsubscribes; a closed section costs
-   * zero.
-   */
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { page } from "$app/stores";
@@ -49,10 +36,8 @@
   let dataState = $derived(getTelemetryState());
   let errorCode = $derived(getTelemetryError());
   let demo = $derived(isDemo());
-  /** Clock of the data, not of the wall: reading it costs no timer. */
   let nowMs = $derived(snapshot.ts_ms || Date.now());
 
-  /** Accounts in router order, so the fallback chain reads top to bottom. */
   let chain = $derived.by<QuotaStatus[]>(() => {
     const byId = new Map(snapshot.quotas.map((q) => [q.id, q]));
     const ordered = snapshot.fallback_chain.map((id) => byId.get(id)).filter((q): q is QuotaStatus => !!q);

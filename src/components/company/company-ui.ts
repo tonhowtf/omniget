@@ -1,10 +1,7 @@
-// Small shared helpers of the company screens: colours for statuses, times,
-// money and the cron presets the forms offer.
 import type { ChartNode, Staff } from '$lib/company/rpc';
 
 export type Tone = 'green' | 'blue' | 'orange' | 'red' | 'yellow' | 'gray' | 'faint';
 
-/** Colour of a staff status, run state, issue status or company status. */
 export function statusTone(status: string | null | undefined): Tone {
   switch (status) {
     case 'running':
@@ -39,7 +36,6 @@ export function statusTone(status: string | null | undefined): Tone {
   }
 }
 
-/** Initials for an avatar: "Grace Hopper" → "GH", "ada" → "A". */
 export function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return '?';
@@ -50,7 +46,6 @@ export function initials(name: string): string {
 
 const HUES = ['--blue', '--green', '--orange', '--purple', '--teal', '--red'];
 
-/** Stable avatar colour token for a name. */
 export function avatarColor(seed: string): string {
   let h = 0;
   for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) | 0;
@@ -59,7 +54,6 @@ export function avatarColor(seed: string): string {
 
 type Translate = (key: string, vars?: Record<string, unknown>) => string;
 
-/** "3 min ago" / "in 2 h" relative to now. */
 export function relTime(ms: number | null | undefined, t: Translate, now = Date.now()): string {
   if (!ms) return t('company.common.never');
   const diff = ms - now;
@@ -70,7 +64,6 @@ export function relTime(ms: number | null | undefined, t: Translate, now = Date.
   return t(diff >= 0 ? `company.common.in_${unit}` : `company.common.${unit}_ago`, { count });
 }
 
-/** "1m 20s" style duration. */
 export function duration(startMs: number | null | undefined, endMs: number | null | undefined): string {
   if (!startMs) return '—';
   const s = Math.max(0, Math.round(((endMs ?? Date.now()) - startMs) / 1000));
@@ -89,7 +82,6 @@ export function microsToUsd(micros: number): string {
   return usd(micros / 1_000_000);
 }
 
-/** Cron presets offered by the forms; the label key lives in company.common.cron.*. */
 export const CRON_PRESETS: { id: string; cron: string }[] = [
   { id: 'every_15', cron: '*/15 * * * *' },
   { id: 'hourly', cron: '0 * * * *' },
@@ -104,7 +96,6 @@ export function presetOf(cron: string | null | undefined): string | null {
   return CRON_PRESETS.find((p) => p.cron === cron.trim())?.id ?? null;
 }
 
-/** Flattens a chart into staff in tree order. */
 export function flattenChart(nodes: ChartNode[]): Staff[] {
   const out: Staff[] = [];
   const walk = (n: ChartNode) => {
@@ -115,7 +106,6 @@ export function flattenChart(nodes: ChartNode[]): Staff[] {
   return out;
 }
 
-/** Builds a chart from a flat list (the dashboard only sends the list). */
 export function chartOf(staff: Staff[], includeTerminated = false): ChartNode[] {
   const list = includeTerminated ? staff : staff.filter((s) => s.status !== 'terminated');
   const ids = new Set(list.map((s) => s.id));
@@ -132,7 +122,6 @@ export function chartOf(staff: Staff[], includeTerminated = false): ChartNode[] 
   return (byParent.get(null) ?? []).map((s) => build(s, seen));
 }
 
-/** Downloads text as a file (the webview saves it to Downloads). */
 export function downloadText(name: string, text: string, type = 'application/json'): void {
   const url = URL.createObjectURL(new Blob([text], { type }));
   const a = document.createElement('a');

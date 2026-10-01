@@ -1,8 +1,3 @@
-// Clipboard writes for rich Markdown. The web Clipboard API (ClipboardItem)
-// carries several flavours at once; when the webview refuses a type (RTF on
-// WebKit, for one) we retry with fewer, and finally fall back to the Tauri
-// clipboard plugin's plain text.
-
 async function pluginText(text: string): Promise<boolean> {
   try {
     const m = await import('@tauri-apps/plugin-clipboard-manager');
@@ -22,7 +17,6 @@ export async function copyText(text: string): Promise<boolean> {
   }
 }
 
-/** Writes several flavours (mime → string); drops unsupported ones in turn. */
 export async function copyFlavours(flavours: Record<string, string>, plain: string): Promise<boolean> {
   const CI = (globalThis as { ClipboardItem?: typeof ClipboardItem }).ClipboardItem;
   if (CI && navigator.clipboard?.write) {
@@ -35,15 +29,12 @@ export async function copyFlavours(flavours: Record<string, string>, plain: stri
         await navigator.clipboard.write([new CI(item)]);
         return true;
       } catch {
-        // try the next, smaller set
       }
     }
   }
   return copyText(plain);
 }
 
-/** Call straight from the click handler: WebKit wants the write inside the
- * gesture, so the PNG may still be a promise. */
 export async function copyPng(png: Blob | Promise<Blob>, fallbackText: string): Promise<boolean> {
   const CI = (globalThis as { ClipboardItem?: typeof ClipboardItem }).ClipboardItem;
   if (CI && navigator.clipboard?.write) {
@@ -51,13 +42,11 @@ export async function copyPng(png: Blob | Promise<Blob>, fallbackText: string): 
       await navigator.clipboard.write([new CI({ 'image/png': png })]);
       return true;
     } catch {
-      // fall through
     }
   }
   return copyText(fallbackText);
 }
 
-/** Rasterises an SVG string (2× scale) to a PNG blob on an opaque background. */
 export async function svgToPng(svg: string, width: number, height: number, background: string): Promise<Blob> {
   const scale = 2;
   const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }));

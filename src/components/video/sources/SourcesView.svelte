@@ -1,8 +1,4 @@
 <script lang="ts">
-  // Sources: connection cards (Connect Integration Cards on 21st.dev) for
-  // Jellyfin/Emby, IPTV (M3U or Xtream), add-ons and AniList, then the list of
-  // what is connected with status, on/off and remove (confirmed in the page).
-  // Nothing ships pre-installed: every source is one the user brings.
   import { onDestroy, onMount } from "svelte";
   import { t } from "$lib/i18n";
   import { showToast } from "$lib/stores/toast-store.svelte";
@@ -15,7 +11,6 @@
   import VIcon from "../views/parts/VIcon.svelte";
   import { errText } from "../views/parts/util";
 
-  /** AniList client for the implicit token flow. Empty = send the user to their developer settings. */
   const ANILIST_CLIENT_ID = "";
   const ANILIST_TOKEN_URL = ANILIST_CLIENT_ID
     ? `https://anilist.co/api/v2/oauth/authorize?client_id=${ANILIST_CLIENT_ID}&response_type=token`
@@ -34,7 +29,6 @@
   let confirmId = $state<string | null>(null);
   let refreshing = $state<number | null>(null);
 
-  // form fields
   let jfServer = $state("");
   let jfUser = $state("");
   let jfPass = $state("");
@@ -76,7 +70,6 @@
   onMount(() => void load());
   onDestroy(stopQc);
 
-  // add-ons that the backend doesn't list as sources still need a row
   let looseAddons = $derived(sources && !sources.some((s) => s.kind === "addon") ? addonList : []);
 
   function openForm(f: Form) {
@@ -110,7 +103,6 @@
     return /^[a-z]+:\/\//i.test(s) ? s : `http://${s}`;
   };
 
-  // ---- Jellyfin ----
   function connectJf() {
     void run(() => api.jfConnect(normUrl(jfServer), jfUser.trim(), jfPass), $t("video.sources.connected_ok") as string);
   }
@@ -159,7 +151,6 @@
     qc = null;
   }
 
-  // ---- IPTV ----
   async function pickM3u() {
     const { open } = await import("@tauri-apps/plugin-dialog");
     const f = await open({ multiple: false, directory: false, filters: [{ name: "M3U", extensions: ["m3u", "m3u8", "txt"] }] }).catch(() => null);
@@ -184,12 +175,10 @@
     }, $t("video.sources.iptv_added") as string);
   }
 
-  // ---- add-ons ----
   function addAddon() {
     void run(() => api.addonInstall(addonUrl.trim()), $t("video.sources.addon_added") as string);
   }
 
-  // ---- AniList ----
   function saveAni() {
     void run(async () => {
       await api.anilistSetToken(aniToken.trim());
@@ -219,7 +208,6 @@
     }
   }
 
-  // ---- list ----
   async function toggle(s: SourceInfo) {
     const next = !s.enabled;
     s.enabled = next;

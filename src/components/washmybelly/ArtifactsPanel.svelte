@@ -13,9 +13,6 @@
   import { onProgress } from "./ui/progress";
   import CleanRoots from "./CleanRoots.svelte";
 
-  /// Project artifacts: build output and installed dependencies of code
-  /// projects (`target/`, `node_modules`...), grouped by project. The next
-  /// build makes them again.
   const AGES = [0, 30, 90, 180] as const;
 
   let roots = $state<string[]>([]);
@@ -200,7 +197,6 @@
     bottom: 0;
     z-index: 2;
     padding: var(--space-3) 0;
-    /* Opaque bar so the button never sits on top of the list's totals. */
     background: var(--pane-bg);
     border-top: 1px solid var(--separator, var(--button-elevated));
   }

@@ -35,10 +35,6 @@ async function isPaired() {
   }
 }
 
-// Keep a low-frequency poll alive while unpaired so that, the moment the user
-// clicks "Pair extension" in the desktop app (which opens a ~120s single-use
-// window), the extension grabs the token on its own — no copy-paste, no
-// returning to the extension. The alarm clears itself once paired.
 async function runAutoPairTick() {
   if (await isPaired()) {
     try {
@@ -72,9 +68,6 @@ if (chrome.alarms?.onAlarm) {
   });
 }
 
-// If the stored token is ever cleared (401 recovery in bridge-client.js, or
-// the user wiping it from the options page), go back to polling for a fresh
-// pairing window so the browser can re-pair without a reinstall.
 if (chrome.storage?.onChanged) {
   chrome.storage.onChanged.addListener((changes, areaName) => {
     if (areaName !== "local") return;
@@ -116,9 +109,6 @@ const actionFeedback = createActionFeedbackController({
   setBadgeBackgroundColor: (details) => chrome.action.setBadgeBackgroundColor(details),
 });
 
-// Registered unconditionally, synchronously, before anything awaits: see the
-// note on registerSnifferListeners. The stored enable flag is consulted inside
-// the handlers, so a disabled sniffer costs one boolean check per request.
 registerSnifferListeners(onMediaDetected);
 
 loadSnifferState().catch(() => {});
@@ -129,11 +119,6 @@ restoreMedia().catch(() => {});
 chrome.runtime.onInstalled.addListener(async (details) => {
   registerContextMenu();
   refreshActiveTab().catch(() => {});
-  // Surface the pairing page on any install/update *if the user hasn't
-  // already paired this browser*. Reloading an unpacked extension fires
-  // `update`, not `install`, so gating only on `install` would silently
-  // skip the onboarding flow for dev builds and users coming from a
-  // pre-bridge OmniGet version.
   if (typeof chrome.runtime.openOptionsPage !== "function") return;
   try {
     const stored = await chrome.storage.local.get("bridge_token");
@@ -146,8 +131,6 @@ chrome.runtime.onInstalled.addListener(async (details) => {
       }
     }
   } catch {
-    // storage unavailable — fall back to the previous behaviour and only
-    // open on a real install.
     if (details?.reason === "install") {
       chrome.runtime.openOptionsPage().catch(() => {});
     }
@@ -285,9 +268,6 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
-  // Deep search runs in the page and finds playlists the network layer never
-  // sees as media. The manifest text itself stays in the content script (it can
-  // be hundreds of KB); we only fetch it at send time, from the tab that has it.
   if (msg.type === "deep-search-media") {
     const tabId = sender?.tab?.id;
     if (typeof tabId !== "number") return false;
@@ -304,8 +284,6 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       responseHeaders: [],
       source: "deep-search",
       hasManifest: Boolean(msg.hasManifest),
-      // Which frame holds the text: an iframe player keeps its own copy, and
-      // asking the whole tab would take whichever frame answered first.
       frameId: typeof sender?.frameId === "number" ? sender.frameId : 0,
     };
     recordDetectedMedia(tabId, entry).then((recorded) => {
@@ -333,9 +311,6 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
 });
 
-// The text lives in the deep-search bridge of the tab that captured it. A tab
-// that has since navigated away answers nothing, which is fine: the app falls
-// back to fetching the URL, and only a blob-backed playlist is truly lost.
 async function fetchManifestText(tabId, frameId, url) {
   if (typeof tabId !== "number") return null;
   try {
@@ -379,8 +354,6 @@ async function handleSendToApp(msg) {
 
   let pageTitle = "";
   let pageThumbnail = "";
-  // A link picked out of selected text points somewhere else: the tab's
-  // title and icon would name it wrongly until the app reads the real ones.
   if (!msg.skipPageMeta) {
     try {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -447,10 +420,6 @@ async function handleSendToApp(msg) {
     if (manifestText) {
       message.manifestText = manifestText;
     } else if (isSyntheticManifestUrl(url)) {
-      // The text lived in the page and the page is gone — a reload, a closed
-      // tab, an evicted entry. A synthetic URL is an identity, not an address,
-      // so there is nothing left to download and no fallback to try. Say so
-      // instead of queueing a URL that can only fail at DNS.
       return { ok: false, reason: "manifest_gone" };
     }
   }
@@ -475,17 +444,11 @@ async function handleSendToApp(msg) {
 
   const cookieSummary = summarizeCookies(cookies);
 
-  // Primary path: localhost HTTP bridge (no extension-ID dependency, full
-  // cookie + metadata payload).
   const bridgeResult = await sendViaBridge(message);
   if (bridgeResult?.ok) {
     return { ok: true, viaBridge: true, cookieSummary };
   }
 
-  // Fallback: omniget:// scheme handler. The desktop app is launched (or
-  // brought to focus) and the URL is queued, but cookies aren't forwarded
-  // — the user can pair the bridge from the extension's options page to
-  // get the full experience.
   const schemeResult = await openOmnigetScheme(url);
   if (schemeResult?.ok) {
     return { ok: true, viaScheme: true, cookieSummary, bridgeReason: bridgeResult?.reason };
@@ -686,9 +649,6 @@ async function scanOpenTabsForCookies() {
   }
 }
 
-// Scan every tracked platform — useful when the user logged into a service
-// before installing the extension (no cookies.onChanged event was ever fired
-// for that login, and they may not have a tab open right now).
 async function scanAllPlatformsForCookies() {
   if (!chrome.cookies?.getAll) return;
   const allPlatforms = [
@@ -716,9 +676,6 @@ async function scanAllPlatformsForCookies() {
 }
 
 scanOpenTabsForCookies();
-// Also do a proactive sweep for users who logged in BEFORE installing the
-// extension (cookies.onChanged never fired, no tab open) — covers SoundCloud,
-// YouTube etc. when the user already had a session in their browser.
 scanAllPlatformsForCookies();
 
 if (chrome.runtime?.onStartup) {

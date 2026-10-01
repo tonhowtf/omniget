@@ -1,5 +1,4 @@
 <script lang="ts">
-  /** Issue status: a colored ring (filled when done) and, optionally, its name. */
   import { t } from "$lib/i18n";
   import { issueStatusColor, issueStatusKey } from "./company-format";
 

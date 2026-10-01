@@ -1,7 +1,3 @@
-// Shapes returned by the `video_*` Tauri commands (src-tauri/src/commands/video).
-// Field names are snake_case, exactly as serde emits them. Command arguments are
-// camelCase on the JS side (Tauri converts them).
-
 export type ServerInfo = { port: number; token: string };
 
 export type RootKind = "library" | "course";
@@ -32,13 +28,12 @@ export type Progress = {
   watched: boolean;
   play_count: number;
   last_played: number | null;
-  /** 0..1, share of distinct seconds actually watched */
   seen_ratio: number;
 };
 
 export type MediaItem = {
   id: number;
-  key: string; // progress key, "local:<hash>"
+  key: string;
   path: string;
   root: string;
   folder: string;
@@ -60,7 +55,7 @@ export type MediaItem = {
   container: string;
   size: number;
   has_subs: boolean;
-  thumb: string | null; // server URL path "/thumb/<id>" (prefix with server base)
+  thumb: string | null;
   added_at: number;
   offline: boolean;
   progress: Progress | null;
@@ -78,8 +73,8 @@ export type ItemsQuery = {
 export type ContinueEntry = {
   key: string;
   title: string;
-  subtitle: string; // "S01E03 · Show" / "Aula 4 · Módulo 2" / host of a link
-  thumb: string | null; // absolute URL or server path
+  subtitle: string;
+  thumb: string | null;
   progress: Progress;
   kind: "resume" | "next";
   source: SourceRef;
@@ -101,13 +96,13 @@ export type CourseSummary = {
   duration_ms: number;
   watched_ms: number;
   last_played: number | null;
-  next_lesson: number | null; // media id
+  next_lesson: number | null;
   thumb: string | null;
 };
 
 export type Attachment = { path: string; name: string; kind: "pdf" | "code" | "subtitle" | "archive" | "image" | "doc" | "other" };
 
-export type Lesson = MediaItem & { number: string; attachments: Attachment[] }; // number "2.10"
+export type Lesson = MediaItem & { number: string; attachments: Attachment[] };
 
 type CourseModule = { index: number; title: string; lessons: Lesson[]; duration_ms: number; watched: number };
 
@@ -129,7 +124,7 @@ type SubtitleTrack = {
   id: string;
   label: string;
   lang: string;
-  url: string; // WebVTT (absolute, token included)
+  url: string;
   default: boolean;
   forced: boolean;
   source: "embedded" | "external" | "online" | "generated" | "remote";
@@ -142,14 +137,13 @@ export type PlaybackInfo = {
   title: string;
   subtitle: string;
   source: SourceRef;
-  url: string; // absolute URL the <video> loads
+  url: string;
   mode: PlayMode;
-  /** true when the URL starts at `offset_ms` (remux/transcode with ss) */
   seek_reloads: boolean;
   offset_ms: number;
-  reason: string; // human readable "why this mode"
+  reason: string;
   duration_ms: number;
-  start_ms: number; // resume point (already minus 5 s)
+  start_ms: number;
   is_live: boolean;
   subtitles: SubtitleTrack[];
   audio_tracks: AudioTrack[];
@@ -167,9 +161,9 @@ export type PlayPrefs = {
   subtitle_id: string | null;
   audio_index: number | null;
   subtitle_delay_ms: number;
-  subtitle_size: number; // percent, 100 = default
+  subtitle_size: number;
   subtitle_bg: boolean;
-  volume: number; // 0..1
+  volume: number;
   skip_silence: "off" | "skip" | "speed";
   auto_pause: boolean;
 };
@@ -182,7 +176,7 @@ export type Note = {
   t_ms: number;
   t_end_ms: number | null;
   text: string;
-  image: string | null; // server path "/img/<file>"
+  image: string | null;
   created_at: number;
   updated_at: number;
 };
@@ -209,8 +203,6 @@ export type HistoryEntry = { key: string; title: string; subtitle: string; at: n
 
 export type ScanProgress = { done: number; total: number; current: string; finished: boolean };
 
-// ---- sources (W4) ----
-
 export type SourceKind = "jellyfin" | "iptv" | "addon";
 type SourceStatus = "ok" | "slow" | "down" | "disabled";
 export type SourceInfo = {
@@ -222,17 +214,17 @@ export type SourceInfo = {
   status: SourceStatus;
   last_error: string | null;
   updated_at: number;
-  extra: Record<string, unknown>; // jellyfin: {user, server_name}; iptv: {channels, epg}; addon: {manifest}
+  extra: Record<string, unknown>;
 };
 
 export type JfView = { id: string; name: string; collection_type: string | null; image: string | null };
 export type JfItem = {
   id: string;
   name: string;
-  type: string; // Movie, Series, Season, Episode, Folder, Video
+  type: string;
   year: number | null;
   overview: string | null;
-  image: string | null; // absolute URL
+  image: string | null;
   backdrop: string | null;
   series_name: string | null;
   season: number | null;

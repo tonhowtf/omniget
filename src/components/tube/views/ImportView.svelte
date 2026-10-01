@@ -1,7 +1,4 @@
 <script lang="ts">
-  // Import subscriptions/history from NewPipe, FreeTube, Google Takeout, OPML
-  // or a list of links (format detected by content in the backend), and
-  // export the local subscriptions as OPML or NewPipe JSON.
   import { onMount } from "svelte";
   import { getCurrentWebview } from "@tauri-apps/api/webview";
   import { open, save } from "@tauri-apps/plugin-dialog";
@@ -100,7 +97,6 @@
         })
         .catch(() => {});
     } catch {
-      /* outside Tauri */
     }
     return () => {
       disposed = true;

@@ -1,9 +1,4 @@
 <script lang="ts">
-  /**
-   * Secrets per agent: a value lives in the OS secret store (never in the
-   * company database), and only the agents bound to it receive it, as an
-   * environment variable, when they run as a command.
-   */
   import { t } from "$lib/i18n";
   import { errorText, rpc, type Staff } from "$lib/company/rpc";
   import { showToast } from "$lib/stores/toast-store.svelte";

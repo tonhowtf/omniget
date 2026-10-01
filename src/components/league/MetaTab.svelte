@@ -110,9 +110,6 @@
     }
   }
 
-  // Load recommendations when the locked champion changes; apply the first one
-  // automatically only when the user asked for it. This component stays mounted
-  // even while its panel is hidden, so auto-apply works from any tab.
   $effect(() => {
     const champ = champSelectChampionId;
     if (champ > 0 && champ !== lastRuneChampion) {
@@ -150,7 +147,6 @@
     }
   }
 
-  // op.gg names positions differently from the client.
   function opggPosition(position: string): string {
     const map: Record<string, string> = {
       TOP: "top",
@@ -188,7 +184,6 @@
   let tiersLoading = $state(false);
   let tiersError = $state("");
 
-  // op.gg encodes tiers as 1 = best; the labels mirror what their site shows.
   function tierLabel(tier: number): string {
     if (tier <= 1) return "S+";
     if (tier === 2) return "S";

@@ -1,9 +1,4 @@
 <script lang="ts">
-  /**
-   * Company settings: identity (name, mission, description, folder), the
-   * owner's governance switches, parallelism, pause/archive, export as a
-   * package and delete (typing the name to confirm).
-   */
   import { goto } from "$app/navigation";
   import { page } from "$app/state";
   import { t } from "$lib/i18n";

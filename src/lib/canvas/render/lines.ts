@@ -1,7 +1,3 @@
-// Screen-space thick polylines with anti-aliased edges: cords, guides, draft
-// arrows. Width is in CSS pixels, constant at any zoom (02 §5). CPU
-// tessellation into one triangle list, one draw call per flush.
-
 import { linkProgram } from '$lib/gfx/gl';
 import type { Rgba } from './color';
 
@@ -31,7 +27,6 @@ void main() {
   outColor = vec4(vColor.rgb * a, a);
 }`;
 
-/** x, y, r, g, b, a, edge, half */
 const STRIDE = 8;
 
 export class LineBatch {
@@ -89,10 +84,6 @@ export class LineBatch {
     this.verts++;
   }
 
-  /**
-   * Polyline in CSS px (flat list). `dash` > 0 draws dashes of that length.
-   * Joints use averaged normals (fine for the smooth curves drawn here).
-   */
   polyline(pts: ArrayLike<number>, width: number, color: Rgba, dash = 0): void {
     const n = Math.floor(pts.length / 2);
     if (n < 2) return;
@@ -113,7 +104,6 @@ export class LineBatch {
         run += len;
         if (phase === 1) continue;
       }
-      // Normals averaged with the neighbours for a seamless strip.
       const nA = this.normalAt(pts, n, i);
       const nB = this.normalAt(pts, n, i + 1);
       const a1x = ax + nA[0] * ext;

@@ -4,8 +4,6 @@ type ScoutReport = { privateProfile?: boolean } | null | undefined;
 
 type MarkedPlayers = { ally: string[]; enemy: string[] };
 
-/// Players the user already wrote a note about. An empty or whitespace-only note
-/// is not a mark: it is a note the user started and abandoned.
 export function markedPlayers(
   players: readonly ScoutedPlayer[],
   notes: Record<string, string>,
@@ -30,9 +28,6 @@ function sideOf(players: readonly ScoutedPlayer[], puuids: readonly string[]): b
   return sides.size === 1 ? [...sides][0] : null;
 }
 
-/// A five-player group whose profiles are all hidden is the shape of a squad
-/// queueing together to farm wins. It is reported as an observation, never as an
-/// accusation: both halves have to hold, and neither is proof on its own.
 export function winrateSquad(
   players: readonly ScoutedPlayer[],
   premades: readonly PremadeGroup[],

@@ -1,7 +1,3 @@
-// Forçar H.264 no YouTube (estudo 39, enhanced-h264ify — MIT). Roda no
-// "mundo" da página, antes de qualquer script do YouTube: faz o navegador
-// dizer que não sabe tocar VP9/AV1 (e, se pedido, 60 fps), então o player
-// escolhe H.264, que máquinas fracas decodificam por hardware.
 (() => {
   const script = document.currentScript;
   const block60 = true;

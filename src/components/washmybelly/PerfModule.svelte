@@ -15,10 +15,6 @@
   import PerfSessionDetail from "./PerfSessionDetail.svelte";
   import PerfCompare from "./PerfCompare.svelte";
 
-  /// Measure a game: what this system can measure and what is missing,
-  /// start a capture (a running game on Windows, a launch command on Linux,
-  /// a game OmniGet opens with the Metal HUD on the Mac), watch it live,
-  /// then read each capture and compare two.
   let { caps }: { caps: Caps } = $props();
 
   const mod = moduleById("perf");
@@ -146,7 +142,6 @@
       copied = text;
       setTimeout(() => (copied = copied === text ? null : copied), 1500);
     } catch {
-      /* clipboard refused: the text stays selectable */
     }
   }
 

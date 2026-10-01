@@ -1,7 +1,4 @@
 <script lang="ts">
-  // Nova arena: projeto (repo git), branch base, prompt (ou o plano aprovado
-  // de uma thread), as ferramentas que competem (instância + modelo por
-  // coluna), modo de acesso e o comando de verificação opcional.
   import { untrack } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "$lib/i18n";
@@ -73,7 +70,6 @@
   let instances = $derived(threadsStore.instances.filter((i) => i.instance.enabled !== false));
   let canStart = $derived(!!project && isRepo === true && prompt.trim().length > 0 && rows.length >= MIN_ENTRIES && rows.length <= MAX_ENTRIES && !busy);
 
-  // Estimativa de custo antes de começar (S23: custo × N colunas).
   let estimate = $state<ArenaEstimate | null>(null);
   let summary = $derived(estimateSummary(estimate));
   let estimateKey = $derived(JSON.stringify(rows.map((r) => [r.instanceId, r.driver, r.model.trim()])));
@@ -102,7 +98,6 @@
     if (!projectId && projects.length) projectId = projects[0].projectId;
   });
 
-  // Branches do projeto escolhido.
   $effect(() => {
     const root = project?.workspaceRoot;
     if (!root) return;
@@ -120,7 +115,6 @@
     })();
   });
 
-  // Instâncias sumidas da lista (conta removida) saem das linhas lembradas.
   $effect(() => {
     if (!instances.length) return;
     const ids = new Set(instances.map((i) => i.instance.id));
@@ -128,7 +122,6 @@
     if (kept.length !== untrack(() => rows).length) rows = kept;
   });
 
-  // Plano aprovado de uma thread → prompt.
   $effect(() => {
     const tid = sourceThread;
     if (!tid) return;
@@ -198,7 +191,6 @@
       try {
         localStorage.setItem(LAST_KEY, JSON.stringify({ projectId, rows, mode, verify } satisfies Last));
       } catch {
-        /* storage off */
       }
       oncreated(arena);
     } catch (e) {

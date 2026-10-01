@@ -1,7 +1,3 @@
-// Own ear clipping for simple polygons (02-motor-do-canvas §6.2). O(n²), fine
-// for shape outlines of a few hundred points; earcut stays as plan B if the
-// bench says so. Input flat [x,y,...]; output vertex indices, 3 per triangle.
-
 function area(p: ArrayLike<number>): number {
   let a = 0;
   const n = p.length / 2;
@@ -30,8 +26,6 @@ function pointInTri(
 export function triangulate(poly: ArrayLike<number>): number[] {
   const n = Math.floor(poly.length / 2);
   if (n < 3) return [];
-  // Normalise to positive signed area (counter-clockwise in y-up terms): a
-  // convex corner then has a positive cross product.
   const idx: number[] = [];
   if (area(poly) > 0) for (let i = 0; i < n; i++) idx.push(i);
   else for (let i = n - 1; i >= 0; i--) idx.push(i);
@@ -46,7 +40,7 @@ export function triangulate(poly: ArrayLike<number>): number[] {
       const b = idx[k];
       const c = idx[(k + 1) % idx.length];
       const cross = (x(b) - x(a)) * (y(c) - y(a)) - (y(b) - y(a)) * (x(c) - x(a));
-      if (cross <= 0) continue; // reflex (or degenerate) for this winding
+      if (cross <= 0) continue;
       let inside = false;
       for (const p of idx) {
         if (p === a || p === b || p === c) continue;
@@ -62,7 +56,6 @@ export function triangulate(poly: ArrayLike<number>): number[] {
       break;
     }
     if (!clipped) {
-      // Degenerate input: fan the rest instead of looping forever.
       for (let k = 1; k + 1 < idx.length; k++) out.push(idx[0], idx[k], idx[k + 1]);
       return out;
     }
@@ -71,7 +64,6 @@ export function triangulate(poly: ArrayLike<number>): number[] {
   return out;
 }
 
-/** Flat triangle list (x,y per vertex) of a polygon's fill. */
 export function fillTriangles(poly: ArrayLike<number>): number[] {
   const tris = triangulate(poly);
   const out: number[] = [];

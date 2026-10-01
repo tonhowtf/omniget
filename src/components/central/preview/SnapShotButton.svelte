@@ -1,7 +1,4 @@
 <script lang="ts">
-  // Composer button: capture another app's window (or the whole screen, or
-  // this thread's Browser page) to a PNG under <app_data>/snapshots and hand
-  // the path back as an attachment.
   import { t } from "$lib/i18n";
   import Icon from "$components/central/threads/Icon.svelte";
   import { errText, previewApi, type WindowInfo } from "./preview-api";

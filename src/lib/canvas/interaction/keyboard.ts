@@ -1,9 +1,3 @@
-// Canvas keyboard (02-motor-do-canvas §3.3, Maestri shortcuts). Keys match by
-// character, not physical key (AZERTY/Dvorak). Single-letter tools only work
-// with nothing selected; with a selection the letters become tmux-style
-// navigation: h/j/k/l focus the spatial neighbour, z zooms in and back,
-// % and " spawn a terminal right/below, 1–9 jump, x closes.
-
 import type { Rect } from '../model/types';
 import type { ToolName } from './tools';
 import type { AlignMode } from './snap';
@@ -49,14 +43,10 @@ export type Command =
   | { cmd: 'cycle'; delta: number }
   | { cmd: 'view'; id: string }
   | { cmd: 'new-terminal' }
-  /** ⌘⌥→ / ⌘⌥←: next/previous node tied to the selection by a cord (across floors). */
   | { cmd: 'cord-walk'; delta: number }
-  /** ⌘⇧D: a sticky note right away, already in edit mode. */
   | { cmd: 'new-note' }
-  /** Lift the selected node (remappable action, no default key). */
   | { cmd: 'lift' }
   | { cmd: 'align'; mode: AlignMode }
-  /** R / ⇧R with drawings selected: turn them 15° clockwise / back (M-C5). */
   | { cmd: 'rotate'; deg: number };
 
 interface KeyLike {
@@ -70,9 +60,7 @@ interface KeyLike {
 
 interface KeyContext {
   hasSelection: boolean;
-  /** The selection is only drawings: arrows move them (Maestri) instead of moving the focus. */
   drawingsOnly?: boolean;
-  /** True on macOS: ⌘ is the primary modifier; elsewhere Ctrl. */
   mac: boolean;
 }
 
@@ -82,7 +70,6 @@ export function resolveKey(e: KeyLike, ctx: KeyContext): Command | null {
   const lower = k.length === 1 ? k.toLowerCase() : k;
 
   if (k === 'Escape') return { cmd: 'escape' };
-  // ⌃Tab / ⌃⇧Tab walk the elements (and move a lifted panel), on every OS.
   if (k === 'Tab' && e.ctrlKey && !e.metaKey && !e.altKey) return { cmd: 'cycle', delta: e.shiftKey ? -1 : 1 };
 
   const custom = customShortcut(e, ctx.mac);
@@ -107,18 +94,13 @@ export function resolveKey(e: KeyLike, ctx: KeyContext): Command | null {
     if (lower === 'x' && !e.shiftKey && !e.altKey) return ctx.hasSelection ? { cmd: 'cut' } : null;
     if (lower === 'v' && !e.shiftKey && !e.altKey) return { cmd: 'paste' };
     if (lower === 'l') return { cmd: 'connect' };
-    // ⌘⇧O shows or hides Omni's own window (also a global shortcut).
     if (lower === 'o' && e.shiftKey && !e.altKey) return { cmd: 'omni-window' };
-    // ⌘⇧\ opens the floors overview (Maestri).
     if ((k === '\\' || k === '|' || e.code === 'Backslash') && e.shiftKey && !e.altKey) return { cmd: 'floors-overview' };
-    // ⌥⌘\ zooms to the selection; ⌘\ toggles the focus on it (Maestri).
     if (k === '\\' || k === '«' || e.code === 'Backslash') return e.altKey ? { cmd: 'view', id: 'zoomToSelection' } : { cmd: 'zoom-toggle' };
     if (lower === 'w' && !e.shiftKey && !e.altKey) return ctx.hasSelection ? { cmd: 'delete' } : null;
     if (lower === 't' && e.shiftKey && !e.altKey) return { cmd: 'view', id: 'tidy' };
     if (lower === 't' && !e.altKey) return { cmd: 'new-terminal' };
     if (lower === 'd' && e.shiftKey && !e.altKey) return { cmd: 'new-note' };
-    // ⌘] / ⌘[ belong to the workspace sidebar (next/previous workspace, Maestri
-    // View menu); z-order moved to ⌘⌥] / ⌘⌥[ and ⌘⇧] / ⌘⇧[.
     if (k === ']' || k === '}' || e.code === 'BracketRight') {
       if (e.shiftKey) return { cmd: 'front' };
       return e.altKey ? { cmd: 'raise' } : null;
@@ -138,7 +120,6 @@ export function resolveKey(e: KeyLike, ctx: KeyContext): Command | null {
     if (k === 'Enter') return { cmd: 'enter' };
     const step = e.shiftKey ? 100 : 20;
     if (e.altKey) {
-      // ⌥ + arrows nudge the selection instead of moving the focus.
       if (k === 'ArrowLeft') return { cmd: 'nudge', dx: -step, dy: 0 };
       if (k === 'ArrowRight') return { cmd: 'nudge', dx: step, dy: 0 };
       if (k === 'ArrowUp') return { cmd: 'nudge', dx: 0, dy: -step };
@@ -146,7 +127,6 @@ export function resolveKey(e: KeyLike, ctx: KeyContext): Command | null {
     }
     if (ctx.drawingsOnly) {
       if (lower === 'r' && !e.altKey) return { cmd: 'rotate', deg: e.shiftKey ? -15 : 15 };
-      // Selected drawings: arrows move them (1, ⇧ 10 world units).
       const fine = e.shiftKey ? 10 : 1;
       if (k === 'ArrowLeft') return { cmd: 'nudge', dx: -fine, dy: 0 };
       if (k === 'ArrowRight') return { cmd: 'nudge', dx: fine, dy: 0 };
@@ -167,7 +147,6 @@ export function resolveKey(e: KeyLike, ctx: KeyContext): Command | null {
     return null;
   }
 
-  // Nothing selected: single-key tools (Maestri rule, no accidental creation).
   switch (lower) {
     case 'v':
       return { cmd: 'tool', tool: 'select' };
@@ -198,7 +177,6 @@ export function resolveKey(e: KeyLike, ctx: KeyContext): Command | null {
     case 'z':
       return { cmd: 'zoom-fit' };
   }
-  // [ / ] with nothing selected: thinner/thicker stroke for the next drawing.
   if (k === '[') return { cmd: 'stroke-width', delta: -1 };
   if (k === ']') return { cmd: 'stroke-width', delta: 1 };
   if (k === '%') return { cmd: 'split', dir: 'right' };
@@ -207,9 +185,6 @@ export function resolveKey(e: KeyLike, ctx: KeyContext): Command | null {
   return null;
 }
 
-// ---- remappable shortcuts (Settings → Canvas → Shortcuts, `canvas.shortcuts`) ----
-
-/** Actions the user can bind, with their default combination ('' = none). */
 export const SHORTCUT_ACTIONS: Record<string, { combo: string; command: Command }> = {
   new_note: { combo: 'mod+shift+d', command: { cmd: 'new-note' } },
   new_terminal: { combo: 'mod+t', command: { cmd: 'new-terminal' } },
@@ -237,14 +212,12 @@ export const SHORTCUT_ACTIONS: Record<string, { combo: string; command: Command 
 
 let overrides: Record<string, string> = {};
 
-/** Settings → Canvas → Shortcuts: action → combination ('' unbinds). */
 export function setShortcutOverrides(map: Record<string, string> | null | undefined): void {
   const out: Record<string, string> = {};
   for (const [k, v] of Object.entries(map ?? {})) if (k in SHORTCUT_ACTIONS && typeof v === 'string') out[k] = normCombo(v);
   overrides = out;
 }
 
-/** `cmd+Shift+Y` → `mod+shift+y` (mod = ⌘ on macOS, Ctrl elsewhere; parts sorted). */
 export function normCombo(s: string): string {
   const parts = s
     .toLowerCase()
@@ -272,10 +245,6 @@ function comboOf(e: KeyLike, mac: boolean): string {
   return parts.join('+');
 }
 
-/**
- * A user binding wins; the default key of a remapped action does nothing.
- * `undefined` = not a remapped key (the built-in table decides).
- */
 function customShortcut(e: KeyLike, mac: boolean): Command | null | undefined {
   const ids = Object.keys(overrides);
   if (!ids.length) return undefined;
@@ -285,11 +254,6 @@ function customShortcut(e: KeyLike, mac: boolean): Command | null | undefined {
   return undefined;
 }
 
-/**
- * Spatial focus: the best neighbour in the half-plane of `dir` from `from`,
- * scored by distance along the axis + 2 × orthogonal deviation (TV/Android
- * focus search). Returns the id or null.
- */
 export function neighborInDirection(from: Rect, candidates: Array<Rect & { id: string }>, dir: Dir): string | null {
   const fx = from.x + from.w / 2;
   const fy = from.y + from.h / 2;
@@ -330,7 +294,6 @@ export function isMac(): boolean {
   return typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 }
 
-/** True when the key event comes from an editable element that must keep it. */
 export function isEditableTarget(t: EventTarget | null): boolean {
   const el = t as HTMLElement | null;
   if (!el || typeof el.closest !== 'function') return false;

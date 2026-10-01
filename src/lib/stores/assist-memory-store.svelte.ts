@@ -1,15 +1,4 @@
-/**
- * Personal memory (`assist::memory`): what a bot knows about the person, as
- * the person sees and corrects it. Wire shapes mirror
- * `src-tauri/src/commands/assist/memory.rs`.
- *
- * Nothing runs at rest: every read is one `invoke` fired by a mount or a
- * click. A failed write keeps the caller's draft (the functions return the
- * error key instead of clearing anything).
- */
 import { invoke } from "@tauri-apps/api/core";
-
-// ── Wire types ──────────────────────────────────────────────────────────
 
 export type MemoryKind = "declared" | "observation" | "inference" | "temporary" | "procedural";
 type MemoryStatus = "active" | "superseded" | "retracted" | "expired";
@@ -71,9 +60,6 @@ interface BackupsInfo {
   newest_ms: number | null;
 }
 
-// ── Pure helpers ────────────────────────────────────────────────────────
-
-/** Display order of the groups on screen. */
 export const KIND_ORDER: MemoryKind[] = ["declared", "temporary", "inference", "observation", "procedural"];
 
 export function scopeKey(scope: MemoryScope): string {
@@ -82,12 +68,10 @@ export function scopeKey(scope: MemoryScope): string {
   return `room:${scope.conversation}`;
 }
 
-/** The two scopes a bot reads in a direct conversation. */
 export function botScopes(botId: string): string[] {
   return ["user", `bot:${botId}`];
 }
 
-/** Active items grouped by kind, in [`KIND_ORDER`], empty groups dropped. */
 export function groupByKind(items: MemoryItem[]): { kind: MemoryKind; items: MemoryItem[] }[] {
   return KIND_ORDER.map((kind) => ({
     kind,
@@ -95,7 +79,6 @@ export function groupByKind(items: MemoryItem[]): { kind: MemoryKind; items: Mem
   })).filter((g) => g.items.length > 0);
 }
 
-/** i18n key for an error string (`ERR_CODE: …`). */
 function memoryErrorKey(err: unknown): string {
   const s = String((err as { message?: string })?.message ?? err ?? "");
   const code = s.split(":")[0]?.trim();
@@ -117,12 +100,9 @@ function memoryErrorKey(err: unknown): string {
   }
 }
 
-/** The bot id of a `bot:<id>` author, if any. */
 export function authorBot(item: MemoryItem): string | null {
   return item.source.author.startsWith("bot:") ? item.source.author.slice(4) : null;
 }
-
-// ── State ───────────────────────────────────────────────────────────────
 
 const state = $state({
   byScope: {} as Record<string, MemoryItem[]>,
@@ -152,7 +132,6 @@ export function getBackups(): BackupsInfo | null {
   return state.backups;
 }
 
-/** Loads the given scopes (active only unless `includeInactive`). */
 export async function loadScopes(keys: string[], includeInactive = false): Promise<void> {
   state.loading = true;
   state.errorKey = null;
@@ -172,7 +151,6 @@ export async function loadScopes(keys: string[], includeInactive = false): Promi
   }
 }
 
-/** Every scope that holds records, with counts, then their records. */
 export async function loadAllScopes(includeInactive = false): Promise<void> {
   state.loading = true;
   state.errorKey = null;
@@ -237,7 +215,6 @@ export async function memoryHistory(id: string): Promise<Outcome<MemoryItem[]>> 
   }
 }
 
-/** Asks where to save, then writes the export there. `null` when cancelled. */
 export async function exportMemory(format: "json" | "markdown"): Promise<Outcome<string> | null> {
   const { save } = await import("@tauri-apps/plugin-dialog");
   const ext = format === "json" ? "json" : "md";
@@ -254,7 +231,6 @@ export async function exportMemory(format: "json" | "markdown"): Promise<Outcome
   }
 }
 
-/** Asks for a JSON export and imports it. `null` when cancelled. */
 export async function importMemory(allowResurrect: boolean): Promise<Outcome<ImportReport> | null> {
   const { open } = await import("@tauri-apps/plugin-dialog");
   const path = await open({ multiple: false, filters: [{ name: "JSON", extensions: ["json"] }] });
@@ -293,8 +269,6 @@ export async function reindexMemory(): Promise<Outcome<number>> {
     return { ok: false, errorKey: memoryErrorKey(e) };
   }
 }
-
-// ── Recall engine (retain, hybrid search, entities, notes) ──────────────
 
 export interface MemoryStats {
   active: number;

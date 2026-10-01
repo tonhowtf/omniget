@@ -1,7 +1,4 @@
 <script lang="ts">
-  // One comment (spec §2.6): avatar 40, "@name" 13/500 + time, text with
-  // timestamps, likes, creator heart, pinned label, and a thread of replies
-  // that loads on demand (avatar 24, joined by a vertical line).
   import { t } from "$lib/i18n";
   import * as api from "$lib/tube/api";
   import { bestAvatar } from "$lib/tube/format";

@@ -1,8 +1,4 @@
 <script lang="ts">
-  /**
-   * Blocked by / blocking / related / subtasks of an issue, with removal, a
-   * form to add a relation by identifier, and "new subtask".
-   */
   import { t } from "$lib/i18n";
   import { showToast } from "$lib/stores/toast-store.svelte";
   import { rpc, errorText, type Issue, type IssueDetail, type IssueLink } from "$lib/company/rpc";

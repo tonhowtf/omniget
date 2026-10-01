@@ -1,5 +1,4 @@
 <script lang="ts">
-  // A web link: title and host; opens in the system browser.
   import { open as openUrl } from "@tauri-apps/plugin-shell";
   import { t } from "$lib/i18n";
   import type { CanvasNode } from "$lib/canvas/model/types";
@@ -24,7 +23,6 @@
     if (/^https?:\/\//i.test(url)) void openUrl(url).catch(() => {});
   }
 
-  // ⇧ + double click opens the link in a portal next to the node (Maestri).
   function dbl(e: MouseEvent) {
     if (!e.shiftKey || !url) return;
     e.preventDefault();

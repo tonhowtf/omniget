@@ -1,7 +1,4 @@
 <script lang="ts">
-  // Album / playlist header: blurred cover behind, 264px art (radius 8),
-  // display title, "Album • Artist • 2024", "12 songs • 42 minutes", two-line
-  // description with "more", and the action row with the big white Play.
   import type { Snippet } from "svelte";
   import { t } from "$lib/i18n";
   import { thumbUrl } from "$lib/tube/format";
@@ -28,10 +25,8 @@
     meta?: Snippet;
     stats?: string;
     description?: string | null;
-    /** Art drawn by us instead of a cover (Liked music). */
     special?: "liked" | null;
     playing?: boolean;
-    /** null = no save button (own playlists). */
     saved?: boolean | null;
     onplay: () => void;
     onshuffle?: () => void;

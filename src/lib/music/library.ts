@@ -1,15 +1,9 @@
-// Pure helpers over the in-memory track list: grouping, search, sorting and
-// formatting. The whole library lives in the webview (a row is small), so
-// albums, artists and genres are derived here instead of asking Rust.
-
 import type { Album, Artist, LrcLine, Track } from "./types";
 
 function albumArtistOf(t: Track): string {
   return (t.album_artist || t.artist || "").trim();
 }
 
-/** Album artist + title; without an album artist, the folder stands in so a
- * compilation tagged per-track artist still forms one album. */
 export function albumKey(t: Track): string {
   const who = t.album_artist.trim() ? t.album_artist.trim().toLowerCase() : `dir:${t.folder}`;
   return `${who}\u0000${(t.album || "").trim().toLowerCase()}`;
@@ -49,7 +43,6 @@ export function groupAlbums(tracks: Track[]): Album[] {
     if (!a.year && t.year) a.year = t.year;
     if (t.added_at > a.added_at) a.added_at = t.added_at;
   }
-  // compilations: many artists on one album without album_artist
   for (const a of map.values()) {
     a.tracks.sort(byDiscTrack);
     const artists = new Set(a.tracks.map((t) => t.artist));
@@ -83,7 +76,6 @@ export function groupArtists(tracks: Track[], albums: Album[]): Artist[] {
   return [...map.values()].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
 }
 
-/** "A feat. B", "A & B", "A, B" -> ["A", "B"]; keeps "Simon & Garfunkel" style names whole when they're the only credit. */
 export function splitArtists(s: string): string[] {
   const clean = s.trim();
   if (!clean) return ["Unknown Artist"];
@@ -124,7 +116,6 @@ export function fold(s: string): string {
   return s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 }
 
-/** Every word of the query must appear in title, artist, album, genre or file name. */
 export function searchTracks(tracks: Track[], query: string): Track[] {
   const words = fold(query).split(/\s+/).filter(Boolean);
   if (!words.length) return tracks;
@@ -167,7 +158,6 @@ export function fmtTime(ms: number): string {
   return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}` : `${m}:${String(sec).padStart(2, "0")}`;
 }
 
-/** "3 h 12 min" for long spans. */
 export function fmtLong(ms: number): string {
   const min = Math.round(ms / 60000);
   if (min < 60) return `${min} min`;
@@ -198,7 +188,6 @@ export function qualityLabel(t: Pick<Track, "codec" | "bitrate" | "sample_rate" 
   return [t.codec, t.bitrate ? `${t.bitrate} kbps` : ""].filter(Boolean).join(" · ");
 }
 
-/** Lossless file whose spectrum stops like a lossy encode. */
 export function looksUpscaled(t: Pick<Track, "codec" | "cutoff_hz" | "sample_rate">): boolean {
   const lossless = ["FLAC", "ALAC", "WAV", "AIFF", "WavPack", "APE"].includes(t.codec);
   if (!lossless || !t.cutoff_hz) return false;
@@ -218,7 +207,6 @@ export function lineAt(lines: LrcLine[], ms: number): number {
   return lo;
 }
 
-/** Fisher-Yates, keeping `first` (the track the user clicked) at the front. */
 export function shuffled<T>(items: T[], first?: T): T[] {
   const a = items.filter((x) => x !== first);
   for (let i = a.length - 1; i > 0; i--) {
@@ -228,7 +216,6 @@ export function shuffled<T>(items: T[], first?: T): T[] {
   return first !== undefined ? [first, ...a] : a;
 }
 
-/** Camelot neighbours that mix harmonically: same number, ±1, and relative major/minor. */
 export function camelotCompatible(a: string, b: string): boolean {
   const pa = /^(\d{1,2})([AB])$/.exec(a);
   const pb = /^(\d{1,2})([AB])$/.exec(b);

@@ -1,8 +1,4 @@
 <script lang="ts">
-  // Floors overview (Maestri ⌘⇧\): the workspace's floors as a stack of
-  // slabs, ground at the bottom. Each slab says its branch, how many
-  // terminals it has and how many need you. ↑/↓ move, Enter or a double
-  // click switches and closes, Esc closes.
   import { onDestroy, onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { listen, type UnlistenFn } from "@tauri-apps/api/event";
@@ -32,7 +28,6 @@
   let error = $state("");
   let box: HTMLDivElement | undefined = $state();
 
-  // Top of the stack first: the newest floor above, the ground at the bottom.
   const stack = $derived([...floors].sort((a, b) => (a.isGround ? 1 : b.isGround ? -1 : b.createdAt.localeCompare(a.createdAt))));
 
   async function refresh() {
@@ -43,8 +38,6 @@
       ]);
       floors = f;
       activity = Object.fromEntries(a.map((x) => [x.floorId, x]));
-      // Only the first load puts the cursor on the current floor; the poll
-      // must not undo the person's ↑/↓.
       if (!placed) {
         const i = stack.findIndex((x) => x.id === floorId);
         if (i >= 0) cursor = i;
@@ -61,7 +54,6 @@
     await refresh();
     box?.focus();
     unlisten = await listen(EVENT_FLOORS, () => void refresh());
-    // States change without a floors event: poll while open.
     timer = setInterval(() => void refresh(), 2000);
   });
   onDestroy(() => {
@@ -211,7 +203,6 @@
     background: color-mix(in srgb, var(--fc) 10%, transparent);
     border-color: color-mix(in srgb, var(--fc) 40%, transparent);
   }
-  /* The slab: a floor plate seen from above at an angle, stacked. */
   .slab {
     position: relative;
     height: 46px;

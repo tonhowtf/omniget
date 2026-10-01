@@ -12,8 +12,6 @@ import { addLog } from "./debug-store.svelte";
 import { recordDownloadComplete } from "./download-stats.svelte";
 import { rpcSyncIdleStats } from "$lib/rpc";
 
-// Best-effort OS notification so completions reach the user when the window is
-// in the background (parity with the in-app toast and the channel feature).
 async function notifyComplete(title: string) {
   try {
     const n = await import("@tauri-apps/plugin-notification");
@@ -28,7 +26,6 @@ async function notifyComplete(title: string) {
       });
     }
   } catch {
-    // notifications are optional; never block completion handling
   }
 }
 
@@ -53,7 +50,6 @@ type QueueItemProgressPayload = {
   id: number;
   title: string;
   platform: string;
-  /** `null` when the engine does not know the total. */
   percent: number | null;
   speed_bytes_per_sec: number;
   downloaded_bytes: number;
@@ -218,7 +214,6 @@ export async function initDownloadListener(): Promise<() => void> {
     } catch {}
   }, 5000);
 
-  // Subscribe first. Do not overwrite a newer event with the initial response.
   if (!queueStateInitialized) {
     try {
       const initial = await invoke<QueueItemInfo[]>("get_download_queue");
@@ -226,7 +221,7 @@ export async function initDownloadListener(): Promise<() => void> {
         syncQueueState(initial);
         queueStateInitialized = true;
       }
-    } catch { /* Remains observably loading; later queue events may recover. */ }
+    } catch { }
   }
   return () => {
     unlistenQueueState();

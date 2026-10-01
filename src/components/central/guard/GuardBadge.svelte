@@ -1,11 +1,4 @@
 <script lang="ts">
-  /**
-   * Guard seal for a component card: level + score. Colour only for warn and
-   * block; an "ok" seal stays neutral and never says "safe" — it says the
-   * static checks found nothing that warns. No report = "not scanned".
-   *
-   * Clicking it (when `onclick` is given) opens the report dialog.
-   */
   import { t } from "$lib/i18n";
   import type { GuardLevel, GuardReport } from "$lib/central/guard";
 

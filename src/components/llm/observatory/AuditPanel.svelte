@@ -1,10 +1,4 @@
 <script lang="ts">
-  /**
-   * The /llm audit log (2.8): who did what to jobs, questions, grants,
-   * tokens and agents, and through which channel. Read on demand (no timer);
-   * the backend never stores prompts, file content or secrets, so this list
-   * can be exported as it is.
-   */
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "$lib/i18n";

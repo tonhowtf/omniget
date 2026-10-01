@@ -1,8 +1,4 @@
 <script lang="ts">
-  /**
-   * Read-only face of the local identity: avatar, nickname and the public-key
-   * fingerprint in groups of four with a copy button. No account, no e-mail.
-   */
   import { onDestroy } from "svelte";
   import { t } from "$lib/i18n";
   import Avatar from "$components/omni/Avatar.svelte";
@@ -45,8 +41,6 @@
 </script>
 
 <div class="profile-card" class:compact>
-  <!-- The tint now paints the disc BEHIND Omni (f5-rail-avatar); the mascot art
-       itself stays green. Decoration only: the nickname is right next to it. -->
   <Avatar tint={profile.skin?.tint} size={compact ? 48 : 64} />
   <div class="profile-meta">
     <span class="profile-nick">{profile.nickname}</span>

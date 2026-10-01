@@ -1,14 +1,4 @@
-/**
- * Reading companion (`assist::reading`): journeys, progress, rounds of film
- * recommendations with their access evidence, and the person's streaming
- * preferences. Wire shapes mirror `src-tauri/src/commands/assist/reading.rs`.
- *
- * Nothing runs at rest: every read is one `invoke` fired by a mount or a
- * click. A failed write returns an error key and keeps the caller's draft.
- */
 import { invoke } from "@tauri-apps/api/core";
-
-// ── Wire types ──────────────────────────────────────────────────────────
 
 export type JourneyStatus = "active" | "paused" | "finished" | "abandoned";
 export type PositionKind = "chapter" | "page" | "percent" | "locator";
@@ -172,13 +162,10 @@ export interface Overview {
   journeys: JourneyDetail[];
   prefs: AccessPrefs;
   skill: SkillStatus | null;
-  /** The curation skill is already linked to this bot. */
   skill_bound?: boolean;
 }
 
 export type Outcome<T = void> = { ok: true; value: T } | { ok: false; errorKey: string; detail: string };
-
-// ── Pure helpers ────────────────────────────────────────────────────────
 
 export const POSITION_KINDS: PositionKind[] = ["chapter", "page", "percent", "locator"];
 export const ACCESS_KINDS: AccessKind[] = ["subscription", "free", "rent", "buy"];
@@ -202,7 +189,6 @@ function readingErrorKey(err: unknown): string {
   }
 }
 
-/** The message after the code, for "advanced details". */
 export function errorDetail(err: unknown): string {
   const s = String((err as { message?: string })?.message ?? err ?? "");
   const i = s.indexOf(":");
@@ -233,12 +219,10 @@ export function positionKey(k: PositionKind): string {
   return `assist.reading.position_${k}`;
 }
 
-/** "chapter 3", "42%", "page 120" — value only; the kind goes through i18n. */
 export function progressValue(p: Pick<Progress, "position_kind" | "value">): string {
   return p.position_kind === "percent" ? `${p.value.replace(/%$/, "")}%` : p.value;
 }
 
-/** Only http(s) links are rendered as links. */
 export function safeHref(url: string | null | undefined): string | null {
   if (!url) return null;
   try {
@@ -249,15 +233,12 @@ export function safeHref(url: string | null | undefined): string | null {
   }
 }
 
-/** Splits "a, b; c" into trimmed terms (spoiler terms, subscriptions). */
 export function splitList(s: string): string[] {
   return s
     .split(/[,;\n]/)
     .map((x) => x.trim())
     .filter((x) => x.length > 0);
 }
-
-// ── State ───────────────────────────────────────────────────────────────
 
 const state = $state({
   byBot: {} as Record<string, Overview>,

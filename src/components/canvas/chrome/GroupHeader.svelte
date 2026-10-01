@@ -1,7 +1,4 @@
 <script lang="ts">
-  // Group header (L2): draggable (moves the members, locked ones stay),
-  // renamable by double-click, with the group's colour. The frame itself is
-  // drawn in L0 and never blocks clicks or the marquee.
   import { t } from "$lib/i18n";
   import { useEngine } from "$lib/canvas/engine.svelte";
   import type { Group } from "$lib/canvas/model/types";

@@ -1,5 +1,3 @@
-// Shapes returned by the `read_*` Tauri commands (src-tauri/src/commands/read).
-
 type BookFormat =
   | "epub" | "kepub" | "mobi" | "azw3" | "fb2" | "fbz" | "pdf"
   | "cbz" | "cbr" | "cb7" | "cbt" | "txt" | "md" | "html" | "djvu" | "folder";

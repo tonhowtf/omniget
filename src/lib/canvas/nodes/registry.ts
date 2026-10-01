@@ -1,14 +1,3 @@
-// Node kind registry (briefing "Motor do canvas"). Each kind brings the Svelte
-// component for the "near" face (L1, world layer), an optional card for the
-// "mid" face (L2), sizes and an icon. Wave-2 agents call registerNodeKind from
-// their own module; the canvas registers its built-ins with `ifAbsent`.
-//
-// Props every node component receives (all optional to read):
-//   node: CanvasNode, selected: boolean, focused: boolean, zoom: number,
-//   lod: 'near' | 'mid' | 'far', workspaceId: string,
-//   onpatch?: (patch: Partial<CanvasNode>) => void   (user edit → undoable op)
-//   onfocusrequest?: () => void, onexit?: () => void   (Esc back to the canvas)
-
 import type { Component } from 'svelte';
 
 interface NodeKindDef {
@@ -18,13 +7,9 @@ interface NodeKindDef {
   card?: Component<any>;
   minSize: { w: number; h: number };
   defaultSize: { w: number; h: number };
-  /** SVG path data on a 24×24 viewBox. */
   icon: string;
-  /** Clicking the body gives it pointer and keyboard right away (terminals). */
   focusOnClick?: boolean;
-  /** Portals: first click selects, second interacts. */
   focusOnSecondClick?: boolean;
-  /** Kind-specific i18n key for the label shown in menus. */
   labelKey?: string;
 }
 
@@ -48,7 +33,6 @@ export function onRegistryChange(fn: () => void): () => void {
   return () => listeners.delete(fn);
 }
 
-/** Default sizes when a kind has not registered yet. */
 export const DEFAULT_SIZES: Record<string, { w: number; h: number }> = {
   terminal: { w: 640, h: 420 },
   agent: { w: 640, h: 420 },
@@ -65,7 +49,6 @@ export const DEFAULT_SIZES: Record<string, { w: number; h: number }> = {
 };
 
 export const MIN_SIZES: Record<string, { w: number; h: number }> = {
-  // 20×6 cells of a 13 px terminal font, header included.
   terminal: { w: 200, h: 140 },
   agent: { w: 200, h: 140 },
   note: { w: 120, h: 80 },
@@ -81,7 +64,6 @@ export function minSizeFor(kind: string): { w: number; h: number } {
   return kinds.get(kind)?.minSize ?? MIN_SIZES[kind] ?? { w: 40, h: 24 };
 }
 
-/** Icon paths (24×24, stroke) used by the built-ins and the spawn menu. */
 export const ICONS = {
   terminal: 'M4 5h16v14H4z M7 9l3 3-3 3 M12 15h5',
   agent: 'M12 3a4 4 0 1 1 0 8 4 4 0 0 1 0-8z M4 21c1-4 4.5-6 8-6s7 2 8 6',

@@ -1,5 +1,4 @@
 <script lang="ts">
-  // Undo toast for pin / snooze / archive (bottom-left of the threads screen).
   import { t } from "$lib/i18n";
   import { threadsUi } from "$lib/central/threads-ui/ui-state.svelte";
   import Icon from "./Icon.svelte";

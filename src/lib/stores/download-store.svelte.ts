@@ -11,7 +11,6 @@ export type QueueKind =
 type BaseItem = {
   id: number;
   name: string;
-  /** `null` = total unknown: show bytes and an indeterminate bar, never a number. */
   percent: number | null;
   status: DownloadStatus;
   error?: string;
@@ -20,7 +19,6 @@ type BaseItem = {
   queueKind?: QueueKind;
 };
 
-/** Stream (formato) que o yt-dlp está baixando; vem de `%(info.*)s` no template de progresso. */
 export type StreamInfo = {
   format_id: string;
   height?: number;
@@ -33,7 +31,6 @@ export type StreamInfo = {
   format_note?: string;
 };
 
-/** Último comando yt-dlp rodado para o item, já redigido no backend. */
 export type CommandRecord = {
   program: string;
   args: string[];
@@ -299,10 +296,6 @@ export function getAggregate(): DownloadAggregate {
   }
 
   const totalBytes = allTotalsKnown && knownTotal > 0 ? knownTotal : null;
-  // Some engines (notably segmented yt-dlp downloads) know logical progress
-  // before they know the final combined byte total. The item card already uses
-  // that reported percentage, so the global bar must use it as its fallback
-  // instead of switching to an unrelated indeterminate animation.
   const percent = totalBytes !== null
     ? Math.min(100, downloadedBytes / totalBytes * 100)
     : allPercentsKnown ? reportedPercentTotal / aggregateBatch.size : null;
@@ -372,7 +365,6 @@ type QueueItemInfo = {
   command?: CommandRecord | null;
 };
 
-/** Backend percent, or `null` when the engine does not know the total. */
 export function knownPercent(value: number | null | undefined): number | null {
   return value != null && Number.isFinite(value) ? Math.min(100, Math.max(0, value)) : null;
 }
@@ -487,16 +479,12 @@ export function upsertGenericProgress(
     speed = existing.speed * (1 - SPEED_SMOOTHING) + speedBytesPerSec * SPEED_SMOOTHING;
   }
 
-  // Preserve non-downloading statuses (paused, seeding, complete, error)
-  // to avoid race conditions with queue-state-update events
   const keepStatus = existing?.kind === "generic"
     && (existing.status === "paused" || existing.status === "seeding" || existing.status === "complete" || existing.status === "error");
   const resolvedStatus: DownloadStatus = keepStatus ? existing!.status : "downloading";
 
   const effectiveSpeed = resolvedStatus === "downloading" ? speed : 0;
 
-  // Evento de progresso é um patch por cima do item, não uma substituição:
-  // thumbnail, tipo, comando e afins só chegam pelo `queue-state-update`.
   const nextStream = extra?.stream ?? prev?.stream ?? null;
   let streamsDone = prev?.streamsDone ?? [];
   if (nextStream && prev?.stream && prev.stream.format_id !== nextStream.format_id) {

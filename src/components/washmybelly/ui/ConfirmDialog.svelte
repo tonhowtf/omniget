@@ -5,9 +5,6 @@
   import Icon, { type IconName } from "./Icon.svelte";
   import Sheet from "./Sheet.svelte";
 
-  /// Generic confirmation for a dangerous screen action (end a process,
-  /// restore a receipt). `onConfirm` may be async; the dialog stays open and
-  /// shows the error if it throws, and closes when it resolves.
   let {
     open = $bindable(false),
     title,

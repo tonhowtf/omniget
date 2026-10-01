@@ -1,9 +1,4 @@
 <script lang="ts">
-  /**
-   * Performance of each agent over the last 30 days, from runs, issues and
-   * the ledger (`staff.scorecards`): runs, share that moved their issue,
-   * issues finished, reviews sent back, spend and cost per finished issue.
-   */
   import { t } from "$lib/i18n";
   import { onCompanyChange, rpc } from "$lib/company/rpc";
   import { onMount } from "svelte";

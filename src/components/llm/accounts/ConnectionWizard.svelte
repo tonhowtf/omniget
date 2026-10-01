@@ -1,5 +1,4 @@
 <script lang="ts">
-  // Stepper composition adapted from 21st progress-02; native Svelte controls and real IPC.
   import { onDestroy, onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { t } from '$lib/i18n';
@@ -18,7 +17,6 @@
   let step = $state(0);
   let busy = $state(false);
   let error = $state('');
-  // What the last failure means and what can be done about it (A06).
   let diagnosis = $derived<ConnectionDiagnosis | null>(error ? diagnoseConnectionError(error, mode) : null);
   let lastAction = $state<(() => Promise<void>) | null>(null);
   let clis = $state<CliDetected[]>([]);
@@ -53,12 +51,12 @@
           }
         });
       } else if (initial) void choose(initial);
-    } catch { /* A malformed draft can safely be discarded. */ }
+    } catch { }
     hydrated = true;
   });
   function persist() {
     const draft = { version: 1, mode, step, cli, account, name, provider, models, model, loginOpened, agentId, attempt, credentialId };
-    try { localStorage.setItem('omniget-connection-setup', JSON.stringify(draft)); } catch { /* Persistence is optional when storage is unavailable. */ }
+    try { localStorage.setItem('omniget-connection-setup', JSON.stringify(draft)); } catch { }
   }
   $effect(() => { if (hydrated) persist(); });
   function changed(providerChanged = false) {

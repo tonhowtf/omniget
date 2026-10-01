@@ -15,7 +15,6 @@
     onRetry?: () => void;
   } = $props();
 
-  // While mounted, a failed save of this field is announced here, not by a toast too.
   $effect(() => {
     if (!path) return;
     return registerStatusSurface(path);
@@ -25,7 +24,6 @@
   let current = $derived<FieldState>(stateProp ?? field?.state ?? "idle");
   let retrying = $state(false);
 
-  // Local presentation (language, theme) failed to apply in this window: retry it here.
   let localFailure = $derived(field?.error === "local_apply_failed");
   let restartRequired = $derived(field?.error === "restart_required");
   let canRetryApply = $derived(!restartRequired && (!!onRetry || localFailure || !!field?.effectId));
@@ -36,13 +34,11 @@
     const effectId = field?.effectId;
     if (!effectId || retrying) return;
     retrying = true;
-    // The store owns the outcome; a failed retry keeps the field in pendingApply.
-    try { await retrySettingsEffect(effectId); } catch { /* status stays pendingApply */ }
+    try { await retrySettingsEffect(effectId); } catch { }
     finally { retrying = false; }
   }
 </script>
 
-<!-- Persistent live regions: announce state changes, never every keystroke. -->
 <span class="setting-status" role="status" aria-live="polite">
   {#if current === "saving"}
     <span class="status-text">{$t("settings.rebrand.state.saving")}</span>

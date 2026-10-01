@@ -1,14 +1,4 @@
-/**
- * Catálogo da Central: ponte tipada para os comandos `catalog_*` e
- * `agentkit_*` (Rust: `omniget_core::core::{catalog, agentkit}`) + helpers
- * puros que as telas `/llm/catalog` e `/llm/installed` usam.
- *
- * Nada aqui roda em repouso: cada função só chama o backend quando a tela
- * pede. Os caches são por sessão (memória do módulo).
- */
 import { invoke } from "@tauri-apps/api/core";
-
-// ------------------------------------------------------------------ tipos
 
 type CatalogKind =
   | "agent"
@@ -205,8 +195,6 @@ interface CollectionImport {
   changed: string[];
 }
 
-// agentkit --------------------------------------------------------------
-
 export type Compat =
   | { status: "native" }
   | { status: "converted" }
@@ -287,7 +275,6 @@ interface PlannedFile {
   component_id: string;
   path: string;
   action: "write" | "merge" | string;
-  /** base64 (Write). */
   content?: string | null;
   executable: boolean;
   format?: string | null;
@@ -317,7 +304,6 @@ export interface PlanUnit {
 interface FilePlan {
   path: string;
   action: "create" | "replace" | "merge" | "unchanged" | "link" | string;
-  /** Destino do symlink quando `action === "link"` (skills em `.agents/skills`). */
   link_to?: string | null;
   before_sha?: string | null;
   after_sha?: string | null;
@@ -344,7 +330,6 @@ export interface InstallPlan {
 interface WrittenFile {
   path: string;
   type: "created" | "merged" | "linked";
-  /** Destino do link quando `type === "linked"`. */
   link_to?: string | null;
   sha256?: string;
   format?: string;
@@ -404,8 +389,6 @@ export interface TxManifest {
   entries: unknown[];
 }
 
-// ------------------------------------------------------------------ tipos de UI
-
 export const KIND_TABS: (CatalogKind | "all")[] = [
   "all",
   "agent",
@@ -422,10 +405,8 @@ export const KIND_TABS: (CatalogKind | "all")[] = [
   "mod",
 ];
 
-/** Kinds that show up only when the index has them. */
 export const EXTRA_KINDS: CatalogKind[] = ["rule", "sandbox"];
 
-/** Glyph (static/icons) and gradient for each kind: chunky filled tiles. */
 const KIND_STYLE: Record<string, { glyph: string; from: string; to: string }> = {
   agent: { glyph: "robot", from: "#5E5CE6", to: "#3634A3" },
   command: { glyph: "terminal-window", from: "#48484A", to: "#1C1C1E" },
@@ -448,10 +429,7 @@ export function kindStyle(kind: string) {
   return KIND_STYLE[kind] ?? KIND_STYLE.all;
 }
 
-/** Kinds whose content is a folder (tree explorer instead of a single file). */
 export const FOLDER_KINDS = new Set(["skill", "mod", "plugin", "template", "sandbox"]);
-
-// ------------------------------------------------------------------ catalog_*
 
 export const catalogMeta = () => invoke<CatalogMeta>("catalog_meta");
 
@@ -528,8 +506,6 @@ export const collections = {
   import: (path: string) => invoke<CollectionImport>("catalog_collections_import", { path }),
 };
 
-// ------------------------------------------------------------------ agentkit_*
-
 let targetsPromise: Promise<TargetAdapter[]> | null = null;
 export function agentkitTargets(): Promise<TargetAdapter[]> {
   if (!targetsPromise) {
@@ -589,11 +565,6 @@ function rawPlan(a: PlanArgs): Promise<InstallPlan> {
   });
 }
 
-/**
- * Plans an install. Catalog ids go to the backend resolver; when the host has
- * no resolver wired (`AGENTKIT_NO_CATALOG`), each id is fetched, checked and
- * parsed here and sent as canonical components instead.
- */
 export async function agentkitPlan(a: PlanArgs): Promise<InstallPlan> {
   try {
     return await rawPlan(a);
@@ -617,7 +588,6 @@ export const agentkitTransactions = () => invoke<TxManifest[]>("agentkit_transac
 export const agentkitImportInstalled = (target: string, scope?: Scope | null, projectDir?: string | null) =>
   invoke<Component[]>("agentkit_import_installed", { target, scope: scope ?? null, projectDir: projectDir || null });
 
-/** Text files of an item (binary ones are skipped: the parser only needs text). */
 export function textFiles(files: ItemFiles): Record<string, string> {
   const out: Record<string, string> = {};
   for (const [p, f] of Object.entries(files.files)) if (f.encoding === "utf8") out[p] = f.content;
@@ -625,7 +595,6 @@ export function textFiles(files: ItemFiles): Record<string, string> {
 }
 
 const componentCache = new Map<string, Promise<Component>>();
-/** Catalog id → canonical component (fetch + sha check + parse, with compat per tool). */
 export function resolveComponent(id: string): Promise<Component> {
   let p = componentCache.get(id);
   if (!p) {
@@ -641,16 +610,6 @@ export function resolveComponent(id: string): Promise<Component> {
   return p;
 }
 
-// ------------------------------------------------------------------ compatibilidade
-
-/**
- * Compat of each card on each tool. Exact compat needs the item's files
- * (`agentkit_compat(itemId)` / `agentkit_parse_preview` download and parse
- * them), which is fine for one detail page and too heavy for a page of 48
- * cards: cards use an approximation from the target manifests that mirrors
- * `Registry::resolve` (kind + format + reads_claude), and exact values
- * learned on detail pages (`rememberCompat`) replace it.
- */
 const compatById = new Map<string, Record<string, Compat>>();
 
 function rememberCompat(id: string, compat: Record<string, Compat> | undefined | null) {
@@ -669,12 +628,6 @@ export async function compatFor(
   return out;
 }
 
-/**
- * Compat per `(kind, tool)` measured by the backend on a minimal in-memory
- * sample of each kind (`agentkit_parse_preview`, no network, real
- * converters). Follows the converters as they are added; the manifest
- * approximation below covers kinds without a sample (loop, plugin…).
- */
 const KIND_SAMPLES: Record<string, { entry: string; text: string }> = {
   agent: { entry: "sample.md", text: "---\nname: sample\ndescription: Sample agent\n---\nReview the code.\n" },
   command: { entry: "sample.md", text: "---\ndescription: Sample command\n---\nExplain $ARGUMENTS\n" },
@@ -700,7 +653,6 @@ export function loadKindMatrix(): Promise<void> {
             const c = await agentkitParsePreview({ kind, entry: s.entry, files: { [s.entry]: s.text } });
             if (c.compat) out[kind] = c.compat;
           } catch {
-            /* this kind stays on the approximation */
           }
         }),
       );
@@ -722,7 +674,6 @@ const READS_KEY: Record<string, string> = {
   statusline: "statusline",
 };
 
-/** One `(kind, tool)` pair, following the backend resolution order. */
 function kindCompat(kind: string, origin: string, t: TargetAdapter): Compat {
   const measured = kindMatrix[kind]?.[t.id];
   if (measured && !(kind === "mcp" && origin !== "claude")) return measured;
@@ -746,16 +697,12 @@ function approxCompat(kind: string, origin: string, targets: TargetAdapter[]): R
   return out;
 }
 
-/** Kinds every selected tool can take (for the "works in" filter). */
 export function kindsWorkingIn(toolIds: string[], targets: TargetAdapter[], kinds: string[]): string[] {
   const sel = targets.filter((t) => toolIds.includes(t.id));
   if (!sel.length) return kinds;
   return kinds.filter((k) => sel.every((t) => kindCompat(k, "claude", t).status !== "unsupported"));
 }
 
-// ------------------------------------------------------------------ helpers puros
-
-/** Two-letter monogram per tool id, unique across the tool table. */
 const TOOL_MONO: Record<string, string> = {
   claude: "Cl",
   codex: "Cx",
@@ -810,7 +757,6 @@ export function hue(id: string): number {
   return h;
 }
 
-/** Route of the detail page for one id (each segment encoded, `/` kept). */
 export function itemHref(id: string): string {
   return "/llm/catalog/" + id.split("/").map(encodeURIComponent).join("/");
 }
@@ -828,7 +774,6 @@ export function formatBytes(n: number): string {
   return `${(n / 1024 / 1024).toFixed(1)} MB`;
 }
 
-/** ~4 chars per token, the same approximation the original site used. */
 function approxTokens(text: string): number {
   return Math.ceil(text.length / 4);
 }
@@ -844,7 +789,6 @@ export function decodeBase64Text(b64: string): string {
   }
 }
 
-/** Splits `---\nyaml\n---\nbody`; no frontmatter → `["", text]`. */
 export function splitFrontmatter(text: string): [string, string] {
   const m = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/.exec(text);
   if (!m) return ["", text];
@@ -863,10 +807,6 @@ export interface Slide {
   tokens: number;
 }
 
-/**
- * SKILL.md → slides: a title slide (frontmatter name/description) and one
- * slide per `#`/`##` section; `###` and deeper stay inside their section.
- */
 export function slidesOf(text: string, fallbackTitle: string): Slide[] {
   const [fm, body] = splitFrontmatter(text);
   const name = /^name:\s*(.+)$/m.exec(fm)?.[1]?.replace(/^["']|["']$/g, "") ?? fallbackTitle;
@@ -899,7 +839,6 @@ export interface TreeNode {
   size?: number;
 }
 
-/** Flat relative paths → sorted tree (folders first). */
 export function buildTree(paths: { path: string; size?: number }[]): TreeNode[] {
   const root: TreeNode = { name: "", path: "", dir: true, children: [] };
   for (const f of paths) {
@@ -924,7 +863,6 @@ export function buildTree(paths: { path: string; size?: number }[]): TreeNode[] 
   return root.children;
 }
 
-/** FilePlan → the diff viewer's FileDiff shape. */
 export function filePlanToDiff(f: FilePlan) {
   let additions = 0;
   let deletions = 0;
@@ -944,7 +882,6 @@ export function filePlanToDiff(f: FilePlan) {
   };
 }
 
-/** CLI line equivalent to the stack (for scripts and README snippets). */
 export function cliCommand(args: {
   ids: string[];
   targets: string[];
@@ -971,8 +908,6 @@ export function errCode(e: unknown): string {
   return /^([A-Z_]+):/.exec(String(e))?.[1] ?? "";
 }
 
-// ------------------------------------------------------------------ projetos recentes
-
 const RECENT_KEY = "omniget.central.catalog.projects";
 
 export function recentProjects(): string[] {
@@ -989,11 +924,9 @@ export function rememberProject(dir: string) {
     const list = [dir, ...recentProjects().filter((d) => d !== dir)].slice(0, 8);
     localStorage.setItem(RECENT_KEY, JSON.stringify(list));
   } catch {
-    /* storage off: nothing to remember */
   }
 }
 
-/** The folder of the LLM workspace, when there is one. */
 export async function workspaceFolder(): Promise<string | null> {
   try {
     const ws = await invoke<{ path: string | null }>("llm_workspace_get", { conversationId: null });
@@ -1008,7 +941,6 @@ export function baseName(p: string): string {
   return parts[parts.length - 1] ?? p;
 }
 
-/** Full item → the lighter search-hit shape the cards take. */
 export function toHit(i: CatalogItem): SearchHit {
   return {
     id: i.id,
@@ -1055,7 +987,6 @@ const PLURAL: Record<string, string> = {
   sandbox: "sandbox",
 };
 
-/** `agent:cat/name` (loop/stack reference) → catalog id in the same source. */
 export function refToId(ref: string, sourceId: string): string {
   if (ref.includes(":") && ref.split(":")[1].includes("/") && PLURAL[ref.split(":")[0]]) {
     const [kind, rest] = [ref.slice(0, ref.indexOf(":")), ref.slice(ref.indexOf(":") + 1)];

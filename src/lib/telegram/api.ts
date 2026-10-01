@@ -1,8 +1,3 @@
-// Typed wrappers for the `/telegram` superpower. Everything the engine does
-// goes through `telegram_call(command, args)`; the connection layer has its
-// own `telegram_net_*` commands. Types mirror the serde shapes in
-// `omniget-core/src/core/telegram/net/{route,manager,doctor}.rs`.
-
 import { invoke } from "@tauri-apps/api/core";
 
 type RouteKind = "direct" | "socks5" | "http" | "mt_proxy" | "shadowsocks" | "trojan";
@@ -100,12 +95,9 @@ export interface AddLinksResult {
   unsupported: string[];
 }
 
-/** Protocols only a full proxy core (Clash/mihomo, v2rayN) can speak. */
 export const NEEDS_CLASH = new Set(["vmess", "vless", "hysteria2", "hy2", "hysteria", "tuic", "ssr", "wireguard", "anytls"]);
 
 const RESCUE_LIST = "telegram-rescue";
-
-// ---- connection layer ----
 
 export const net = {
   status: () => invoke<NetStatus>("telegram_net_status"),
@@ -132,7 +124,6 @@ export const net = {
   mihomoRemoveNode: (key: string) => invoke<void>("telegram_net_mihomo_remove_node", { key }),
 };
 
-/** The optional mihomo core that speaks VLESS/Hysteria2/VMess/TUIC… for us. */
 export interface MihomoStatus {
   enabled: boolean | null;
   supported_platform: boolean;
@@ -146,13 +137,10 @@ export interface MihomoStatus {
   kinds: Record<string, number>;
 }
 
-// ---- engine ----
-
 export function call<T = unknown>(command: string, args: Record<string, unknown> = {}): Promise<T> {
   return invoke<T>("telegram_call", { command, args });
 }
 
-/** True when the dispatcher does not know the command yet. */
 export function isUnknownCommand(e: unknown): boolean {
   return /unknown telegram command|not implemented|unknown command/i.test(errText(e));
 }
@@ -234,8 +222,6 @@ export interface BatchFileStatus {
   error: string | null;
 }
 
-/** One pasted t.me link after resolving. Fields are optional on purpose:
- * a link can point to a chat, a message or a message without media. */
 export interface ResolvedLink {
   link: string;
   ok?: boolean;
@@ -295,8 +281,6 @@ export const tg = {
       resume: true,
     }),
   cancelBatch: (batchId: number) => call<null>("telegram_cancel_batch", { batchId }),
-  // The backend answers `{ items: [{url, …}], errors: [{url, error}] }`;
-  // the screen wants one row per link, failures included.
   resolveLinks: async (text: string): Promise<ResolvedLink[]> => {
     const r = await call<{
       items?: (Omit<ResolvedLink, "link"> & { url: string })[];
@@ -325,9 +309,6 @@ export const tg = {
   accountsRename: (id: string, label: string) => call<AccountProfile>("telegram_accounts_rename", { id, label }),
 };
 
-// ---- round 2: player, auto-save, whole-chat download, upload, forward, clone ----
-
-/** Any chat reference the backend needs: `{chatId, chatType}`. */
 export interface ChatRef {
   id: number;
   chat_type: string;
@@ -342,13 +323,9 @@ export interface StreamInfo {
   duration_sec?: number | null;
   width?: number | null;
   height?: number | null;
-  /** False when the container (MKV, AVI, some WebM) does not play in the webview. */
   playable?: boolean | null;
-  /** HLS copy with the video untouched and the audio in AAC (fast). Only when `playable` is false. */
   remux_url?: string | null;
-  /** HLS copy fully converted to H.264/AAC (slow); for when the remux fails too. */
   transcode_url?: string | null;
-  /** File extension of the original. */
   container?: string | null;
 }
 
@@ -358,8 +335,6 @@ interface PlaybackState {
   finished: boolean;
 }
 
-/** One "continue watching" row. Only the ids and positions are certain;
- * the rest is shown when the backend sends it. */
 export interface PlaybackEntry extends PlaybackState {
   chat_id: number;
   chat_type: string;
@@ -374,7 +349,6 @@ export type ExternalPlayer = "default" | "vlc" | "iina" | "mpv";
 
 export const MEDIA_TYPES = ["video", "photo", "document", "audio", "gif", "round_video", "voice"] as const;
 
-/** Filters shared by auto-save rules and the whole-chat download. Sizes in bytes. */
 export interface MediaFilter {
   mediaTypes?: string[];
   fromDate?: number;
@@ -409,11 +383,8 @@ export interface WatchRule {
   savedCount: number;
   lastResult?: string | null;
   lastError?: string | null;
-  /** Skip files already saved anywhere (same Telegram file); null follows the global setting. */
   dedupe?: boolean | null;
-  /** Add each saved file to the Watch library. */
   addToWatch?: boolean | null;
-  /** Files this rule did not download again because they were already saved. */
   duplicateCount?: number | null;
 }
 
@@ -424,9 +395,7 @@ export interface WatchRunEvent {
   found: number;
   queued: number;
   error?: string | null;
-  /** "realtime" | "interval" | "manual" | "backfill". */
   trigger?: string | null;
-  /** Downloads avoided because the file was already saved. */
   duplicates?: number | null;
 }
 
@@ -436,9 +405,7 @@ export interface ChatDownloadArgs {
   outputDir?: string;
   skipSame?: boolean;
   takeout?: boolean;
-  /** Skip files already saved in any folder (downloaded.sqlite). */
   dedupe?: boolean;
-  /** Lets the screen follow and cancel the scan (`telegram-chat-scan`). */
   scanId?: string;
 }
 
@@ -448,9 +415,7 @@ export interface ChatDownloadPreview {
   scanned?: number;
   output_dir?: string;
   scan_id?: string;
-  /** True when the count came from the on-disk history index (no full re-read). */
   from_index?: boolean;
-  /** Each sample also carries its planned path (relative to `output_dir`) and whether it is already there. */
   sample: (TelegramMediaItem & { path?: string; exists?: boolean })[];
 }
 
@@ -501,7 +466,6 @@ export interface CloneProgress {
 
 const chatArgs = (c: ChatRef) => ({ chatId: c.id, chatType: c.chat_type });
 
-/** Rules may come back in camelCase (contract) or snake_case (serde default). */
 function normRule(r: Record<string, unknown>): WatchRule {
   const g = (camel: string, snake: string) => (r[camel] !== undefined ? r[camel] : r[snake]);
   return {
@@ -619,19 +583,13 @@ export const tg2 = {
   cloneDelete: (sessionId: string) => call<unknown>("telegram_clone_delete", { sessionId }),
 };
 
-// ---- round 3: fast scans, dedupe, media search, transcripts, Watch, approvals ----
-
-/** `telegram_realtime_get/set` and the `telegram-realtime` event. */
 export interface RealtimeState {
   enabled: boolean;
-  /** The Telegram update channel is being read right now. */
   connected: boolean;
   last_event_at?: number | null;
-  /** How many times a rule ran because of a live message. */
   triggered?: number;
 }
 
-/** `telegram-chat-scan` payload. */
 export interface ChatScanEvent {
   scan_id?: string | null;
   chat_id: number;
@@ -643,19 +601,15 @@ export interface ChatScanEvent {
 
 export interface DedupeStats {
   enabled: boolean;
-  /** Files in the register of saved files. */
   files: number;
   bytes: number;
-  /** Downloads avoided because the file was already saved. */
   avoided: number;
   avoided_bytes: number;
 }
 
-/** `telegram-transcribe-progress` payload. */
 export interface TranscribeProgress {
   chat_id: number;
   message_id: number;
-  /** "audio" | "chunk" | "done". */
   stage: string;
   done: number;
   total: number;
@@ -681,7 +635,6 @@ export interface Transcript {
   text: string;
   segments: TranscriptSegment[];
   lang?: string | null;
-  /** "local" (the app's own engine) or "telegram" (Premium). */
   source?: string | null;
   cached?: boolean;
 }
@@ -690,9 +643,7 @@ export interface ApprovalRequest {
   id: string;
   tool: string;
   summary: string;
-  /** What exactly will happen: chat, text, files, message ids. */
   details?: unknown;
-  /** `agent`, an external MCP client name, or `cli`. */
   client?: string | null;
   created?: number | null;
   expires_at?: number | null;
@@ -704,7 +655,6 @@ function num(v: unknown): number {
 }
 
 function normTranscript(r: Record<string, unknown>): Transcript {
-  // Segments come in milliseconds (`start_ms`); seconds are accepted too.
   const segs = listOf<Record<string, unknown>>(r?.segments as Record<string, unknown>[] | undefined, "segments").map((s) => ({
     start: s.start_ms != null ? num(s.start_ms) / 1000 : num(s.start),
     end: s.end_ms != null ? num(s.end_ms) / 1000 : num(s.end),
@@ -764,12 +714,10 @@ export const tg3 = {
     normTranscript(
       await call<Record<string, unknown>>("telegram_transcribe", { ...chatArgs(c), messageId, lang: lang || undefined, force: force || undefined }),
     ),
-  /** Cached transcript or null; never starts work. */
   transcriptGet: async (c: ChatRef, messageId: number): Promise<Transcript | null> => {
     const r = await call<Record<string, unknown> | null>("telegram_transcript_get", { ...chatArgs(c), messageId });
     return r ? normTranscript(r) : null;
   },
-  /** Telegram's own transcription (Premium). `pending` means ask again in a few seconds. */
   transcribeNative: async (c: ChatRef, messageId: number): Promise<Transcript & { pending: boolean }> => {
     const r = await call<Record<string, unknown>>("telegram_voice_transcribe_native", { ...chatArgs(c), messageId });
     return { ...normTranscript(r), source: "telegram", pending: Boolean(r?.pending) };
@@ -783,7 +731,6 @@ export const tg3 = {
   approvalAnswer: (id: string, approve: boolean) => call<unknown>("telegram_approval_answer", { id, approve }),
 };
 
-/** Files added by `telegram_add_to_watch`, or null when the answer has no count. */
 export function addedCount(r: { added?: number } | null | undefined): number | null {
   return r && typeof r.added === "number" ? r.added : null;
 }
@@ -803,7 +750,6 @@ export function isAudio(item: { media_type: string; file_name?: string }): boole
   return item.media_type === "audio" || item.media_type === "voice" || /\.(mp3|m4a|aac|ogg|oga|opus|flac|wav)$/i.test(item.file_name ?? "");
 }
 
-/** Private link to a message; works for members of groups and channels. */
 export function messageLink(chat: ChatRef, messageId: number): string | null {
   if (chat.chat_type === "private") return null;
   const bare = String(Math.abs(chat.id)).replace(/^100(?=\d{9,})/, "");
@@ -819,7 +765,6 @@ export function formatDuration(sec: number): string {
   return h ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
 }
 
-/** "mp4, .MKV mov" → ["mp4", "mkv", "mov"]. */
 export function parseExts(text: string): string[] {
   return text
     .split(/[\s,;]+/)
@@ -833,7 +778,6 @@ function sanitize(s: string): string {
   return s.replace(/[\\/:*?"<>|\u0000-\u001f]+/g, "_").replace(/\s+/g, " ").trim();
 }
 
-/** Local mirror of the backend naming template, for the preview only. */
 export function renderTemplate(
   template: string,
   chat: ChatRef,
@@ -875,8 +819,6 @@ export function listOf<T>(v: T[] | Record<string, unknown> | null | undefined, k
   return Array.isArray(inner) ? (inner as T[]) : [];
 }
 
-// ---- formatting ----
-
 export function formatBytes(n: number): string {
   if (!Number.isFinite(n) || n <= 0) return "0 B";
   const units = ["B", "KB", "MB", "GB", "TB"];
@@ -907,7 +849,6 @@ export function kindLabel(kind: RouteKind): string {
   }
 }
 
-/** i18n key suffix under `telegram.net.source` plus the value to interpolate. */
 export function sourceInfo(s: RouteSource): { key: string; value: string } {
   switch (s.type) {
     case "local_app":

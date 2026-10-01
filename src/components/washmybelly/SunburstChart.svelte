@@ -1,6 +1,4 @@
 <script lang="ts">
-  // Sunburst: the current folder in the centre, one ring per level. Own
-  // SVG (no chart library); hover and focus behave like the treemap.
   import { formatBytes } from "$lib/washmybelly/api";
   import { arcPath, sunburst, type UsageNode } from "$lib/washmybelly/disk";
 

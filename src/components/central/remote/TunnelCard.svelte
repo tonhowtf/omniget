@@ -1,9 +1,4 @@
 <script lang="ts">
-  /**
-   * Out of the house without a relay: `tailscale serve` of the remote port
-   * (the command is shown first and only runs after a confirmation) and an
-   * `ssh -L` tunnel command. `tailscale` is spawned only when asked here.
-   */
   import { invoke } from "@tauri-apps/api/core";
   import { ask } from "@tauri-apps/plugin-dialog";
   import { t } from "$lib/i18n";

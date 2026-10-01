@@ -1,14 +1,4 @@
 <script lang="ts">
-  /**
-   * The usage panel: the popover of the menu bar usage icon (`usage_tray` in
-   * Rust). Opened by a left click on the icon, anchored under it, hidden when
-   * it loses focus. One card per account with the session and weekly rings,
-   * when each resets, the forecast at the current pace and today's spend.
-   *
-   * Layout after Claude-Usage-Tracker's popover (320 pt wide, one block per
-   * profile, a footer with the actions). Redraws on `usage-tray://view`; the
-   * only clock is a 30 s one for the relative times.
-   */
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { listen, type UnlistenFn } from "@tauri-apps/api/event";
@@ -21,7 +11,6 @@
     used: number;
     resets_at: number | null;
     runs_out_at: number | null;
-    /** Share of the window's time gone: where "on pace" sits, when known. */
     expected: number | null;
     level: "ok" | "warn" | "critical";
   };
@@ -89,7 +78,6 @@
     return `${Math.round(w.used * 100)}%`;
   }
 
-  /** The strip's pace words: "20% ahead of pace", "on pace"… */
   function paceText(w: Win): string | null {
     if (w.expected == null) return null;
     const side = paceSide(w.used - w.expected);
@@ -99,7 +87,6 @@
       : $t(`llm.limits.strip.pace.${side}`, { delta });
   }
 
-  /** The "on pace" tick across the ring at `at` (0 = 12 o'clock). */
   function tick(at: number) {
     const a = Math.max(0, Math.min(1, at)) * 2 * Math.PI - Math.PI / 2;
     const [from, to] = [R - 4.5, R + 4.5];
@@ -120,7 +107,6 @@
       view = p.view;
       catalog = p.catalog;
     } catch {
-      // no backend in the browser preview
     }
   }
 
@@ -314,7 +300,6 @@
 </main>
 
 <style>
-  /* Loop's palette: hood green, carrot orange, scarf red. */
   .panel {
     --calm: #5cc45d;
     --amber: #f59e35;
@@ -496,7 +481,6 @@
   .ring.critical .fill {
     stroke: var(--red);
   }
-  /* Where the ring would be if the window were spent evenly. */
   .ring line {
     stroke-linecap: round;
   }

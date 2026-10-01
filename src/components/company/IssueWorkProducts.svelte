@@ -1,5 +1,4 @@
 <script lang="ts">
-  /** Deliverables attached to an issue; pending ones can be accepted or rejected. */
   import { open as openExternal } from "@tauri-apps/plugin-shell";
   import { t } from "$lib/i18n";
   import { showToast } from "$lib/stores/toast-store.svelte";

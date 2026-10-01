@@ -1,11 +1,4 @@
 <script lang="ts">
-  // Batuta Search (study 95 §J, 03 §10): ⌘P / ⌘K opens and closes; Esc goes
-  // back one level; closing without running anything gives the focus back.
-  // Fuzzy over every node, note body, role, workspace, floor and action, in
-  // every workspace and floor; jumping flies the camera there. Modes: Ask…
-  // (message any terminal, live preview, ⌘Enter jumps), Check… (read-only
-  // live output), Connect to…, Disconnect…, Search Files (a file tree
-  // selected), Notifications (⌥⌘A), elements (⌥⌘E / ⇧⌥⌘E), Rename.
   import { onMount, tick } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { showToast } from "$lib/stores/toast-store.svelte";
@@ -76,17 +69,13 @@
   let fileHits = $state<SearchHit[]>([]);
   let fileTree = $state<CanvasNode | null>(null);
   let renameNode = $state<CanvasNode | null>(null);
-  // Edit… (terminal): name, command and working directory.
   let editNode = $state<CanvasNode | null>(null);
   let editCommand = $state("");
   let editCwd = $state("");
-  // Search mode with a file tree selected also searches its files (⌘P).
   let treeHits = $state<SearchHit[]>([]);
   let treeTimer: ReturnType<typeof setTimeout> | null = null;
-  // Chat transcripts matching the query (every thread of every terminal).
   let chatHits = $state<ChatHitItem[]>([]);
   let chatTimer: ReturnType<typeof setTimeout> | null = null;
-  // Update Partitura from Selection: the library to pick from.
   let partituras = $state<PartituraSummary[]>([]);
   let loadTick = $state(0);
   let host = $state<HTMLSpanElement | null>(null);
@@ -99,8 +88,6 @@
 
   const tr = (key: string, fallback: string, vars?: Record<string, unknown>) =>
     $t(key, { default: fallback, ...(vars ?? {}) });
-
-  // ---- open / close ----------------------------------------------------
 
   function visible(): boolean {
     return !!host && host.isConnected && (host.parentElement?.offsetParent ?? null) !== null;
@@ -136,7 +123,6 @@
     returnFocus = null;
   }
 
-  /** Esc goes back one level. */
   function back() {
     if (mode === "ask" || mode === "check") {
       if (target) {
@@ -191,13 +177,7 @@
     }
     if (e.altKey || e.shiftKey) return;
     if (key !== "p" && key !== "k") return;
-    // Inside a focused terminal ⌘K is the terminal's Clear (Maestri; the
-    // terminal input stops it, so the app's palette never sees it either).
     if (key === "k" && (e.target as HTMLElement | null)?.closest?.(".term-node")) return;
-    // ⌘K and ⌘P always open the canvas palette, even from a focused
-    // terminal: letting ⌘K through opened the app's palette over the canvas,
-    // and keys typed "into the terminal" then ran its navigation entries
-    // (the window jumped to /superpowers).
     stop(e);
     if (open) {
       close();
@@ -225,8 +205,6 @@
       if (chatTimer) clearTimeout(chatTimer);
     };
   });
-
-  // ---- items -----------------------------------------------------------
 
   const SECTION_LABEL: Record<Section, [string, string]> = {
     context: ["canvas.palette.section.context", "Selection"],
@@ -272,8 +250,6 @@
           ...roleItems(engine, index, tr),
         ];
         const ranked = rank(all, query);
-        // Files of the selected tree and chat hits were matched by Rust:
-        // they come after the best named matches, in their own order.
         const files = treeHits.map((h, i) => ({ item: fileItem(h), score: 40 - i * 0.01, nameIdx: [] }));
         const chats = chatHits.map((c, i) => ({ item: c, score: 30 - i * 0.01, nameIdx: [] }));
         return [...ranked, ...files, ...chats].sort((a, b) => b.score - a.score).slice(0, 120);
@@ -324,7 +300,6 @@
     };
   }
 
-  // ⌘P with a file tree selected: its files join the results (Maestri).
   $effect(() => {
     if (mode !== "search" || !open) return;
     const q = query.trim();
@@ -343,7 +318,6 @@
     }, 120);
   });
 
-  // Chat transcripts of every terminal, workspace and floor.
   $effect(() => {
     if (mode !== "search" || !open) return;
     const q = query.trim();
@@ -366,8 +340,6 @@
       (i) => i.workspaceId === engine.store.workspaceId && i.floorId === engine.store.floorId && !sel.includes(i.nodeId ?? ""),
     );
     if (pickFor === "connect") {
-      // Terminals of other floors and workspaces too (a connector pair), when
-      // every selected node is a terminal.
       const terminalSel =
         sel.length > 0 && sel.every((id) => isTerminalKind(engine.store.node(id)?.kind ?? ""));
       if (!terminalSel) return here;
@@ -397,8 +369,6 @@
     const el = list.querySelector<HTMLElement>(`[data-row="${active}"]`);
     el?.scrollIntoView({ block: "nearest" });
   });
-
-  // ---- running ---------------------------------------------------------
 
   function nodeOf(item: PaletteItem): Target | null {
     if (!item.nodeId || !item.workspaceId || !item.floorId) return null;
@@ -600,7 +570,6 @@
       ...(name ? { title: name } : {}),
       data: { ...n.data, command: command || null, cwd: cwd || null, ...(name ? { hasCustomName: true } : {}) },
     });
-    // A new program or folder only takes effect in a new process.
     if (command !== oldCommand || cwd !== oldCwd) engine.requestRestart(n.id);
     close(true);
   }
@@ -621,8 +590,6 @@
     }
     close(true);
   }
-
-  // ---- Ask / Check -----------------------------------------------------
 
   function startTerminalMode(m: "ask" | "check", tg: Target) {
     target = tg;
@@ -676,8 +643,6 @@
     }
   }
 
-  // ---- keys inside the palette -----------------------------------------
-
   function onInputKey(e: KeyboardEvent) {
     const primary = mac ? e.metaKey : e.ctrlKey;
     if (e.key === "Escape") {
@@ -724,8 +689,6 @@
       void send(primary);
     }
   }
-
-  // ---- view helpers ----------------------------------------------------
 
   const ICON_FOR: Record<string, string> = {
     ...ICONS,

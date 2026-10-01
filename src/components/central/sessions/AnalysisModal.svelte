@@ -1,9 +1,4 @@
 <script lang="ts">
-  /**
-   * Análise de uma sessão: duração, tempo do agente × seu tempo de pensar,
-   * eficiência de cache, custo (gravado × estimado), mix de modelos, tools,
-   * componentes (subagentes, comandos, skills, MCP) e dicas.
-   */
   import { t } from "$lib/i18n";
   import Modal from "./Modal.svelte";
   import BarList from "./BarList.svelte";

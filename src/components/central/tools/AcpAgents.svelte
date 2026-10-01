@@ -1,7 +1,4 @@
 <script lang="ts">
-  // "Agentes ACP" do registro oficial: instalar pela distribuição declarada
-  // (npx/uvx registra o comando; binário baixa com sha256) e adicionar o
-  // comando pronto ao roster.
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "$lib/i18n";

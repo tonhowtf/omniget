@@ -2,10 +2,6 @@
   import { t } from "$lib/i18n";
   import { histogramBars, type Bar, type Histogram } from "$lib/washmybelly/perf";
 
-  /// How many frames took how long. Bars are tinted by the frame rate they
-  /// stand for: 60 FPS and faster, down to 30, slower than 30. The last bar
-  /// collects the rare frames slower than the 99.9th percentile.
-  /// Drawing ported from the no-gap bar chart of bklitai (21st.dev).
   let { histogram, height = 140 }: { histogram: Histogram; height?: number } = $props();
 
   let width = $state(0);

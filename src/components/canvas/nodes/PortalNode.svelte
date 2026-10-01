@@ -1,9 +1,4 @@
 <script lang="ts">
-  // Web portal: a real browser (native webview, Rust `crate::portal`) placed
-  // over the page area when the live policy allows it; otherwise the last
-  // native snapshot of the page. The toolbar (URL, back/forward/reload,
-  // device, storage) is DOM and belongs to the canvas chrome, so it answers
-  // on the first click. iOS/Android portals are reserved: placeholder only.
   import { onDestroy } from "svelte";
   import { t } from "$lib/i18n";
   import { useEngine } from "$lib/canvas/engine.svelte";
@@ -50,7 +45,6 @@
     onpatch?: (patch: Partial<CanvasNode>) => void;
   } = $props();
 
-  /** Canvas node header + this toolbar, world px (Rust `NODE_HEADER`). */
   const TOOLBAR = 32;
   const DRIVE_BADGE_MS = 5000;
 
@@ -63,13 +57,10 @@
   let pstate = $state<PortalState | null>(null);
   let snapshot = $state<string | undefined>(undefined);
 
-  // What the host already knows about this portal (remount after scrolling away).
   $effect(() => {
     const id = node.id;
     pstate = portalState(id) ?? null;
     snapshot = lastSnapshot(id);
-    // Events before this node mounted (a certificate refused while it was a
-    // far-away card): ask the host once.
     void portalStates()
       .then((list) => {
         const s = list.find((x) => x.nodeId === id);
@@ -155,9 +146,6 @@
     }
   }
 
-  // Joins the live policy while this node is on screen ("near") with a URL.
-  // A refused certificate shows the warning instead of the (blank) page; a
-  // portal without chrome stays a snapshot until focused, so a drag moves it.
   $effect(() => {
     if (kind !== "web" || !url || certHost || (chromeHidden && !focused)) return;
     const off = policy.register({
@@ -180,7 +168,6 @@
     };
   });
 
-  // Size, selection or focus changed: look again after it settles.
   $effect(() => {
     void node.x;
     void node.y;
@@ -192,8 +179,6 @@
     policy.kick();
   });
 
-  // Design mode (Maestri): brush in the toolbar arms an overlay in the page;
-  // the pick comes back as `canvas://design-select` and opens the sheet.
   let designing = $state(false);
   let designEv = $state<DesignEvent | null>(null);
   const offDesign = onDesign((ev) => {
@@ -220,7 +205,6 @@
         $t("canvas.portal.design.hint", { default: "Drag a region or click an element · Esc cancels" }) as string,
       );
       designing = true;
-      // The page needs the pointer: make sure the live browser is on top.
       engine.selection.set([node.id]);
       engine.selection.focus(node.id);
       policy.kick();
@@ -335,7 +319,6 @@
     const next = (e.currentTarget as HTMLSelectElement).value as StorageScope;
     if (next === scope) return;
     patchData({ storageScope: next });
-    // The store is chosen at creation: reload the browser in the new scope.
     if (pstate) {
       await closePortal(node.id).catch(() => {});
       pstate = null;

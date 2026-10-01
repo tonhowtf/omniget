@@ -72,8 +72,6 @@
     busy = true;
     try {
       const outcome = await invoke<RecoveryOutcome>("restore_recovery");
-      // Say what happened: interrupted jobs are settled from their folder,
-      // not downloaded again, and some need the person (N-2).
       showToast(outcome.attention > 0 ? "error" : "info", recoverySummary(outcome));
       items = [];
       isOpen = false;

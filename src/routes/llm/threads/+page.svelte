@@ -1,11 +1,4 @@
 <script lang="ts">
-  /**
-   * Central › Threads: projects → threads sidebar, the thread timeline, the
-   * composer with its approval / question / plan drawer, and the right panel
-   * (Diff, Terminal, Files, Plan, Tasks, PR). Everything is event-driven from
-   * `threads://event` through `threadsStore`; nothing polls. Timers exist only
-   * while a turn runs (elapsed labels) or a snooze is about to wake.
-   */
   import { onDestroy, onMount, tick, untrack } from "svelte";
   import { page } from "$app/state";
   import { t } from "$lib/i18n";
@@ -46,7 +39,6 @@
   import GitActionsButton from "$components/central/vcs/GitActionsButton.svelte";
   import ShortcutsProvider, { type ShortcutHandler } from "$components/central/shortcuts/ShortcutsProvider.svelte";
 
-  // ── Boot ──────────────────────────────────────────────────────────────
   onMount(() => {
     void threadsStore.init();
     void threadsUi.listenUsage();
@@ -72,7 +64,6 @@
   });
   let indicatorsStarted = false;
 
-  // ── Selection ─────────────────────────────────────────────────────────
   let selectedId = $derived(threadsUi.selected);
   let thread = $derived(threadsStore.threads.find((x) => x.threadId === selectedId) ?? null);
   let project = $derived(thread ? (threadsStore.projects.find((p) => p.projectId === thread!.projectId) ?? null) : null);
@@ -81,13 +72,11 @@
   let inst = $derived(thread ? (threadsStore.instances.find((i) => i.instance.id === thread!.instanceId) ?? null) : null);
   let caps = $derived(inst?.capabilities ?? null);
 
-  // ?thread=<id> deep link.
   $effect(() => {
     const q = page.url.searchParams.get("thread");
     if (q && threadsStore.ready) untrack(() => select(q));
   });
 
-  // Open the selected thread's detail (and drop details of threads not shown).
   let openedFor = "";
   $effect(() => {
     const id = selectedId;
@@ -113,7 +102,6 @@
     void tick().then(() => composer?.focus());
   }
 
-  // ── Timeline rows ─────────────────────────────────────────────────────
   let expandedIds = $derived(selectedId ? threadsUi.setOf("expandedGroups", selectedId) : new Set<string>());
   let rows = $derived<Row[]>(
     selectedId
@@ -147,7 +135,6 @@
     return [...map.values()];
   });
 
-  // Context meter: driver-reported window first, then an estimate.
   let context = $derived.by(() => {
     if (!selectedId) return null;
     const live = threadsUi.liveUsage[selectedId];
@@ -156,7 +143,6 @@
   });
   let limits = $derived(rateLimitsOf(detail));
 
-  // ── Composer & sending ────────────────────────────────────────────────
   let composer = $state<ReturnType<typeof ThreadComposer> | null>(null);
   let composerText = $state("");
   let banner = $state<string | null>(null);
@@ -189,7 +175,6 @@
   async function send(text: string, chips: Chip[]): Promise<boolean> {
     const th = thread;
     if (!th) return false;
-    // A single open question that takes free text: the composer is the answer field.
     if (question && !approvals.length && question.questions.length === 1 && question.questions[0].allowCustomAnswer && text.trim()) {
       await answerQuestion({ [question.questions[0].id]: text.trim() });
       return true;
@@ -201,7 +186,6 @@
     return startTurn(th, text, chips);
   }
 
-  /** ⌘Enter / "Send now": interrupt the running turn and send this first. */
   async function steer(text: string, chips: Chip[]): Promise<boolean> {
     const th = thread;
     if (!th) return false;
@@ -226,7 +210,6 @@
     for (const c of q.chips) composer?.addChip(c);
   }
 
-  /** Stop drains the queue back into the composer instead of starting it. */
   async function stop() {
     const th = thread;
     if (!th) return;
@@ -242,7 +225,6 @@
     await threadsStore.interrupt(th.threadId).catch((e) => (banner = String(e)));
   }
 
-  // Turn boundaries: release the queue, capture the checkpoint, maybe open the diff.
   let lastActive = $state<Record<string, string | null>>({});
   $effect(() => {
     const snapshot = threadsStore.threads.map((x) => [x.threadId, x.activeTurnId, x.pendingApprovalCount + x.pendingUserInputCount] as const);
@@ -274,7 +256,6 @@
     const th = threadsStore.threads.find((x) => x.threadId === threadId);
     if (!th) return;
     const root = th.worktreePath ?? threadsStore.projects.find((p) => p.projectId === th.projectId)?.workspaceRoot;
-    // End of turn N: always (re)capture N, so a turn redone after a revert never reuses a stale ref.
     if (root) await ensureCheckpoint(root, threadId, th.turnCount, true);
     if (threadId === threadsUi.selected) {
       void threadsStore.dispatch({ type: "thread.visit", threadId }).catch(() => undefined);
@@ -287,7 +268,6 @@
     }
   }
 
-  // ── Commands from the composer ────────────────────────────────────────
   async function run(cmd: Parameters<typeof threadsStore.dispatch>[0]) {
     try {
       await threadsStore.dispatch(cmd);
@@ -381,7 +361,6 @@
     await threadsStore.respondUserInput(th.threadId, question.requestId, null).catch((e) => (banner = String(e)));
   }
 
-  // ── Plans ─────────────────────────────────────────────────────────────
   const IMPLEMENT = "PLEASE IMPLEMENT THIS PLAN:\n";
   async function implementPlan(plan: PlanRow) {
     const th = thread;
@@ -421,7 +400,6 @@
     }
   }
 
-  // ── Edit from here / fork ─────────────────────────────────────────────
   let revertRow = $state<Extract<Row, { kind: "user" }> | null>(null);
   let revertBusy = $state(false);
   let revertError = $state<string | null>(null);
@@ -455,7 +433,6 @@
     }
   }
 
-  // ── Right panel ───────────────────────────────────────────────────────
   let panel = $derived(selectedId ? threadsUi.panel(selectedId) : null);
   function setPanel(patch: Parameters<typeof threadsUi.setPanel>[1]) {
     if (selectedId) threadsUi.setPanel(selectedId, patch);
@@ -512,7 +489,6 @@
     return patches.length ? toFileDiffs(patches.map((p) => p.patch).join("\n")) : null;
   });
 
-  // Panel width (drag handle), remembered.
   let panelWidth = $state(readWidth());
   function readWidth(): number {
     try {
@@ -531,7 +507,6 @@
       try {
         localStorage.setItem("omniget.central.threads.panelWidth", String(Math.round(panelWidth)));
       } catch {
-        /* optional */
       }
     };
     window.addEventListener("pointermove", move);
@@ -542,7 +517,6 @@
     else if (e.key === "ArrowRight") panelWidth = Math.max(320, panelWidth - 24);
   }
 
-  // ── New thread / project ──────────────────────────────────────────────
   let newOpen = $state(false);
   let newProject = $state<string | null>(null);
   function openNew(projectId: string | null) {
@@ -580,7 +554,6 @@
     }
   }
 
-  // ── Header actions ────────────────────────────────────────────────────
   let renamingTitle = $state(false);
   let titleDraft = $state("");
   async function commitTitle() {
@@ -592,9 +565,6 @@
 
   let sidebarOpen = $state(false);
 
-  // ── Keyboard: the Central shortcut table (ShortcutsProvider) ──────────
-  // Approvals, questions, send/newline, ⌘. inside the composer, ⌘Z of the undo
-  // toast and the terminal keys stay native in their components.
   function liveThreads() {
     return threadsStore.threads.filter((x) => !x.archivedAt);
   }

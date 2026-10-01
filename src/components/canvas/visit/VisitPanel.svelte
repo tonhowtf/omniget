@@ -1,11 +1,4 @@
 <script lang="ts">
-  // Share the canvas outward:
-  // - Share: open this floor for read-only visits through the room relay (a
-  //   code to give a friend); terminal screens stay private unless shared
-  //   one by one.
-  // - Visit: type a friend's code and watch their canvas (read-only).
-  // - Phone: pair a phone with a 6-digit code, read-only or full control,
-  //   on the remote listener; devices are revocable here.
   import { onMount } from "svelte";
   import { listen } from "@tauri-apps/api/event";
   import { t } from "$lib/i18n";
@@ -34,7 +27,6 @@
   interface Props {
     workspaceId: string;
     floorId: string;
-    /** Terminal nodes of the current floor (host: which screens to share). */
     terminals?: Array<{ id: string; title: string }>;
     onClose?: () => void;
   }
@@ -108,7 +100,6 @@
       copied = true;
       setTimeout(() => (copied = false), 1500);
     } catch {
-      // The code is on screen anyway.
     }
   }
 
@@ -268,8 +259,6 @@
     </form>
   </div>
 {/snippet}
-
-<!-- The visited canvas itself fills the World screen: VisitStage.svelte (mounted by Canvas.svelte). -->
 
 <style>
   .panel {

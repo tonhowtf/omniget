@@ -1,13 +1,4 @@
 <script lang="ts">
-  // Workspaces sidebar (study 95 §A, study 100 §A): list with groups
-  // (dividers) and folders (collapsible), create (⌘⇧N, the new one opens),
-  // rename, edit (icon, IDE, jump number, CLAUDE.md/AGENTS.md sync), pin,
-  // copy path, open in IDE, delete, reorder by dragging or Alt+↑/↓, floors
-  // under each one. Switching: ⌃1–⌃9 (Alt+1–9 off macOS) honouring fixed
-  // jump numbers, ⌘⌘ then a digit, ⌘↑/⌘↓ and ⌘[/⌘], ⌘ + wheel; ⌘S shows or
-  // hides. Closed, it becomes the mini rail (hover label, hold to list the
-  // terminals). Hibernated workspaces are dimmed. Switching keeps the old
-  // workspace's terminals running (Maestri).
   import { onMount, tick } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { listen, type UnlistenFn } from "@tauri-apps/api/event";
@@ -86,7 +77,6 @@
 
   const list = $derived(workspaces.list);
   const layout = $derived(layoutWorkspaces(list));
-  /** Visual order: what ⌘↑/⌘↓, ⌘[/⌘] and the drag indices follow. */
   const flat = $derived(layout.flat);
   const targets = $derived(jumpTargets(flat));
   const currentWs = $derived.by(() => {
@@ -111,7 +101,6 @@
     try {
       localStorage.setItem(FOLDERS_KEY, JSON.stringify(collapsed));
     } catch {
-      // Private mode.
     }
   }
 
@@ -124,7 +113,6 @@
       if (visible()) step(Number((e as CustomEvent).detail) > 0 ? 1 : -1);
     };
     window.addEventListener(WORKSPACE_STEP_EVENT, onStep);
-    // Terminal starts and exits change `loaded` (dimmed icons, M-A13).
     let timer: ReturnType<typeof setTimeout> | null = null;
     const soon = () => {
       if (timer) return;
@@ -149,7 +137,6 @@
     };
   });
 
-  // Palette asks: "New Workspace", "New Floor".
   let seenWsAsk = canvasUi.newWorkspaceAsk;
   let seenFloorAsk = canvasUi.newFloorAsk;
   $effect(() => {
@@ -169,9 +156,6 @@
     return !!host && host.isConnected && host.offsetParent !== null;
   }
 
-  // ---- keyboard --------------------------------------------------------
-
-  // ⌘ tapped twice (nothing else pressed) arms a digit jump (Maestri).
   let metaDownAt = 0;
   let metaClean = false;
   let lastTap = 0;
@@ -220,7 +204,6 @@
       }
     }
     const primary = mac ? e.metaKey : e.ctrlKey;
-    // ⌃1–⌃9 on macOS; Alt+1–9 elsewhere (Ctrl+digit is ⌘1–9 there).
     const switchMod = mac ? e.ctrlKey && !e.metaKey && !e.altKey : e.altKey && !e.ctrlKey && !e.metaKey;
     const digit = /^Digit([1-9])$/.exec(e.code)?.[1];
     if (switchMod && digit && !e.shiftKey) {
@@ -237,7 +220,6 @@
       step(e.key === "ArrowDown" ? 1 : -1);
       return;
     }
-    // ⌘] / ⌘[ : next / previous workspace (View menu in the Maestri).
     const bracket =
       e.key === "]" || e.code === "BracketRight" ? 1 : e.key === "[" || e.code === "BracketLeft" ? -1 : 0;
     if (primary && bracket && !e.altKey && !e.shiftKey && !isEditableTarget(e.target)) {
@@ -274,12 +256,9 @@
     void switchTo(engine, ws.id, floorId ?? ws.activeFloorId ?? ws.floors[0]?.id);
   }
 
-  // ---- create / edit ---------------------------------------------------
-
   async function focusName() {
     await tick();
     nameInput?.focus();
-    // The canvas may take focus back in the same frame (terminal input).
     requestAnimationFrame(() => {
       if (nameInput && document.activeElement !== nameInput) nameInput.focus();
     });
@@ -341,7 +320,6 @@
         if (!form.name.trim()) form.name = picked.split(/[\\/]/).filter(Boolean).pop() ?? "";
       }
     } catch {
-      // Dialog unavailable: the text field still works.
     }
   }
 
@@ -355,11 +333,9 @@
       });
       if (typeof picked === "string" && form) form.icon = `file:${picked}`;
     } catch {
-      // Dialog unavailable.
     }
   }
 
-  /** Fields beyond the create input; null clears. */
   function extras(f: Form): Record<string, unknown> {
     const patch: Record<string, unknown> = {
       groupName: f.groupName.trim() || null,
@@ -418,8 +394,6 @@
     }
   }
 
-  // ---- rename / menu / delete -----------------------------------------
-
   async function startRename(ws: WorkspaceSummary) {
     menu = null;
     renaming = ws.id;
@@ -469,8 +443,6 @@
     }
   }
 
-  // ---- agent files ------------------------------------------------------
-
   async function startSync(ws: Ws, winner?: string) {
     menu = null;
     const files = ws.agentFiles?.files?.filter((f) => f.exists).map((f) => f.name) ?? [];
@@ -497,8 +469,6 @@
       showToast("error", String(e));
     }
   }
-
-  // ---- export / import / backups ---------------------------------------
 
   async function exportWs(ws: WorkspaceSummary) {
     menu = null;
@@ -561,8 +531,6 @@
     }
   }
 
-  // ---- floors ----------------------------------------------------------
-
   async function startFloor(wsId: string) {
     if (!wsId) return;
     expanded = { ...expanded, [wsId]: true };
@@ -599,8 +567,6 @@
     }
   }
 
-  // ---- reorder (pointer drag; HTML5 DnD is unreliable in the webview) ----
-
   function rowDown(e: PointerEvent, ws: WorkspaceSummary) {
     if (e.button !== 0 || renaming === ws.id) return;
     drag = { id: ws.id, y0: e.clientY, over: flat.findIndex((w) => w.id === ws.id), moved: false };
@@ -620,12 +586,10 @@
         break;
       }
     }
-    // Rows of collapsed folders are not in the DOM: map DOM index to flat index.
     const id = rows[over]?.dataset.wsId;
     drag.over = id ? flat.findIndex((w) => w.id === id) : flat.length;
   }
 
-  /** Moves `id` to flat position `to` (before the row now there) and adopts the group/folder around it. */
   async function placeAt(id: string, to: number) {
     const moving = flat.find((w) => w.id === id);
     if (!moving) return;
@@ -656,14 +620,12 @@
     if (to !== from) void placeAt(d.id, to);
   }
 
-  /** Alt+↑/↓: move the workspace one row, keep focus on it and announce it. */
   async function moveBy(ws: Ws, dir: number) {
     const from = flat.findIndex((w) => w.id === ws.id);
     const to = from + dir;
     if (from < 0 || to < 0 || to >= flat.length) return;
     const rest = flat.filter((w) => w.id !== ws.id);
     const neighbour = rest[dir > 0 ? to - 1 : to];
-    // Crossing into another group/folder adopts it first (one step per press).
     if (neighbour && ((neighbour.groupName ?? "") !== (ws.groupName ?? "") || (neighbour.folderName ?? "") !== (ws.folderName ?? ""))) {
       await workspaces.update(ws.id, {
         groupName: neighbour.groupName ?? null,
@@ -698,8 +660,6 @@
   }
 
   const dimmed = (ws: Ws) => ws.loaded === false && (ws.terminals?.length ?? ws.terminalCount ?? 0) > 0;
-
-  // ---- mini rail: hover label and hold-to-list ---------------------------
 
   let holdTimer: ReturnType<typeof setTimeout> | null = null;
   let held = false;
@@ -1167,8 +1127,6 @@
     position: relative;
     overflow: visible;
   }
-  /* Laid over the whole badge: as a grid item a 64×64 image got stretched
-     into a tall pill in the full sidebar (M-A4). */
   .icon-img {
     position: absolute;
     inset: 0;
@@ -1192,8 +1150,6 @@
     font-size: 13px;
     font-weight: 800;
   }
-  /* Not `.group`: that is a global card primitive (lib/style/primitives.css)
-     and drew a pill around the label (M-A6). */
   .ws-group {
     margin: 10px 6px 2px;
     padding-top: 6px;

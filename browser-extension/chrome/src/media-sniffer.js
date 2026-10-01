@@ -72,9 +72,6 @@ const detectedMedia = new Map();
 const pendingRequests = new Map();
 const tabPageKeys = new Map();
 
-// Entries are normally removed in onHeadersReceived / onErrorOccurred, but a
-// redirected or cancelled request can leave one behind forever. Cap the map and
-// drop the oldest half when it fills up — insertion order is chronological.
 export const MAX_PENDING_REQUESTS = 4096;
 
 export function trimPendingRequests(pending, max = MAX_PENDING_REQUESTS) {
@@ -209,11 +206,6 @@ async function resolveTabPageKey(tabId) {
   }
 }
 
-// Folds a stored page back into whatever is already in memory. Restoring by
-// replacing the page's Map would lose live detections: the listeners are
-// registered synchronously and start recording the moment a request wakes the
-// service worker, while this reads every storage key and lands much later. A
-// live entry is also the fresher one, so it wins on conflict.
 export function mergeStoredMedia(target, pageKey, storedEntries) {
   let existing = target.get(pageKey);
   if (!existing) {
@@ -246,14 +238,6 @@ export async function restoreMedia() {
   } catch {}
 }
 
-// Must be called synchronously while the service worker module is evaluated.
-// In MV3 an event only wakes a terminated worker back up if its listener was
-// registered during that first synchronous pass, so registration can never wait
-// on a promise — the enable check lives inside each handler instead.
-// Files the entry under the tab's page key and persists the page. Shared by the
-// webRequest sniffer and by deep search, which finds media the network layer
-// never sees. Resolves to false when the tab has no usable page key (an
-// internal page, or a tab that closed while we were looking it up).
 export async function recordDetectedMedia(tabId, entry) {
   if (!entry?.url) return false;
   const pageKey = await resolveTabPageKey(tabId);
@@ -303,11 +287,6 @@ export function registerSnifferListeners(onMediaDetected) {
       const contentType = getContentType(details.responseHeaders);
       const contentLength = getContentLength(details.responseHeaders);
 
-      // The user's regex table gets the first and last word. A block rule kills
-      // the request outright; an accept rule bypasses every heuristic below,
-      // because its whole purpose is to catch what the heuristics miss — an
-      // Instagram byte-range fragment, say, which isPlatformCdnFragment drops
-      // and which the accept rule rewrites into the URL of the whole file.
       const regexResult = applyRegexRules(url, getCompiledRegexRules());
       if (regexResult?.action === "block") {
         pendingRequests.delete(details.requestId);
@@ -358,9 +337,6 @@ export function registerSnifferListeners(onMediaDetected) {
         responseHeaders: details.responseHeaders || [],
       };
 
-      // isSnifferEnabled() above is the optimistic fast path; this is the
-      // authoritative one. Nothing is filed until the stored flag is known,
-      // so a boot-window request cannot be kept against the user's setting.
       loadSnifferState().then((allowed) => {
         if (!allowed) return null;
         return recordDetectedMedia(details.tabId, entry).then((recorded) => {

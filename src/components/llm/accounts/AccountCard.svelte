@@ -1,33 +1,10 @@
 <script lang="ts">
-  /**
-   * One CLI account: what it is, how much of its windows is left, and the four
-   * things you can do to it.
-   *
-   * The card shows the config directory in full because that path *is* the
-   * account — OmniGet keeps a pointer and nothing else, and the user should be
-   * able to see exactly which directory a terminal will open in. "Enter" runs
-   * the CLI there so its own `/login` handles the sign-in; the app never reads
-   * what that login writes.
-   *
-   * Removing asks once, in place: the second click is a different label, so a
-   * mis-click cannot delete an account. "Forget" keeps the directory (and the
-   * login) on disk; wiping it is a separate checkbox.
-   *
-   * The sandbox row is the one thing on this card that decides what a turn can
-   * do to the user's disk, so it is written out rather than hidden in a
-   * settings page: the mode in words, the literal CLI flag behind it, and —
-   * only when the account can write — a warning. Every account starts
-   * read-only; going to write asks in place, exactly like removing does, and
-   * going back to read-only is one click because tightening never needs a
-   * confirmation.
-   */
   import { t } from "$lib/i18n";
   import UsageWindows from "./UsageWindows.svelte";
   import type { AccountView, SandboxMode } from "$lib/stores/llm-accounts-store.svelte";
 
   interface Props {
     account: AccountView;
-    /** 1-based position in the fallback chain. */
     rank: number;
     available: boolean;
     nowMs?: number;
@@ -54,13 +31,10 @@
 
   let confirming = $state(false);
   let purge = $state(false);
-  /** Second click of the read-only → write switch. */
   let confirmingWrite = $state(false);
 
   let writes = $derived(account.sandbox === "write" || account.sandbox === "full");
-  /** The ceiling that lets a turn in run mode full_access through (2.7). */
   let full = $derived(account.sandbox === "full");
-  /** Second click of the write → full switch. */
   let confirmingFull = $state(false);
 
   function toggleFull() {
@@ -85,7 +59,6 @@
 
   function toggleSandbox() {
     if (writes) {
-      // Tightening is never dangerous: no confirmation.
       onsandbox(account.id, "read-only");
       confirmingWrite = false;
       return;
@@ -299,7 +272,6 @@
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
   }
-  /* An account that can write is the exception, and it looks like one. */
   .sandbox.writes {
     border-color: color-mix(in srgb, var(--warning) 50%, var(--border));
     background: color-mix(in srgb, var(--warning) 8%, transparent);

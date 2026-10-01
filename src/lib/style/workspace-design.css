@@ -1,7 +1,3 @@
-/* 21st workspace preset palettes. The settings store sets data-ds-preset/
-   data-ds-mode and .ds-scope on <html> for every route when a workspace preset
-   is the saved style; previews scope them locally. Legacy --primary means
-   background. New components read the --sr-* tokens, derived from these. */
 [data-ds-preset="amber-minimal"][data-ds-mode="light"] {
   --ds-art-surface: #ffffff;
   --ds-background: #ffffff;
@@ -247,13 +243,11 @@ html[data-reduce-motion="true"].ds-scope :is(button, a):is(:hover, :focus-visibl
 }
 .ds-scope .button.primary:hover:not(:disabled) { filter: brightness(0.96); }
 
-/* Filled selection keeps its own foreground; links/focus use surface ink. */
 .ds-scope .llm-tabs .llm-tab[aria-current="page"] {
   background: var(--ds-accent);
   color: var(--ds-accent-foreground);
 }
 
-/* Surface links remain identifiable even when their safe ink is neutral. */
 .ds-scope a.mcp-link,
 .ds-scope a.link,
 .ds-scope .markdown a {
@@ -261,7 +255,6 @@ html[data-reduce-motion="true"].ds-scope :is(button, a):is(:hover, :focus-visibl
   text-underline-offset: 3px;
 }
 
-/* Chrome and portals inherit the same palette. */
 html.ds-scope {
   --fill-1: color-mix(in srgb, var(--ds-foreground) 12%, transparent);
   --fill-2: color-mix(in srgb, var(--ds-foreground) 8%, transparent);
@@ -277,7 +270,6 @@ html.ds-scope .mac-nav-item.active { background: var(--ds-accent); color: var(--
 html.ds-scope[data-ds-mode="light"] { color-scheme: light; }
 html.ds-scope[data-ds-mode="dark"] { color-scheme: dark; }
 html.ds-scope .mac-search-field { background: var(--ds-card); color: var(--ds-muted-foreground); }
-/* Apply palette switches atomically in WKWebView; retain opacity feedback. */
 html.ds-scope :is(.mac-search-field, .mac-nav-item) { transition: opacity var(--duration-fast) var(--ease-out); }
 html.ds-scope {
   --sidebar-bg: var(--ds-muted);

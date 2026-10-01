@@ -30,15 +30,10 @@ import urllib.request
 LAYA_URL = os.environ.get('LAYA_URL', 'http://127.0.0.1:8766')
 LAYA_MULTI_URL = os.environ.get('LAYA_MULTI_URL', 'http://127.0.0.1:8767')
 HAIKU_PASS = 7  # nota >= 7 conta como aprovado
-# Faixa de incerteza do cascade, calibrada por `calibrate` no conjunto da onda 2
-# (sobrescrita por --cascade-band lo,hi). Fora dela o Laya decide; dentro, Haiku.
 CASCADE_BAND = (0.0, 1.0)
 ONDAS = pathlib.Path(__file__).resolve().parents[2] / 'estudos/otimizacao-benchmark-2026-09-26/ondas'
 
 SCRUB = ('ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'ANTHROPIC_BASE_URL', 'CLAUDE_CODE_OAUTH_TOKEN')
-
-
-# ── Laya ───────────────────────────────────────────────────────────────
 
 def systemone(state, questions, url=None, timeout=30):
     body = json.dumps({'model': 'laya', 'state': state, 'questions': questions}).encode()
@@ -49,9 +44,6 @@ def systemone(state, questions, url=None, timeout=30):
         res = json.loads(r.read())
     return res.get('answers') or {}, (time.time() - t0) * 1000, (res.get('usage') or {}).get('input_tokens')
 
-
-# Afirmações por tarefa: o Laya dá P(verdadeiro) para cada uma; o veredito é o mínimo
-# (todas precisam valer). Genérico = critério do juiz como afirmação.
 STATEMENTS = {
     't08': [
         'The English text is a faithful and complete translation of the Portuguese source: it says the same '
@@ -67,10 +59,8 @@ STATEMENTS = {
     ],
 }
 
-
 def state_for(task_prompt, files):
     return {'task': task_prompt, 'files': {k: v[:1500] for k, v in files.items()}}
-
 
 def laya_verdict(task_id, task_prompt, criterion, files, url=None, agg='min'):
     """Devolve {'p', 'aprovado', 'por_pergunta', 'latencia_ms', 'input_tokens'}."""
@@ -82,13 +72,9 @@ def laya_verdict(task_id, task_prompt, criterion, files, url=None, agg='min'):
     return {'p': round(p, 4), 'aprovado': p >= 0.5, 'por_pergunta': [round(x, 4) for x in ps],
             'latencia_ms': round(ms, 1), 'input_tokens': tok}
 
-
-# ── Haiku (o mesmo juiz que missions_eval usava) ───────────────────────
-
 def _env():
     return {k: v for k, v in os.environ.items()
             if k not in SCRUB and not k.startswith('CLAUDECODE') and not k.startswith('CLAUDE_CODE_')}
-
 
 def haiku_verdict(task_prompt, criterion, files, model='haiku', cwd=None):
     prompt = (f'Você é um avaliador. Tarefa dada ao agente: {task_prompt}\nCritério: {criterion}\n'
@@ -110,7 +96,6 @@ def haiku_verdict(task_prompt, criterion, files, model='haiku', cwd=None):
     except Exception as e:  # noqa: BLE001
         return {'erro': str(e)[:200], 'latencia_ms': round(ms, 1)}
 
-
 def cascade_verdict(task_id, task_prompt, criterion, files, band=None, url=None, model='haiku', cwd=None):
     lo, hi = band or CASCADE_BAND
     lv = laya_verdict(task_id, task_prompt, criterion, files, url)
@@ -120,9 +105,6 @@ def cascade_verdict(task_id, task_prompt, criterion, files, band=None, url=None,
     hv = haiku_verdict(task_prompt, criterion, files, model, cwd)
     return {'decidiu': 'haiku', 'aprovado': hv.get('aprovado'), 'laya': lv, 'haiku': hv,
             'custo_usd': hv.get('custo_usd'), 'nota': hv.get('nota')}
-
-
-# ── dificuldade ────────────────────────────────────────────────────────
 
 DIFFICULTY_Q = {
     'dificuldade': {
@@ -137,14 +119,10 @@ DIFFICULTY_Q = {
     },
 }
 
-
 def classify_prompt(prompt, url=None):
     ans, ms, _ = systemone({'task': prompt}, DIFFICULTY_Q, url)
     a = ans['dificuldade']
     return {'classe': a['choice'], 'p_hard': round(float(a['probabilities']['hard']), 4), 'latencia_ms': round(ms, 1)}
-
-
-# ── conjunto de avaliação ──────────────────────────────────────────────
 
 T08_PROMPT = ('Traduza o texto de pt.txt para inglês e grave a tradução em en.txt. Mantenha o nome OmniGet e os '
               'nomes dos sistemas operacionais. Só a tradução no arquivo.')
@@ -203,7 +181,6 @@ T11_NEG = {
                       '- Fixed a freeze when pausing HLS downloads.\n'),
 }
 
-
 def build_set():
     items, seen = [], set()
     files = [ONDAS / 'onda1/missions-baseline.json'] + sorted(pathlib.Path(p) for p in glob.glob(str(ONDAS / 'onda2/missions-r*.json')))
@@ -230,10 +207,8 @@ def build_set():
                       'files': {'changelog.txt': CHANGELOG, 'summary.md': text}})
     return items
 
-
 def meta(tid):
     return (T08_PROMPT, T08_CRIT) if tid == 't08' else (T11_PROMPT, T11_CRIT)
-
 
 def cmd_eval(args):
     items = [json.loads(ln) for ln in open(args.set)]
@@ -250,15 +225,12 @@ def cmd_eval(args):
               flush=True)
     pathlib.Path(args.out).write_text(json.dumps(rows, ensure_ascii=False, indent=1))
 
-
 def acc(pred, lab):
     return round(sum(p == l for p, l in zip(pred, lab)) / len(lab), 4)
-
 
 def best_threshold(ps, labs):
     cands = sorted(set(ps)) + [1.01]
     return max(((acc([p >= t for p in ps], labs), -abs(t - 0.5), t) for t in cands))[2]
-
 
 def band_for(ps, labs, target=1.0):
     """Maior cobertura do Laya com acerto >= target nos casos que ele decide.
@@ -277,7 +249,6 @@ def band_for(ps, labs, target=1.0):
                 best = (len(dec), lo, hi)
     return best[1], best[2]
 
-
 def cmd_calibrate(args):
     rows = json.loads(pathlib.Path(args.results).read_text())
     rows = [r for r in rows if 'nota' in (r.get('haiku') or {})]
@@ -291,7 +262,6 @@ def cmd_calibrate(args):
         l05 = [int(p >= 0.5) for p in ps]
         thr = best_threshold(ps, labs)
         lt = [int(p >= thr) for p in ps]
-        # validação cruzada por tarefa: limiar calibrado em t08, testado em t11 e vice-versa
         cv = []
         for tid in ('t08', 't11'):
             tr = [(r[key]['p'], r['rotulo']) for r in rows if r['task'] != tid]
@@ -307,7 +277,6 @@ def cmd_calibrate(args):
                     'acerto_cv_por_tarefa': round(sum(cv) / len(cv), 4), 'auc': round(auc, 4),
                     'p_media_pos': round(statistics.mean(pos), 4), 'p_media_neg': round(statistics.mean(neg), 4),
                     'latencia_ms_mediana': statistics.median(r[key]['latencia_ms'] for r in rows)}
-        # cascade com rótulo verdadeiro como alvo (acerto 100% nos que o Laya decide)
         casc = {}
         for tgt in (1.0, 0.95):
             lo, hi = band_for(ps, labs, tgt)
@@ -324,7 +293,6 @@ def cmd_calibrate(args):
         out[key]['cascade'] = casc
     pathlib.Path(args.out).write_text(json.dumps(out, ensure_ascii=False, indent=1))
     print(json.dumps(out, ensure_ascii=False, indent=1))
-
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -379,7 +347,6 @@ def main():
         for t in missions_eval.TASKS:
             print(json.dumps(dict(task=t.id, kind=t.kind, **classify_prompt(t.prompt, args.url)), ensure_ascii=False))
     return 0
-
 
 if __name__ == '__main__':
     sys.exit(main())

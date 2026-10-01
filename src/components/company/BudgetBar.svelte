@@ -1,5 +1,4 @@
 <script lang="ts">
-  /** Usage against a limit: green, orange past the warning, red at the limit. */
   let { pct, warn = 80 }: { pct: number; warn?: number } = $props();
   let clamped = $derived(Math.max(0, Math.min(100, pct)));
   let tone = $derived(pct >= 100 ? "var(--red)" : pct >= warn ? "var(--orange)" : "var(--green)");

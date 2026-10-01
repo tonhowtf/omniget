@@ -1,9 +1,4 @@
 import { queueDataReady } from '../stores/download-listener';
-/**
- * Routes whose content arrives from a fetch. They declare it on a surface with
- * `data-agent-readiness` (loading|error|ready); until one settles (ready, which
- * includes an empty result, or error), their data is not ready.
- */
 const FETCHED_DATA_ROUTES: readonly string[] = ['/music', '/about/changelog'];
 function routeDataReady(pathname: string, surfaceStates: readonly (string | null)[]): boolean {
  const path = pathname.replace(/\/+$/, '') || '/';
@@ -11,7 +6,6 @@ function routeDataReady(pathname: string, surfaceStates: readonly (string | null
  if (FETCHED_DATA_ROUTES.includes(path)) return surfaceStates.some(s => s === 'ready' || s === 'error');
  return true;
 }
-/** Surface contracts fail closed for renderers without an explicit ready signal. */
 export function surfaceReadiness(sensitive: boolean, navigating: boolean, semantics: Record<string, unknown>) {
  const visible=(el: Element)=>{const r=el.getBoundingClientRect();return r.width>0&&r.height>0&&r.bottom>0&&r.right>0&&r.top<innerHeight&&r.left<innerWidth;};
  const images=[...document.images].filter(visible);

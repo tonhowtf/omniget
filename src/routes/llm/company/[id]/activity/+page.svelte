@@ -1,8 +1,4 @@
 <script lang="ts">
-  /**
-   * Activity: the live feed of heartbeat runs (stop, coalesced wakes) and the
-   * hash-chained audit log (filters, pages, chain check, CSV export).
-   */
   import { page } from "$app/state";
   import { t } from "$lib/i18n";
   import { showToast } from "$lib/stores/toast-store.svelte";
@@ -20,13 +16,11 @@
   let staff = $state<Staff[]>([]);
   let issues = $state<Issue[]>([]);
 
-  // Runs
   let runs = $state<Run[]>([]);
   let wakes = $state<Wake[]>([]);
   let runFilter = $state("");
   let runsLoaded = $state(false);
 
-  // Audit
   let rows = $state<AuditRow[]>([]);
   let entity = $state("");
   let actor = $state("");
@@ -93,7 +87,6 @@
   $effect(() =>
     watchCompany(company, (batch) => {
       if (tab === "runs" && batch.some((c) => c.entity === "run" || c.entity === "wake" || c.entity === "staff")) void loadRuns();
-      // New audit lines only matter on the first page; keep older pages stable.
       if (tab === "audit" && rows.length <= PAGE) void loadAudit();
     }),
   );

@@ -1,6 +1,3 @@
-// Svelte actions used by the cards: one shared IntersectionObserver for
-// "is this on screen" and a portal that floats menus above scrollers.
-
 type VisibleCb = (visible: boolean) => void;
 const callbacks = new WeakMap<Element, VisibleCb>();
 let io: IntersectionObserver | null = null;
@@ -15,7 +12,6 @@ function observer(): IntersectionObserver {
   return io;
 }
 
-/** `use:inview={(v) => ...}`: called whenever the element enters/leaves the screen (+200px). */
 export function inview(node: Element, cb: VisibleCb) {
   callbacks.set(node, cb);
   observer().observe(node);
@@ -31,25 +27,14 @@ export function inview(node: Element, cb: VisibleCb) {
 }
 
 type FloatOpts = {
-  /** Element the popup hangs from; null centers it (dialogs). */
   anchor: HTMLElement | null;
   align?: "start" | "end";
   gap?: number;
-  /** Prefer opening above the anchor (player-side menus). */
   above?: boolean;
-  /** Open at a pointer position instead (right-click menus). */
   point?: { x: number; y: number } | null;
-  /** Cover the whole viewport (scrims). */
   fill?: boolean;
 };
 
-/**
- * Move the node to the `.omnitube` root (so it keeps the tokens but escapes
- * overflow clipping) and pin it next to the anchor with `position: fixed`.
- * The root may or may not be the containing block for fixed elements
- * (container queries imply layout containment in some engines), so the
- * offset is measured and corrected instead of assumed.
- */
 export function floating(node: HTMLElement, opts: FloatOpts) {
   let o = opts;
   const host = (o.anchor?.closest(".omnitube") as HTMLElement | null) ?? (document.querySelector(".omnitube") as HTMLElement | null) ?? document.body;

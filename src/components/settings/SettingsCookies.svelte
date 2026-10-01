@@ -44,9 +44,6 @@
   let registry = $state<Registry>({ buckets: {} });
   let healthByKey = $state<Record<string, HealthItem>>({});
 
-  // Backend errors from cookie commands can echo file contents, paths or
-  // header values. Only translated i18n keys reach a toast; anything else
-  // becomes the generic error text.
   function safeErrorText(e: unknown): string {
     if (typeof e === "string" && /^[a-z][\w-]*(\.[\w-]+)+$/.test(e)) {
       const text = $t(e) as string;
@@ -55,8 +52,6 @@
     return $t("common.error") as string;
   }
 
-  // yt-dlp's first error line is useful to see, but it may carry cookie
-  // values or tokens: redact key=value pairs and long opaque strings.
   function redactDiagnostic(message: string): string {
     return message
       .replace(/([\w-]+)=([^\s;&"']+)/g, "$1=…")
@@ -121,8 +116,6 @@
     });
   }
   let cookiesDir = $state("");
-  // Read state of the cookie registry. A failed read must never render as
-  // "no cookies": the last valid registry stays on screen next to the error.
   type LoadState = { kind: "loading" } | { kind: "ready" } | { kind: "error" };
   let loadState = $state<LoadState>({ kind: "loading" });
   let hasLoaded = $state(false);

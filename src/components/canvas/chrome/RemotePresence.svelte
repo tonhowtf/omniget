@@ -1,8 +1,4 @@
 <script lang="ts">
-  // Paired devices on the canvas (Maestri Wire `presence` / `cameraControl`):
-  // a named cursor over the node (or point) a phone has open, and camera
-  // moves sent by a drive-scope device. Events come from
-  // `crate::canvas::remote_stream`.
   import { onMount } from "svelte";
   import { listen } from "@tauri-apps/api/event";
   import { t } from "$lib/i18n";

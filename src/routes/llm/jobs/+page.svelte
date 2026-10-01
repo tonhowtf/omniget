@@ -7,12 +7,6 @@
   import DiffView from "$components/llm/activity/DiffView.svelte";
   import JobReview from "$components/llm/activity/JobReview.svelte";
   import { promptTitle } from "$components/llm/activity/run-status";
-  /**
-   * Jobs: background agent runs. A form to start one, the list with live
-   * state, what each job changed (files and diff), the pending permission
-   * ask inline, and the triggers (cron and webhook) that start jobs on
-   * their own, with what they do about missed times.
-   */
   import { onMount, untrack } from "svelte";
   import { page } from "$app/state";
   import { t } from "$lib/i18n";
@@ -87,10 +81,8 @@
   let triggers = $derived(getTriggers());
   let bridge = $derived(getBridge());
   let asks = $derived(getAsks());
-  // What runs and what waits, pushed by the gate (`llm://queue`).
   let queue = $derived(getQueue());
 
-  /** "Position 2 of 5 · folder busy: job j1 is writing there" for a waiting job. */
   function waitText(job: Job): string {
     const entry = queuedEntry(job.id);
     const lines = entry && queue ? queueLines(entry, queue) : null;
@@ -111,13 +103,9 @@
   let prompt = $state("");
   let workspace = $state<string | null>(null);
   let isolation = $state<Isolation>("auto");
-  // Started here, by a person in the window: edits go through, commands ask.
-  // Jobs from the CLI, the bridge or MCP ask for everything unless told (D2).
   let runMode = $state<RunMode>("auto_edits");
   const isolations: Isolation[] = ["auto", "worktree", "shared"];
 
-  /** The folder's `.omniget/workflow.md` (3.10) sets where the form starts;
-   * a looser run mode only once the person trusts the file. */
   function applyWorkflowDefaults(
     config: { agent?: string; isolation?: string; run_mode?: string },
     trusted: boolean,
@@ -149,11 +137,8 @@
     void loadRoster();
   });
 
-  // `?job=<id>` (a row of /llm/work, a company run): that job opened,
-  // whatever the filter.
   let linkedJob = $derived(page.url.searchParams.get("job"));
   let linkedRun = $derived(page.url.searchParams.get("run"));
-  /** The link already followed: closing the row afterwards keeps it closed. */
   let followedJob: string | null = null;
   $effect(() => {
     const id = linkedJob;
@@ -174,18 +159,11 @@
     if (!trAgent) trAgent = agents[0].id;
   });
 
-  // The pending questions follow `llm://tool-ask`, `omni://tool-resolved` and
-  // the job events (see initJobsStore): no timer here (A5).
-
-  // The open row is what a "needs you" notification would point at: while
-  // it is on screen, the backend does not send one (see $lib/llm/ui-focus).
   $effect(() => {
     setLlmFocus({ jobId: openId });
     return () => setLlmFocus({ jobId: null });
   });
 
-  // A job event for the open row refreshes its full log, and its diff once
-  // it has ended (the diff is recorded then; while it runs only on open).
   $effect(() => {
     const ev = getLastJobEvent();
     if (ev && ev.id === openId) {
@@ -206,7 +184,6 @@
     return kind === "playbook" ? $t("llm.central.run.kind.playbook") : $t(`llm.jobs.kind.${kind}`);
   }
 
-  /** Sandbox options of a tool job (catalog runs), if any. */
   function sandboxOf(job: Job): unknown {
     return (job as Job & { spec?: { sandbox?: unknown } | null }).spec?.sandbox ?? null;
   }
@@ -224,8 +201,6 @@
     );
   }
 
-  /** A job whose changes can be reviewed here (3.5): in review, or a
-   *  finished worktree job whose branch can still be integrated. */
   function reviewable(job: Job): boolean {
     if (isActive(job)) return false;
     return job.state === "review" || (!!job.branch && !!job.worktree_path);
@@ -313,7 +288,6 @@
   }
 
   function hookCurl(tr: Trigger): string {
-    // Never the token itself (U6): the shell fills in a scoped one.
     return `curl -X POST -H "Authorization: Bearer $OMNIGET_TOKEN" -d 'payload' ${hookUrl(tr)}`;
   }
 
@@ -981,7 +955,6 @@
     color: var(--orange);
   }
 
-  /* What the job changed: one line per file, like the run detail. */
   .files {
     display: flex;
     flex-direction: column;
@@ -1056,7 +1029,6 @@
     font-weight: 500;
   }
 
-  /* Why it failed, in words (a stall, a deadline, an unanswered question). */
   .reason {
     flex-shrink: 0;
     font-size: var(--text-xs);

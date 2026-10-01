@@ -1,7 +1,3 @@
-// Navigation inside /music, the shared context menu and the dialogs any
-// view can open. Kept outside components so a row in any list can say
-// "go to album" or "edit tags" without prop drilling.
-
 import { invoke } from "@tauri-apps/api/core";
 import { get } from "svelte/store";
 import { t } from "$lib/i18n";
@@ -71,7 +67,6 @@ export async function loadPlaylists() {
   try {
     ui.playlists = await invoke<Playlist[]>("music_playlists");
   } catch {
-    /* keep the old list */
   }
 }
 
@@ -123,7 +118,6 @@ export function removeTracks(ids: number[], deleteFiles: boolean) {
   };
 }
 
-/** The right-click menu for one or more tracks, the same everywhere. */
 function trackMenu(ids: number[], extra: MenuItem[] = []): MenuItem[] {
   const tracks = ids.map((id) => trackById(id)).filter(Boolean) as Track[];
   if (!tracks.length) return [];

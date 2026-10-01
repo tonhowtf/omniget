@@ -1,7 +1,4 @@
 <script lang="ts">
-  /**
-   * Janela modal sobre `<dialog>` nativo: foco preso, Esc fecha, fundo inerte.
-   */
   import type { Snippet } from "svelte";
   import { t } from "$lib/i18n";
 

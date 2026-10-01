@@ -1,5 +1,4 @@
 <script lang="ts">
-  /** Row of tool tiles for a component: detected tools first, then the rest up to `max`. */
   import { t } from "$lib/i18n";
   import type { Compat } from "$lib/central/catalog";
   import ToolDot from "./ToolDot.svelte";

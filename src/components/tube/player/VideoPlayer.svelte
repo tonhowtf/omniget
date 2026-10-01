@@ -1,8 +1,4 @@
 <script lang="ts">
-  // The watch-page player. The <video> element belongs to the engine
-  // ($lib/tube/video) and is only borrowed here, so leaving the page hands it
-  // to the mini player without a restart. Layers, bottom to top: ambient glow,
-  // video, poster, captions, bezel/spinner, SponsorBlock toasts, controls.
   import { onDestroy, onMount, untrack } from "svelte";
   import { fade } from "svelte/transition";
   import { open as openUrl } from "@tauri-apps/plugin-shell";
@@ -40,11 +36,8 @@
     videoId: string;
     list?: string | null;
     index?: number | null;
-    /** Start time in seconds (deep links, timestamps). */
     t?: number | null;
-    /** Watch page data: chapters, channel (SponsorBlock whitelist), up next. */
     info?: WatchInfo | null;
-    /** Vertical Shorts mode: loops, compact controls, no mini player. */
     short?: boolean;
   } = $props();
 
@@ -85,7 +78,6 @@
     leaveWatch();
   });
 
-  // (re)load when the id changes; coming back from the mini player keeps playing
   let loadedFor = "";
   $effect(() => {
     const id = videoId;
@@ -101,7 +93,6 @@
   });
 
   $effect(() => {
-    // setWatchInfo reads and writes player state: only `info`/`videoId` drive this
     const i = info;
     if (i && i.id === videoId) untrack(() => setWatchInfo(i));
   });
@@ -122,12 +113,10 @@
   }
 
   function dbl() {
-    // the single click already toggled: undo it
     toggle();
     toggleFullscreen();
   }
 
-  // ambient mode: sample a tiny frame a few times per second and blur it big
   $effect(() => {
     if (!vplayer.ambient || !amb || short) return;
     const c = amb;
@@ -179,7 +168,6 @@
     <canvas class="amb" class:on={firstFrame} bind:this={amb} width="24" height="14" aria-hidden="true" data-agent-renderer="tube-player"></canvas>
   {/if}
   <div class="frame">
-    <!-- the engine's <video> is appended into this div -->
     <div class="stage" bind:this={stage} onclick={clickStage} ondblclick={dbl} role="presentation"></div>
 
     {#if !firstFrame}

@@ -1,14 +1,8 @@
-// Composer helpers: trigger detection (`/`, `$`, `@`, `#`), ranking, and the
-// wire form of a message with its context chips. Chips travel inline as
-// `[label](omniget-context://v1/<kind>/<id>)` links plus one escaped
-// `<omniget_context>` envelope at the end, so any driver gets plain text.
-
 import type { Chip } from "./ui-state.svelte";
 
 type TriggerKind = "command" | "skill" | "file" | "pr";
 export type Trigger = { kind: TriggerKind; query: string; start: number; end: number };
 
-/** Looks only at the token before the caret (T3 `detectComposerTrigger`). */
 export function detectTrigger(text: string, caret: number): Trigger | null {
   const before = text.slice(0, caret);
   const lineStart = before.lastIndexOf("\n") + 1;
@@ -21,11 +15,10 @@ export function detectTrigger(text: string, caret: number): Trigger | null {
   const query = m[3];
   const start = caret - query.length - 1;
   if (sym === "#" && query && !/^[\p{L}\p{N}][\p{L}\p{N}_-]*$/u.test(query)) return null;
-  if (sym === "$" && /^\d/.test(query)) return null; // "$5" is money
+  if (sym === "$" && /^\d/.test(query)) return null;
   return { kind: sym === "$" ? "skill" : sym === "@" ? "file" : "pr", query, start, end: caret };
 }
 
-/** Replaces the trigger token, absorbing a following space. */
 export function replaceTrigger(text: string, trig: Trigger, insert: string): { text: string; caret: number } {
   let end = trig.end;
   if (text[end] === " ") end++;
@@ -33,7 +26,6 @@ export function replaceTrigger(text: string, trig: Trigger, insert: string): { t
   return { text: next, caret: trig.start + insert.length + 1 };
 }
 
-/** exact 0, prefix 2, word boundary 4, includes 6, fuzzy 100, miss -1. */
 export function score(name: string, q: string): number {
   if (!q) return 50;
   const n = name.toLowerCase();
@@ -66,7 +58,6 @@ function escapeEnvelope(s: string): string {
   return s.replace(/<\/?omniget_context[^>]*>/gi, (m) => m.replace(/</g, "&lt;"));
 }
 
-/** Final text sent to the driver. */
 export function composeMessage(text: string, chips: Chip[]): string {
   const blocks = chips.filter((c) => c.kind === "pr" || c.kind === "terminal" || c.kind === "review");
   const attachments = chips.filter((c) => c.kind === "attachment");
@@ -83,7 +74,6 @@ export function composeMessage(text: string, chips: Chip[]): string {
   return `${out}${out ? "\n\n" : ""}${links}\n\n<omniget_context>\n${body}\n</omniget_context>`;
 }
 
-/** Strips the envelope and context links so ↑ history never recalls dangling chips. */
 export function recallable(text: string): string {
   return text
     .replace(/\n*<omniget_context>[\s\S]*?<\/omniget_context>\s*$/, "")
@@ -91,14 +81,12 @@ export function recallable(text: string): string {
     .trim();
 }
 
-/** Attachment metadata for `thread.turn.start`. */
 export function attachmentsOf(chips: Chip[]): { kind: "file"; name: string; path: string }[] {
   return chips.filter((c) => c.kind === "attachment" && c.path).map((c) => ({ kind: "file" as const, name: c.label, path: c.path! }));
 }
 
 type SlashCommand = { name: string; descKey: string; only?: "empty" };
 
-/** Built-in commands handled by the UI (never sent to the driver). */
 export const BUILTIN_COMMANDS: SlashCommand[] = [
   { name: "model", descKey: "llm.central.threads.cmd.model" },
   { name: "plan", descKey: "llm.central.threads.cmd.plan" },

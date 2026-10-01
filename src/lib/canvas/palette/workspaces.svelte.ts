@@ -1,6 +1,3 @@
-// Workspaces list shared by the sidebar, the palette and the file tree
-// (contract-doc "Workspace"). Follows `canvas://workspaces`.
-
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 
@@ -32,9 +29,7 @@ export interface WorkspaceSummary {
   updatedAt?: string;
   nodeCount?: number;
   terminalCount?: number;
-  /** Mirror of the workspace environment (`envs::save`); null/absent = this machine. */
   environment?: { kind: string; name?: string } | null;
-  /** Lifted and docked nodes of this workspace. */
   panels?: { lifted?: string | null; docked?: Array<{ nodeId: string; edge: 'left' | 'right'; width: number }> } | null;
 }
 
@@ -56,7 +51,6 @@ class WorkspacesState {
     return this.list.find((w) => w.id === id);
   }
 
-  /** Starts following changes; call the returned function to stop. */
   use(): () => void {
     this.users++;
     if (!this.unlisten) {
@@ -101,7 +95,6 @@ class WorkspacesState {
   }
 
   async update(workspaceId: string, patch: Partial<WorkspaceSummary>): Promise<void> {
-    // Optimistic, so renames and reorders feel instant.
     this.list = this.list.map((w) => (w.id === workspaceId ? { ...w, ...patch } : w));
     try {
       await invoke('canvas_workspace_update', { workspaceId, patch });
@@ -122,7 +115,6 @@ class WorkspacesState {
     }
   }
 
-  /** Writes a new order as `sortIndex` 0..n. */
   async reorder(ids: string[]): Promise<void> {
     const pos = new Map(ids.map((id, i) => [id, i]));
     this.list = this.list

@@ -1,9 +1,4 @@
 <script lang="ts">
-  /**
-   * One entry of the MCP registry. "Install" does not download anything: it
-   * fills the form with a known-good config, which the user then completes
-   * (a path, a token) and tests. Nothing here touches the network.
-   */
   import { t } from "$lib/i18n";
   import type { McpRegistryEntry } from "$lib/llm/mcp";
 

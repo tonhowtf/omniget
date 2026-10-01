@@ -1,6 +1,4 @@
 <script lang="ts" module>
-  // Survives remounts so the same lobby is not counted as a new encounter
-  // every time the page is opened.
   const recordedEncounters = new Set<string>();
 </script>
 
@@ -141,7 +139,6 @@
   let cooldowns = $state<any>(null);
   let liveEvents = $state<any>(null);
 
-  // The registry needs to know where it runs to explain platform limits.
   let platform = $derived<Platform>(
     navigator.userAgent.includes("Windows")
       ? "windows"
@@ -152,7 +149,6 @@
 
   const GOALS_KEY = "league-role-goals";
 
-  // Baselines mirror the Rust defaults; a support is not judged on CS.
   const DEFAULT_GOALS: Record<Role, Record<GoalKey, number>> = {
     TOP: { csPerMin: 7.0, goldPerMin: 380, kda: 2.5, visionPerMin: 0.6 },
     JUNGLE: { csPerMin: 5.5, goldPerMin: 360, kda: 3.0, visionPerMin: 1.0 },
@@ -200,8 +196,6 @@
     }
   }
 
-  // Without these guards a slow client lets every 4s tick queue another round of
-  // requests; the replies pile up on the UI thread and freeze the whole window.
   let liveMetricsInFlight = false;
   let liveEventsInFlight = false;
   let cooldownsInFlight = false;
@@ -243,7 +237,6 @@
     }
   }
 
-  // Champion the local player has locked in (or hovered) during champ select.
   let champSelectChampionId = $derived.by(() => {
     const cell = champSelect?.localPlayerCellId;
     if (cell === undefined || cell === null) return 0;
@@ -289,9 +282,6 @@
   }
 
   async function refreshPhaseData() {
-    // A tick that arrives while the previous one is still running is dropped
-    // rather than queued: the client is the slow part, and stacking rounds of
-    // requests is what makes the window stop responding.
     if (refreshInFlight) return;
     refreshInFlight = true;
     try {
@@ -410,8 +400,6 @@
     }
   }
 
-  // The backend keeps a websocket to the client and pushes changes; the only
-  // thing still polled is the in-game data server, which has no push channel.
   $effect(() => {
     if (phase === "InProgress") {
       liveTimer = setInterval(refreshPhaseData, 4000);
@@ -446,9 +434,6 @@
     }).then((u) => unlisteners.push(u));
     listen<string>("league-phase", (e) => {
       const next = e.payload ?? "";
-      // The client repeats the current phase on reconnects and on its own
-      // heartbeat; refreshing again for the same phase re-fetches everything for
-      // nothing.
       if (next === phase) return;
       phase = next;
       refreshPhaseData();
@@ -500,9 +485,6 @@
         {/each}
       </nav>
 
-      <!-- Panels stay mounted while hidden so tab state (search results, spell
-           timers, expanded games) survives switching, and the meta tab's
-           auto-rune effect keeps working from any tab. -->
       <div class="tab-panel" class:active={tab === "overview"}>
         <OverviewTab {summoner} {profileLoading} {ranked} {phase} {champSelect} {liveGame} {lobby} {queues} {actionError} {champions} {championById} {championByAlias} onAction={action} active={tab === "overview"} />
       </div>

@@ -1,7 +1,3 @@
-// File tree / editor / git-lite commands (src-tauri commands/canvas/files.rs).
-// Every call carries the workspace and the tree root; Rust confines paths to
-// that root. Relative paths use `/`.
-
 import { invoke } from '@tauri-apps/api/core';
 import type { BranchInfo, DiffResult, RepoStatus } from '$lib/central/vcs';
 
@@ -41,30 +37,22 @@ export interface FileTreeData {
   pinnedPaths?: string[];
   viewMode?: string;
   expanded?: string[];
-  /** Maestri sort options (Files view). */
   sortBy?: 'name' | 'type' | 'modified' | 'size';
   sortReverse?: boolean;
   foldersFirst?: boolean;
-  /** Remote tree (Maestri §K9): `"workspace"` (the workspace's SSH/Docker
-   *  environment), `"docker:name"`, `"ssh:host"` or a record. Absent = here. */
   environment?: unknown;
 }
 
-/** Editor node = a `file` node with `view: "editor"` (no new node kind on the wire). */
 export interface FileEditorData {
   path: string;
   displayName?: string;
   view?: 'editor';
-  /** Root of the tree it was opened from (the confinement root). */
   rootPath?: string;
   line?: number;
   isImage?: boolean;
   isVideo?: boolean;
-  /** Open files of this editor (absolute paths); `path` is the active one. */
   tabs?: string[];
-  /** Select these lines (1-based, inclusive) once, like `line`. */
   selectLines?: { from: number; to?: number };
-  /** Same as the tree's: the file lives on a remote environment. */
   environment?: unknown;
 }
 
@@ -142,7 +130,6 @@ type GitAction =
 
 interface GitOpArgs {
   message?: string;
-  /** Relative to the tree root. */
   paths?: string[];
   branch?: string;
   start?: string;
@@ -190,7 +177,6 @@ export function dirName(rel: string): string {
   return i < 0 ? '' : rel.slice(0, i);
 }
 
-/** Relative path of `abs` inside `root`, or null when outside. */
 export function relativeTo(root: string, abs: string): string | null {
   const r = root.replace(/[\\/]+$/, '').replace(/\\/g, '/');
   const a = abs.replace(/\\/g, '/');
@@ -202,7 +188,6 @@ export function relativeTo(root: string, abs: string): string | null {
 export const IMAGE_RE = /\.(png|jpe?g|gif|webp|svg|bmp|ico|avif)$/i;
 export const VIDEO_RE = /\.(mp4|mov|webm|mkv|m4v)$/i;
 
-/** Git status letter for a tree row: M, A, D, R, U (untracked), C (conflict). */
 export function statusLetter(kind: string): string {
   switch (kind) {
     case 'modified':
@@ -224,13 +209,9 @@ export function statusLetter(kind: string): string {
   }
 }
 
-/** Where a symbol is declared under the root (editor F12 / ⌘-click). */
 export const filesDefinition = (workspaceId: string, root: string, symbol: string, from?: string | null) =>
   call<SearchHit[]>('canvas_files_definition', { workspaceId, root, symbol, from: from ?? null, limit: 20 });
 
-// ---- remote trees (SSH, Docker, sandbox) -------------------------------
-
-/** A tree/editor whose `data.environment` names somewhere else than here. */
 export function isRemoteEnv(env: unknown): boolean {
   if (env == null || env === '') return false;
   const k =
@@ -241,7 +222,6 @@ export function isRemoteEnv(env: unknown): boolean {
 const filesRemote = <T>(workspaceId: string, args: Record<string, unknown>) =>
   call<T>('canvas_files_remote', { workspaceId, args });
 
-/** One file API over a local root or a remote environment. */
 interface FileSource {
   remote: boolean;
   list(dir?: string, showHidden?: boolean): Promise<FileEntry[]>;
@@ -282,6 +262,5 @@ export function fileSource(workspaceId: string, root: string, environment?: unkn
   };
 }
 
-/** The absolute folder a remote tree shows (resolves an empty root). */
 export const remoteRoot = (workspaceId: string, environment: unknown, root: string) =>
   filesRemote<{ root: string }>(workspaceId, { environment, root, action: 'resolve' }).then((x) => x.root);

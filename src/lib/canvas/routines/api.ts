@@ -1,6 +1,3 @@
-// Canvas routines: typed wrappers over the `canvas_routine_*` commands and
-// a plain-language description of a schedule.
-
 import { invoke } from '@tauri-apps/api/core';
 
 export const EVENT_ROUTINE = 'canvas://routine';
@@ -18,9 +15,7 @@ type RunCode = 'sentToTerminal' | 'terminalNotRunning' | 'reminder' | 'skippedBy
 interface RunRecord {
   at: string;
   status: 'fired' | 'skipped' | 'failed' | 'reminded';
-  /** Maestri's result code. */
   code?: RunCode;
-  /** Seconds after its time it ran (one catch-up only). */
   lateSecs?: number;
   message?: string;
   steps: number;
@@ -78,7 +73,6 @@ export const runRoutineNow = (id: string) => invoke<Routine>('canvas_routine_run
 export interface HistoryItem extends RunRecord {
   routineId: string;
   routineName: string;
-  /** The routine left the list (a finished once). */
   removed: boolean;
 }
 
@@ -88,15 +82,10 @@ export const routineHistory = (workspaceId: string, id?: string) =>
 export const clearRoutineHistory = (workspaceId: string, id?: string) =>
   invoke<number>('canvas_routine_history_clear', { workspaceId, id: id ?? null });
 
-/** Seconds between runs of an interval schedule. */
 export function intervalSecs(s: Schedule): number {
   return s.kind === 'interval' ? (s.seconds ?? s.minutes * 60) : 0;
 }
 
-/**
- * The next `n` run times after `from` (the calendar the list shows). Same
- * rules as the Rust side: interval from `from`, daily/weekly at local time.
- */
 export function projectRuns(s: Schedule, from: Date, n = 3): Date[] {
   const out: Date[] = [];
   if (s.kind === 'once') {
@@ -120,7 +109,6 @@ export function projectRuns(s: Schedule, from: Date, n = 3): Date[] {
   return out;
 }
 
-/** Same rule as Rust: `&&` alone on a line separates steps. */
 export function splitSteps(prompt: string): string[] {
   const out: string[] = [];
   let cur: string[] = [];

@@ -1,6 +1,3 @@
-// One owner of the OS media keys / Now Playing widget at a time. The video
-// and music engines `claim` it when they start playing: the other OmniTube
-// engine and the /music player get paused, and the metadata switches over.
 import { pause as pauseLocalMusic, player as localMusic } from "$lib/music/player-store.svelte";
 
 export type Owner = "video" | "music";
@@ -25,17 +22,11 @@ const session = { owner: null as Owner | null };
 const yielders = new Map<Owner, () => void>();
 const claimers = new Map<Owner, (mine: boolean) => void>();
 
-/**
- * Register an engine: `pause` runs when another player takes over, `active`
- * tells it whether it is the last one that played (the mini player and the
- * music bar never show together: the last one wins).
- */
 export function register(owner: Owner, pause: () => void, active: (mine: boolean) => void) {
   yielders.set(owner, pause);
   claimers.set(owner, active);
 }
 
-/** `owner` starts playing: pause everyone else. */
 export function claim(owner: Owner) {
   for (const [o, fn] of yielders) if (o !== owner) fn();
   if (localMusic.playing) pauseLocalMusic();
@@ -43,7 +34,6 @@ export function claim(owner: Owner) {
   for (const [o, fn] of claimers) fn(o === owner);
 }
 
-/** The /music player started: pause both OmniTube engines. */
 export function yieldAll() {
   for (const fn of yielders.values()) fn();
 }
@@ -68,7 +58,6 @@ export function setMeta(owner: Owner, meta: SessionMeta | null, h: SessionHandle
       try {
         m.setActionHandler(a, fn);
       } catch {
-        /* action not supported by this webview */
       }
     };
     set("play", h ? () => h.play() : null);
@@ -79,7 +68,6 @@ export function setMeta(owner: Owner, meta: SessionMeta | null, h: SessionHandle
     set("seekbackward", h ? (d) => h.seekBy(-(d.seekOffset ?? 10)) : null);
     set("seekforward", h ? (d) => h.seekBy(d.seekOffset ?? 10) : null);
   } catch {
-    /* MediaMetadata missing */
   }
 }
 
@@ -92,6 +80,5 @@ export function setPlaybackState(owner: Owner, playing: boolean, position: numbe
       m.setPositionState({ duration, position: Math.min(Math.max(0, position), duration), playbackRate: rate || 1 });
     }
   } catch {
-    /* setPositionState unsupported */
   }
 }

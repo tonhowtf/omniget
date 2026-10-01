@@ -1,10 +1,4 @@
 <script lang="ts">
-  /**
-   * The recall engine on /llm/memory: what memory learns on its own after
-   * each conversation, a search that says why each memory came back (words,
-   * meaning, links, time), the people and things it knows about with their
-   * notes, and a box to teach it from a longer text.
-   */
   import { onMount } from "svelte";
   import { t } from "$lib/i18n";
   import {

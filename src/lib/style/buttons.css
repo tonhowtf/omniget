@@ -1,14 +1,3 @@
-/*
- * OmniGet buttons — macOS push-button family.
- *   <button class="btn btn-primary">  filled accent, one per surface
- *   <button class="btn btn-secondary">bezel (surface + hairline), the default look
- *   <button class="btn btn-ghost">    borderless, toolbar-style
- *   <button class="btn btn-destructive">
- *   <button class="btn btn-pill">     filter chip / tag toggle
- *   <button class="btn btn-icon">     28×28 symbol-only
- * Sizes: btn-sm 24px · default 28px · btn-lg 36px · btn-xl 44px (hero CTA).
- */
-
 .btn {
   display: inline-flex;
   align-items: center;
@@ -54,7 +43,6 @@
   pointer-events: none;
 }
 
-/* sizes */
 .btn-sm {
   height: 24px;
   padding: 0 var(--space-2);
@@ -82,7 +70,6 @@
   width: 100%;
 }
 
-/* secondary is the plain bezel button; kept as an explicit class for clarity */
 .btn-secondary {
   background: var(--surface);
   color: var(--text);
@@ -100,7 +87,6 @@
   background: var(--button-press);
 }
 
-/* primary — the action the user came for */
 .btn-primary {
   background: var(--cta);
   color: var(--on-cta);
@@ -122,7 +108,6 @@
   border-top-color: var(--on-cta);
 }
 
-/* ghost — borderless, lives in toolbars and rows */
 .btn-ghost {
   background: transparent;
   color: var(--text-muted);
@@ -140,7 +125,6 @@
   background: var(--fill-3);
 }
 
-/* tinted — accent text on accent-soft fill (secondary emphasis) */
 .btn-tinted {
   background: var(--accent-soft);
   color: var(--accent-hi);
@@ -153,7 +137,6 @@
   }
 }
 
-/* destructive — delete, cancel-with-loss */
 .btn-destructive {
   background: color-mix(in srgb, var(--danger) 12%, transparent);
   color: var(--danger);
@@ -167,7 +150,6 @@
   }
 }
 
-/* icon-only */
 .btn-icon {
   width: var(--control-h);
   padding: 0;
@@ -202,7 +184,6 @@
   color: var(--accent-hi);
 }
 
-/* pill — filter chips, tag toggles */
 .btn-pill {
   height: 24px;
   padding: 0 var(--space-3);
@@ -228,7 +209,6 @@
   color: var(--accent-hi);
 }
 
-/* loading */
 .btn.loading {
   pointer-events: none;
   opacity: 0.8;
@@ -240,13 +220,11 @@
   border-width: 1.5px;
 }
 
-/* keyboard shortcut hint inside a button */
 .btn .kbd {
   margin-left: var(--space-1);
   opacity: 0.7;
 }
 
-/* a row of buttons, macOS dialog order: cancel on the left of the default */
 .btn-row {
   display: flex;
   align-items: center;

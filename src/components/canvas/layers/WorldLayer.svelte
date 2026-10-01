@@ -1,8 +1,4 @@
 <script lang="ts">
-  // L1: one div transformed by the camera (a single style write per frame,
-  // done by the engine), hosting only "near" nodes. Terminals stay mounted but
-  // hidden up to a budget, so coming back to them is instant (02 §2.2, §8.3).
-  // `will-change` only while the camera moves, so WebKit re-rasterises crisp text.
   import { onMount } from "svelte";
   import { t } from "$lib/i18n";
   import { useEngine } from "$lib/canvas/engine.svelte";
@@ -40,8 +36,6 @@
     engine.updateNode(id, p);
   }
 
-  // ---- lift and dock (screen space, real size) -------------------------
-
   const panels = engine.panels;
   const raisedItems = $derived.by(() => {
     void engine.store.version;
@@ -54,7 +48,6 @@
       const rect = panels.rect(id);
       const bar = panels.barRect(id);
       if (!node || !rect || !bar) continue;
-      // The component sees the panel size (terminals size their PTY from it).
       out.push({ node, view: { ...node, w: rect.w, h: rect.h }, rect, bar, dock: panels.dockOf(id), lifted: panels.lifted === id });
     }
     return out;
@@ -72,11 +65,9 @@
     return `polygon(evenodd, ${pts.join(", ")})`;
   }
   const outer = (r: { rect: Rect; bar: Rect }): Rect => ({ x: r.bar.x, y: r.bar.y, w: r.rect.w, h: r.rect.h + r.bar.h });
-  /** World nodes never paint over a raised panel (the terminal text is on the GL layer below). */
   const worldClip = $derived(raisedItems.length ? polygonWithHoles(raisedItems.map(outer)) : "none");
   const backdropClip = $derived(liftedItem ? polygonWithHoles([outer(liftedItem)]) : "none");
 
-  // Bar drag: near an edge docks, towards the middle lifts again.
   let drag: { id: string; x0: number; moved: boolean; pointerId: number } | null = null;
   let dragX = $state<number | null>(null);
   const EDGE_ZONE = 64;
@@ -109,7 +100,6 @@
     }
   }
 
-  // Docked column resize (inner edge).
   let resizing: { id: string; edge: DockEdge; x0: number; w0: number } | null = null;
   function gripDown(e: PointerEvent, id: string, dock: DockedPanel) {
     e.preventDefault();
@@ -425,15 +415,11 @@
     box-shadow: none;
     overflow: visible;
   }
-  /* Terminals draw their own chrome and border; the body must stay transparent
-     so the terminal GL pass (L0, under this layer) shows through. */
   .node.own.selected,
   .node.own.focused {
     border-color: transparent;
     box-shadow: none;
   }
-  /* Settings → Canvas → Selection style (drawn just outside the frame, so it
-     also shows around terminals, whose body is painted by the GL layer). */
   .world[data-selection-style="dashed"] .node.selected {
     outline: 2px dashed var(--accent);
     outline-offset: 3px;
@@ -483,7 +469,6 @@
   .world:not([data-selection-style="solid"]) .node.own.selected:not(.focused) {
     border-color: transparent;
   }
-  /* Settings → Canvas → Node material. */
   .world[data-material="glass"] .node:not(.bare) {
     background: color-mix(in srgb, var(--popup-bg, var(--surface)) 62%, transparent);
     backdrop-filter: blur(22px) saturate(1.6);
@@ -501,7 +486,6 @@
       0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent),
       0 8px 28px rgba(0, 0, 0, 0.25);
   }
-  /* Header keeps a constant on-screen height at any zoom (Maestri grab strip). */
   .header {
     flex: none;
     height: calc(28px / var(--z, 1));

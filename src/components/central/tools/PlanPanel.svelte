@@ -1,6 +1,4 @@
 <script lang="ts">
-  // Os planos de uma ação com o comando exato à vista. Só roda o que o
-  // backend marcou `runnable`; o resto fica para copiar.
   import { t } from "$lib/i18n";
   import { showToast } from "$lib/stores/toast-store.svelte";
   import type { Plan } from "$lib/central/clitools";

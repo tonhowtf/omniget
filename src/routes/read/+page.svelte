@@ -83,7 +83,6 @@
 
   onMount(() => {
     void loadLibrary();
-    // Deep links: /read?book=12&loc=... (from exported notes) or ?view=browse
     const q = page.url.searchParams;
     const book = Number(q.get("book"));
     if (book) ui.reader = { kind: "book", id: book, at: q.get("loc") ?? undefined };
@@ -472,7 +471,6 @@
     pointer-events: none;
   }
 
-  /* Shared building blocks for the views (scoped to the pane). */
   .read :global(.r-h) {
     display: flex;
     align-items: center;

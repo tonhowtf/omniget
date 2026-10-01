@@ -11,8 +11,6 @@
 
   let { src = null, kind = "generic", loading = false, durationSeconds = null, size = "md" }: Props = $props();
 
-  // Arte padrão por tipo: quando não há poster (áudio, arquivo direto, thumb
-  // que falhou) o card ainda diz o que está descendo, sem ficar um retângulo vazio.
   const ART: Record<string, string> = {
     video: "film_frames",
     audio: "headphone",
@@ -25,7 +23,6 @@
 
   let failed = $state(false);
   $effect(() => {
-    // Trocou a URL (thumb chegou depois do info fetch): tenta de novo.
     void src;
     failed = false;
   });

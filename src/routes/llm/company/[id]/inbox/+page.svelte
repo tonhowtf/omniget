@@ -1,8 +1,4 @@
 <script lang="ts">
-  /**
-   * Everything that needs the owner in one place: approvals, budget
-   * incidents and issues waiting on a review, blocked, or assigned to you.
-   */
   import { page } from "$app/state";
   import { t } from "$lib/i18n";
   import { showToast } from "$lib/stores/toast-store.svelte";

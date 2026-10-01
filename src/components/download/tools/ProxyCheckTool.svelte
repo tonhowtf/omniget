@@ -36,7 +36,6 @@
     }
   }
 
-  /** `socks5://user:pw@host:1080` or `host:port` → the app's proxy settings. */
   function toSettings(raw: string) {
     const withScheme = raw.includes("://") ? raw : `http://${raw}`;
     const u = new URL(withScheme);

@@ -1,8 +1,4 @@
 <script lang="ts">
-  // Diff surface: one turn (checkpoint N-1 → N) or the whole thread (base →
-  // working tree). Falls back to the driver-reported diff of the turn when no
-  // checkpoint exists. Line selections become review chips in the composer;
-  // "Revert to here" opens the edit-from-here dialog.
   import { t } from "$lib/i18n";
   import DiffViewer from "$components/central/vcs/DiffViewer.svelte";
   import type { DiffResult, FileDiff, ReviewComment } from "$lib/central/vcs";
@@ -24,12 +20,10 @@
   }: {
     threadId: string;
     cwd: string | null;
-    /** Settled turn ordinals, oldest first. */
     turns: number[];
     scope: "turn" | "total";
     turn: number | null;
     reveal?: string | null;
-    /** Driver diff for the selected turn when no checkpoint exists. */
     fallback?: FileDiff[] | null;
     onscope: (scope: "turn" | "total", turn: number | null) => void;
     oncomment: (c: ReviewComment) => void;

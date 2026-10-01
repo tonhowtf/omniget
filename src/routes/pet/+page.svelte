@@ -1,17 +1,4 @@
 <script lang="ts">
-  /**
-   * The floating Omni — the whole content of the `pet` window.
-   *
-   * Budget (docs/llm-world-execution-plan.md §1.2): at rest this page owns zero
-   * timers and zero `requestAnimationFrame`. The single `drawImage` that put the
-   * pet on screen already happened; nothing is scheduled until an intent asks
-   * for a clip, and the clock stops itself again when the clip settles (see
-   * `$lib/omni/sprite-player`). The frame rate is the clip's, capped at 12 fps,
-   * driven by a chained `setTimeout` so it does not follow the display.
-   *
-   * The window itself (transparency, always-on-top, corner, click-through) is
-   * built in Rust by `commands::pet`; this file only draws and offers the menu.
-   */
   import { onMount } from "svelte";
   import { registerSemantic } from "$lib/native-agent/semantic";
   import { invoke } from "@tauri-apps/api/core";
@@ -48,22 +35,12 @@
   } from "$lib/omni/tool-ask-queue";
   import { balloonOf, type CompanionBalloon } from "$lib/omni/companion-balloon";
 
-  /** Logical size of the window; must match `PET_W`/`PET_H` in Rust. */
   const BOX = 200;
-  /** Pixels of air under the feet, so the pet does not sit on the window edge. */
   const GROUND_INSET = 28;
-  /** Default skin. The profile's skin id would come from `profile_get`. */
   const SKIN = "omni-default";
-  /**
-   * Events the pet listens on. `llm://tool-ask` and `llm://turn` are emitted by
-   * `commands::llm` to every window; `omni://tool-resolved` is the pet's own
-   * note that a question is over (see the handoff: the backend is asked to emit
-   * the same event from `llm_tool_answer`, and the pet works either way).
-   */
   const EVENT_TOOL_ASK = "llm://tool-ask";
   const EVENT_TURN = "llm://turn";
   const EVENT_TOOL_RESOLVED = "omni://tool-resolved";
-  /** Omni as the canvas companion: a summary of what an agent just did. */
   const EVENT_COMPANION = "canvas://companion";
   const EVENT_COMPANION_DISMISS = "canvas://companion-dismiss";
 
@@ -82,24 +59,14 @@
   let cornerMenuOpen = $state(false);
   let corner = $state<Corner>("bottom-right");
 
-  /**
-   * Tool permissions waiting for an answer, oldest first. Every entry came from
-   * an `llm://tool-ask` event; nothing here is polled, and an empty queue costs
-   * exactly nothing.
-   */
   let asks = $state<PendingAsk[]>([]);
-  /** The question on screen: the oldest one. */
   let ask = $derived(headAsk(asks));
-  /** Whether the two buttons are showing. A click on the pet opens them. */
   let askOpen = $state(false);
-  /** Last value pushed to Rust, so the bridge is crossed only on a change. */
   let askPendingSent = false;
 
-  /** The one animation timer. Null means the pet is at rest and costs nothing. */
   let frameTimer: ReturnType<typeof setTimeout> | null = null;
   let bubbleTimer: ReturnType<typeof setTimeout> | null = null;
 
-  /** The companion's latest summary, until it expires, is acted on or dismissed. */
   let companion = $state<CompanionBalloon | null>(null);
   let companionTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -118,7 +85,6 @@
     }, b.ms);
   }
 
-  /** Sends chip `index` to the agent (paste + Enter), or just dismisses. */
   async function companionAct(index: number | null) {
     const b = companion;
     if (!b) return;
@@ -151,10 +117,6 @@
     }
   }
 
-  /**
-   * Arm the next frame, or arm nothing. `player.nextDueMs === null` is the whole
-   * idle budget: no timer exists while the pet is resting.
-   */
   function schedule() {
     if (frameTimer !== null) {
       clearTimeout(frameTimer);
@@ -177,7 +139,6 @@
     try {
       playClip(player, atlas, clip, now());
     } catch {
-      // An intent naming a clip this skin does not have leaves the pet alone.
       return;
     }
     draw();
@@ -222,17 +183,10 @@
     const c = canvas.getContext("2d", { alpha: true });
     if (!c) throw new Error("ERR_PET_NO_CANVAS2D");
     c.setTransform(dpr, 0, 0, dpr, 0, 0);
-    // Pixel art: any smoothing turns the 48x64 sprite to mush at 3x.
     c.imageSmoothingEnabled = false;
     ctx = c;
   }
 
-  /**
-   * Keep the window's click-through in step with the queue. A pet the cursor
-   * falls through cannot answer a question, so Rust suspends the preference
-   * while something is pending and restores it after — one call per edge, never
-   * a poll.
-   */
   async function syncAskPending() {
     const pending = asks.length > 0;
     if (pending === askPendingSent) return;
@@ -240,13 +194,10 @@
     try {
       await invoke("pet_set_ask_pending", { pending });
     } catch (e) {
-      // An older backend without the command leaves click-through as it was;
-      // the bubble still works when the pet is not click-through.
       console.warn("[pet] set_ask_pending", e);
     }
   }
 
-  /** Replace the queue and run the side effects a change implies. */
   function setAsks(next: PendingAsk[]) {
     if (next === asks) return;
     const hadHead = asks[0]?.toolCallId ?? null;
@@ -254,19 +205,12 @@
     const head = asks[0]?.toolCallId ?? null;
     if (head !== hadHead) askOpen = false;
     if (head && !hadHead) {
-      // First question: the mascot asks for attention. Same intent the pure
-      // `rules` map `BusEvent::ToolAsk` to (Wave / Curious).
       mood = "Curious";
       play("wave");
     }
     void syncAskPending();
   }
 
-  /**
-   * Answer the oldest question. The broker keys on `tool_call_id`, so the pet
-   * and the `/llm` route can both answer and the second one is a harmless
-   * no-op: whatever `llm_tool_answer` says, the question leaves the pet.
-   */
   async function answerAsk(target: PendingAsk, allow: boolean, always = false) {
     askOpen = false;
     setAsks(resolveAsk(asks, target.toolCallId));
@@ -278,11 +222,8 @@
         always,
       });
     } catch (e) {
-      // Already answered elsewhere, or the turn is gone: either way the
-      // question is over and the queue is right to have dropped it.
       console.warn("[pet] tool_answer", e);
     }
-    // Tell the other surfaces (the rail avatar, a second pet) to drop it too.
     try {
       await emit(EVENT_TOOL_RESOLVED, {
         request_id: target.requestId,
@@ -290,7 +231,6 @@
         allow,
       });
     } catch {
-      // Cosmetic: the `/llm` route reconciles from the backend anyway.
     }
   }
 
@@ -314,10 +254,6 @@
     }
   }
 
-  /**
-   * Bring the main window forward and ask the shell to go to /llm. The pet
-   * window never navigates itself: it is 200 pixels wide.
-   */
   async function openHub() {
     menuOpen = false;
     try {
@@ -350,16 +286,12 @@
     const unlisteners: UnlistenFn[] = [];
     let disposed = false;
 
-    /** Register a listener, or drop it if the window died while it was armed. */
     function keep(stop: UnlistenFn) {
       if (disposed) stop();
       else unlisteners.push(stop);
     }
 
     void (async () => {
-      // The listeners go up before the art: a tool permission is a question the
-      // user has to answer, and a skin that failed to load must not swallow it
-      // (the bubble is HTML; `play` is a no-op while there is no sprite).
       keep(
         await listen("omni://intent", (event) => {
           const intent = sanitizeIntent(event.payload);
@@ -369,13 +301,11 @@
           say(intent.line);
         }),
       );
-      // A tool wants permission. Only the name travels to the bubble.
       keep(
         await listen(EVENT_TOOL_ASK, (event) => {
           setAsks(acceptAsk(asks, event.payload));
         }),
       );
-      // Omni as the canvas companion: an agent finished, is blocked or failed.
       keep(
         await listen(EVENT_COMPANION, (event) => {
           const b = balloonOf(event.payload, (k, v) => $t(k, v) as string);
@@ -388,21 +318,17 @@
           if (companion && p?.id === companion.id) showCompanion(null);
         }),
       );
-      // Opened in the middle of a turn: catch up on what is already waiting.
       try {
         const waiting = (await invoke("llm_tool_asks_pending")) as unknown[];
         for (const ask of waiting ?? []) setAsks(acceptAsk(asks, ask));
       } catch {
-        // Older backend or no LLM stack yet: the live event is enough.
       }
-      // The turn finished, errored or was cancelled: its questions are moot.
       keep(
         await listen(EVENT_TURN, (event) => {
           const done = terminalRequestId(event.payload);
           if (done) setAsks(cancelRequest(asks, done));
         }),
       );
-      // Answered somewhere else (the /llm route, another window).
       keep(
         await listen(EVENT_TOOL_RESOLVED, (event) => {
           const p = event.payload as { tool_call_id?: unknown } | null;
@@ -415,7 +341,6 @@
         const state = (await invoke("pet_capabilities")) as { corner?: unknown };
         if (isCorner(state.corner)) corner = state.corner;
       } catch {
-        // The corner only decorates the menu's check mark.
       }
       try {
         setupCanvas();
@@ -439,7 +364,6 @@
       bubbleTimer = null;
       for (const stop of unlisteners) stop();
       unlisteners.length = 0;
-      // Leave the window the way the user's preference wants it.
       if (askPendingSent) {
         askPendingSent = false;
         void invoke("pet_set_ask_pending", { pending: false }).catch(() => {});
@@ -452,7 +376,6 @@
 
 <svelte:window onblur={() => (menuOpen = false)} />
 
-<!-- The drag region is the whole window: the pet is grabbed anywhere. -->
 <div
   class="pet"
   class:compact={!!companion && !ask}
@@ -462,11 +385,6 @@
   ondblclick={openHub}
 >
   {#if ask}
-    <!--
-      A pending tool permission owns the bubble: it outranks a line the agent
-      said, it never expires on a timer, and it shows the tool's NAME and
-      nothing else — no arguments, no paths, no secret.
-    -->
     <div
       class="bubble ask"
       role="alertdialog"
@@ -491,14 +409,12 @@
           </button>
         </div>
       {:else}
-        <!-- The pet itself opens the actions; this is the keyboard way in. -->
         <button type="button" class="ask-hint" onclick={() => (askOpen = true)}>
           {$t("pet.ask.hint")}
         </button>
       {/if}
     </div>
   {:else if companion}
-    <!-- The companion's summary: short text and up to three steps to send. -->
     <div class="bubble companion" role="status" style="--mood: {MOOD_TINT[companion.mood]}">
       <div class="companion-head">
         <span class="companion-name">{companion.name}</span>{#if companion.via}<span class="companion-via">{companion.via}</span>{/if}
@@ -581,7 +497,6 @@
     position: relative;
     width: 200px;
     height: 200px;
-    /* Nothing but the sprite and the menu is opaque: the rest is desktop. */
     background: transparent;
     user-select: none;
     -webkit-user-select: none;
@@ -615,7 +530,6 @@
     pointer-events: none;
   }
 
-  /* The ask bubble is the one piece of the pet that must catch clicks. */
   .bubble.ask {
     display: flex;
     flex-direction: column;
@@ -626,11 +540,6 @@
     cursor: default;
   }
 
-  /*
-   * Companion summary: the sprite shrinks to half size in the bottom-right
-   * corner and the balloon takes the space above it, its tail pointing at
-   * Omni, so the text never sits on top of the character.
-   */
   .pet.compact .sprite {
     inset: auto;
     right: 0;

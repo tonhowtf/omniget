@@ -36,10 +36,6 @@ export const MEDIA_EXTENSIONS = Object.freeze([
   ".f4m", ".f4v", ".ts",
 ]);
 
-// An extension only counts when it sits at a path boundary: either the path
-// ends with it, or it is a whole segment (`/file.mp4/range/0-100`, which some
-// CDNs use). A bare `includes` would call `/api/v2/list.mp4.json` a video.
-// The path is expected to be a lowercased `URL.pathname`, so no query string.
 export function extensionMatchesPath(path, ext) {
   if (typeof path !== "string" || typeof ext !== "string" || ext === "") return false;
   return path.endsWith(ext) || path.includes(`${ext}/`);

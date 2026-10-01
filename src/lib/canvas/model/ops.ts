@@ -1,8 +1,3 @@
-// Document ops: apply one op to the in-memory document and return its inverse.
-// The same op list is the patch sent to Rust and, inverted, the undo entry
-// (the tldraw "diff" design, 02-motor-do-canvas §4.6). Applying is idempotent
-// on purpose so an echoed patch never corrupts the document.
-
 import type { CameraState, CanvasNode, Connection, Drawing, Group, Op } from './types';
 
 export interface DocState {
@@ -23,7 +18,6 @@ export function emptyDoc(): DocState {
   };
 }
 
-/** Stable key of the record an op touches, for undo conflict checks. */
 export function recordKey(op: Op): string {
   switch (op.op) {
     case 'add_node':
@@ -57,17 +51,12 @@ function pick<T extends object>(src: T, keys: string[]): Partial<T> {
 function withPatch<T extends object>(src: T, patch: Partial<T>): T {
   const next = { ...src } as Record<string, unknown>;
   for (const [k, v] of Object.entries(patch)) {
-    // `undefined` (local) or `null` (wire) in a patch means "remove the field".
     if (v === undefined || v === null) delete next[k];
     else next[k] = v;
   }
   return next as T;
 }
 
-/**
- * Applies `op` to `doc` (mutating the maps, replacing records immutably) and
- * returns the inverse op, or null when the op changed nothing.
- */
 export function applyOp(doc: DocState, op: Op): Op | null {
   switch (op.op) {
     case 'add_node': {
@@ -78,7 +67,6 @@ export function applyOp(doc: DocState, op: Op): Op | null {
     case 'update_node': {
       const prev = doc.nodes.get(op.id);
       if (!prev) return null;
-      // `data` merges key by key (null/undefined removes a key), like Rust.
       const { data: dataPatch, ...rest } = op.patch as Partial<CanvasNode> & { data?: Record<string, unknown> | null };
       const next = withPatch(prev, rest as Partial<CanvasNode>);
       const inverse = pick(prev, Object.keys(rest)) as Partial<CanvasNode>;
@@ -153,7 +141,6 @@ export function applyOp(doc: DocState, op: Op): Op | null {
   }
 }
 
-/** Ops that remove nodes together with every cord touching them (cords first). */
 export function removeNodesOps(doc: DocState, ids: Iterable<string>): Op[] {
   const set = new Set(ids);
   const ops: Op[] = [];
@@ -164,7 +151,6 @@ export function removeNodesOps(doc: DocState, ids: Iterable<string>): Op[] {
   return ops;
 }
 
-/** Stamps a snapshot of maps into a DocState. */
 export function docFrom(parts: {
   nodes: CanvasNode[];
   connections: Connection[];

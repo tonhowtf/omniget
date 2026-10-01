@@ -3,8 +3,6 @@ import assert from "node:assert/strict";
 
 import { detectSupportedMediaUrl } from "../src/detect.js";
 
-// ── Helpers ──────────────────────────────────────────────────────────────
-
 function assertSupported(url, platform, contentType) {
   const detected = detectSupportedMediaUrl(url);
   assert.equal(detected?.platform, platform, `platform for ${url}`);
@@ -22,8 +20,6 @@ function assertUnsupported(url, platform, contentType) {
 function assertNull(url) {
   assert.equal(detectSupportedMediaUrl(url), null, `expected null for ${url}`);
 }
-
-// ── Edge cases / invalid input ───────────────────────────────────────────
 
 test("returns null for null/undefined/empty", () => {
   assertNull(null);
@@ -47,8 +43,6 @@ test("returns null for unsupported sites", () => {
   assertNull("https://github.com/tonhowtf/omniget");
   assertNull("https://example.com/video/123");
 });
-
-// ── YouTube ──────────────────────────────────────────────────────────────
 
 test("YouTube: direct watch page", () => {
   assertSupported("https://www.youtube.com/watch?v=dQw4w9WgXcQ", "youtube", "video");
@@ -92,8 +86,6 @@ test("YouTube: youtube-nocookie.com", () => {
   assertSupported("https://www.youtube-nocookie.com/embed/abc123", "youtube", "video");
 });
 
-// ── Instagram ────────────────────────────────────────────────────────────
-
 test("Instagram: post", () => {
   assertSupported("https://www.instagram.com/p/CxyzABC/", "instagram", "post");
 });
@@ -117,8 +109,6 @@ test("Instagram: explore is unknown", () => {
 test("Instagram: ddinstagram.com mirror", () => {
   assertSupported("https://www.ddinstagram.com/reel/abc123/", "instagram", "reel");
 });
-
-// ── TikTok ───────────────────────────────────────────────────────────────
 
 test("TikTok: user video", () => {
   assertSupported("https://www.tiktok.com/@user/video/1234567890", "tiktok", "video");
@@ -151,8 +141,6 @@ test("TikTok: non-video paths are unknown (no false positives)", () => {
   assertUnsupported("https://www.tiktok.com/music/original-sound-123", "tiktok", "unknown");
 });
 
-// ── Twitter / X ──────────────────────────────────────────────────────────
-
 test("Twitter: post/status", () => {
   assertSupported("https://twitter.com/user/status/123456", "twitter", "post");
   assertSupported("https://x.com/user/status/123456", "twitter", "post");
@@ -176,8 +164,6 @@ test("Twitter: search/explore/settings are unknown", () => {
   assertUnsupported("https://twitter.com/settings", "twitter", "unknown");
   assertUnsupported("https://twitter.com/i", "twitter", "unknown");
 });
-
-// ── Reddit ───────────────────────────────────────────────────────────────
 
 test("Reddit: subreddit post", () => {
   assertSupported("https://www.reddit.com/r/videos/comments/abc123/example/", "reddit", "post");
@@ -215,8 +201,6 @@ test("Reddit: random top-level path is unknown", () => {
   assertUnsupported("https://www.reddit.com/best", "reddit", "unknown");
 });
 
-// ── Twitch ───────────────────────────────────────────────────────────────
-
 test("Twitch: VOD video", () => {
   assertSupported("https://www.twitch.tv/videos/123456", "twitch", "video");
 });
@@ -241,14 +225,10 @@ test("Twitch: settings page is unknown", () => {
   assertUnsupported("https://www.twitch.tv/settings", "twitch", "unknown");
 });
 
-// ── Course sites ─────────────────────────────────────────────────────────
-
 test("Course sites are left to the generic flow", () => {
   assertNull("https://app.hotmart.com/club/abc/lesson/xyz");
   assertNull("https://www.udemy.com/course/my-course/");
 });
-
-// ── Pinterest ────────────────────────────────────────────────────────────
 
 test("Pinterest: pin page", () => {
   assertSupported("https://www.pinterest.com/pin/123456/", "pinterest", "image");
@@ -273,8 +253,6 @@ test("Pinterest: profile page is unknown", () => {
   assertUnsupported("https://www.pinterest.com/username/", "pinterest", "unknown");
 });
 
-// ── Bluesky ──────────────────────────────────────────────────────────────
-
 test("Bluesky: post", () => {
   assertSupported("https://bsky.app/profile/user.bsky.social/post/abc123", "bluesky", "post");
 });
@@ -282,8 +260,6 @@ test("Bluesky: post", () => {
 test("Bluesky: profile is supported", () => {
   assertSupported("https://bsky.app/profile/user.bsky.social", "bluesky", "profile");
 });
-
-// ── Telegram ─────────────────────────────────────────────────────────────
 
 test("Telegram: numbered post", () => {
   assertSupported("https://t.me/channel/123", "telegram", "post");
@@ -304,8 +280,6 @@ test("Telegram: telegram.me domain", () => {
   assertSupported("https://telegram.me/channel/456", "telegram", "post");
 });
 
-// ── Vimeo ────────────────────────────────────────────────────────────────
-
 test("Vimeo: numeric video ID", () => {
   assertSupported("https://vimeo.com/123456", "vimeo", "video");
 });
@@ -313,8 +287,6 @@ test("Vimeo: numeric video ID", () => {
 test("Vimeo: non-numeric path is unknown", () => {
   assertUnsupported("https://vimeo.com/channels", "vimeo", "unknown");
 });
-
-// ── Bilibili ─────────────────────────────────────────────────────────────
 
 test("Bilibili: video page", () => {
   assertSupported("https://www.bilibili.com/video/BV1xx411c7XY", "bilibili", "video");

@@ -1,7 +1,4 @@
 <script lang="ts">
-  // Library by folder: a tree of the roots on the left (folder tree from
-  // 21st.dev, redone with buttons) and the videos of the chosen folder on the
-  // right. A root that can't be read shows as offline, never as empty.
   import { onMount } from "svelte";
   import { t } from "$lib/i18n";
   import { showToast } from "$lib/stores/toast-store.svelte";

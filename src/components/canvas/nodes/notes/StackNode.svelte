@@ -1,11 +1,4 @@
 <script lang="ts">
-  // Fichário (study 95 §G 94–96): a folder with tabs grouping notes. The
-  // front page is a full note; the tabs switch pages; fan-out spreads every
-  // page as cards. Drag a tab or card out of the fichário to take the note
-  // back to the canvas, along the strip to reorder; drop a note onto the
-  // fichário to file it (the drop controller does that). Named fichários
-  // persist when empty (kanban lanes), unnamed ones vanish. Uniform Color
-  // paints every page.
   import { tick } from "svelte";
   import { t } from "$lib/i18n";
   import { useEngine } from "$lib/canvas/engine.svelte";
@@ -92,7 +85,6 @@
       data: { text: "" },
     };
     (page as CanvasNode & { stackId?: string }).stackId = node.id;
-    // New pages go on top (Maestri: newest first).
     const tabs = [page.id, ...data.tabs];
     engine.commit([
       { op: "add_node", node: page },
@@ -101,8 +93,6 @@
     fanned = false;
     onfocusrequest?.();
   }
-
-  // ---- fan-out previews -----------------------------------------------
 
   async function toggleFan() {
     fanned = !fanned;
@@ -120,8 +110,6 @@
     );
     previews = out;
   }
-
-  // ---- naming / colour -------------------------------------------------
 
   async function startName() {
     naming = true;
@@ -152,8 +140,6 @@
     colorsOpen = false;
     onpatch?.({ data: dataWith(node, { uniformColor: id }) });
   }
-
-  // ---- drag a page out / along -----------------------------------------
 
   function pageDown(e: PointerEvent, p: CanvasNode) {
     if (e.button !== 0) return;
@@ -271,7 +257,6 @@
       <p class="empty">{tr("canvas.notes.stackEmpty", "Drop notes here")}</p>
     {/if}
   </div>
-  <!-- Tabs on the right, newest on top (Maestri). -->
       <div class="tabs" role="tablist" aria-orientation="vertical" data-canvas-chrome bind:this={tabsEl}>
         {#each pages as p, i (p.id)}
           {#if drag?.moved && !fanned && drag.overIndex === i && drag.id !== p.id}<span class="drop"></span>{/if}

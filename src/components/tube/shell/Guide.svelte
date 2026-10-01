@@ -1,7 +1,4 @@
 <script lang="ts">
-  // Full guide, 240px (spec §2.3 / §3.1): main entries, "You", the channel
-  // list, then settings and import. On the music face: Home, Explore,
-  // Library and the account's playlists. Also used as the overlay drawer.
   import { goto } from "$app/navigation";
   import { t } from "$lib/i18n";
   import { agentActions } from "$lib/native-agent/actions";
@@ -221,7 +218,6 @@
     font: 400 12px/18px var(--yt-font);
     color: var(--yt-text-disabled);
   }
-  /* YT Music: 48px rows, rounder, dark */
   .music .it {
     min-height: 48px;
     border-radius: 8px;

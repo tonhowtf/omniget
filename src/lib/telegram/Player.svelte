@@ -1,7 +1,4 @@
 <script lang="ts">
-  // Full-window player for Telegram videos and audio. Streams through the
-  // local stream server (`telegram_stream_url`), keeps a queue with the other
-  // playable items of the chat and remembers where each one stopped.
   import { onMount, onDestroy, tick } from "svelte";
   import { writeText } from "@tauri-apps/plugin-clipboard-manager";
   import { t } from "$lib/i18n";
@@ -34,9 +31,7 @@
     chat: TelegramChat;
     queue: TelegramMediaItem[];
     start?: number;
-    /** Seconds to jump to in the first item (a transcript timestamp); beats the saved position. */
     startAt?: number;
-    /** Open with the transcript panel showing. */
     transcript?: boolean;
     onclose: () => void;
     onDownload?: (item: TelegramMediaItem) => void;
@@ -65,7 +60,6 @@
   let autoplay = $state(readBool(AUTOPLAY_KEY, true));
   type Side = "queue" | "transcript" | null;
   let side = $state<Side>(null);
-  // Stream URL in use: the original, or the converted copy for MKV/AVI/WebM.
   let src = $state<string | null>(null);
   let convertOffer = $state(false);
   let converting = $state(false);
@@ -107,7 +101,6 @@
     try {
       localStorage.setItem(key, value);
     } catch {
-      /* private storage */
     }
   }
 
@@ -145,7 +138,6 @@
       firstLoad = false;
       info = s;
       if (s.playable === false) {
-        // The webview cannot play this container; offer the converted copy.
         loading = false;
         if (s.remux_url || s.transcode_url) convertOffer = true;
         else failed = $t("telegram.player.unsupported") as string;
@@ -191,7 +183,6 @@
         mediaType: it.media_type,
       });
     } catch {
-      /* the position is a convenience; never interrupt playback for it */
     }
   }
 
@@ -207,7 +198,6 @@
     }
     loading = false;
     void video.play().catch(() => {
-      /* autoplay can be refused; the play button still works */
     });
   }
 
@@ -238,14 +228,12 @@
 
   function onError() {
     const code = video?.error?.code;
-    // A format the webview refuses: offer the converted copy when there is one.
     if (code === 4 && (info?.remux_url || info?.transcode_url) && src === info?.url) {
       loading = false;
       src = null;
       convertOffer = true;
       return;
     }
-    // The quick remux did not play either: fall back to the full conversion.
     if (info?.transcode_url && src === info.remux_url) {
       converting = true;
       fullConvert = true;
@@ -343,7 +331,6 @@
       await writeText(text);
       showToast("success", $t("telegram.common.copied") as string);
     } catch {
-      /* clipboard unavailable */
     }
   }
 
@@ -408,7 +395,6 @@
     side = transcript ? "transcript" : queue.length > 1 ? "queue" : null;
     index = Math.max(0, Math.min(queue.length - 1, start));
     void load(index);
-    // Only offer the players that are installed; keep all four if the check is missing.
     tg2
       .externalPlayers()
       .then((list) => {

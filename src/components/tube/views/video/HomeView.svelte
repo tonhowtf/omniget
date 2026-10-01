@@ -1,7 +1,4 @@
 <script lang="ts">
-  // Home: sticky chips, rich grid with Shorts shelves in between, infinite
-  // scroll. With `hide_home_feed` it is a calm page with the search in the
-  // middle and a "Show suggestions" button that loads the feed on demand.
   import { t } from "$lib/i18n";
   import * as api from "$lib/tube/api";
   import { tubePrefs } from "$lib/tube/prefs.svelte";
@@ -25,7 +22,6 @@
   let reveal = $state(false);
   let q = $state("");
   let chip = $state<{ label: string; token: string } | null>(lsGet(CHIP_KEY, null));
-  // Chips of the unfiltered feed stay put while a chip's page is shown.
   let chips = $state<{ label: string; token: string | null }[]>([]);
 
   const pager = new Pager("home", () => api.home(chip?.token ?? null));
@@ -37,7 +33,6 @@
     void pager.load(() => api.home(chip?.token ?? null)).then(() => {
       if (!chip && pager.page) chips = pager.page.chips.map((c) => ({ label: c.label, token: c.token ?? null }));
       if (chip && pager.error) {
-        // A remembered chip token can expire; fall back to the plain feed.
         chip = null;
         lsSet(CHIP_KEY, null);
       }
@@ -95,7 +90,6 @@
       {:else if pager.error && !pager.page}
         <State icon="home" error={pager.error} onretry={() => pager.load()} />
       {:else if pager.page && pager.shelves.every((s) => s.items.length === 0)}
-        <!-- New visitor without account or history: YouTube itself only says "search to start". -->
         <div class="calm fresh">
           <img src="/icons/tube/tube-128.webp" width="96" height="96" alt="" />
           <h1>{$t("tube.home.empty_title")}</h1>

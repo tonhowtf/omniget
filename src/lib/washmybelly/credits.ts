@@ -1,7 +1,4 @@
-/// Third-party projects washmybelly embeds as data or ported as design.
-/// Shown in About › Project; the full text is in THIRD_PARTY.md. The
 /// privacy.sexy link is also an AGPL-3.0 obligation (its output can be
-/// served over the local MCP port).
 export type Credit = { name: string; license: string; url: string; use: "data" | "design" | "tool" };
 
 export const WMB_CREDITS: readonly Credit[] = [

@@ -1,13 +1,4 @@
 <script lang="ts">
-  /**
-   * Wire probe panel: the evidence that a generation parameter reached the
-   * provider and changed the reply. Owned by f2-wire-probe; mounted by the
-   * Observatory page.
-   *
-   * Nothing runs on mount except `loadLast`, which reads the round already in
-   * memory on the Rust side. A round only happens on click, and the button
-   * always shows what it will cost first.
-   */
   import { onMount } from "svelte";
   import { t } from "$lib/i18n";
   import {
@@ -36,8 +27,6 @@
     model = "",
   }: { provider?: string; model?: string } = $props();
 
-  // The four standard cases; `reasoning_effort` is opt-in because it pushes the
-  // round past the eight-request budget on its own.
   let selected = $state<ProbeParam[]>(["temperature", "top_p", "max_tokens", "stop"]);
   let open = $state<string | null>(null);
 

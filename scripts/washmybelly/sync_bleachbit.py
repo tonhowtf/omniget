@@ -32,7 +32,6 @@ PLATFORMS = {
     "windows": ("windows",),
 }
 
-
 def os_match(os_str, platform):
     """Same rule as bleachbit/General.py os_match."""
     if not os_str:
@@ -47,7 +46,6 @@ def os_match(os_str, platform):
     if pos:
         return any(t in cur for t in pos)
     return True
-
 
 def useful(path):
     tree = ET.parse(path)
@@ -64,7 +62,6 @@ def useful(path):
                 if os_match(act.get("os"), platform):
                     return True
     return False
-
 
 def main():
     if len(sys.argv) != 2:
@@ -122,7 +119,6 @@ def main():
     with open(RUST, "w") as f:
         f.write(new)
     print(f"kept {len(kept)}, dropped {len(dropped)}")
-
 
 if __name__ == "__main__":
     main()

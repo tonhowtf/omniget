@@ -1,10 +1,8 @@
-// A `Page` plus its continuation, for every infinite list of the video face.
 import * as api from "$lib/tube/api";
 import type { ContinuationKind } from "$lib/tube/api";
 import type { Page, Shelf } from "$lib/tube/types";
 import { errText } from "./util";
 
-/** Append a continuation page: untitled shelves of the same kind extend the last one. */
 export function mergePages(base: Page, more: Page): Page {
   const shelves = base.shelves.slice();
   for (const s of more.shelves) {
@@ -41,7 +39,6 @@ export class Pager {
     return this.page?.shelves ?? [];
   }
 
-  /** (Re)load from the first page. `keep` leaves the old page on screen meanwhile. */
   async load(first?: () => Promise<Page>, keep = false) {
     if (first) this.first = first;
     const gen = ++this.#gen;

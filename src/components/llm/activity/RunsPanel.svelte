@@ -1,10 +1,4 @@
 <script lang="ts">
-  /**
-   * Activity → agent runs: every turn a bot took, from the durable record
-   * (`assist::runs`), with a plain state (working, waiting for you,
-   * interrupted, failed, done), the questions waiting for an answer, and the
-   * review of one run on click. Live through `assist://run`.
-   */
   import { onMount } from "svelte";
   import { t } from "$lib/i18n";
   import { getAgents, loadRoster } from "$lib/stores/llm-store.svelte";
@@ -27,22 +21,16 @@
 
   let agents = $derived(getAgents());
   let all = $derived(getRuns().filter((r) => !conversationId || r.conversation_id === conversationId));
-  // One card per question (A6): a question of a task shows on its row in the
-  // task list; here only the ones no task row carries (Help, an MCP owner
-  // ask) — from the same list, answered through the same door.
   let pending = $derived(
     getAsks().filter(
       (a) => !getJobs().some((j) => j.request_id === a.request_id && j.state === "waiting_approval"),
     ),
   );
-  // Questions a restart left behind: nothing ran, the turn has to be started
-  // again. Shown until dismissed, never dropped silently (2.2).
   let stale = $derived(getStaleAsks());
   let filter = $state<RunFilter>("all");
   const filters: RunFilter[] = ["all", "active", "attention", "done"];
   let visible = $derived(all.filter((r) => matchesFilter(r, filter)));
   let openId = $state<string | null>(null);
-  // A run linked from /llm/work opens once it is in the list.
   let followed: string | null = null;
   $effect(() => {
     if (openRun && openRun !== followed && all.some((r) => r.id === openRun)) {

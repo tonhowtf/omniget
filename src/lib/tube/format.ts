@@ -1,6 +1,3 @@
-// Formatting helpers shared by every OmniTube screen. Pure functions: the
-// locale is set once by TubeApp (`setFormatLocale`) so views don't need to
-// thread it through.
 import type { Thumb } from "./types";
 
 let LOCALE = "en";
@@ -9,7 +6,6 @@ export function setFormatLocale(l: string | null | undefined) {
   if (l) LOCALE = l;
 }
 
-/** 75 -> "1:15", 3723 -> "1:02:03". Negative/NaN -> "0:00". */
 export function fmtDuration(s: number | null | undefined): string {
   if (s == null || !Number.isFinite(s) || s < 0) return "0:00";
   const t = Math.floor(s);
@@ -22,7 +18,6 @@ export function fmtDuration(s: number | null | undefined): string {
 
 const compactCache = new Map<string, Intl.NumberFormat>();
 
-/** 1234567 -> "1.2M" (compact, in the app locale, like YouTube's view counts). */
 export function fmtCount(n: number | null | undefined, locale = LOCALE): string {
   if (n == null || !Number.isFinite(n)) return "";
   let f = compactCache.get(locale);
@@ -34,7 +29,6 @@ export function fmtCount(n: number | null | undefined, locale = LOCALE): string 
     }
     compactCache.set(locale, f);
   }
-  // YouTube truncates instead of rounding ("1.29M" -> "1.2M").
   const abs = Math.abs(n);
   let v = n;
   if (abs >= 1e9) v = Math.trunc(n / 1e8) * 1e8;
@@ -49,10 +43,6 @@ function https(url: string): string {
   return url;
 }
 
-/**
- * The smallest thumbnail that is at least `width` CSS px wide at the device
- * pixel ratio, or the largest one available. Empty string when there is none.
- */
 export function thumbUrl(thumbs: Thumb[] | null | undefined, width: number, dpr = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1): string {
   if (!thumbs || thumbs.length === 0) return "";
   const need = width * Math.min(dpr, 2);
@@ -65,16 +55,10 @@ export function thumbUrl(thumbs: Thumb[] | null | undefined, width: number, dpr 
   return https((best ?? largest).url);
 }
 
-/** i.ytimg.com thumbnail by video id (used when an item came without thumbs). */
 export function videoThumb(id: string, q: "default" | "mqdefault" | "hqdefault" | "sddefault" | "maxresdefault" = "mqdefault"): string {
   return `https://i.ytimg.com/vi/${id}/${q}.jpg`;
 }
 
-/**
- * Avatar at `size` px. YouTube avatar URLs (yt3.ggpht.com / lh3) carry the size
- * in `=s88-c-k...`; rewrite it so a 36px avatar doesn't load a 900px image and
- * a 160px one isn't blurry.
- */
 export function bestAvatar(src: string | Thumb[] | null | undefined, size = 88, dpr = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1): string {
   if (!src) return "";
   const px = Math.round(size * Math.min(dpr, 2));
@@ -97,7 +81,6 @@ const UNITS: [Intl.RelativeTimeFormatUnit, number][] = [
   ["second", 1e3],
 ];
 
-/** Epoch ms -> "3 days ago" (YouTube style: largest unit, no fractions). */
 export function timeAgo(ms: number | null | undefined, now = Date.now(), locale = LOCALE): string {
   if (ms == null || !Number.isFinite(ms)) return "";
   const diff = ms - now;
@@ -117,7 +100,6 @@ export function timeAgo(ms: number | null | undefined, now = Date.now(), locale 
   return "";
 }
 
-/** Bytes -> "1.2 GB". */
 export function fmtBytes(b: number | null | undefined): string {
   if (b == null || !Number.isFinite(b)) return "";
   const u = ["B", "KB", "MB", "GB", "TB"];

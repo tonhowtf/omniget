@@ -52,7 +52,6 @@
     qTitle = tr.title;
     try {
       data = await invoke<LyricsPayload>("music_lyrics_get", { id: tr.id });
-      // nothing local: look it up right away, it's what the user wants
       if (data.source === "none") void search(true);
     } catch {
       data = null;
@@ -68,7 +67,6 @@
       results = await invoke<LrclibRecord[]>("music_lyrics_search", { id: track.id, artist: qArtist, title: qTitle });
       if (!auto) mode = "search";
       else if (results.length) {
-        // an exact synced match on the first try is applied directly
         const best = results[0];
         const exact =
           best.syncedLyrics &&

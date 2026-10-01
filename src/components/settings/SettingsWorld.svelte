@@ -1,9 +1,4 @@
 <script lang="ts">
-  /**
-   * Settings → World: the switch for the canvas at /world plus the desktop
-   * pet, which shares the section because both are the same thing to the
-   * user — the agents, outside the app.
-   */
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "$lib/i18n";
@@ -20,8 +15,6 @@
     await updateSettings({ world: { enabled: !enabled } });
   }
 
-  // Desktop pet (phase 5). State comes from `pet_capabilities`, which also says
-  // whether this desktop can draw a transparent window at all.
   type PetCaps = {
     transparency?: string;
     click_through?: boolean;

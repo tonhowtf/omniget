@@ -4,8 +4,6 @@
   import { t } from "$lib/i18n";
   import { showToast } from "$lib/stores/toast-store.svelte";
 
-  // Quit, sleep or shut down once the queue is empty. Idea from Persepolis
-  // ("shut down after download") and Varia (with a cancel window).
   type Action = "quit" | "sleep" | "shutdown";
   type State = { action: Action | null; pending: number; saw_work: boolean; countdown: number | null };
 
@@ -18,7 +16,6 @@
     try {
       state = await invoke<State>("after_downloads_get");
     } catch {
-      // The panel keeps the last state; the next tick tries again.
     }
   }
 

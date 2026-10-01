@@ -1,8 +1,3 @@
-/* Paleta dos gráficos da Central (sessões/uso/retro). Slots 1-5 da paleta de
-   referência do método dataviz, em ordem fixa, validados contra a superfície
-   do app (escuro #2A2A2D: todos passam; claro #FFFFFF: contraste < 3:1 em três
-   slots, por isso todo gráfico tem legenda, tooltip e tabela de valores).
-   A cor segue a entidade (tipo de token), nunca o rank. */
 :root {
   --viz-input: #3987e5;
   --viz-output: #d95926;

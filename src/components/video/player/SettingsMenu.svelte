@@ -1,6 +1,4 @@
 <script lang="ts">
-  // Glass popover over the video: speed, subtitles, audio, study helpers and
-  // the external player.
   import { t } from "$lib/i18n";
   import { fmtSpeed, fmtTime } from "$lib/video/format";
   import {

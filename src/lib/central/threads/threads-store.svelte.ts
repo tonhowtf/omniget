@@ -1,14 +1,3 @@
-/**
- * Threads of the Central: snapshot, then live events from `threads://event`
- * applied incrementally (the same projection the backend does in SQL).
- *
- * Sync protocol (T3 style): the listener is attached before the snapshot is
- * read and buffers; after the snapshot, buffered events with a higher
- * sequence are applied. A gap in `sequence` triggers `threads_events_after`;
- * a replay over budget (`reset`) takes a fresh snapshot. Opened threads load
- * 10 turns, then 20 per `loadOlder`; a page read at head H ignores live
- * events with `sequence <= H` so streamed text is never doubled.
- */
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
@@ -71,7 +60,6 @@ function emptyTurn(threadId: string, turnId: string, ordinal: number, requestedA
   };
 }
 
-/** Shallow merge of JSON objects, like SQLite `json_patch` for our payloads. */
 function patch(a: Record<string, unknown>, b: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = { ...a };
   for (const [k, v] of Object.entries(b)) {
@@ -103,7 +91,6 @@ class ThreadsStore {
   #buffer: StoredEvent[] | null = null;
   #catchingUp = false;
 
-  /** Idempotent: the first caller subscribes and loads the snapshot. */
   init(): Promise<void> {
     if (!this.#starting) this.#starting = this.#start();
     return this.#starting;
@@ -154,8 +141,6 @@ class ThreadsStore {
     }
   }
 
-  // ── Live events ──────────────────────────────────────────────────────
-
   #receive(ev: StoredEvent) {
     if (ev.sequence <= this.sequence) return;
     if (ev.sequence > this.sequence + 1) {
@@ -165,7 +150,6 @@ class ThreadsStore {
     this.apply(ev);
   }
 
-  /** Replays what was missed; a replay over budget reloads everything. */
   async catchUp() {
     if (this.#catchingUp) return;
     this.#catchingUp = true;
@@ -224,7 +208,6 @@ class ThreadsStore {
     cur.updatedAt = m.updatedAt;
   }
 
-  /** Apply one event in sequence order (exported for tests and tools). */
   apply(ev: StoredEvent) {
     this.sequence = ev.sequence;
     const seq = ev.sequence;
@@ -366,7 +349,6 @@ class ThreadsStore {
           const turn = this.#turnOf(d, p.turnId);
           if (turn) this.#upsertMessage(turn.messages, row, p.streaming);
           else if (p.turnId && p.role === "user") {
-            // The user message arrives just before its turn row.
             const pending = emptyTurn(p.threadId, p.turnId, (d.turns.at(-1)?.turn.ordinal ?? 0) + 1, p.createdAt);
             pending.messages.push(row);
             d.turns.push(pending);
@@ -723,7 +705,6 @@ class ThreadsStore {
       }
       case "thread.revert-requested":
       case "thread.files-restored":
-        // Progress of "edit from here"; the cut itself is `thread.reverted`.
         break;
     }
   }
@@ -735,9 +716,6 @@ class ThreadsStore {
     });
   }
 
-  // ── Thread detail (turn pages) ───────────────────────────────────────
-
-  /** Loads the newest 10 turns of a thread (again, if already open). */
   async openThread(threadId: string): Promise<ThreadDetail | undefined> {
     try {
       const page = await invoke<TurnsPage>("threads_turns_page", { threadId, beforeTurn: null, limit: FIRST_PAGE });
@@ -753,7 +731,6 @@ class ThreadsStore {
         loading: false,
       };
       this.details = { ...this.details, [threadId]: detail };
-      // Live events between our cursor and the page's head are already in it.
       if (page.sequence > this.sequence) void this.catchUp();
       return this.details[threadId];
     } catch (e) {
@@ -762,7 +739,6 @@ class ThreadsStore {
     }
   }
 
-  /** The previous 20 turns. */
   async loadOlder(threadId: string) {
     const d = this.details[threadId];
     if (!d || !d.hasMore || d.loading) return;
@@ -793,8 +769,6 @@ class ThreadsStore {
     this.details = rest;
   }
 
-  // ── Commands ─────────────────────────────────────────────────────────
-
   async dispatch(command: ThreadCommand): Promise<DispatchResult> {
     return invoke<DispatchResult>("threads_dispatch", { commandJson: command });
   }
@@ -804,7 +778,6 @@ class ThreadsStore {
   }
 
   async createThread(input: {
-    /** Or `projectPath`: the project of that folder, created on the spot. */
     projectId?: string;
     projectPath?: string;
     instanceId: string;
@@ -813,7 +786,6 @@ class ThreadsStore {
     model?: string;
     agentId?: string;
     runtimeMode?: ThreadRow["runtimeMode"];
-    /** Own git worktree set up by the host. */
     worktree?: boolean;
     baseBranch?: string;
   }): Promise<string | undefined> {
@@ -842,17 +814,14 @@ class ThreadsStore {
     return this.dispatch({ type: "thread.revert", threadId, turnCount });
   }
 
-  /** "Edit from here" on the host: files (optional) + conversation + driver rollback. */
   revertToTurn(threadId: string, turn: number, restoreFiles: boolean): Promise<RevertOutcome> {
     return invoke<RevertOutcome>("threads_revert_to_turn", { threadId, turn, restoreFiles });
   }
 
-  /** Embedded OmniGet MCP of one thread (on by default). */
   mcpState(threadId: string): Promise<McpThreadState> {
     return invoke<McpThreadState>("mcp_thread_get", { threadId });
   }
 
-  /** Off revokes the thread's session tokens at once; the next session follows. */
   setMcpEnabled(threadId: string, enabled: boolean): Promise<boolean> {
     return invoke<boolean>("mcp_thread_set", { threadId, enabled });
   }
@@ -863,8 +832,6 @@ class ThreadsStore {
     return newThreadId;
   }
 
-  // ── Derived helpers ──────────────────────────────────────────────────
-
   threadsOf(projectId: string): ThreadRow[] {
     return this.threads
       .filter((t) => t.projectId === projectId && !t.archivedAt)
@@ -874,7 +841,6 @@ class ThreadsStore {
       });
   }
 
-  /** Threads waiting on the user, oldest request first. */
   get inbox(): ThreadRow[] {
     return this.threads.filter((t) => t.status === "approval" || t.status === "input");
   }

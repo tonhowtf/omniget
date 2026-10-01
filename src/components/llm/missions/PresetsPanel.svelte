@@ -1,9 +1,4 @@
 <script lang="ts">
-  /**
-   * Ready-made mission setups: the bots (and optionally a group) a preset
-   * creates, and the criteria it proposes. Applying one creates the bots on
-   * a connection you choose; "use its criteria" only prefills a new mission.
-   */
   import { onMount } from "svelte";
   import { t } from "$lib/i18n";
   import { getAgents, loadRooms, loadRoster } from "$lib/stores/llm-store.svelte";
@@ -36,7 +31,6 @@
     if (!connection && connections.length) connection = connections[0].id;
   });
 
-  /** A shipped preset's text in the UI language; the backend text otherwise. */
   function presetText(p: Preset, field: "title" | "description" | "group", fallback: string): string {
     const key = presetTextKey(p.id, field);
     return key ? $t(key) : fallback;

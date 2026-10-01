@@ -1,7 +1,3 @@
-// Textured quads (sprites, text lines, snapshots) with the shared sprite
-// program of $lib/gfx/gl: premultiplied textures, per-vertex tint and alpha.
-// One texture per flush; positions in CSS px of the viewport.
-
 import { buildProgram } from '$lib/gfx/gl';
 import { buildIndices, FLOATS_PER_QUAD, INDICES_PER_QUAD, writeQuad, type Quad } from '$lib/gfx/quad';
 
@@ -98,7 +94,6 @@ export class QuadBatch {
   }
 }
 
-/** Uploads an image as a premultiplied texture (nearest for pixel art). */
 export function uploadTexture(
   gl: WebGL2RenderingContext,
   src: TexSource,

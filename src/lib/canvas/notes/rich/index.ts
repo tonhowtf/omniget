@@ -1,22 +1,3 @@
-// Rich Markdown for notes and chat (Maestri D/notes, D/chat): a Svelte action
-// that post-processes sanitised Markdown already in the DOM.
-//
-// - ```mermaid blocks become diagrams (our own renderer) with Copy, Copy
-//   Mermaid Source and Copy as Image;
-// - other fenced blocks get syntax colours and a copy button;
-// - tables get Copy as Table (HTML + RTF + TSV), Copy Markdown, and a
-//   double-click copies one cell;
-// - `<img data-local-src>` (local paths kept by the sanitiser) load through
-//   `canvas_image_data`;
-// - URLs open in the browser with ⌘-click; real file paths written in the
-//   text become links and ⌘-click / ⌘⇧-click opens them on the canvas.
-//
-// Svelte's {@html} owns the top-level nodes it inserted and removes them by
-// range on the next render, so everything here only changes things *inside*
-// those nodes (never replaces or adds a top-level sibling). Work is
-// idempotent (`data-rich` marks), so the MutationObserver that re-runs it
-// after each render is cheap.
-
 import { get } from 'svelte/store';
 import { invoke } from '@tauri-apps/api/core';
 import { t } from '$lib/i18n';
@@ -28,11 +9,8 @@ import { findPaths, type PathMatch } from './links';
 import './rich.css';
 
 interface RichOptions {
-  /** Folder relative paths (images and links) resolve against. */
   baseDir?: string | null;
-  /** ⌘-click / ⌘⇧-click on a real path. */
   onOpenPath?: (abs: string, isDir: boolean, line?: number) => void;
-  /** Turn real paths in plain text into links (notes: yes). */
   linkPaths?: boolean;
 }
 
@@ -43,8 +21,6 @@ const tr = (key: string, fallback: string) => {
     return fallback;
   }
 };
-
-// ---- caches ---------------------------------------------------------------
 
 interface Hit {
   abs: string;
@@ -84,8 +60,6 @@ async function imageUrl(path: string, base: string | null): Promise<string | nul
   return url;
 }
 
-// ---- small DOM helpers ----------------------------------------------------
-
 function button(label: string, title: string, onClick: (btn: HTMLButtonElement) => void): HTMLButtonElement {
   const b = document.createElement('button');
   b.type = 'button';
@@ -99,7 +73,6 @@ function button(label: string, title: string, onClick: (btn: HTMLButtonElement) 
     e.stopPropagation();
     onClick(b);
   });
-  // Keep the canvas from treating the press as a drag/selection.
   b.addEventListener('pointerdown', (e) => e.stopPropagation());
   b.addEventListener('dblclick', (e) => e.stopPropagation());
   return b;
@@ -136,7 +109,6 @@ function onDocKey(e: KeyboardEvent) {
   }
 }
 
-/** A tiny context menu, placed inside `host` (never a top-level sibling). */
 function openMenu(host: HTMLElement, e: MouseEvent, items: { label: string; run: () => void }[], container: HTMLElement = host) {
   closeMenu();
   const m = document.createElement('div');
@@ -157,7 +129,6 @@ function openMenu(host: HTMLElement, e: MouseEvent, items: { label: string; run:
     m.appendChild(b);
   }
   const r = host.getBoundingClientRect();
-  // The host may be scaled by the canvas camera: convert to its own space.
   const sx = host.offsetWidth ? r.width / host.offsetWidth : 1;
   const sy = host.offsetHeight ? r.height / host.offsetHeight : 1;
   m.style.left = `${Math.max(0, (e.clientX - r.left) / (sx || 1))}px`;
@@ -174,8 +145,6 @@ function stopCanvas(el: HTMLElement) {
     if (e.button === 2) e.stopPropagation();
   });
 }
-
-// ---- mermaid --------------------------------------------------------------
 
 function background(host: Element): string {
   let el: Element | null = host;
@@ -204,7 +173,6 @@ function enhanceMermaid(pre: HTMLElement, code: HTMLElement) {
   code.hidden = true;
   const view = document.createElement('div');
   view.className = 'rich-mermaid-view';
-  // Built by our renderer from escaped text only.
   view.innerHTML = out.svg;
   pre.appendChild(view);
   const svgEl = view.querySelector('svg');
@@ -233,8 +201,6 @@ function enhanceMermaid(pre: HTMLElement, code: HTMLElement) {
   });
 }
 
-// ---- code -----------------------------------------------------------------
-
 function addCopy(pre: HTMLElement, text: () => string) {
   const b = button(tr('canvas.rich.copy', 'Copy'), tr('canvas.rich.copyCode', 'Copy code'), (btn) =>
     void copyText(text()).then((ok) => flash(btn, ok, 'x')),
@@ -255,8 +221,6 @@ function enhanceCode(pre: HTMLElement, code: HTMLElement) {
   }
   addCopy(pre, () => src);
 }
-
-// ---- tables ---------------------------------------------------------------
 
 function copyTable(table: HTMLTableElement, btn?: HTMLElement) {
   const data = readTable(table);
@@ -312,12 +276,9 @@ function enhanceTable(table: HTMLTableElement) {
       { label: tr('canvas.rich.copyMarkdown', 'Copy Markdown'), run: () => copyMarkdown(table) },
     ];
     if (cell) items.push({ label: tr('canvas.rich.copyCell', 'Copy Cell'), run: () => copyCell(cell) });
-    // Inside the caption, positioned against the table (no top-level node).
     openMenu(table, e, items, cap);
   });
 }
-
-// ---- images ---------------------------------------------------------------
 
 function enhanceImage(img: HTMLImageElement, base: string | null) {
   const path = img.dataset.localSrc;
@@ -335,8 +296,6 @@ function enhanceImage(img: HTMLImageElement, base: string | null) {
     }
   });
 }
-
-// ---- links and paths ------------------------------------------------------
 
 const SKIP = new Set(['A', 'PRE', 'CODE', 'BUTTON', 'CAPTION', 'SCRIPT', 'STYLE', 'TEXTAREA']);
 
@@ -363,7 +322,6 @@ async function linkPaths(root: HTMLElement, base: string | null) {
     const matches = findPaths(n.nodeValue ?? '');
     if (matches.length) found.push({ node: n, matches });
   }
-  // Inline `code` that is a whole path (not inside a <pre>).
   for (const el of Array.from(root.querySelectorAll<HTMLElement>('code:not([data-rich-path])'))) {
     if (el.closest('pre') || el.closest('a')) continue;
     const m = findPaths(el.textContent ?? '');
@@ -424,7 +382,6 @@ function onClick(e: MouseEvent, opts: RichOptions) {
   }
   const a = target?.closest<HTMLAnchorElement>('a[href]');
   if (!a) return;
-  // Never navigate the webview itself.
   e.preventDefault();
   const href = a.getAttribute('href') ?? '';
   if (!(e.metaKey || e.ctrlKey)) return;
@@ -444,8 +401,6 @@ function prepLinks(root: HTMLElement) {
     }
   }
 }
-
-// ---- the action -----------------------------------------------------------
 
 function enhance(root: HTMLElement, opts: RichOptions) {
   const base = opts.baseDir ?? null;

@@ -1,10 +1,7 @@
-// Optional "rope" cord style (Maestri): a Verlet chain of 12 segments with light
-// gravity, simulated only while an end moved, stopped once it settles.
-
 import type { Pt } from '../spatial/geometry';
 
 const ROPE_SEGMENTS = 12;
-const GRAVITY = 900; // world units / s²
+const GRAVITY = 900;
 const ITERATIONS = 8;
 const SETTLE_EPS = 0.05;
 
@@ -30,7 +27,6 @@ export class Rope {
     this.setEnds(a, b);
   }
 
-  /** Moves the pinned ends; wakes the simulation when they changed. */
   setEnds(a: Pt, b: Pt): void {
     const n = ROPE_SEGMENTS;
     if (this.px[0] !== a.x || this.py[0] !== a.y || this.px[n] !== b.x || this.py[n] !== b.y) {
@@ -43,7 +39,6 @@ export class Rope {
     this.segLen = (Math.hypot(b.x - a.x, b.y - a.y) * this.slack) / ROPE_SEGMENTS;
   }
 
-  /** One simulation step of dt ms. Returns true while still moving. */
   step(dtMs: number): boolean {
     if (this.settled) return false;
     const dt = Math.min(0.033, dtMs / 1000);
@@ -79,7 +74,6 @@ export class Rope {
     return !this.settled;
   }
 
-  /** Flat polyline of the rope. */
   points(): number[] {
     const out: number[] = [];
     for (let i = 0; i <= ROPE_SEGMENTS; i++) out.push(this.px[i], this.py[i]);

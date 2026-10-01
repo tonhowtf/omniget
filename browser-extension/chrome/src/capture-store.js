@@ -1,7 +1,3 @@
-// Loads the user's capture tables from storage and keeps a compiled copy in
-// memory. Mirrors the shape of blocked-hosts.js: read once at module load,
-// recompile on storage.onChanged, never make the request path touch storage.
-
 import {
   DEFAULT_MEDIA_CONTENT_TYPES,
   DEFAULT_MEDIA_EXTENSIONS,
@@ -20,10 +16,6 @@ export function defaultCaptureRules() {
   };
 }
 
-// A saved table replaces the defaults rather than merging with them: the
-// options page hands the user the full default table to edit, so a stored table
-// is already the complete answer. An empty bucket means "the user cleared this
-// table", which has to survive a reload.
 export function resolveCaptureRules(stored) {
   const defaults = defaultCaptureRules();
   if (!stored || typeof stored !== "object") return defaults;

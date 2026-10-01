@@ -17,10 +17,6 @@
     type TeamsStatus,
   } from "$lib/meetings/api";
 
-  // Teams through the person's Microsoft 365 sign-in: the calendar's online
-  // meetings (send the bot, import the official transcript) and chat export
-  // as Markdown or JSON for an LLM. Sign-in lives in Meetings settings.
-
   let { onsettings, onimported }: { onsettings: () => void; onimported: (id: string) => void } = $props();
 
   let status = $state<TeamsStatus | null>(null);

@@ -1,7 +1,4 @@
 <script lang="ts">
-  // YT Music carousel card: square art (circle for artists, 16:9 for music
-  // videos), floating play button bottom-right on hover, ⋮ in the top gradient,
-  // two-line title and subtitle. Clicking the art opens the item.
   import { t } from "$lib/i18n";
   import { bestAvatar, thumbUrl } from "$lib/tube/format";
   import { mplayer, toggle } from "$lib/tube/music.svelte";
@@ -13,7 +10,6 @@
   let {
     item,
     width = 180,
-    /** Fill the grid cell instead of a fixed width (library/search grids). */
     fluid = false,
     subtitle,
   }: { item: Item; width?: number; fluid?: boolean; subtitle?: string } = $props();

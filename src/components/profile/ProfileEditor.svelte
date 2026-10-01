@@ -1,8 +1,4 @@
 <script lang="ts">
-  /**
-   * Nickname field + skin picker. One primary action (Save) for the nickname;
-   * the tint saves on click, the way a macOS colour well does.
-   */
   import { t } from "$lib/i18n";
   import SkinPicker from "./SkinPicker.svelte";
   import {
@@ -17,8 +13,6 @@
     setSkin,
   } from "$lib/stores/profile-store.svelte";
 
-  // `embedded`: inside a Settings group (SettingsProfile), which already draws
-  // the section, so the editor drops its own card.
   let { onsaved, embedded = false }: { onsaved?: () => void; embedded?: boolean } = $props();
   const uid = $props.id();
   const nickId = `profile-nickname-${uid}`;
@@ -114,7 +108,6 @@
     flex-wrap: wrap;
   }
 
-  /* Help text wraps instead of ending in an ellipsis (the global .setting-path clips). */
   .profile-editor .setting-col {
     flex: 1 1 14rem;
   }

@@ -1,18 +1,4 @@
 <script lang="ts">
-  /**
-   * Context pruning: the switch, the judge, and — only for Jev — the TypeSafe
-   * key and the privacy warning.
-   *
-   * Pruning is off by default and runs between turns, never inside a reply.
-   * The component shows how many tool outputs are currently omitted; it never
-   * shows a saving percentage, because the honest number is "how many items",
-   * not "how much context we claim to have won back".
-   *
-   * The key is written straight to the backend's secret store through
-   * `llm_prune_set_jev_key`; it is never held in settings, never read back,
-   * and the field is cleared after saving. A failed setting write restores the
-   * last confirmed values; unavailable settings are disabled until refreshed.
-   */
   import { invoke } from "@tauri-apps/api/core";
   import { onMount } from "svelte";
   import { t } from "$lib/i18n";
@@ -21,13 +7,9 @@
   type PruneStatus = {
     enabled: boolean;
     judge: Judge;
-    /** Whether the secret store already holds a TypeSafe key. Never the key. */
     has_key: boolean;
-    /** Tool outputs currently replaced by a marker. A count, never a ratio. */
     omitted: number;
-    /** Conversation size (estimated tokens) under which nothing is judged. */
     min_tokens?: number;
-    /** Newest receipts: measured per model request, never a ratio. */
     receipts?: { agent: string; receipt: Receipt }[];
   };
   type Receipt = {
@@ -117,7 +99,6 @@
     } catch {
       offline = true;
     } finally {
-      // The key never lingers in the component, saved or not.
       keyInput = "";
       busy = false;
     }
@@ -293,8 +274,6 @@
     gap: var(--space-3);
   }
 
-  /* The warning is the one thing that must not be skimmed past: it says the
-     conversation's tool outputs leave the machine. */
   .warning {
     margin: 0;
     padding: var(--space-3);

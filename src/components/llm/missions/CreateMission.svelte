@@ -1,11 +1,4 @@
 <script lang="ts">
-  /**
-   * New mission: an objective, who works on it (a bot or a group), what
-   * "done" means (the criteria), an optional budget and folder. From the
-   * Chat it becomes `assist_mission_from_chat` (the conversation's folder is
-   * the workspace and the turns show in the chat); elsewhere it is
-   * `assist_mission_create`. A preset only prefills the criteria.
-   */
   import { onMount, untrack } from "svelte";
   import { t } from "$lib/i18n";
   import { getAgents, getRooms, loadRooms, loadRoster } from "$lib/stores/llm-store.svelte";
@@ -33,7 +26,6 @@
     oncreated?: (missionId: string) => void;
   } = $props();
 
-  // The props only seed the form; editing never writes back to the caller.
   const seed = untrack(() => ({ objective: initialObjective, bot: initialBot, room: initialRoom, criteria: initialCriteria }));
   let objective = $state(seed.objective);
   let target = $state<"bot" | "group">(seed.room ? "group" : "bot");
@@ -41,7 +33,6 @@
   let roomId = $state(seed.room ?? "");
   let criteria = $state<Criterion[]>(structuredClone($state.snapshot(seed.criteria)));
   let tasks = $state<NewTask[]>([]);
-  // Picked with the dialog or typed by hand; checked on submit.
   let workspaceText = $state("");
   let workspace = $derived(workspaceText.trim() ? workspaceText.trim() : null);
   let usd = $state("");

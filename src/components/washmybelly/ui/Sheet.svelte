@@ -1,9 +1,6 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
 
-  /// The one floating surface of the kit: a centred sheet over a dimmed
-  /// backdrop (app `.dialog-*` tokens). Escape and a backdrop click close it
-  /// unless `locked` (while something runs).
   let {
     open = $bindable(false),
     label,
@@ -118,7 +115,6 @@
     padding: var(--space-3) var(--space-5) var(--space-4);
     border-top: var(--hairline) solid var(--separator);
   }
-  /* Filled red push button for the one irreversible action of a sheet. */
   :global(.wmb-btn-danger) {
     background: var(--danger);
     color: var(--on-status);

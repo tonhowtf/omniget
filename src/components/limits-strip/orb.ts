@@ -1,16 +1,3 @@
-/**
- * Thinking orbs (libraries.dev `thinking-orbs`) without React: a Svelte
- * action over the package's framework-free `./engine` export.
- *
- * Only the documented knobs are used (`state`, `size` 20 | 64, `theme`,
- * `paused`); the draw call is the same one the package's own component makes
- * (`resolvePreset` → `MODE_FRAMES[mode]` → `paintFrame`).
- *
- * Every orb on the page shares one requestAnimationFrame loop, which only
- * runs while at least one orb is visible, unpaused, the document is not
- * hidden and the user has not asked for reduced motion. With no orb mounted
- * the page owns no frame callback at all.
- */
 import { MODE_FRAMES, paintFrame, resolvePreset, type OrbSize, type OrbState } from "thinking-orbs/engine";
 
 type OrbOptions = {
@@ -31,7 +18,6 @@ type Live = {
 const live = new Set<Live>();
 let raf = 0;
 let last = 0;
-/** 20 px orbs read as smooth at 30 fps; half the frames, half the cost. */
 const FRAME_MS = 1000 / 30;
 
 const reducedQuery = typeof matchMedia === "function" ? matchMedia("(prefers-reduced-motion: reduce)") : null;
@@ -95,7 +81,6 @@ function setup(o: Live) {
   o.canvas.height = Math.round(size * o.dpr);
   o.canvas.style.width = `${size}px`;
   o.canvas.style.height = `${size}px`;
-  // One still frame right away: the reduced-motion pose, or the first frame.
   draw(o, reduced() ? 0.6 : performance.now() / 1000);
 }
 

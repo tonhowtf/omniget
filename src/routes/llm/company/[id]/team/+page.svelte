@@ -1,9 +1,4 @@
 <script lang="ts">
-  /**
-   * Team: the org chart (click a card to open that agent) and the staff list
-   * with hire, edit, pause/resume, terminate and "run now". Next heartbeat
-   * and last run come from the staff row and `run.list`.
-   */
   import { invoke } from "@tauri-apps/api/core";
   import { page } from "$app/state";
   import { t } from "$lib/i18n";
@@ -25,7 +20,6 @@
   let error = $state("");
   let openId = $state<string | null>(null);
   let showFormer = $state(false);
-  /** null = closed, "new" = hire, else the staff id being edited. */
   let editing = $state<string | null>(null);
   let busyId = $state<string | null>(null);
   let now = $state(Date.now());
@@ -64,7 +58,6 @@
   });
 
   let byId = $derived(new Map(staff.map((s) => [s.id, s])));
-  /** Chart order first (managers above reports), then anyone the chart left out. */
   let ordered = $derived.by(() => {
     const inChart = flattenChart(chart);
     const seen = new Set(inChart.map((s) => s.id));

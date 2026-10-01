@@ -53,8 +53,6 @@ function i18nCheckPlugin({ strict } = { strict: false }) {
   };
 }
 
-// The /read reader (vendored foliate-js) loads pdf.js runtime files from
-// /vendor/pdfjs/; copy them from node_modules before serving or building.
 function pdfjsRuntimePlugin() {
   return {
     name: "omniget-pdfjs-runtime",
@@ -86,11 +84,7 @@ export default defineConfig(({ command }) => {
       __BUILD_DATE__: JSON.stringify(new Date().toISOString().split("T")[0]),
     },
 
-    // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
-    //
-    // 1. prevent Vite from obscuring rust errors
     clearScreen: false,
-    // 2. tauri expects a fixed port, fail if that port is not available
     server: {
       port: 1420,
       strictPort: true,
@@ -103,7 +97,6 @@ export default defineConfig(({ command }) => {
           }
         : undefined,
       watch: {
-        // 3. tell Vite to ignore watching `src-tauri`
         ignored: ["**/src-tauri/**"],
       },
     },

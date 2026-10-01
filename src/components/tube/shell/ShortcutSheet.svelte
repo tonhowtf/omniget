@@ -1,5 +1,4 @@
 <script lang="ts">
-  // "?" opens the list of keyboard shortcuts.
   import { fade, scale } from "svelte/transition";
   import { t } from "$lib/i18n";
   import { keys } from "$lib/tube/keys.svelte";

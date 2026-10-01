@@ -1,6 +1,4 @@
 <script lang="ts">
-  // Send files and folders to a chat the person picks (like `tdl up`).
-  // Nothing is sent without the explicit confirmation step.
   import { onMount } from "svelte";
   import { open } from "@tauri-apps/plugin-dialog";
   import { getCurrentWebview } from "@tauri-apps/api/webview";
@@ -42,7 +40,6 @@
       if (Array.isArray(r)) add(r);
       else if (typeof r === "string") add([r]);
     } catch {
-      /* dialog closed */
     }
   }
 
@@ -52,7 +49,6 @@
       if (Array.isArray(r)) add(r);
       else if (typeof r === "string") add([r]);
     } catch {
-      /* dialog closed */
     }
   }
 
@@ -114,7 +110,6 @@
         })
         .catch(() => {});
     } catch {
-      /* outside Tauri */
     }
     return () => {
       disposed = true;

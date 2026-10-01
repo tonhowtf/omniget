@@ -1,9 +1,4 @@
 <script lang="ts">
-  /**
-   * Retomar: o comando certo da ferramenta (vem do parser, com `cd` para o
-   * projeto quando a ferramenta precisa) e, quando a Central tem o comando
-   * das threads, "abrir como thread" no OmniGet.
-   */
   import { t } from "$lib/i18n";
   import { showToast } from "$lib/stores/toast-store.svelte";
   import Modal from "./Modal.svelte";

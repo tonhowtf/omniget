@@ -1,9 +1,4 @@
 <script lang="ts">
-  /**
-   * Companies of agents: the list, "new company" (templates or blank) and
-   * importing a package. Templates and packages go through the same
-   * preview → apply pair so the owner sees the plan before anything exists.
-   */
   import { onMount } from "svelte";
   import { goto } from "$app/navigation";
   import { t } from "$lib/i18n";
@@ -19,14 +14,12 @@
   let loadError = $state("");
   let templates = $state<TemplateInfo[]>([]);
 
-  // New company sheet
   let creating = $state(false);
   let choice = $state<string>("blank");
   let name = $state("");
   let mission = $state("");
   let workspace = $state<string | null>(null);
   let plan = $state<ImportPlan | null>(null);
-  /** Package read from a file (import), null for templates and blank. */
   let pkg = $state<unknown>(null);
   let pkgName = $state("");
   let busy = $state(false);

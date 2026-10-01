@@ -1,9 +1,4 @@
 <script lang="ts">
-  /**
-   * Collections in the catalog sidebar: select (the main area then lists the
-   * collection), create, rename, delete, reorder, import and export
-   * `.omnistack` files.
-   */
   import { tick } from "svelte";
   import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
   import { t } from "$lib/i18n";

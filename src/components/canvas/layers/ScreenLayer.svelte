@@ -1,8 +1,4 @@
 <script lang="ts">
-  // L2: screen-space layer (never scaled). Mid-level cards, group headers,
-  // cord labels, selection outline and handles, number badges and the
-  // contextual toolbar. Positions follow the camera through CSS vars, so a
-  // pan or zoom costs no Svelte work here.
   import { useEngine } from "$lib/canvas/engine.svelte";
   import type { CanvasNode } from "$lib/canvas/model/types";
   import { nodeKind } from "$lib/canvas/nodes/registry";

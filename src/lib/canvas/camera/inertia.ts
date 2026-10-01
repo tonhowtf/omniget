@@ -1,7 +1,3 @@
-// Own inertia for drag-to-pan (02-motor-do-canvas §3.2): velocity from the last
-// 80 ms of samples, decay v·e^(−t/325 ms), stop below 10 px/s. Never added to
-// wheel/trackpad scrolling, which already carries the system momentum.
-
 const VELOCITY_WINDOW_MS = 80;
 const DECAY_MS = 325;
 const STOP_SPEED = 10;
@@ -18,7 +14,6 @@ export class VelocityTracker {
     while (this.samples.length > 2 && t - this.samples[0].t > VELOCITY_WINDOW_MS) this.samples.shift();
   }
 
-  /** Velocity in px/s over the window; zero when the pointer rested. */
   velocity(now: number): { vx: number; vy: number } {
     const s = this.samples;
     if (s.length < 2) return { vx: 0, vy: 0 };
@@ -53,7 +48,6 @@ export class Inertia {
     return this.active;
   }
 
-  /** Advances by dt ms; returns the screen-pixel delta to pan by. */
   step(dtMs: number): { dx: number; dy: number } {
     if (!this.active) return { dx: 0, dy: 0 };
     const dt = Math.min(64, Math.max(0, dtMs));
@@ -67,7 +61,6 @@ export class Inertia {
   }
 }
 
-/** Critically damped spring step toward `target` (rubber-band settle). */
 export function springStep(
   value: number,
   velocity: number,

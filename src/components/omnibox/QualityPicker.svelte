@@ -8,7 +8,6 @@
     hasAudioOnly = false,
   } = $props();
 
-  // Full ordered list of resolution options (label, yt-dlp quality value, height for filtering)
   const RESOLUTION_OPTIONS = [
     { value: "best", key: "omnibox.quality_best", height: Infinity },
     { value: "2160p", key: "omnibox.quality_2160p", height: 2160 },
@@ -19,24 +18,18 @@
     { value: "360p", key: "omnibox.quality_360p", height: 360 },
   ];
 
-  // Derive which resolution pills to show.
-  // Before formats load: show standard set (Best + 1080p + 720p + 480p + 360p).
-  // After formats load: show only resolutions actually available, plus Best always.
   let visibleOptions = $derived.by(() => {
     if (!availableHeights) {
-      // Pre-fetch fallback: strip 2K / 4K from hardcoded list to keep UI tidy
       return RESOLUTION_OPTIONS.filter(o => o.height === Infinity || o.height <= 1080);
     }
     return RESOLUTION_OPTIONS.filter(o => {
-      if (o.height === Infinity) return true; // "Best" always shown
+      if (o.height === Infinity) return true;
       return availableHeights!.some(h => h === o.height);
     });
   });
 
-  // i18n keys that may not exist yet — provide a fallback label
   function qualityLabel(value: string, key: string): string {
     const translated = $t(key);
-    // If no translation key exists (e.g. 2160p, 1440p), build a label from value
     if (translated === key) return value;
     return translated;
   }

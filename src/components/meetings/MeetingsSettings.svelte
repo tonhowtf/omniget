@@ -75,7 +75,6 @@
     try {
       await navigator.clipboard.writeText(deviceCode.user_code);
     } catch {
-      /* the code stays on screen */
     }
   }
 

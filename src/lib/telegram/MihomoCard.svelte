@@ -25,7 +25,6 @@
 
   onMount(load);
 
-  // New links or a subscription can bring nodes only mihomo speaks.
   $effect(() => {
     void netState.status;
     void load();

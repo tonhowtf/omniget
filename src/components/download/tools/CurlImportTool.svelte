@@ -4,8 +4,6 @@
   import { translateBackendError } from "$lib/error-translate";
   import { showToast } from "$lib/stores/toast-store.svelte";
 
-  // Paste what the browser's "Copy as cURL" gives; OmniGet downloads the file
-  // with the same cookie, referer and headers. Idea from Motrix's new-task box.
   type Preview = {
     url: string;
     host: string;

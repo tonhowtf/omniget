@@ -1,6 +1,4 @@
 <script lang="ts">
-  // One show: seasons as segmented tabs, the episode list with watched toggles,
-  // and "play next unwatched".
   import { t } from "$lib/i18n";
   import { showToast } from "$lib/stores/toast-store.svelte";
   import * as api from "$lib/video/api";
@@ -55,7 +53,6 @@
   let nextEp = $derived(detail?.next != null ? (all.find((e) => e.id === detail!.next) ?? null) : null);
   let seasonAllWatched = $derived(!!current && current.episodes.every((e) => e.progress?.watched));
 
-  // files named only "Show S01E02" carry no episode title of their own
   function epTitle(e: MediaItem): string {
     const bare = !e.title || /\bS\d{1,2}\s*E\d{1,3}\b|\b\d{1,2}x\d{2,3}\b/i.test(e.title);
     return bare && e.episode != null ? ($t("video.show.episode_n", { number: e.episode }) as string) : e.title;

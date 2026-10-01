@@ -17,7 +17,6 @@
     return p.replace(/[\\/]+$/, "");
   }
 
-  /** Direct subfolders of `path` that contain music somewhere below. */
   let children = $derived.by(() => {
     void lib.version;
     if (!path) return [];

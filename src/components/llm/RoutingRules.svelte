@@ -1,5 +1,4 @@
 <script lang="ts">
-  // Legacy preference is displayed read-only until execution consumes it.
   import { onMount } from "svelte";
   import { t } from "$lib/i18n";
 
@@ -17,7 +16,6 @@
       const saved = localStorage.getItem(KEY);
       if (saved && RULES.some((r) => r.id === saved)) rule = saved;
     } catch {
-      // Same as above.
     }
   });
 </script>
@@ -45,8 +43,6 @@
 </div>
 
 <style>
-  /* The selected row paints a full-bleed background, so the group has to clip
-     it or the highlight squares off the rounded corners. */
   .rules-group {
     overflow: hidden;
   }

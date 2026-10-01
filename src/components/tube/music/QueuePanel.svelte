@@ -1,7 +1,4 @@
 <script lang="ts">
-  // "Up next" tab of Now playing: the queue with the playing row highlighted
-  // (animated bars), drag the handle to reorder (pointer events: HTML5 drag
-  // and drop is swallowed by the Tauri file-drop handler on Windows).
   import { t } from "$lib/i18n";
   import { fmtDuration, thumbUrl } from "$lib/tube/format";
   import { mplayer, moveInQueue, playAt, removeAt, toggle } from "$lib/tube/music.svelte";
@@ -38,7 +35,6 @@
   function move(e: PointerEvent) {
     if (!drag) return;
     drag.dy = e.clientY - drag.start;
-    // keep scrolling while dragging near the edges
     if (list) {
       const r = list.getBoundingClientRect();
       if (e.clientY < r.top + 40) list.scrollTop -= 8;
@@ -60,7 +56,6 @@
     e.preventDefault();
   }
 
-  // bring the playing row into view when the song changes
   $effect(() => {
     const i = mplayer.index;
     if (!list || i < 0 || drag) return;

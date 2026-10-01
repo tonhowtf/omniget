@@ -1,9 +1,3 @@
-// Prompt Composer logic (Maestri H): per-terminal drafts, `@` mentions of
-// what the terminal is connected to (same access model as the CLI: only
-// nodes tied to it by a cord), large pastes folded into pills, and the final
-// text with mentions expanded into tags that tell the agent which skill to
-// load (Maestri `<maestri-canvas-agent name="...">`).
-
 import type { CanvasNode, Connection } from '../model/types';
 
 type MentionKind = 'agent' | 'note' | 'portal' | 'file' | 'action' | 'floor' | 'workspace' | 'other';
@@ -12,17 +6,12 @@ export interface MentionTarget {
   id: string;
   name: string;
   kind: MentionKind;
-  /** Short line under the name (agent kind, role, url). */
   detail?: string;
-  /** Terminal color (the mention is painted with it, like Maestri). */
   color?: string;
-  /** Text the mention expands into when sent (overrides the kind's tag). */
   tag?: string;
-  /** `file` opens the inline `#` file picker instead of inserting a token. */
   special?: 'file';
 }
 
-/** Workspace/floor context for the non-node mentions (floors, workspaces, actions). */
 interface MentionContext {
   workspaceId?: string;
   floorId?: string;
@@ -40,7 +29,6 @@ export interface Draft {
   pastes: Paste[];
 }
 
-/** Maestri: more than 800 characters or more than 2 lines becomes a pill. */
 const PILL_MIN_CHARS = 800;
 const PILL_MIN_LINES = 3;
 
@@ -58,7 +46,6 @@ export function loadDraft(workspaceId: string, nodeId: string): Draft {
       if (typeof d.text === 'string' && Array.isArray(d.pastes)) return d;
     }
   } catch {
-    // storage unavailable
   }
   return { text: '', pastes: [] };
 }
@@ -68,7 +55,6 @@ export function saveDraft(workspaceId: string, nodeId: string, d: Draft): void {
     if (!d.text && !d.pastes.length) localStorage.removeItem(draftKey(workspaceId, nodeId));
     else localStorage.setItem(draftKey(workspaceId, nodeId), JSON.stringify(d));
   } catch {
-    // storage unavailable
   }
 }
 
@@ -86,7 +72,6 @@ function kindOfNode(n: CanvasNode): MentionKind {
     case 'image':
       return 'file';
     case 'connector':
-      // Half of a cord to a terminal on another floor or workspace ("B @ W2").
       return 'agent';
     default:
       return 'other';
@@ -112,7 +97,6 @@ function detailOf(n: CanvasNode): string | undefined {
   return undefined;
 }
 
-/** Everything tied to `nodeId` by a cord (either direction), minus itself. */
 function connectedTargets(nodeId: string, nodes: CanvasNode[], connections: Connection[]): MentionTarget[] {
   const ids = new Set<string>();
   for (const c of connections) {
@@ -128,7 +112,6 @@ function connectedTargets(nodeId: string, nodes: CanvasNode[], connections: Conn
     const t: MentionTarget = { id: n.id, name: nameOf(n), kind, detail: detailOf(n) };
     if (kind === 'agent' && n.color) t.color = n.color;
     if (n.kind === 'connector') {
-      // The chip's title is already "Name @ Workspace" (or "Name @ Floor").
       const remote = typeof n.data?.remoteNodeId === 'string' ? n.data.remoteNodeId : n.id;
       t.id = `remote:${remote}`;
       t.detail = n.data?.route === 'crossWorkspace' ? 'other workspace' : 'other floor';
@@ -144,11 +127,6 @@ function hintTag(kind: string, name: string, cli: string): string {
   return `<omniget-canvas-${kind} name="${escAttr(name)}" skill="omniget-canvas" cli="${escAttr(cli)}" />`;
 }
 
-/**
- * The `@` menu of a terminal (Maestri H2): what it is connected to (same
- * access model as the CLI), then `File…`, `@Maestro`, the actions (New Note,
- * New Portal), floors, Notifications, Routines and Workspaces.
- */
 export function mentionTargets(
   nodeId: string,
   nodes: CanvasNode[],
@@ -202,7 +180,6 @@ export function mentionTargets(
   return out;
 }
 
-/** Filters targets by what follows the `@`. */
 export function filterTargets(targets: MentionTarget[], query: string): MentionTarget[] {
   const q = query.trim().toLowerCase();
   if (!q) return targets;
@@ -211,7 +188,6 @@ export function filterTargets(targets: MentionTarget[], query: string): MentionT
   return [...starts, ...has];
 }
 
-/** The `@query` being typed right before the caret, if any. */
 export function mentionQuery(text: string, caret: number): { start: number; query: string } | null {
   const before = text.slice(0, caret);
   const m = /(^|\s)@([^\s@]{0,40})$/.exec(before);
@@ -219,7 +195,6 @@ export function mentionQuery(text: string, caret: number): { start: number; quer
   return { start: caret - m[2].length - 1, query: m[2] };
 }
 
-/** Inserted text for a picked target: `@Name` (quoted when it has spaces). */
 export function mentionToken(t: MentionTarget): string {
   return /\s/.test(t.name) ? `@"${t.name}"` : `@${t.name}`;
 }
@@ -253,10 +228,6 @@ function tagFor(t: MentionTarget): string {
   }
 }
 
-/**
- * Final text sent to the terminal: pills expanded, `@Name` of a connected
- * target replaced by its tag (files become their path).
- */
 export function expand(draft: Draft, targets: MentionTarget[]): string {
   let text = draft.text;
   for (const p of draft.pastes) text = text.split(pillLabel(p)).join(p.text);
@@ -272,7 +243,6 @@ export function expand(draft: Draft, targets: MentionTarget[]): string {
   return text;
 }
 
-/** Drops pastes whose pill is no longer in the text. */
 export function prunePastes(d: Draft): Draft {
   return { text: d.text, pastes: d.pastes.filter((p) => d.text.includes(pillLabel(p))) };
 }
@@ -281,13 +251,10 @@ function nextPasteNumber(d: Draft): number {
   return d.pastes.reduce((m, p) => Math.max(m, p.n), 0) + 1;
 }
 
-/** Shell-safe enough path insertion for a prompt (quotes when it has spaces). */
 export function pathToken(path: string): string {
   return /\s/.test(path) ? `"${path}"` : path;
 }
 
-/** The `#query` being typed right before the caret where a mention could start
- * (Maestri H3). `#` followed by a digit stays a character ("issue #42"). */
 export function fileQuery(text: string, caret: number): { start: number; query: string } | null {
   const before = text.slice(0, caret);
   const m = /(^|\s)#([^\s#]{0,120})$/.exec(before);
@@ -296,7 +263,6 @@ export function fileQuery(text: string, caret: number): { start: number; query: 
   return { start: caret - m[2].length - 1, query: m[2] };
 }
 
-/** Pasted text → pill (Maestri H5), or null when it stays inline text. */
 export function pastePill(d: Draft, text: string): { draft: Draft; label: string } | null {
   if (!text || !shouldPill(text)) return null;
   const p: Paste = { n: nextPasteNumber(d), text, lines: text.split('\n').length };

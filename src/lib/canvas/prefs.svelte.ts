@@ -1,9 +1,3 @@
-// Canvas settings (AppSettings.canvas, Rust `CanvasSettings`): one reactive
-// read for every consumer (gestures, grid, selection, cords, spawn, notes,
-// composer, terminals). Writes from the settings screen go through the
-// settings store; writes from MCP/CLI arrive as `canvas://settings`, which
-// reloads the store so everything reacts live.
-
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { getSettings, loadSettings } from '$lib/stores/settings-store.svelte';
@@ -53,9 +47,7 @@ export interface CanvasPrefs {
   notifications: { attention: boolean; badges_for_non_maestro: boolean };
   power: { prevent_sleep: 'never' | 'always' | 'while_working' };
   agent_presets: Record<string, AgentPreset>;
-  /** Settings → Canvas → Shortcuts: action → combination ('' = unbound). */
   shortcuts?: Record<string, string>;
-  /** Settings → Canvas → Skills: agent → folder the canvas skill is installed in ('' = session only). */
   skills?: { roots: Record<string, string> };
 }
 
@@ -93,7 +85,6 @@ const CANVAS_PREFS_DEFAULTS: CanvasPrefs = {
 
 const BUILTIN_AGENTS = new Set(['shell', 'claude', 'codex', 'gemini', 'opencode', 'ollama', 'native']);
 
-/** Current canvas settings (reactive: reads the settings store). */
 export function canvasPrefs(): CanvasPrefs {
   const c = (getSettings() as { canvas?: Partial<CanvasPrefs> } | null)?.canvas;
   if (!c) return CANVAS_PREFS_DEFAULTS;
@@ -114,7 +105,6 @@ export function canvasPrefs(): CanvasPrefs {
   };
 }
 
-/** `"340x220"` → `{w, h}` snapped to the grid; empty/invalid → null. */
 function parseSize(s: string | undefined | null): { w: number; h: number } | null {
   const m = /^\s*(\d+(?:\.\d+)?)\s*[x×X]\s*(\d+(?:\.\d+)?)\s*$/.exec(s ?? '');
   if (!m) return null;
@@ -122,7 +112,6 @@ function parseSize(s: string | undefined | null): { w: number; h: number } | nul
   return { w: snap(Number(m[1])), h: snap(Number(m[2])) };
 }
 
-/** The user's default size for a node kind, when set (New Item Defaults). */
 export function prefSize(kind: string): { w: number; h: number } | null {
   const d = canvasPrefs().defaults;
   const s =
@@ -138,13 +127,11 @@ export function prefSize(kind: string): { w: number; h: number } | null {
   return parseSize(s);
 }
 
-/** Built-in agent a preset runs (for state detection), `shell` otherwise. */
 export function presetAgent(p: AgentPreset): AgentKind {
   const prog = (p.command.trim().split(/\s+/)[0] ?? '').split(/[\\/]/).pop()?.replace(/\.exe$/i, '').toLowerCase() ?? '';
   return (['claude', 'codex', 'gemini', 'opencode', 'ollama'].includes(prog) ? prog : 'shell') as AgentKind;
 }
 
-/** Node data of a terminal started from a user preset (mirror of Rust `apply_preset`). */
 export function presetData(name: string, p: AgentPreset): Record<string, unknown> {
   const command = [...p.command.trim().split(/\s+/).filter(Boolean), ...(p.args ?? [])];
   const data: Record<string, unknown> = { command, agent: presetAgent(p), presetId: name };
@@ -163,7 +150,6 @@ export function userPreset(name: string | null | undefined): AgentPreset | null 
   return k ? all[k] : null;
 }
 
-/** ⌘T / T tool: the configured default (a built-in agent or a preset name). */
 export function defaultAgent(): { agent: AgentKind; preset?: string } {
   const d = canvasPrefs().default_agent || 'shell';
   if (BUILTIN_AGENTS.has(d)) return { agent: d as AgentKind };
@@ -171,14 +157,12 @@ export function defaultAgent(): { agent: AgentKind; preset?: string } {
   return p ? { agent: presetAgent(p), preset: d } : { agent: 'shell' };
 }
 
-/** Wheel zoom factor for one notch in `dir` (-1 out, +1 in). */
 export function zoomNotch(dir: number): number {
   const step = Math.min(1, Math.max(0.05, canvasPrefs().zoom_step || 0.1));
   return dir > 0 ? 1 + step : 1 / (1 + step);
 }
 
 let listening = false;
-/** Keeps the store fresh when MCP/CLI change the canvas section. Idempotent. */
 export function watchCanvasPrefs(): () => void {
   if (listening) return () => {};
   listening = true;
@@ -190,7 +174,6 @@ export function watchCanvasPrefs(): () => void {
   };
 }
 
-/** Whole-section write (the settings screen; removing a preset needs it). */
 export async function replaceCanvasPrefs(next: CanvasPrefs): Promise<CanvasPrefs> {
   const out = await invoke<CanvasPrefs>('canvas_settings_replace', { canvas: next });
   await loadSettings().catch(() => {});

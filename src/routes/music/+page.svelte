@@ -54,7 +54,6 @@
 
   let enabled = $derived(getSettings()?.music?.enabled ?? true);
   let lib = $derived(library());
-  /** For the native agent: `data-agent-readiness` on the library area. */
   let readiness = $derived(lib.loading && !lib.loaded ? "loading" : lib.error ? "error" : "ready");
   let peaks = $state<number[]>([]);
   let peaksFor = $state<number | null>(null);
@@ -87,7 +86,6 @@
     void loadLibrary().then(() => hydrateCurrent());
     void loadPlaylists();
 
-    // files dropped on the window: audio goes into the library, playlists get imported
     let unlisten: (() => void) | null = null;
     let disposed = false;
     try {
@@ -107,7 +105,6 @@
         })
         .catch(() => {});
     } catch {
-      /* outside Tauri */
     }
     return () => {
       disposed = true;
@@ -137,8 +134,6 @@
     }
   }
 
-  // `/music?view=settings&panel=eq` (links from Settings): reveal through the
-  // store navigation and focus. Never enables Music, plays, scans or edits.
   $effect(() => {
     const target = parseMusicTarget(page.url.searchParams);
     const selector = untrack(() =>
@@ -152,7 +147,6 @@
     return focusWhenReady(selector, { timeoutMs: 8000 });
   });
 
-  // waveform for the current track
   $effect(() => {
     const id = player.current?.id ?? null;
     if (id === peaksFor) return;

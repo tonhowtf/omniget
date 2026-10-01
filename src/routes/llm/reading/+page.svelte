@@ -1,8 +1,4 @@
 <script lang="ts">
-  /**
-   * /llm/reading: the reading companions. Pick a bot (those with a journey
-   * come first) and see its books, progress and film rounds.
-   */
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "$lib/i18n";

@@ -1,7 +1,3 @@
-// Pure helpers for the visitor's read-only view of a shared canvas: the
-// scene arrives as JSON from the host (`crate::canvas::visit::build_scene`)
-// and is drawn as cards and cords in an SVG.
-
 import type { Scene, SceneCord, SceneNode } from './api';
 
 export interface Box {
@@ -11,7 +7,6 @@ export interface Box {
   h: number;
 }
 
-/** Bounds of every node, padded; a small default box for an empty floor. */
 export function sceneBounds(scene: Scene, pad = 80): Box {
   if (!scene.nodes.length) return { x: -400, y: -300, w: 800, h: 600 };
   let x0 = Infinity;
@@ -31,7 +26,6 @@ function center(n: SceneNode): [number, number] {
   return [n.x + n.w / 2, n.y + n.h / 2];
 }
 
-/** Where the segment from the centre of `a` towards `b` leaves `a`'s box. */
 function edgePoint(a: SceneNode, towards: [number, number]): [number, number] {
   const [cx, cy] = center(a);
   const dx = towards[0] - cx;
@@ -51,7 +45,6 @@ export interface CordPath {
   mid: [number, number];
 }
 
-/** A gently curved path per cord whose two ends are on the floor. */
 export function cordPaths(scene: Scene): CordPath[] {
   const byId = new Map(scene.nodes.map((n) => [n.id, n]));
   const out: CordPath[] = [];
@@ -76,14 +69,12 @@ export function cordPaths(scene: Scene): CordPath[] {
   return out;
 }
 
-/** Last `n` lines of a shared screen, for a card. */
 export function screenTail(text: string | undefined, n: number): string {
   if (!text) return '';
   const lines = text.split('\n');
   return lines.slice(Math.max(0, lines.length - n)).join('\n');
 }
 
-/** A loose check of a scene coming from an event. */
 export function isScene(v: unknown): v is Scene {
   const s = v as Scene | null;
   return !!s && s.house === 'canvas-v1' && Array.isArray(s.nodes) && Array.isArray(s.cords);

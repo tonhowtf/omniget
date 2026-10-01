@@ -1,9 +1,4 @@
 <script lang="ts">
-  /**
-   * Eight tints from the shared palette plus a live preview of the avatar.
-   * The art variant (`id`) stays untouched: only the tint changes here. The
-   * placeholder is a tinted disc until the F5 art lands in static/omni.
-   */
   import { t } from "$lib/i18n";
   import { SKIN_TINTS, nearestTint, tintToCss } from "$lib/stores/profile-store.svelte";
 
@@ -17,8 +12,6 @@
     onpick: (next: [number, number, number]) => void;
   } = $props();
 
-  // The backend tint is not always one of the eight swatches (its own default
-  // is not), so the picker highlights the closest one instead of nothing.
   let activeId = $derived(nearestTint(tint).id);
 </script>
 

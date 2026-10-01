@@ -1,6 +1,4 @@
 <script lang="ts" module>
-  // Icons for OmniTube. Path data from Lucide (ISC license); `-fill` variants
-  // mark the active nav entry, the way YouTube swaps outline for filled.
   const P: Record<string, string> = {
     home: '<path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
     "home-fill": '<path fill="currentColor" d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2h-5v-7a1 1 0 0 0-1-1h-2a1 1 0 0 0-1 1v7H5a2 2 0 0 1-2-2z"/>',

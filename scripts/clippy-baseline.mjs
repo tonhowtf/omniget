@@ -1,24 +1,4 @@
 #!/usr/bin/env node
-// Congela os warnings de clippy que já existem e reprova apenas os novos.
-//
-// Sem isto, `-D warnings` reprovaria toda PR no primeiro dia (o workspace
-// carrega ~76 warnings herdados) e o clippy ficaria informativo para sempre.
-// Com isto, o portão é real sem exigir que alguém limpe 76 warnings antes de
-// poder mexer em qualquer coisa.
-//
-// Chave de comparação: `crate|lint`. Não inclui arquivo nem linha de propósito
-// — mover código não pode reprovar o portão, só introduzir warning novo pode.
-//
-// Uso:
-//   node scripts/clippy-baseline.mjs --check    reprova se piorou
-//   node scripts/clippy-baseline.mjs --update   regrava o baseline
-//
-// Um arquivo por SO: clippy enxerga código diferente por `#[cfg(target_os)]`,
-// então um baseline único não descreve as três plataformas. Rode este
-// passo em cada SO, contra o arquivo dele.
-//
-// Plataforma sem baseline ainda não gerado não reprova: o passo imprime o
-// conteúdo a ser commitado (ver a mensagem de baseline ausente abaixo).
 
 import { spawn } from "node:child_process";
 import fs from "node:fs";
@@ -26,9 +6,6 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-// Um arquivo por plataforma: `#[cfg(target_os)]` faz o clippy enxergar codigo
-// diferente em cada SO, e um arquivo unico deixaria todo codigo condicional
-// fora do portao — inclusive o modo portatil, que e todo Windows.
 const baselinePath = path.join(root, "src-tauri", `clippy-baseline.${process.platform}.json`);
 
 const mode = process.argv.includes("--update")
@@ -56,8 +33,6 @@ function runClippy() {
     child.stderr.on("data", (d) => (stderr += d));
     child.on("error", reject);
     child.on("close", (code) => {
-      // clippy sai != 0 em erro de compilação. Warning sozinho não muda o code,
-      // então um exit != 0 aqui é falha real de build e precisa aparecer.
       if (code !== 0) {
         reject(new Error(`cargo clippy failed (exit ${code}):\n${stderr.slice(-4000)}`));
         return;
@@ -69,10 +44,6 @@ function runClippy() {
 
 function tally(stdout) {
   const counts = {};
-  // `--all-targets` compila lib e lib-test, e o mesmo warning e emitido uma vez
-  // por target. Sem deduplicar, o total dobra (177 em vez de ~90) e um warning
-  // novo aparece como +2, o que torna o relatorio ilegivel. A identidade de um
-  // warning e o ponto de origem: arquivo, linha, coluna e lint.
   const seen = new Set();
   for (const line of stdout.split("\n")) {
     const trimmed = line.trim();
@@ -87,7 +58,7 @@ function tally(stdout) {
     const message = msg.message ?? {};
     if (message.level !== "warning") continue;
     const lint = message.code?.code;
-    if (!lint) continue; // warning sem código de lint (ex.: nota solta)
+    if (!lint) continue;
 
     const primary = (message.spans ?? []).find((s) => s.is_primary);
     const origin = primary
@@ -121,9 +92,6 @@ if (mode === "update") {
 }
 
 if (!fs.existsSync(baselinePath)) {
-  // Sem baseline para esta plataforma o portao nao reprova — reprovar seria
-  // punir alguem por um arquivo que ninguem gerou ainda. Em vez disso imprime
-  // exatamente o conteudo a commitar, para servir de fonte.
   console.log(
     `no clippy baseline for ${process.platform} yet — not gating.\n` +
       `Commit this as ${path.relative(root, baselinePath)}:\n`,
@@ -135,9 +103,6 @@ if (!fs.existsSync(baselinePath)) {
 const baseline = JSON.parse(fs.readFileSync(baselinePath, "utf8"));
 const before = baseline.counts ?? {};
 
-// Redundante agora que o nome do arquivo carrega a plataforma, mas mantido
-// como defesa: um baseline copiado a mao entre arquivos nao pode reprovar
-// ninguem em silencio.
 if (baseline.generated_on && baseline.generated_on !== process.platform) {
   console.log(
     `clippy baseline skipped: recorded on ${baseline.generated_on}, running on ${process.platform}`,

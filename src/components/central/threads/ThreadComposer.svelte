@@ -1,10 +1,4 @@
 <script lang="ts">
-  // Thread composer: `/` commands, `$` skills, `@` files, `#` PRs (menu grows
-  // out of the top), context chips (files, skills, PRs, terminal selections,
-  // diff comments, attachments), driver/instance + model, access mode and
-  // plan mode, queue while a turn runs (⌘Enter sends now), ↑/↓ prompt
-  // history, per-thread draft. A drawer slot on top holds approvals,
-  // questions and the plan follow-up.
   import { tick, untrack, type Snippet } from "svelte";
   import { t } from "$lib/i18n";
   import type { AccessMode, InstanceView, ThreadRow } from "$lib/central/threads/types";
@@ -39,7 +33,6 @@
     instances: InstanceView[];
     cwd: string | null;
     running: boolean;
-    /** Approval / question pending: sending waits. */
     blocked?: boolean;
     history?: string[];
     text?: string;
@@ -66,7 +59,6 @@
   let searchTimer: ReturnType<typeof setTimeout> | null = null;
   const modelListId = $props.id();
 
-  // Load the thread's draft on switch; save as the user types.
   let loadedFor = "";
   $effect(() => {
     const id = thread.threadId;
@@ -83,7 +75,6 @@
     });
   });
 
-  // Keep the model field in sync with the thread unless the user is editing it.
   $effect(() => {
     const m = thread.model ?? "";
     untrack(() => {
@@ -102,16 +93,12 @@
     el.style.height = `${Math.min(el.scrollHeight, MAX_HEIGHT)}px`;
   }
 
-  // ── Context insertion (public) ────────────────────────────────────────
-
-  /** Adds a context chip (terminal selection, diff comment, file…). */
   export function addChip(chip: Omit<Chip, "id"> & { id?: string }) {
     chips = [...chips, { ...chip, id: chip.id ?? newId(chip.kind) }];
     persist();
     focus();
   }
 
-  /** Puts text into the draft (appends; used by "edit from here", plan refine). */
   export function insertText(s: string, replace = false) {
     text = replace || !text.trim() ? s : `${text.replace(/\s+$/, "")}\n\n${s}`;
     persist();
@@ -141,8 +128,6 @@
     chips = chips.filter((c) => c.id !== id);
     persist();
   }
-
-  // ── Triggers ──────────────────────────────────────────────────────────
 
   function refreshTrigger() {
     const el = area;
@@ -293,8 +278,6 @@
     apply(`@${path}`);
   }
 
-  // ── Keyboard ──────────────────────────────────────────────────────────
-
   async function submit(steer = false) {
     const body = text.trim();
     if ((!body && !chips.length) || sending) return;
@@ -403,8 +386,6 @@
     refreshTrigger();
   }
 
-  // ── Attachments ───────────────────────────────────────────────────────
-
   async function attach() {
     try {
       const { open } = await import("@tauri-apps/plugin-dialog");
@@ -415,7 +396,6 @@
         addChip({ kind: "attachment", label: basename(path), path, value: path });
       }
     } catch {
-      /* dialog unavailable */
     }
   }
 
@@ -428,8 +408,6 @@
       if (path) addChip({ kind: "attachment", label: f.name, path, value: path });
     }
   }
-
-  // ── Pickers ───────────────────────────────────────────────────────────
 
   let inst = $derived(instances.find((i) => i.instance.id === thread.instanceId) ?? null);
   let hints = $derived(MODEL_HINTS[thread.driver] ?? []);

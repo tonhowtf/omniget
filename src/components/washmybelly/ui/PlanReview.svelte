@@ -9,10 +9,6 @@
   import RiskBadge from "./RiskBadge.svelte";
   import Sheet from "./Sheet.svelte";
 
-  /// Review → run → receipt, in one sheet. Asks `wmb_plan` for the preview
-  /// when opened, runs `wmb_execute` on the one primary button, follows
-  /// `washmybelly-progress` (task `execute`), and ends on the receipt with
-  /// Undo when it can be restored.
   let {
     kind,
     itemIds,
@@ -27,10 +23,8 @@
     itemIds: string[];
     open?: boolean;
     onDone?: (r: ReceiptSummary) => void;
-    /// Called after a successful Undo from the result screen.
     onRestored?: (receiptId: string) => void;
     groupLabel?: (key: string) => string;
-    /// Overrides the title and button text picked by `kind`.
     title?: string;
     confirmLabel?: string;
   } = $props();
@@ -64,7 +58,6 @@
         : (title ?? $t(reviewTitleKey(kind))),
   );
 
-  // Reload the preview whenever the sheet opens.
   $effect(() => {
     if (!open) return;
     const ids = itemIds;

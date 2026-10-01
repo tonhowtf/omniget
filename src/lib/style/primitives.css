@@ -1,12 +1,3 @@
-/*
- * OmniGet primitives — the shared vocabulary every surface
- * builds from. Apple idioms: grouped inset lists with hairline separators,
- * bezel controls, pop-up buttons, switches, segmented controls, sheets, popovers.
- * Each primitive covers default / hover / active / focus-visible / disabled.
- */
-
-/* ---------- Field (input + label + hint/error) ---------- */
-
 .field {
   display: flex;
   flex-direction: column;
@@ -99,8 +90,6 @@ textarea.input {
   line-height: var(--leading-base);
 }
 
-/* ---------- Checkbox & radio (macOS 14pt) ---------- */
-
 .checkbox,
 .radio,
 input[type="checkbox"]:not([class]),
@@ -180,8 +169,6 @@ input[type="radio"]:not([class]):disabled {
   cursor: not-allowed;
 }
 
-/* ---------- Switch (macOS toggle, 38×22) ---------- */
-
 .toggle {
   position: relative;
   width: 38px;
@@ -254,8 +241,6 @@ input[type="radio"]:not([class]):disabled {
   transform: translateX(12px);
 }
 
-/* ---------- Segmented control ---------- */
-
 .segmented,
 .mac-segmented {
   display: inline-flex;
@@ -318,8 +303,6 @@ input[type="radio"]:not([class]):disabled {
   font-size: var(--text-base);
 }
 
-/* ---------- Badge & tag ---------- */
-
 .badge {
   display: inline-flex;
   align-items: center;
@@ -366,8 +349,6 @@ input[type="radio"]:not([class]):disabled {
 .tag-danger { color: var(--danger); background: color-mix(in srgb, var(--danger) 14%, transparent); }
 .tag-info { color: var(--info); background: color-mix(in srgb, var(--info) 14%, transparent); }
 
-/* ---------- Avatar ---------- */
-
 .avatar {
   display: inline-flex;
   align-items: center;
@@ -393,8 +374,6 @@ input[type="radio"]:not([class]):disabled {
 .avatar-sm { width: 20px; height: 20px; font-size: var(--text-caption); }
 .avatar-lg { width: 44px; height: 44px; font-size: var(--text-md); }
 
-/* ---------- Symbol tile (app-icon style icon container) ---------- */
-
 .symbol-tile {
   display: inline-flex;
   align-items: center;
@@ -418,8 +397,6 @@ input[type="radio"]:not([class]):disabled {
   color: var(--text-muted);
 }
 
-/* ---------- Card / surface ---------- */
-
 .surface-card {
   background: var(--surface);
   border-radius: var(--radius-lg);
@@ -441,8 +418,6 @@ input[type="radio"]:not([class]):disabled {
   outline: var(--focus-ring);
   outline-offset: var(--focus-ring-offset);
 }
-
-/* ---------- Grouped inset list (System Settings style) ---------- */
 
 .group {
   background: var(--surface);
@@ -526,8 +501,6 @@ input[type="radio"]:not([class]):disabled {
   gap: var(--space-2);
   flex-shrink: 0;
 }
-
-/* ---------- List row ---------- */
 
 .list-row {
   display: flex;
@@ -618,8 +591,6 @@ input[type="radio"]:not([class]):disabled {
   flex-shrink: 0;
 }
 
-/* ---------- Section header (sentence case, tertiary) ---------- */
-
 .section-header {
   display: flex;
   align-items: baseline;
@@ -658,8 +629,6 @@ input[type="radio"]:not([class]):disabled {
   border-radius: var(--radius-xs);
 }
 
-/* ---------- Separator ---------- */
-
 .separator {
   border: none;
   height: var(--hairline);
@@ -670,8 +639,6 @@ input[type="radio"]:not([class]):disabled {
 .separator.inset {
   margin-left: var(--space-3);
 }
-
-/* ---------- Tooltip ---------- */
 
 .tooltip {
   position: absolute;
@@ -687,8 +654,6 @@ input[type="radio"]:not([class]):disabled {
   pointer-events: none;
   white-space: normal;
 }
-
-/* ---------- Menu / popover ---------- */
 
 .popover {
   background: var(--material-thick);
@@ -761,8 +726,6 @@ input[type="radio"]:not([class]):disabled {
   background: var(--separator);
 }
 
-/* ---------- Dialog / sheet ---------- */
-
 .dialog-backdrop {
   position: fixed;
   inset: 0;
@@ -808,8 +771,6 @@ input[type="radio"]:not([class]):disabled {
   margin-top: var(--space-2);
 }
 
-/* ---------- Skeleton ---------- */
-
 .skeleton {
   background: var(--fill-1);
   border-radius: var(--radius-sm);
@@ -840,8 +801,6 @@ input[type="radio"]:not([class]):disabled {
     animation: none;
   }
 }
-
-/* ---------- Empty state (never blank: title, hint, one action) ---------- */
 
 .empty-state {
   display: flex;
@@ -884,8 +843,6 @@ input[type="radio"]:not([class]):disabled {
 .empty-state .btn {
   margin-top: var(--space-2);
 }
-
-/* ---------- Progress ---------- */
 
 .progress {
   width: 100%;
@@ -948,8 +905,6 @@ input[type="radio"]:not([class]):disabled {
   }
 }
 
-/* ---------- Toast ---------- */
-
 .toast-card {
   display: flex;
   align-items: flex-start;
@@ -965,8 +920,6 @@ input[type="radio"]:not([class]):disabled {
   font-size: var(--text-base);
   color: var(--text);
 }
-
-/* ---------- Kbd ---------- */
 
 .kbd,
 .mac-kbd {
@@ -984,8 +937,6 @@ input[type="radio"]:not([class]):disabled {
   color: var(--text-muted);
   letter-spacing: 0.02em;
 }
-
-/* ---------- Callout / notice ---------- */
 
 .notice {
   display: flex;

@@ -1,7 +1,4 @@
 <script lang="ts">
-  // One YT Music shelf: strapline (12 caps grey) + 24/700 title + ‹ › arrows
-  // and "More", then the body picked by `shelf.kind`. Horizontal bodies scroll
-  // with a hidden scrollbar, snap, and fade at the edges (21st Scroller).
   import { t } from "$lib/i18n";
   import { bestAvatar } from "$lib/tube/format";
   import { go } from "$lib/tube/ui.svelte";
@@ -15,9 +12,7 @@
 
   let {
     shelf,
-    /** Force a layout (search/library use "grid" and "list"). */
     layout,
-    /** Rows shown for list shelves before "Show all". */
     listLimit = 0,
   }: { shelf: Shelf; layout?: "carousel" | "grid" | "list" | "quick_picks" | "moods"; listLimit?: number } = $props();
 

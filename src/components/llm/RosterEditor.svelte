@@ -1,11 +1,4 @@
 <script lang="ts">
-  // The three real steps follow the 21st Onboarding Stepper Progress pattern (19143). This original Svelte implementation retains the existing agent model and permission editor.
-  /**
-   * Editor of one agent: name, role, system prompt, model policy (Fixed or a
-   * Route chain), granted tools and budget. Tools are read-only until the MCP
-   * phase ships a catalogue; the list a saved agent already carries is shown so
-   * nothing is silently dropped on save.
-   */
   import { onMount, untrack } from "svelte";
   import { modelLabel } from "$lib/llm/types";
   import { t } from "$lib/i18n";
@@ -45,8 +38,6 @@
     return copy;
   }
 
-  // Seeded once from the prop on purpose: the form owns its draft and the
-  // parent re-keys the component when it hands over another agent.
   let draft = $state<AgentDef>(untrack(() => cloneAgent(agent)));
   let roleValue = $state(untrack(() => (typeof agent.role === "string" ? agent.role : "custom")));
   let customRole = $state(untrack(() => (typeof agent.role === "string" ? "" : agent.role.custom)));
@@ -361,7 +352,6 @@
     cursor: pointer;
   }
 
-  /* The full grant table lives in /llm/mcp; this is the way there. */
   .mcp-link {
     font-size: var(--text-sm);
     color: var(--accent-hi);

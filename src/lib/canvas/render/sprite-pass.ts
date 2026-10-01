@@ -1,13 +1,3 @@
-// Far level (estudo 97 §8a, 02 §2.2): every agent node collapses into a desk
-// with a monitor and the Omni mascot. One channel per question:
-//   pose  — working/thinking sits at the desk, the monitor is lit with two
-//           scrolling log lines and a blinking cursor; idle stands beside it;
-//   ring  — state colour under the character (pulses while working);
-//   glyph — red "!" blinking at 2.5 Hz when the agent needs you, lilac box
-//           while compacting, orange dots while looping;
-//   name  — fixed screen size from the text atlas.
-// Animates only while something on screen moves; otherwise zero frames.
-
 import { parseAtlas, type AtlasData } from '$lib/gfx/atlas';
 import { TextAtlas, textUV } from '$lib/gfx/text';
 import type { CanvasEngine } from '../engine.svelte';
@@ -66,7 +56,6 @@ function animFor(state: AgentState): { anim: string; fps: number } {
   }
 }
 
-/** Animated states need frames; the rest is a still picture. */
 function animates(state: AgentState): boolean {
   return state === 'working' || state === 'thinking' || state === 'blocked' || state === 'compacting' || state === 'looping';
 }
@@ -102,18 +91,15 @@ export function createSpritePass(engine: CanvasEngine, colors: () => { ink: Rgba
     const state = node ? agentStates.stateOf(node) : 'unknown';
     const color = STATE_COLORS[state];
     const busy = state === 'working' || state === 'thinking';
-    // Scale everything from the node's projected width.
     const unit = Math.max(0.35, Math.min(2.2, sw / 140));
     const cx = sx + sw / 2;
     const floor = sy + sh * 0.78;
 
-    // Desk.
     const deskW = 84 * unit;
     const deskH = 16 * unit;
     sdf.rect(cx - deskW / 2, floor - deskH, deskW, deskH, { radius: 3 * unit, fill: [0.55, 0.39, 0.25, 1], strokeWidth: 1, stroke: [0.25, 0.17, 0.1, 1] });
     sdf.rect(cx - deskW / 2 + 4 * unit, floor, 5 * unit, 14 * unit, { fill: [0.4, 0.28, 0.18, 1] });
     sdf.rect(cx + deskW / 2 - 9 * unit, floor, 5 * unit, 14 * unit, { fill: [0.4, 0.28, 0.18, 1] });
-    // Monitor on the desk.
     const monW = 34 * unit;
     const monH = 22 * unit;
     const monX = cx + 10 * unit;
@@ -126,7 +112,6 @@ export function createSpritePass(engine: CanvasEngine, colors: () => { ink: Rgba
       stroke: [0.18, 0.18, 0.2, 1],
     });
     if (busy) {
-      // Two log lines scrolling up and a cursor blinking every 0.53 s.
       const scroll = (t / 600) % 1;
       for (let i = 0; i < 3; i++) {
         const ly = monY + monH - 5 * unit - ((i + scroll) * 6 * unit);
@@ -139,7 +124,6 @@ export function createSpritePass(engine: CanvasEngine, colors: () => { ink: Rgba
       }
     }
 
-    // State ring on the floor, pulsing while working (period 1.2 s).
     const pulse = busy ? 0.55 + 0.45 * Math.sin((t / 1200) * Math.PI * 2) : 1;
     const charX = busy ? cx - 14 * unit : cx - deskW / 2 - 10 * unit;
     sdf.push({
@@ -153,7 +137,6 @@ export function createSpritePass(engine: CanvasEngine, colors: () => { ink: Rgba
       stroke: hexToRgba(color, 0.9 * pulse),
     });
 
-    // Character.
     let headY = floor - 48 * unit;
     if (sheet && sheetTex) {
       const { anim, fps } = animFor(state);
@@ -185,7 +168,6 @@ export function createSpritePass(engine: CanvasEngine, colors: () => { ink: Rgba
       sdf.circle(charX, floor - 20 * unit, 14 * unit, { fill: [0.96, 0.83, 0.37, 1], strokeWidth: 1.5, stroke: withAlpha(ink, 0.5) });
     }
 
-    // Glyph above the head.
     const gy = headY - 10 * unit;
     if (state === 'blocked') {
       if (Math.floor(t / 200) % 2 === 0) {

@@ -85,15 +85,11 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 TAURI = ROOT / "src-tauri"
 CODE_TASKS = ["t03-bugfix-py", "t04-feature-py", "t05-bugfix-js", "t09-rename"]
 
-
 def load_missions_eval():
     spec = importlib.util.spec_from_file_location("missions_eval", ROOT / "scripts" / "llm" / "missions_eval.py")
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod
-
-
-# ── the known changes (each one solves its task) ───────────────────────
 
 PYC = base64.b64encode(bytes([0x6F, 0x0D, 0x0D, 0x0A, 0, 0, 0, 0]) + bytes(range(256)) * 2).decode()
 
@@ -120,7 +116,6 @@ KNOWN = {
                 "    return max(counts, key=counts.get)\n"
             ),
         },
-        # What `python3 -m unittest` leaves behind: a binary file.
         "write_b64": {"__pycache__/stats.cpython-312.pyc": PYC},
     },
     "t04-feature-py": {
@@ -153,7 +148,6 @@ KNOWN = {
                 ("get size() { return this.items.length - 1; }", "get size() { return this.items.length; }"),
             ],
         },
-        # node runs CommonJS without it: a deleted file.
         "delete": ["package.json"],
     },
     "t09-rename": {
@@ -165,7 +159,6 @@ KNOWN = {
         },
     },
 }
-
 
 def changes_for(name, seed):
     """`changes.json` for fake_claude --mode apply: edits become whole files."""
@@ -179,7 +172,6 @@ def changes_for(name, seed):
             text = text.replace(old, new)
         out["write"][rel] = text
     return out
-
 
 def f50_fixture(root):
     """60 files; 40 edited, 5 added, 5 deleted: 50 changed."""
@@ -198,12 +190,8 @@ def f50_fixture(root):
         write[f"new/n{i}.txt"] = f"new file {i}\nsecond line\n"
     (root / "f50" / "changes.json").write_text(json.dumps({"write": write, "delete": delete}))
 
-
-# ── comparison ─────────────────────────────────────────────────────────
-
 HEADER = ("--- ", "+++ ", "index ", "new file mode", "deleted file mode", "old mode", "new mode",
           "similarity", "rename ", "Only in ")
-
 
 def normalize(text, kind, work="work"):
     """{path: [hunk lines] | "BINARY"} from a unified diff. `kind`: "git"
@@ -236,14 +224,10 @@ def normalize(text, kind, work="work"):
             continue
         if line.startswith("@@"):
             in_hunk = True
-            # git appends the enclosing function to the header
-            # (`@@ -9,4 +9,4 @@ class Cart:`); BSD/GNU diff -u does not.
-            # Metadata, not content: compared without it.
             line = re.match(r"(@@ -\S+ \+\S+ @@)", line).group(1)
         if in_hunk:
             files[cur].append(line)
     return {p: v for p, v in files.items() if v}
-
 
 def tree(root):
     out = {}
@@ -251,7 +235,6 @@ def tree(root):
         if p.is_file():
             out[str(p.relative_to(root))] = p.read_bytes()
     return out
-
 
 def compare(fx, tmp, suffix=""):
     """`suffix` "" = shared mode (`work/`, `job.*`), "-wt" = worktree mode."""
@@ -263,7 +246,6 @@ def compare(fx, tmp, suffix=""):
     a, b = normalize(patch, "git"), normalize(ref, "bsd", work_name)
     mismatched = sorted(p for p in set(a) | set(b) if a.get(p) != b.get(p))
     binary = sorted(f["path"] for f in job["files"] if f.get("binary"))
-    # The patch applied to a copy of the seed must give the final folder.
     copy = tmp / (fx.name + suffix + "-applied")
     shutil.copytree(seed, copy)
     cmd = ["git", "apply", "--whitespace=nowarn"] + [f"--exclude={p}" for p in binary] + [str(fx / f"job{suffix}.patch")]
@@ -273,7 +255,6 @@ def compare(fx, tmp, suffix=""):
         got.pop(p, None)
         want.pop(p, None)
     bytes_equal = got == want and (applied is None or applied.returncode == 0)
-    # Statuses against the folders.
     s_tree, w_tree = tree(seed), tree(work)
     expected = {}
     for p in set(s_tree) | set(w_tree):
@@ -302,14 +283,12 @@ def compare(fx, tmp, suffix=""):
         "same_uncommitted_and_committed": job.get("same_uncommitted_and_committed"),
     }
 
-
 def run_tests(crate, filter_, env_extra, out_file):
     env = dict(os.environ, OMNIGET_BENCH_OUT=str(out_file), **env_extra)
     cmd, p = run_prepared_tests(crate, filter_, env)
     summary = [l for l in p.stdout.splitlines() if l.startswith("test result") or l.startswith("test ")]
     return {"cmd": " ".join(f"{k}={v}" for k, v in env_extra.items()) + " " + " ".join(cmd),
             "exit": p.returncode, "summary": summary, "stderr_tail": p.stderr[-2000:] if p.returncode else ""}
-
 
 def read_metrics(path):
     per = {}
@@ -322,10 +301,8 @@ def read_metrics(path):
             per[m["metric"]] = m["value"]
     return per
 
-
 def goal(name, value, ok, target):
     return {"goal": name, "target": target, "value": value, "pass": bool(ok)}
-
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -485,7 +462,6 @@ def main():
         print(("PASS " if g["pass"] else "FAIL ") + g["goal"] + f"  ({g['value']})")
     print("all_pass:", report["all_pass"], "->", args.out)
     return 0 if report["all_pass"] else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

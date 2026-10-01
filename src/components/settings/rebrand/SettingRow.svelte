@@ -57,7 +57,6 @@
     display: flex;
     justify-content: flex-end;
     align-items: center;
-    /* Never narrower than 160 px beside the label; stacked rows use the full width. */
     min-inline-size: min(160px, 100%);
   }
   .setting-row-control :global(:is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, textarea)) {
@@ -69,7 +68,6 @@
     .setting-row { flex-wrap: wrap; align-items: stretch; }
     .setting-row-text { flex-basis: 100%; }
     .setting-row-control { flex: 1 1 100%; justify-content: flex-start; }
-    /* A lone switch stays beside its label while the label fits. */
     .setting-row:has(> .setting-row-control > :global([role="switch"]:only-child)) { flex-wrap: nowrap; align-items: center; }
     .setting-row:has(> .setting-row-control > :global([role="switch"]:only-child)) .setting-row-text { flex: 1 1 auto; }
     .setting-row:has(> .setting-row-control > :global([role="switch"]:only-child)) .setting-row-control { flex: none; justify-content: flex-end; }

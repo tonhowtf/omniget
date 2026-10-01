@@ -1,7 +1,4 @@
 <script lang="ts">
-  // History: list grouped by day (search-style rows), with a side column to
-  // search the history and clear it. Account history when logged in, the
-  // local one otherwise (which can also drop single entries).
   import { t } from "$lib/i18n";
   import * as api from "$lib/tube/api";
   import type { HistoryEntry, Shelf as ShelfT, VideoItem } from "$lib/tube/types";

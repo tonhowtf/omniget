@@ -1,15 +1,5 @@
 <script lang="ts">
   import SurfaceGuide from "$components/llm/SurfaceGuide.svelte";
-  /**
-   * MCP tab, two halves.
-   *
-   * **Server** — OmniGet's own endpoint, the one other agents connect to.
-   * **Client** — the external servers OmniGet connects to: add by stdio or
-   * Streamable HTTP, test, see the discovered tools and grant them per agent.
-   *
-   * Budget: opening the tab reads the saved config and nothing else. No
-   * connection, no process, no timer until a button is pressed.
-   */
   import { onMount, untrack } from "svelte";
   import { replaceState } from "$app/navigation";
   import { page } from "$app/state";
@@ -49,12 +39,10 @@
 
   type View = { kind: "list" } | { kind: "form"; config: McpServerConfig } | { kind: "grants"; id: string };
 
-  // `?mode=server` selects the half; client is the default and has no param.
   let target = $derived(parseMcpTarget(page.url.searchParams));
   let half = $state<"server" | "client">(untrack(() => parseMcpTarget(page.url.searchParams).mode));
   let view = $state<View>({ kind: "list" });
   let importText = $state("");
-  /** Servers from one pasted config still waiting to be reviewed. */
   let pending = $state<McpServerConfig[]>([]);
   let importError = $state(false);
   let grantBusy = $state(false);
@@ -71,8 +59,6 @@
     void loadRoster();
   });
 
-  // A link (or back/forward) changed the query: follow it. Opening only
-  // reveals: no server start, no grant, no budget, no media run.
   $effect(() => {
     const mode = target.mode;
     untrack(() => { half = mode; });
@@ -81,13 +67,11 @@
   $effect(() => {
     const selector = target.mode === "server" ? mcpSectionSelector(target.section) : null;
     if (!selector) return;
-    // ServerConnections mounts only after the endpoint status arrives.
     return focusWhenReady(selector, { timeoutMs: 8000 });
   });
 
   function setHalf(next: "server" | "client") {
     half = next;
-    // `page.url` is not updated by replaceState: read the live address.
     const href = mcpModeHref(new URL(location.href), next);
     if (href) replaceState(href, page.state);
   }
@@ -104,8 +88,6 @@
   async function save(config: McpServerConfig) {
     const ok = await saveServer(config);
     if (!ok) return;
-    // A pasted config may carry several servers: review them one at a time
-    // instead of writing the lot behind the user's back.
     const next = pending.shift();
     view = next ? { kind: "form", config: next } : { kind: "list" };
   }
@@ -117,7 +99,6 @@
 
   async function openGrants(row: McpServerRow) {
     view = { kind: "grants", id: row.config.id };
-    // Cached: a second visit costs no connection.
     await loadTools(row.config.id);
   }
 
@@ -175,7 +156,6 @@
       </button>
     </div>
   </header>
-  <!-- Each half has its own intro: the client sentence is not repeated on "Your endpoint". -->
   <SurfaceGuide text={$t(half === "server" ? "llm.surface.mcp_server_hint" : "llm.surface.mcp_hint")} href="/help?article=mcp#guide" />
 
   {#if half === "server"}
@@ -277,16 +257,12 @@
 
 <style>
   .import-settings { margin:24px 0; } .import-settings summary { cursor:pointer; padding:14px 0; font-weight:600; color:var(--text); }
-  /* Block layout: as a flex column the groups shrink to the viewport and clip
-     their own rows instead of letting the page scroll. Same as the roster. */
   .mcp-page {
     flex: 1;
     min-height: 0;
     overflow-y: auto;
   }
 
-  /* The segmented control has to be able to drop below the title on a narrow
-     window instead of pushing the page into a horizontal scroll. */
   .mcp-page .page-head {
     flex-wrap: wrap;
   }

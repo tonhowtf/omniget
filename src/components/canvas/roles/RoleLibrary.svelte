@@ -1,7 +1,4 @@
 <script lang="ts">
-  // Role library: the workspace's roles and the global library (seeded with
-  // the built-ins), with the editor beside the list. Also "Discover roles"
-  // from the project's `.omniget/roles` / `.maestri/roles`.
   import { onMount } from "svelte";
   import { t } from "$lib/i18n";
   import { roles } from "$lib/canvas/roles/store.svelte";
@@ -84,9 +81,6 @@
     }
   }
 
-  // The project's role.json is the source of truth: a workspace role with the
-  // same name is updated, anything else lands as a new workspace role (a
-  // built-in with the same name stays in the library).
   async function importRoles(list: Role[]) {
     error = "";
     if (!list.length) return;

@@ -1,14 +1,4 @@
 <script lang="ts">
-  /**
-   * Visualizador de uma sessão de qualquer ferramenta.
-   *
-   * Paginação reversa: abre nas mensagens mais novas e carrega as antigas ao
-   * rolar para cima (a posição de leitura fica parada). Busca dentro da
-   * sessão com anterior/próximo e salto (carrega páginas até o trecho). Tool
-   * calls pareadas com o resultado, recolhíveis; "mostrar tools" fica salvo.
-   * Enquanto a tela está visível e a sessão está viva, as mensagens novas
-   * chegam sozinhas; em segundo plano nada roda.
-   */
   import { onMount, tick } from "svelte";
   import { page } from "$app/state";
   import { t } from "$lib/i18n";
@@ -92,7 +82,6 @@
 
   let olderJob: Promise<void> | null = null;
 
-  /** Uma carga de página antiga por vez; chamadas concorrentes esperam a mesma. */
   function loadOlder(keepPosition = true): Promise<void> {
     if (olderJob) return olderJob;
     if (!hasOlder) return Promise.resolve();
@@ -105,7 +94,6 @@
         total = p.total;
         merge(p.first_index, p.turns);
         if (p.turns.length === 0) {
-          // Página vazia: o índice encolheu; recomeça do mais novo.
           turns = new Map();
           await loadNewest();
         }
@@ -230,11 +218,9 @@
         if (stick && scroller) scroller.scrollTop = scroller.scrollHeight;
       }
     } catch {
-      /* estado ao vivo é extra */
     }
   }
 
-  // Reabre ao trocar de sessão (link de subagente, busca).
   let openedKey = "";
   $effect(() => {
     const k = `${tool}/${id}`;

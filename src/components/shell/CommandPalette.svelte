@@ -30,8 +30,6 @@
     });
   });
 
-  // Group headers only when the list is unfiltered; a search result reads
-  // better as one flat ranked list.
   let grouped = $derived.by(() => {
     if (query.trim()) return null;
     const map = new Map<string, number[]>();
@@ -69,8 +67,6 @@
       closeCommandPalette();
       return;
     }
-    // Arrows and Enter act only while focus is in the palette: a key typed
-    // into a terminal of the canvas must never run a navigation entry.
     const active = document.activeElement;
     if (active && active !== document.body && !active.closest(".mac-command-palette")) return;
     if (e.key === "ArrowDown") {

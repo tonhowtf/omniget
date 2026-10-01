@@ -1,7 +1,3 @@
-// Small formatters for the threads UI: durations, relative times, tokens and
-// money. Pure, no i18n (numbers and units are the same in en and pt).
-
-/** 14 s → "14s", 134 s → "2m 14s", 3 780 s → "1h 3m". */
 export function formatDuration(ms: number): string {
   if (!Number.isFinite(ms) || ms < 0) ms = 0;
   const s = Math.floor(ms / 1000);
@@ -12,7 +8,6 @@ export function formatDuration(ms: number): string {
   return m % 60 ? `${h}h ${m % 60}m` : `${h}h`;
 }
 
-/** Compact relative age: "now", "5m", "2h", "3d", "4w". */
 export function formatAge(iso: string | null | undefined, now = Date.now()): string {
   if (!iso) return "";
   const t = Date.parse(iso);
@@ -28,7 +23,6 @@ export function formatAge(iso: string | null | undefined, now = Date.now()): str
   return `${Math.round(d / 7)}w`;
 }
 
-/** Countdown until `iso`, rounded up so it never reads "0m". */
 export function formatUntil(iso: string | null | undefined, now = Date.now()): string {
   if (!iso) return "";
   const t = Date.parse(iso);
@@ -40,7 +34,6 @@ export function formatUntil(iso: string | null | undefined, now = Date.now()): s
   return `${Math.ceil(h / 24)}d`;
 }
 
-/** 950 / 1.2k / 84k / 1.2m. */
 export function formatTokens(n: number | null | undefined): string {
   const v = Math.max(0, Math.round(n ?? 0));
   if (v < 1000) return String(v);
@@ -57,7 +50,6 @@ export function formatCost(usd: number | null | undefined): string {
   return `$${usd.toFixed(1)}`;
 }
 
-/** Time of day for hover timestamps (locale aware). */
 export function formatClock(iso: string | null | undefined): string {
   if (!iso) return "";
   const d = new Date(iso);
@@ -75,7 +67,6 @@ export function formatFull(iso: string | null | undefined): string {
   return Number.isNaN(d.getTime()) ? "" : d.toLocaleString();
 }
 
-/** Middle-truncates long paths/branches: "src/…/deep/file.ts". */
 export function middleTruncate(s: string, max = 36): string {
   if (s.length <= max) return s;
   const keep = max - 1;
@@ -93,7 +84,6 @@ export function dirname(p: string): string {
   return i > 0 ? p.slice(0, i) : "";
 }
 
-/** Path relative to `root` when inside it. */
 export function relativeTo(p: string, root: string | null | undefined): string {
   if (!root) return p;
   const r = root.replace(/[\\/]+$/, "");

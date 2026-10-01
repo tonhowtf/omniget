@@ -1,9 +1,4 @@
 <script lang="ts">
-  /**
-   * Exportar (Markdown/JSON neutro) ou converter para outra ferramenta
-   * (Markdown de contexto para colar como primeira mensagem). O conteúdo vem
-   * pronto do núcleo; aqui só se escolhe o destino e se grava ou copia.
-   */
   import { t } from "$lib/i18n";
   import { showToast } from "$lib/stores/toast-store.svelte";
   import Modal from "./Modal.svelte";

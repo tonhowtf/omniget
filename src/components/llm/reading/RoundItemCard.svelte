@@ -1,10 +1,4 @@
 <script lang="ts">
-  /**
-   * One recommended film: role, connection, mood and pace, where to watch in
-   * Brazil with availability and PT subtitles shown separately (date and
-   * source each), "Por que esta indicação?", and "watched / dropped / not
-   * now" with an optional short reaction.
-   */
   import { t } from "$lib/i18n";
   import {
     accessKey,
@@ -42,7 +36,7 @@
       marking = null;
       reaction = "";
       errorKey = null;
-    } else errorKey = out.errorKey; // the reaction stays in the box
+    } else errorKey = out.errorKey;
   }
 
   async function forget(eventId: string) {

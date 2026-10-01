@@ -1,15 +1,8 @@
-// Batuta fuzzy match (study 95 §J, 03 §10): case- and accent-insensitive,
-// several words refine (every word must match somewhere), the name weighs
-// more than the body, and the matched characters of the name are returned for
-// bold. Word starts and runs score higher.
-
-/** Lowercase without diacritics; keeps the length so indices map 1:1. */
 export function fold(s: string): string {
   let out = '';
   for (const ch of s) {
     const base = ch.normalize('NFD').replace(/[̀-ͯ]/g, '');
     const low = (base || ch).toLowerCase();
-    // Keep one output char per UTF-16 unit of the input.
     out += low.length === ch.length ? low : low.padEnd(ch.length, ' ').slice(0, ch.length);
   }
   return out;
@@ -21,10 +14,8 @@ function isBoundary(text: string, i: number): boolean {
   return /[\s\-_./\\:@#([]/.test(p) || (text[i] !== text[i].toLowerCase() && p === p.toLowerCase());
 }
 
-/** Subsequence match of one word; returns score and indices, or null. */
 function matchWord(word: string, folded: string, original: string, loose = true): { score: number; idx: number[] } | null {
   if (!word) return { score: 0, idx: [] };
-  // Substring first: the best case.
   const sub = folded.indexOf(word);
   if (sub >= 0) {
     const idx = Array.from({ length: word.length }, (_, k) => sub + k);
@@ -33,8 +24,6 @@ function matchWord(word: string, folded: string, original: string, loose = true)
     if (sub === 0) score += 6;
     return { score, idx };
   }
-  // Long texts (bodies, prompts) only match whole substrings: a scattered
-  // subsequence there finds almost anything ("cafe" in a role prompt).
   if (!loose) return null;
   const idx: number[] = [];
   let score = 0;
@@ -51,22 +40,18 @@ function matchWord(word: string, folded: string, original: string, loose = true)
     prev = i;
     from = i + 1;
   }
-  // Too spread out to be what the user meant.
   if (idx[idx.length - 1] - idx[0] + 1 > Math.max(8, word.length * 4)) return null;
   return { score, idx };
 }
 
 export interface Field {
   text: string;
-  /** Multiplier: name 3, kind/workspace 1.5, body 1. */
   weight: number;
-  /** Allow a subsequence match (default); off = substrings only. */
   loose?: boolean;
 }
 
 interface FuzzyResult {
   score: number;
-  /** Matched indices in the first field (the name). */
   nameIdx: number[];
 }
 
@@ -74,7 +59,6 @@ export function splitQuery(q: string): string[] {
   return fold(q).split(/\s+/).filter(Boolean);
 }
 
-/** Every word must match some field; the score sums each word's best field. */
 export function fuzzy(words: string[], fields: Field[]): FuzzyResult | null {
   if (!words.length) return { score: 0, nameIdx: [] };
   const folded = fields.map((f) => fold(f.text));
@@ -102,7 +86,6 @@ export function fuzzy(words: string[], fields: Field[]): FuzzyResult | null {
   return { score: total, nameIdx: Array.from(nameIdx).sort((a, b) => a - b) };
 }
 
-/** Splits `text` into runs for rendering with bold matches. */
 export function highlightRuns(text: string, idx: number[]): Array<{ s: string; hit: boolean }> {
   if (!idx.length) return [{ s: text, hit: false }];
   const set = new Set(idx);

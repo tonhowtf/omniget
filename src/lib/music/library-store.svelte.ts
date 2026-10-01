@@ -1,7 +1,3 @@
-// The music library as the webview sees it: every track row, the local
-// server's address, and live scan/analysis progress. One instance for the
-// whole app so the mini player and /music share it.
-
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type { MusicStatus, Track } from "./types";
@@ -17,7 +13,6 @@ const state = $state({
   error: "",
   scan: null as ScanProgress | null,
   analysis: null as AnalysisProgress | null,
-  /** bumped on every change so derived views recompute cheaply */
   version: 0,
 });
 
@@ -88,7 +83,6 @@ export function patchTracksLocal(ids: number[], patch: Partial<Track>) {
   reindex();
 }
 
-/** Re-reads a few rows from Rust (after analysis or tag edits), batched. */
 function refreshTracks(ids: number[]) {
   for (const id of ids) pendingRefresh.add(id);
   if (refreshTimer) return;
@@ -99,7 +93,6 @@ function refreshTracks(ids: number[]) {
     try {
       upsertTracks(await invoke<Track[]>("music_tracks_by_ids", { ids: batch }));
     } catch {
-      /* the next full load will catch up */
     }
   }, 400);
 }
@@ -117,7 +110,6 @@ async function startListening() {
         reindex();
         await refreshStatus();
       } catch {
-        /* ignore */
       }
     }),
     listen<AnalysisProgress>("music-analysis-progress", (e) => {
@@ -126,18 +118,14 @@ async function startListening() {
     }),
     listen("music-analysis-done", async () => {
       state.analysis = null;
-      // album gains were written for the whole batch
       try {
         state.tracks = await invoke<Track[]>("music_tracks");
         reindex();
       } catch {
-        /* ignore */
       }
     }),
   ]);
 }
-
-// ---- local server URLs ----
 
 function base(): string {
   const s = state.status;
@@ -169,7 +157,6 @@ export function proxyUrl(url: string): string {
   return `${base()}/p?${key()}&u=${encodeURIComponent(url)}`;
 }
 
-/** Asks for a folder and adds it to the library (the scan starts in Rust). */
 export async function addLibraryFolder(): Promise<boolean> {
   const { open } = await import("@tauri-apps/plugin-dialog");
   const picked = await open({ directory: true, multiple: true });

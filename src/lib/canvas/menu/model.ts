@@ -1,10 +1,3 @@
-// One menu model for the canvas (Maestri's context menus and View menu). The
-// right-click menu (SpawnMenu.svelte) renders from it and the MCP tool
-// `app_menu` lists and invokes it through the test driver, so what a tester
-// drives is exactly what the user sees. Labels are i18n keys with an English
-// default; paths match the English label ("View > Tidy", "Add > Terminal >
-// Claude Code", "Node > Duplicate") or the entry id, case-insensitive.
-
 import { invoke } from '@tauri-apps/api/core';
 import type { CanvasEngine } from '../engine.svelte';
 import { isTerminalKind, type AgentKind } from '../model/types';
@@ -19,26 +12,19 @@ import { placeInStack, stackTargets } from '../notes/stack';
 
 export interface MenuEntry {
   id: string;
-  /** i18n key of the label. */
   key: string;
-  /** English label (the default of `key`, and what paths match). */
   label: string;
   children?: MenuEntry[];
   run?: () => unknown;
   danger?: boolean;
-  /** Draw a separator before this entry. */
   sepBefore?: boolean;
 }
 
 interface MenuContext {
-  /** Node the menu is about (node menu). */
   nodeId?: string;
-  /** Canvas point for Add/Paste. */
   wx?: number;
   wy?: number;
-  /** A cord was dropped on empty canvas: new nodes connect from here. */
   connectFrom?: string;
-  /** Place at the nearest free spot of the view instead of wx/wy. */
   free?: boolean;
 }
 
@@ -66,7 +52,6 @@ function e(id: string, key: string, label: string, run?: () => unknown, extra: P
   return { id, key, label, run, ...extra };
 }
 
-/** Add menu (empty canvas): agents and every node kind, created at the point. */
 export function addMenu(engine: CanvasEngine, ctx: MenuContext): MenuEntry[] {
   const at = ctx.free || ctx.wx === undefined || ctx.wy === undefined ? null : { x: ctx.wx, y: ctx.wy };
   const spawn = (kind: string, agent?: AgentKind) => () => {
@@ -78,7 +63,6 @@ export function addMenu(engine: CanvasEngine, ctx: MenuContext): MenuEntry[] {
     e('terminal', 'canvas.menu.add.terminal', 'Terminal', undefined, {
       children: [
         ...SPAWN_AGENTS.map((a) => e(a.id, `canvas.engine.spawn.${a.id === 'shell' ? 'terminal' : a.id}`, a.label, spawn(a.kind, a.agent))),
-        // User agent presets (Settings → Canvas → Agent presets).
         ...Object.keys(canvasPrefs().agent_presets).map((name, i) =>
           e(`preset:${name}`, name, name, () => {
             const node = engine.spawn('terminal', at, { preset: name, connectFrom: ctx.connectFrom });
@@ -98,10 +82,6 @@ export function addMenu(engine: CanvasEngine, ctx: MenuContext): MenuEntry[] {
 
 const SIZE_SETTING: Record<string, string> = { note: 'note', terminal: 'terminal', agent: 'terminal', text: 'text', portal: 'portal' };
 
-/**
- * Blur (M-B10): hides the body of the node, or of the whole selection when the
- * node is part of it, behind an eye; header and name stay. One undo step.
- */
 export function setBlur(engine: CanvasEngine, nodeId: string, on: boolean): void {
   const sel = engine.selection.list().filter((id) => engine.store.node(id));
   const ids = sel.includes(nodeId) ? sel : [nodeId];
@@ -109,7 +89,6 @@ export function setBlur(engine: CanvasEngine, nodeId: string, on: boolean): void
   if (ops.length) engine.commit(ops);
 }
 
-/** A link node opens as a portal next to it (M-B30, Maestri: Open in Portal / ⇧ double-click). */
 export function openLinkInPortal(engine: CanvasEngine, nodeId: string): { nodeId: string } | null {
   const n = engine.store.node(nodeId);
   const url = n && typeof n.data.url === 'string' ? n.data.url : '';
@@ -119,7 +98,6 @@ export function openLinkInPortal(engine: CanvasEngine, nodeId: string): { nodeId
   return { nodeId: portal.id };
 }
 
-/** Node menu (right-click on a node). */
 export function nodeMenu(engine: CanvasEngine, nodeId: string): MenuEntry[] {
   const node = engine.store.node(nodeId);
   if (!node) return [];
@@ -183,7 +161,6 @@ export function nodeMenu(engine: CanvasEngine, nodeId: string): MenuEntry[] {
   return out;
 }
 
-/** View menu: global canvas actions (Maestri's View menu). */
 export function viewMenu(engine: CanvasEngine): MenuEntry[] {
   const selected = () => engine.selection.list().filter((id) => engine.store.node(id));
   return [
@@ -222,7 +199,6 @@ export function viewMenu(engine: CanvasEngine): MenuEntry[] {
   ];
 }
 
-/** Workspace menu (the sidebar item of the current workspace). */
 function workspaceMenu(engine: CanvasEngine): MenuEntry[] {
   const ws = workspaces.byId(engine.store.workspaceId);
   return [
@@ -243,16 +219,11 @@ function workspaceMenu(engine: CanvasEngine): MenuEntry[] {
     }),
     e('syncAgentFiles', 'canvas.menu.syncAgentFiles', 'Sync Agent Files', async () => {
       if (!ws) return { error: 'no workspace' };
-      // CLAUDE.md wins by default; the sidebar menu offers the preview first.
       return agentFiles(ws.id, 'CLAUDE.md', true);
     }),
   ];
 }
 
-/**
- * View → Reset Focus: clears a stuck tool, gesture, focus or menu without
- * touching the document (Maestri troubleshooting).
- */
 function resetFocus(engine: CanvasEngine): void {
   if (engine.tools.busy) engine.tools.cancel();
   engine.tools.spaceHeld = false;
@@ -266,7 +237,6 @@ function resetFocus(engine: CanvasEngine): void {
   engine.invalidate();
 }
 
-/** Every top-level menu available in context. */
 export function menus(engine: CanvasEngine, ctx: MenuContext = {}): MenuEntry[] {
   const top: MenuEntry[] = [];
   const nodeId = ctx.nodeId ?? (engine.selection.size === 1 ? engine.selection.list()[0] : undefined);
@@ -284,7 +254,6 @@ function match(list: MenuEntry[], seg: string): MenuEntry | undefined {
   return list.find((m) => clean(m.label) === s || m.id.toLowerCase() === s) ?? list.find((m) => clean(m.label).startsWith(s));
 }
 
-/** Finds an entry by "A > B > C". A segment not found at its level is also looked up one level deeper. */
 export function findPath(list: MenuEntry[], path: string): MenuEntry | null {
   const segs = path
     .split(/>|›|\//)
@@ -306,7 +275,6 @@ export function findPath(list: MenuEntry[], path: string): MenuEntry | null {
   return found ?? null;
 }
 
-/** Plain tree for listing (labels, ids, leaf or submenu). */
 export function describe(list: MenuEntry[]): unknown[] {
   return list.map((m) => ({
     id: m.id,

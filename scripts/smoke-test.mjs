@@ -1,17 +1,4 @@
 #!/usr/bin/env node
-// Sobe o app de verdade e prova que a janela abriu.
-//
-// Compilar em quatro plataformas e nunca abriu o app uma vez. Foi assim
-// que a #209 passou: o modo portatil do Windows entrou em `main` sem nunca ter
-// criado uma janela. "Compila" e "abre" sao perguntas diferentes, e so uma
-// delas estava sendo feita.
-//
-// Uso:
-//   node scripts/smoke-test.mjs <caminho-do-binario> [--portable]
-//
-// O modo --portable reproduz a #209 caso 1: `portable.txt` ao lado do
-// executavel, um perfil de usuario limpo, e a exigencia de que nada apareca
-// fora do diretorio do app.
 
 import { spawn } from "node:child_process";
 import { mkdtempSync, mkdirSync, writeFileSync, copyFileSync, existsSync, rmSync } from "node:fs";
@@ -44,8 +31,6 @@ let bin = resolve(binArg);
 let appDir = workdir;
 
 if (portable) {
-  // Copiar em vez de rodar no lugar: o modo portatil e definido por um arquivo
-  // ao lado do executavel, e sujar o diretorio de build afetaria o outro caso.
   appDir = join(workdir, "app");
   mkdirSync(appDir, { recursive: true });
   bin = join(appDir, basename(binArg));
@@ -61,15 +46,12 @@ const env = {
   ...process.env,
   RUST_LOG: "info",
   OMNIGET_SMOKE_EXIT_MS: String(EXIT_AFTER_MS),
-  // Perfil limpo para que "a pasta apareceu" seja uma afirmacao sobre esta
-  // execucao, e nao sobre lixo de uma anterior.
   LOCALAPPDATA: join(fakeProfile, "Local"),
   APPDATA: join(fakeProfile, "Roaming"),
   XDG_DATA_HOME: join(fakeProfile, "share"),
   HOME: process.platform === "win32" ? process.env.HOME : fakeProfile,
 };
 if (!portable) {
-  // Sem isto o caso padrao escreveria no perfil real do runner.
   env.OMNIGET_DATA_DIR = join(workdir, "data-padrao");
 }
 
@@ -110,8 +92,6 @@ if (!BANNER.test(out)) {
   falhas.push("o banner de boot nao apareceu — o processo nem chegou a subir");
 }
 if (!out.includes(WINDOW)) {
-  // Este e o assert que importa: sem ele, "o processo rodou" estava sendo
-  // confundido com "a janela abriu".
   falhas.push(`a janela nao foi criada — "${WINDOW}" ausente na saida`);
 }
 if (code !== 0) {
@@ -140,7 +120,6 @@ if (portable) {
 try {
   rmSync(workdir, { recursive: true, force: true });
 } catch {
-  /* limpeza best-effort; nao e motivo para reprovar o teste */
 }
 
 if (falhas.length > 0) {

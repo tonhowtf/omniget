@@ -8,7 +8,6 @@
     children,
     compact = false,
   }: {
-    /** file in static/music (without extension) */
     art: "empty-library" | "radio" | "now-playing" | "download" | "tools";
     title: string;
     body?: string;

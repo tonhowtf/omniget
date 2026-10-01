@@ -2,11 +2,6 @@
   import SurfaceGuide from "$components/llm/SurfaceGuide.svelte";
   import RunModeSelect from "$components/llm/RunModeSelect.svelte";
   import type { RunMode } from "$lib/stores/llm-run-mode.svelte";
-  /**
-   * Loops: the same prompt run round after round until a check command
-   * passes or the round/minute budget runs out. Without a check command an
-   * independent auditor (the agent's small model) judges each round (3.7).
-   */
   import { onMount } from "svelte";
   import { page } from "$app/state";
   import { t } from "$lib/i18n";
@@ -32,7 +27,6 @@
   import { agentLabel } from "$components/central/run/run-api";
   import { itemHref } from "$lib/central/catalog";
 
-  /** Fields the catalog runs add to a Loop (schedule, source). */
   type LoopExtra = LoopDef & {
     schedule?: string | null;
     source?: string | null;
@@ -53,17 +47,13 @@
   let reviewing = $state(false);
   let maxRounds = $state<number | null>(10);
   let maxMinutes = $state<number | null>(null);
-  /** A cost ceiling (US$) pauses the loop with a budget incident (3.3). */
   let maxCost = $state<number | null>(null);
   let checkCommand = $state("");
-  /** Resume by itself after a restart (3.1); unchecked = the setting. */
   let autoResume = $state(false);
   let tokenBudget = $state<number | null>(null);
-  // A loop made here is the person's own: the chat's default (2.7, D2).
   let runMode = $state<RunMode>("auto_edits");
   let creating = $state(false);
   let openId = $state<string | null>(null);
-  // `?loop=<id>` (a row of /llm/work) opens that loop.
   let linkedLoop = $derived(page.url.searchParams.get("loop"));
   let followedLoop: string | null = null;
   $effect(() => {
@@ -72,7 +62,6 @@
       openId = linkedLoop;
     }
   });
-  /** Re-read on each store change, enough for a quiet elapsed column. */
   let now = $state(Date.now());
 
   onMount(() => {
@@ -95,7 +84,6 @@
     return typeof n === "number" && n > 0 ? Math.floor(n) : null;
   }
 
-  /** Stop reasons the app names; anything else (an error) shows as it is. */
   const KNOWN_STOPS = ["audit_complete", "audit_blocked", "audit_unavailable", "audit_disagrees", "token_budget", "max_rounds"];
 
   function reason(loop: LoopDef): string {
@@ -124,12 +112,10 @@
     return `US$ ${(n ?? 0).toFixed(4)}`;
   }
 
-  /** The budget incident that paused the loop, if one did. */
   function budgetIncident(loop: LoopDef): string | null {
     return loop.state === "paused" && loop.stop_reason?.startsWith("budget:") ? loop.stop_reason.slice(7) : null;
   }
 
-  /** What the rounds cost: dollars (marked when estimated), else weighted tokens (C5). */
   function cost(loop: LoopDef): string {
     const usd = loop.spent_usd ?? 0;
     const tokens = loop.spent_tokens ?? 0;

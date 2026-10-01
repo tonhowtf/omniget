@@ -1,7 +1,3 @@
-// LRC writing on the frontend (the parser lives in Rust and comes back with
-// every `music_lyrics_*` call). Used by the offset fix and the tap-to-sync
-// editor, which produce new timings.
-
 import type { LrcLine } from "./types";
 
 function stamp(ms: number): string {
@@ -27,7 +23,6 @@ export function toLrc(lines: LrcLine[], meta: { title?: string; artist?: string;
   return [...head, ...body].join("\n") + "\n";
 }
 
-/** Plain text -> lines to be stamped one by one. */
 export function plainLines(text: string): string[] {
   return text
     .split(/\r?\n/)

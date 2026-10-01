@@ -1,15 +1,3 @@
-/**
- * TypeScript mirror of the Rust LLM contract.
- *
- * Hand-written from `src-tauri/omniget-core/src/core/llm/types.rs` and
- * `.../llm/agent.rs` (no codegen). Serde attributes that matter here:
- *   - `ContentPart`, `TurnEvent`, `ToolSource`, `ModelPolicy`, `RuntimeKind`
- *     and `CandidateRuntime` are internally tagged; the tag is `type`,
- *     `source`, `policy`, `kind` or `runtime` as noted on each type.
- *   - every variant name is `snake_case` on the wire.
- * Keep this file in step with the Rust side; a mismatch is a silent bug.
- */
-
 type ProviderId = string;
 
 export interface ModelRef {
@@ -48,7 +36,6 @@ type FinishReason =
   | "cancelled"
   | "other";
 
-/** Mirrors `LlmError` in `core/llm/error.rs`. */
 export interface LlmError {
   code: string;
   message: string;
@@ -56,7 +43,6 @@ export interface LlmError {
   retry_after_ms?: number | null;
 }
 
-/** Mirrors `TurnEvent` (tag `type`, snake_case). */
 export type TurnEvent =
   | { type: "started"; request_id: string }
   | { type: "text_delta"; text: string }
@@ -77,15 +63,11 @@ export type TurnEvent =
   | { type: "finished"; reason: FinishReason }
   | { type: "error"; error: LlmError };
 
-/** Payload of the `llm://turn` Tauri event. */
 export interface TurnEventEnvelope {
   request_id: string;
   event: TurnEvent;
 }
 
-// ── Roster (core/llm/agent.rs) ──────────────────────────────────────────
-
-/** `AgentRole` is externally tagged for `Custom`: `"worker"` or `{ custom: "…" }`. */
 export type AgentRole =
   | "coordinator"
   | "worker"
@@ -128,7 +110,6 @@ type RuntimeKind =
 
 interface Skin {
   id: string;
-  /** RGB 0–255, same shape as the profile skin tint. */
   tint: [number, number, number];
 }
 
@@ -145,22 +126,17 @@ export interface AgentDef {
   skin?: Skin | null;
 }
 
-// ── UI-side shapes (not on the Rust wire) ───────────────────────────────
-
 export interface ToolCallView {
   id: string;
   name: string;
-  /** Concatenated `input_json_delta`; may be partial while streaming. */
   input: string;
   done: boolean;
 }
 
-/** Who wrote a message. Direct chats: the user or the conversation's bot. */
 type AuthorKind = "user" | "bot" | "system";
 
 interface MessageAuthor {
   kind: AuthorKind;
-  /** The bot that wrote it (rooms have several). */
   botId?: string | null;
 }
 
@@ -168,21 +144,14 @@ export interface ChatMessage {
   id: string;
   role: Role;
   text: string;
-  /** Typed authorship; absent on old direct-chat messages (the agent or you). */
   author?: MessageAuthor;
-  /** The message this one answers (room). */
   replyTo?: string | null;
-  /** The run (request id) that produced it. */
   runId?: string | null;
-  /** The delegated task it belongs to, when a member worked for another. */
   taskId?: string | null;
-  /** Room status: `done`, `failed`, `cancelled`, `interrupted`. */
   status?: string;
-  /** Set on assistant messages that ran tools. */
   toolCalls?: ToolCallView[];
   thinking?: string;
   usage?: Usage | null;
-  /** `provider/model` at the time the message was produced. */
   modelLabel?: string;
   error?: LlmError | null;
   finish?: FinishReason | null;
@@ -190,29 +159,20 @@ export interface ChatMessage {
 
 export interface Conversation {
   id: string;
-  /**
-   * Direct chat: its bot. Room: the member that answers by default
-   * (coordinator, else default bot, else first member).
-   */
   agentId: string;
-  /** Missing on chats created before rooms existed: they are direct. */
   kind?: "direct" | "group";
-  /** True once the backend has the transcript (loaded lazily on open). */
   loaded?: boolean;
   title: string;
   messages: ChatMessage[];
-  /** Overrides the agent's model for this conversation (`llm_switch_model`). */
   model?: ModelRef | null;
   updatedAtMs: number;
 }
 
-/** Payload of `llm://tool-ask` (re-emitted `BusEvent::ToolAsk`). */
 export interface ToolAsk {
   agent: string;
   request_id: string;
   tool_call_id: string;
   tool: string;
-  /** The command, the path or the head of the patch being asked about. */
   preview?: string;
 }
 
@@ -226,11 +186,8 @@ export interface TurnState {
   usage: Usage | null;
   error: LlmError | null;
   startedAtMs: number;
-  /** True between `llm_turn_start` and the first `started` event. */
   starting: boolean;
 }
-
-// ── Helpers on the contract (pure) ──────────────────────────────────────
 
 export function roleLabelKey(role: AgentRole): string {
   if (typeof role === "string") return `llm.role.${role}`;
@@ -241,7 +198,6 @@ export function roleText(role: AgentRole): string | null {
   return typeof role === "string" ? null : role.custom;
 }
 
-/** `provider/model` for the header and the inspector, or `""` when unknown. */
 export function modelLabel(policy: ModelPolicy | null | undefined): string {
   if (!policy) return "";
   if (policy.policy === "fixed") return `${policy.model.provider}/${policy.model.model}`;
@@ -257,7 +213,6 @@ function modelRefLabel(ref: ModelRef | null | undefined): string {
   return ref ? `${ref.provider}/${ref.model}` : "";
 }
 
-/** Effective model of a conversation: the per-chat override wins. */
 export function effectiveModelLabel(
   conversation: Conversation | null | undefined,
   agent: AgentDef | null | undefined,
@@ -269,8 +224,6 @@ export function effectiveModelLabel(
 export function agentTint(agent: AgentDef | null | undefined): [number, number, number] {
   return agent?.skin?.tint ?? [110, 139, 255];
 }
-
-// ── Rooms (core/assist/groups) ──────────────────────────────────────────
 
 interface RoomMember {
   bot: string;
@@ -311,7 +264,6 @@ export interface RoomDraft {
   limits?: RoomLimits | null;
 }
 
-/** `store::RoomMessage` on the wire (snake_case). */
 export interface RoomMessageWire {
   id: string;
   room: string;
@@ -370,7 +322,6 @@ export interface RoomSendOutcome {
   skipped: { bot: string; reason: string }[];
 }
 
-/** Room ids are `grp-` + 12 hex digits; a member session is `<room>~<bot>`. */
 export function isRoomId(id: string | null | undefined): boolean {
   return !!id && /^grp-[0-9a-f]{12}$/.test(id);
 }
@@ -379,7 +330,6 @@ export function isRoomSession(id: string | null | undefined): boolean {
   return !!id && /^grp-[0-9a-f]{12}[~_]/.test(id);
 }
 
-/** Same rule as `tasks::handle_of` in Rust: what `@` inserts for a bot. */
 export function handleOf(name: string): string {
   let out = "";
   for (const raw of name.trim()) {
@@ -390,15 +340,12 @@ export function handleOf(name: string): string {
   return out.replace(/^-+|-+$/g, "");
 }
 
-/** The `@query` being typed right before the caret, for autocomplete. */
 export function mentionAt(text: string, caret: number): { start: number; query: string } | null {
   const before = text.slice(0, caret);
   const match = /(^|\s)@([A-Za-z0-9_-]*)$/.exec(before);
   if (!match) return null;
   return { start: caret - match[2].length - 1, query: match[2].toLowerCase() };
 }
-
-// ── Run status (`assist://run`, briefing contract 5) ────────────────────
 
 export type RunState =
   | "queued"
@@ -420,14 +367,11 @@ export interface RunUpdate {
   resume_kind?: "native" | "replay" | "new" | null;
 }
 
-/** What the composer says about the conversation's work. */
 export type TurnStatus = "idle" | "working" | "waiting_you" | "interrupted" | "failed" | "cancelled" | "completed";
 
-/** A message the user sent while a turn was running: waits, visible, cancelable. */
 export interface QueuedMessage {
   id: string;
   conversationId: string;
   text: string;
-  /** `waiting` until the turn ends; `failed` if it could not start then. */
   state: "waiting" | "failed";
 }

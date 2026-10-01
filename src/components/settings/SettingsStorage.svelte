@@ -57,8 +57,6 @@
     return `${m}min ${sec}s`;
   }
 
-  // O que o dedupe já evitou de ocupar. Cada link extra é uma cópia que não foi
-  // feita — se for zero, dizemos zero em vez de esconder a linha.
   let saved = $derived(
     stats ? Math.max(0, stats.bytes_without_dedupe - stats.bytes_on_disk) : 0,
   );
@@ -106,15 +104,11 @@
           }) as string,
         );
       } else {
-        // Sem medição, dizer quantos foram ligados é verdade; dizer quanto
-        // economizou não seria.
         showToast(
           "success",
           $t("settings.storage.dedupe_done_unmeasured", { count: rep.deduplicated }) as string,
         );
       }
-      // Erros não podem sumir: um arquivo ilegível é exatamente o que o usuário
-      // precisa saber que ficou de fora.
       if (rep.errors.length > 0) {
         showToast("error", $t("settings.storage.dedupe_errors", { count: rep.errors.length }) as string);
       }
@@ -165,8 +159,6 @@
     <div class="portable" data-setting-key="settings.storage.portable_label">
       <p class="portable-label">{$t("settings.storage.portable_label")}</p>
       <p class="muted wrap">{$t("settings.storage.portable_active", { dir: portable.data_dir ?? "<app>/data" })}</p>
-      <!-- O modo portatil nao cobre o WebView no macOS, e o usuario que leva o
-           pendrive para outra maquina precisa saber disso antes, nao depois. -->
       {#if portable.macos_webview_notice}
         <p class="muted wrap">{$t("settings.storage.portable_macos_notice")}</p>
       {/if}
@@ -186,7 +178,6 @@
     {/snippet}
   </SettingRow>
   {#if statsError}
-    <!-- Windows não sabe contar links; uma leitura que falhou nunca vira "0 economizado". -->
     <SettingsEmptyState error title={$t("settings.storage.stats_load_failed")} onRetry={() => void loadStats()} />
   {/if}
 
@@ -205,8 +196,6 @@
   .portable-label { margin: 0; font-size: 13px; line-height: 20px; color: var(--text); }
   .muted { margin: 2px 0 0; font-size: 12px; line-height: 18px; color: var(--text-muted); }
 
-  /* O caminho de dados e o aviso do macOS sao frases inteiras, nao rotulos:
-     sem isto ficam numa linha so e sao cortados. */
   .wrap {
     white-space: normal;
     word-break: break-word;

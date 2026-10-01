@@ -1,11 +1,4 @@
 <script lang="ts">
-  /**
-   * Settings → World → Canvas, second half: which environments terminals
-   * may run in (switches and custom runtimes), the persistent sessions they
-   * left running here and on remote machines ("Processes"), where the
-   * canvas skill is installed per agent, "Private network only" for phone
-   * access, and Report a Problem (a local diagnostics file; nothing is sent).
-   */
   import { invoke } from "@tauri-apps/api/core";
   import { onMount } from "svelte";
   import { t } from "$lib/i18n";

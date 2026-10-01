@@ -66,7 +66,6 @@
       0 14px 36px rgba(0, 0, 0, 0.35);
     animation: pop 0.25s var(--ease-out);
   }
-  /* movement only: a frozen animation (hidden window) must not leave it invisible */
   @keyframes pop {
     from {
       transform: translateY(10px);

@@ -1,5 +1,4 @@
 <script lang="ts">
-  // Chat picker over the loaded chat list, with a filter box for long lists.
   import { onMount } from "svelte";
   import { t } from "$lib/i18n";
   import type { TelegramChat } from "./api";

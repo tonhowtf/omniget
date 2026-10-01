@@ -1,6 +1,4 @@
 <script lang="ts">
-  // "Not interested · Undo" pill with a draining ring (21st "Undo Pill").
-  // Hover or focus pauses the countdown; when it runs out the action commits.
   import { t } from "$lib/i18n";
   import TIcon from "../TIcon.svelte";
   import { feedback, takeUndo } from "./feedback.svelte";

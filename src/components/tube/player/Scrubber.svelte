@@ -1,8 +1,4 @@
 <script lang="ts">
-  // 2025 progress bar: 3px track that grows to 5px on hover, chapters as
-  // separate segments with 2px gaps (the hovered one grows more), SponsorBlock
-  // segments painted in their category colour, storyboard preview + chapter
-  // title + time in the tooltip. Drag previews, release seeks.
   import { t } from "$lib/i18n";
   import { fmtDuration } from "$lib/tube/format";
   import { absUrl, storyboardFrame } from "$lib/tube/dash";
@@ -20,7 +16,6 @@
   let pos = $derived(drag != null ? drag * dur : vplayer.position);
   let chapters = $derived(vplayer.info?.chapters ?? []);
 
-  // chapter ranges in seconds; one range when there are no chapters
   let ranges = $derived.by(() => {
     if (dur <= 0 || chapters.length < 2) return [{ start: 0, end: Math.max(dur, 1), title: "" }];
     const cs = [...chapters].sort((a, b) => a.start_s - b.start_s);
@@ -83,7 +78,6 @@
     return w > 0 ? Math.min(100, Math.max(0, ((s - r.start) / w) * 100)) : 0;
   }
 
-  // tooltip x clamped so the 160px card stays inside the bar
   let tipX = $derived.by(() => {
     if (hover == null) return 0;
     const half = frame ? 84 : 40;

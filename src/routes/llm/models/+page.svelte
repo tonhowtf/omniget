@@ -1,16 +1,5 @@
 <script lang="ts">
   import SurfaceGuide from "$components/llm/SurfaceGuide.svelte";
-  /**
-   * Models & Routing: the providers the user has keys for, the routing rule and
-   * "Sign in with OpenRouter".
-   *
-   * The PKCE flow is split: `tool_ai_keys_openrouter_pkce` (f2-secrets) hands
-   * back `{ url, state, callback_url }` without touching the network, this page
-   * opens `url` in the browser, and the `omniget://openrouter-auth` deep link is
-   * finished in `lib.rs`, which emits `llm://openrouter-auth` with
-   * `{ ok: true, key }` or `{ ok: false, error }`. The listener lives only while
-   * this page is mounted. Nothing here calls the network on mount.
-   */
   import { onDestroy, onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "$lib/i18n";
@@ -83,7 +72,6 @@
         if (alive) { unlistenAuth = stop; authReady = true; }
         else stop();
       } catch {
-        // A missing event bridge must not start an unobservable sign-in.
         unlistenAuth = null;
         authLoadFailed = true;
       }
@@ -121,7 +109,6 @@
     const generation = ++authGeneration;
     signingIn = true;
     authExpired = false;
-    // The external browser may be abandoned without sending a callback.
     authTimer = setTimeout(() => {
       if (!alive || generation !== authGeneration) return;
       stopWaiting();
@@ -213,7 +200,6 @@
   .auth-status p, .provider-error p { margin: 0 0 var(--space-3); font-size: var(--text-sm); }
   .auth-actions { display: flex; gap: var(--space-2); flex-wrap: wrap; }
  .routing-details { margin-top:24px; } .routing-details summary { padding:16px 0; font-weight:600; cursor:pointer; }
-  /* Same reason as the roster page: flex children would shrink and clip. */
   .models-page {
     flex: 1;
     min-height: 0;

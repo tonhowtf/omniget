@@ -1,8 +1,4 @@
 <script lang="ts">
-  // Routines of a workspace: a prompt typed into a terminal on a schedule
-  // (once, every N minutes, daily, weekly). `&&` alone on a line splits it
-  // into steps sent one after the other; a pre-run script's output fills
-  // {{output}}; busy terminals are skipped. With no terminal it is a reminder.
   import { onDestroy, onMount } from "svelte";
   import { listen, type UnlistenFn } from "@tauri-apps/api/event";
   import { t } from "$lib/i18n";
@@ -30,9 +26,7 @@
   interface Props {
     workspaceId: string;
     floorId: string;
-    /** Terminal nodes of the current floor that can be targets. */
     nodes: Array<{ id: string; title: string }>;
-    /** Open the editor for a new routine aimed at this node. */
     targetNodeId?: string;
     onClose: () => void;
   }
@@ -44,7 +38,6 @@
   let error = $state("");
   let busy = $state(false);
 
-  // form
   let name = $state("");
   let nodeId = $state("");
   let prompt = $state("");
@@ -64,9 +57,6 @@
   let notify = $state(false);
 
   const tr = (k: string, v?: Record<string, unknown>) => $t(k, v) as string;
-  // The literal "{{output}}" shown in the label. Passed escaped: the i18n
-  // parser re-parses its own output, so a raw "{{output}}" value recursed
-  // forever and froze the window when the form opened.
   const OUTPUT_TOKEN = "\\{\\{output\\}\\}";
   const steps = $derived(splitSteps(prompt).length);
 

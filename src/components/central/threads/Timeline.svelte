@@ -1,9 +1,4 @@
 <script lang="ts">
-  // Virtualized timeline: rows measured with one ResizeObserver, only the
-  // visible window (plus overscan) is in the DOM. Follows the end while the
-  // user is within 40 px of it; wheel/keys up break the follow and a "scroll
-  // to end" pill appears. "Load earlier turns" keeps the reading position.
-  // A minimap rail of user turns sits on the left gutter.
   import { tick, untrack } from "svelte";
   import { t } from "$lib/i18n";
   import type { Row } from "$lib/central/threads-ui/timeline";
@@ -169,7 +164,6 @@
     }
   }
 
-  // New rows / streamed text: stay at the end while following.
   $effect(() => {
     rows;
     total;
@@ -178,7 +172,6 @@
     });
   });
 
-  // Thread switch: jump to the end immediately.
   $effect(() => {
     threadId;
     untrack(() => {
@@ -202,7 +195,6 @@
     return () => r.disconnect();
   });
 
-  // ── Minimap ───────────────────────────────────────────────────────────
   type Tick = { id: string; index: number; text: string; answer: string };
   let ticks = $derived.by(() => {
     const out: Tick[] = [];

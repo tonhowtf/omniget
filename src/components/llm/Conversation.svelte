@@ -1,13 +1,7 @@
 <script lang="ts">
   import { agentActions } from "$lib/native-agent/actions";
-  // Presentation follows 21st Agent Chat by Serafim (12402): a bounded reading column, contextual empty state and an in-flow composer. Original Svelte implementation; backend contracts stay local.
   import WorkspaceChip from "./WorkspaceChip.svelte";
   import MissionChatBar from "./missions/MissionChatBar.svelte";
-  /**
-   * Centre column: header (agent, effective model, switch-model, new chat),
-   * the messages and the composer. The streaming answer is a bubble built from
-   * the live turn, so it follows the same layout as a committed message.
-   */
   import { tick } from "svelte";
   import { t } from "$lib/i18n";
   import type { AgentDef, ChatMessage, ModelRef } from "$lib/llm/types";
@@ -120,8 +114,6 @@
     if (el) el.scrollTop = messages.length || turn || ask || roomLive.length ? el.scrollHeight : 0;
   }
 
-  // A permission request must never be born below the fold, and a streaming
-  // turn keeps the newest line in view while the reader is already at the end.
   $effect(() => {
     if (ask) void stickToBottom();
   });
@@ -134,8 +126,6 @@
 
   async function onSend(text: string): Promise<boolean> {
     const generation = ++sendGeneration;
-    // Identity is fixed before the await: the result, the cleared draft and
-    // any error belong to the conversation the text was written in.
     const conversationId = draftConversationId ?? conversation?.id ?? null;
     sendFailed = false;
     const sent = conversationId ? await sendConversationDraft(conversationId, text) : await sendMessage(text);
@@ -158,8 +148,6 @@
     actionFailed = false;
     if (!conversationId) return;
     try {
-      // Restores the interrupted text into this conversation only, and only
-      // when its draft is still empty; the composer re-reads it when shown.
       await stopConversationTurn(conversationId);
       if (conversationId === (conversation?.id ?? null)) {
         const restored = getConversationDraft(conversationId);
@@ -194,18 +182,15 @@
 
   function onRemoveQueued(id: string) {
     const text = removeQueued(id);
-    // A cancelled queued message goes back to the draft when that is empty.
     if (text && !draft.trim()) updateDraft(text);
   }
 
-  // Opening a saved history follows its last message; an empty chat starts at the top.
   $effect(() => {
     conversation?.id;
     conversation?.loaded;
     void stickToBottom();
   });
 
-  // After a restart the durable run record says whether work was interrupted.
   $effect(() => {
     const id = conversation?.id;
     if (id && conversation?.kind !== "group") void refreshRunState(id);
@@ -275,11 +260,9 @@
       <div class="empty-state">
         <p class="empty-state-title">{room ? $t("assist.groups.empty_title") : $t("llm.conv.empty_title")}</p>
         <p class="empty-state-body">{room ? $t("assist.groups.empty_body") : $t("llm.conv.empty_body")}</p>
-        {#if room}
-          <!-- a room teaches @mentions instead of generic suggestions -->
-        {:else if !agent}
+        {#if !room && !agent}
           <a class="button primary" href="/llm/accounts">{$t("llm.surface.connect")}</a>
-        {:else}
+        {:else if !room}
           <div class="task-suggestions">
             {#each [$t("llm.surface.suggestion_1"), $t("llm.surface.suggestion_2")] as suggestion}
               <button type="button" onclick={() => updateDraft(suggestion)}>{suggestion}</button>
@@ -430,8 +413,6 @@
   .conv-title {
     display: flex;
     align-items: baseline;
-    /* The workspace chip carries Undo: on a narrow window it drops to a line
-       of its own instead of sliding under the actions on the right. */
     flex-wrap: wrap;
     row-gap: var(--space-1);
     gap: var(--space-3);
@@ -448,7 +429,6 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    /* The name is the last thing to give way: the model label shrinks first. */
     flex: 0 0 auto;
     max-width: 45%;
   }

@@ -23,9 +23,6 @@
   import PlanReview from "./ui/PlanReview.svelte";
   import SelectList, { type SelectItem } from "./ui/SelectList.svelte";
 
-  /// Right pane of Uninstall: the chosen app, what it left behind grouped by
-  /// how sure we are, and the one button that builds the plan. Works for an
-  /// app that is already gone too (only its leftovers).
   let {
     app,
     sourceLabel,
@@ -37,7 +34,6 @@
     sourceLabel: (source: string) => string;
     reasonText: (reason: string | null | undefined) => string;
     onDone?: (r: ReceiptSummary, app: App) => void;
-    /// Narrow window: back to the list.
     onBack?: () => void;
   } = $props();
 
@@ -57,7 +53,6 @@
   let ids = $derived(planIds(classified, mode, chosen));
   let bytes = $derived(planBytes(classified, mode, chosen));
   let running = $derived(!!resp?.extra?.running);
-  // The "is open" warning already has its own card.
   let notes = $derived(
     (resp?.extra?.notes ?? []).filter(
       (n): n is string => typeof n === "string" && n.trim() !== "" && !(running && / is open\b/i.test(n)),

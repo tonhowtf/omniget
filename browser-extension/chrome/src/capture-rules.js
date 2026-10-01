@@ -1,10 +1,5 @@
-// Portions adapted from cat-catch (js/background.js, js/init.js)
 // Copyright (c) xifangczy — https://github.com/xifangczy/cat-catch
 // Licensed under GPL-3.0, same as this project.
-//
-// User-editable capture rules: three tables (extensions, content types, regex)
-// that will eventually replace the fixed detection constants in the sniffer.
-// This module is pure logic only — persistence and UI live elsewhere.
 
 import {
   MEDIA_CONTENT_TYPES,
@@ -22,16 +17,10 @@ const UNIT_BYTES = Object.freeze({
   gb: 1024 * 1024 * 1024,
 });
 
-// A range ("500-1000 MB") has no operator; anything else may carry one.
 const RANGE_PATTERN = /^(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)\s*([a-z]+)?$/;
 const COMPARISON_PATTERN = /^(>=|<=|!=|>|<|=)?\s*(\d+(?:\.\d+)?)\s*([a-z]+)?$/;
 
-// Default size rule for every media extension/type, mirroring MIN_CONTENT_LENGTH
-// in sniffer-filters.js. Manifests carry no size floor: they are tiny by nature.
 const DEFAULT_SIZE_RULE = ">=50 KB";
-// HLS manifests carry no size floor: they are tiny by nature. An MPD keeps the
-// 1 KB floor shouldDropBySize already applied, which filters out the stub
-// documents some CDNs answer with.
 const DEFAULT_DASH_SIZE_RULE = ">=1 KB";
 const UNRESTRICTED_EXTENSIONS = Object.freeze([".m3u8"]);
 const UNRESTRICTED_CONTENT_TYPES = Object.freeze([
@@ -47,11 +36,6 @@ function defaultSizeFor(key, unrestricted, dash) {
   return DEFAULT_SIZE_RULE;
 }
 
-/**
- * Resolve a unit suffix to a byte multiplier. Unknown units mean "bytes".
- * @param {string|undefined} unit
- * @returns {number|null} multiplier, or null when the unit is not recognised
- */
 function unitMultiplier(unit) {
   if (unit === undefined || unit === null || unit === "") return 1;
   const key = String(unit).trim().toLowerCase();
@@ -59,14 +43,6 @@ function unitMultiplier(unit) {
   return Object.prototype.hasOwnProperty.call(UNIT_BYTES, key) ? UNIT_BYTES[key] : null;
 }
 
-/**
- * Parse a size rule typed by the user into a comparison descriptor.
- * Accepts ">100 KB", "<1 GB", "=500 KB", ">=2 MB", "<=2 MB", "!=0" and
- * ranges like "500-1000 MB". Units are case-insensitive and base 1024;
- * a bare number is read as bytes. Never throws — invalid input returns null.
- * @param {string|number|null|undefined} input
- * @returns {{operator: string, size: number}|{operator: "~", min: number, max: number}|null}
- */
 export function parseSizeRule(input) {
   if (typeof input === "number") {
     if (!Number.isFinite(input) || input < 0) return null;
@@ -83,7 +59,6 @@ export function parseSizeRule(input) {
     if (multiplier === null) return null;
     const a = Math.round(Number(range[1]) * multiplier);
     const b = Math.round(Number(range[2]) * multiplier);
-    // The user may type the bounds the wrong way round.
     return { operator: "~", min: Math.min(a, b), max: Math.max(a, b) };
   }
 
@@ -92,20 +67,10 @@ export function parseSizeRule(input) {
   const multiplier = unitMultiplier(comparison[3]);
   if (multiplier === null) return null;
 
-  // No explicit operator means "at least this big", the cat-catch default.
   const operator = comparison[1] || ">=";
   return { operator, size: Math.round(Number(comparison[2]) * multiplier) };
 }
 
-/**
- * Apply a parsed size rule to a byte count.
- * A null rule means "no restriction". An unknown size (non-numeric or <= 0)
- * always passes: the sniffer must never drop a resource just because the
- * server did not send a Content-Length.
- * @param {number} bytes
- * @param {object|null} rule
- * @returns {boolean}
- */
 export function matchesSize(bytes, rule) {
   if (!rule || typeof rule !== "object") return true;
   if (typeof bytes !== "number" || !Number.isFinite(bytes) || bytes <= 0) return true;
@@ -132,13 +97,6 @@ export function matchesSize(bytes, rule) {
   }
 }
 
-/**
- * Pre-compile user regex rules. An invalid pattern disables that single rule
- * and records the error for the UI — it never throws and never affects the
- * other rules.
- * @param {Array<{pattern?: string, flags?: string, action?: string, ext?: string, enabled?: boolean}|string>} rules
- * @returns {Array<object>} compiled rules
- */
 export function compileRegexRules(rules) {
   if (!Array.isArray(rules)) return [];
 
@@ -165,8 +123,6 @@ export function compileRegexRules(rules) {
     try {
       rule.regex = new RegExp(pattern, flags);
     } catch (err) {
-      // Fall back to the default flags before giving up: a bad flag string is
-      // a far more common typo than a bad pattern.
       try {
         rule.regex = new RegExp(pattern, "ig");
         rule.flags = "ig";
@@ -183,11 +139,6 @@ export function compileRegexRules(rules) {
   return compiled;
 }
 
-/**
- * Decode a capture group, tolerating stray `%` that would break decodeURIComponent.
- * @param {string|undefined} value
- * @returns {string}
- */
 function safeDecode(value) {
   if (typeof value !== "string") return "";
   try {
@@ -197,16 +148,6 @@ function safeDecode(value) {
   }
 }
 
-/**
- * Rebuild a URL out of the capture groups of a match. This is the heart of the
- * technique: a byte-range fragment URL such as
- * `...&bytestart=0&byteend=99999` captures only the part before `&bytestart`,
- * so the rebuilt URL points at the whole file instead of one slice.
- * With no capture groups the original URL is returned untouched.
- * @param {string} url
- * @param {RegExpExecArray} match
- * @returns {string}
- */
 function rebuildUrl(url, match) {
   if (match.length <= 1) return url;
 
@@ -214,8 +155,6 @@ function rebuildUrl(url, match) {
   if (joined === "") return url;
   if (/^https?:\/\//i.test(joined)) return joined;
 
-  // A protocol-less rebuild (`//host/path` or `host/path`) borrows the
-  // protocol of the request it came from.
   let protocol = "https:";
   try {
     protocol = new URL(url).protocol;
@@ -225,13 +164,6 @@ function rebuildUrl(url, match) {
   return joined.startsWith("//") ? `${protocol}${joined}` : `${protocol}//${joined.replace(/^\/+/, "")}`;
 }
 
-/**
- * Run a URL through the compiled regex rules. Block rules are evaluated first,
- * then accept rules; the first rule that matches wins.
- * @param {string} url
- * @param {Array<object>} compiled
- * @returns {{action: "block", rule: object}|{action: "accept", url: string, ext: string|undefined, rule: object}|null}
- */
 export function applyRegexRules(url, compiled) {
   if (typeof url !== "string" || url === "" || !Array.isArray(compiled)) return null;
 
@@ -261,13 +193,6 @@ export function applyRegexRules(url, compiled) {
   return null;
 }
 
-/**
- * Normalise whatever came out of storage into the canonical rule tables.
- * Accepts a grouped object, a flat array, plain strings, or junk; entries that
- * cannot be understood are dropped silently.
- * @param {any} raw
- * @returns {{extensions: Array<object>, contentTypes: Array<object>, regex: Array<object>}}
- */
 export function normalizeUserRules(raw) {
   const out = { extensions: [], contentTypes: [], regex: [] };
   if (!raw || typeof raw !== "object") return out;
@@ -289,13 +214,6 @@ export function normalizeUserRules(raw) {
   return out;
 }
 
-/**
- * Normalise one entry into the right bucket. `hint` forces a kind when the
- * caller already knows which table the entry came from.
- * @param {{extensions: Array, contentTypes: Array, regex: Array}} out
- * @param {any} entry
- * @param {string} [hint]
- */
 function pushNormalized(out, entry, hint) {
   if (typeof entry === "string") {
     const text = entry.trim();
@@ -320,8 +238,6 @@ function pushNormalized(out, entry, hint) {
   const size = normalizeSizeText(entry.size);
   const enabled = entry.enabled !== false && entry.state !== false;
 
-  // `pattern`/`regex` wins over the other fields: a regex rule may also carry
-  // an `ext` used to label whatever it captures.
   const pattern = typeof entry.pattern === "string" ? entry.pattern
     : typeof entry.regex === "string" ? entry.regex
       : "";
@@ -342,10 +258,6 @@ function pushNormalized(out, entry, hint) {
   }
 }
 
-/**
- * @param {object} entry
- * @returns {{pattern: string, flags: string, action: string, ext: string, enabled: boolean}}
- */
 function normalizeRegexEntry(entry) {
   const flags = typeof entry.flags === "string" && entry.flags !== "" ? entry.flags
     : typeof entry.type === "string" && /^[a-z]*$/.test(entry.type) ? entry.type
@@ -360,10 +272,6 @@ function normalizeRegexEntry(entry) {
   };
 }
 
-/**
- * @param {any} value
- * @returns {string|null} the size rule as text, or null for "no restriction"
- */
 function normalizeSizeText(value) {
   if (typeof value === "number" && Number.isFinite(value) && value > 0) return String(Math.round(value));
   if (typeof value !== "string") return null;
@@ -371,20 +279,12 @@ function normalizeSizeText(value) {
   return text === "" ? null : text;
 }
 
-/**
- * @param {string} value
- * @returns {string|null} `.mp4`-shaped extension, or null when unusable
- */
 function normalizeExtension(value) {
   const text = String(value).trim().toLowerCase().replace(/^\.+/, "");
   if (text === "" || !/^[a-z0-9][a-z0-9+._-]*$/.test(text)) return null;
   return `.${text}`;
 }
 
-/**
- * @param {string} value
- * @returns {string|null} `video/mp4`-shaped content type, or null when unusable
- */
 function normalizeContentType(value) {
   const text = String(value).trim().toLowerCase();
   const parts = text.split("/");
@@ -395,10 +295,6 @@ function normalizeContentType(value) {
   return text;
 }
 
-// The three cat-catch regex rules worth shipping by default. The Instagram and
-// Facebook ones capture everything before `&bytestart=`, turning a byte-range
-// fragment into the URL of the whole file. The bilibili one blocks the endless
-// `live-bvc` segments of a live stream.
 export const DEFAULT_REGEX_RULES = Object.freeze([
   Object.freeze({
     pattern: "(^https://scontent[a-z0-9-]*\\.cdninstagram\\.com/.*)&bytestart=.*",
@@ -439,13 +335,6 @@ export const DEFAULT_MEDIA_CONTENT_TYPES = Object.freeze(
   })),
 );
 
-/**
- * Find the extension rule whose extension sits at a path boundary of `url`.
- * Longest extension wins, so `.m3u8` beats a hypothetical `.m3u`.
- * @param {string} url
- * @param {Array<{ext: string, size: string|null, enabled?: boolean}>} extensions
- * @returns {object|null}
- */
 export function findExtensionRule(url, extensions) {
   if (!Array.isArray(extensions)) return null;
   const path = pathnameOf(url);
@@ -459,12 +348,6 @@ export function findExtensionRule(url, extensions) {
   return best;
 }
 
-/**
- * Find the content-type rule matching a response's Content-Type header.
- * @param {string} contentType
- * @param {Array<{type: string, size: string|null, enabled?: boolean}>} contentTypes
- * @returns {object|null}
- */
 export function findContentTypeRule(contentType, contentTypes) {
   if (!Array.isArray(contentTypes) || typeof contentType !== "string" || contentType === "") {
     return null;
@@ -479,19 +362,9 @@ export function findContentTypeRule(contentType, contentTypes) {
   return best;
 }
 
-/**
- * Decide whether a response should be captured, using the user's tables.
- * The extension is consulted before the content type: a CDN that answers
- * `application/octet-stream` for an `.mp4` should still be judged as an mp4.
- * @param {{url: string, contentType: string, contentLength: number,
- *          extensions: Array<object>, contentTypes: Array<object>}} input
- * @returns {{capture: boolean, reason: string|null, rule: object|null}}
- */
 export function evaluateCapture({ url, contentType, contentLength, extensions, contentTypes }) {
   const rule = findExtensionRule(url, extensions) || findContentTypeRule(contentType, contentTypes);
   if (!rule) return { capture: false, reason: "no-match", rule: null };
-  // An unticked row means "never capture this kind", the equivalent of the
-  // `break` in cat-catch's CheckExtension.
   if (rule.enabled === false) return { capture: false, reason: "disabled", rule };
   if (!matchesSize(contentLength, parseSizeRule(rule.size))) {
     return { capture: false, reason: "size", rule };

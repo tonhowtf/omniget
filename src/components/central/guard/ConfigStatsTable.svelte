@@ -1,10 +1,4 @@
 <script lang="ts">
-  /**
-   * "Config health" tables: token weight of commands/rules/agents/AGENTS.md
-   * (heaviest first), hooks per event with whether their program exists, and
-   * MCP servers by category with complexity 1–5. Pure view of the
-   * `guard_config_stats` result; the caller decides which files feed it.
-   */
   import { t } from "$lib/i18n";
   import { formatTokens, type ConfigStats } from "$lib/central/guard";
 

@@ -1,8 +1,4 @@
 <script lang="ts">
-  /**
-   * Saved AI results (`ai_history_list`), newest first. Reading is local; the
-   * only write is the explicit, confirmed "clear" (`ai_history_clear`).
-   */
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "$lib/i18n";
   import { showToast } from "$lib/stores/toast-store.svelte";

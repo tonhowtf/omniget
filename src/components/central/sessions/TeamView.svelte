@@ -1,10 +1,4 @@
 <script lang="ts">
-  /**
-   * Time de uma sessão: o líder no centro, subagentes e colegas em anéis
-   * (ordem de início), arestas de spawn e de mensagem com espessura pelo
-   * peso. Clique (ou Enter) num nó abre o painel com tarefas, mensagens,
-   * tools e tempo; abaixo, a linha do tempo de cada agente.
-   */
   import { t } from "$lib/i18n";
   import {
     compact,
@@ -99,7 +93,6 @@
     const b = layout.pos.get(e.to);
     if (!a || !b) return "";
     if (e.kind === "spawn") return `M${a.x} ${a.y}L${b.x} ${b.y}`;
-    // Mensagem: curva para não sobrepor o spawn; ida e volta ficam separadas.
     const mx = (a.x + b.x) / 2;
     const my = (a.y + b.y) / 2;
     const dx = b.x - a.x;
@@ -113,7 +106,6 @@
   let nodeTasks = $derived(node && g ? g.tasks.filter((tk) => tk.owner === node!.name || tk.owner === node!.id || tk.created_by === node!.name || tk.created_by === node!.id) : []);
   let nodeMsgs = $derived(node && g ? g.messages.filter((m) => m.from === node!.id || m.to === node!.id || m.from === node!.name || m.to === node!.name) : []);
 
-  /** Subagente sem nome próprio usa a descrição da tarefa (o tipo vira subtítulo). */
   function label(n: TeamNode): string {
     return n.kind !== "lead" && n.description && (!n.name || n.name === n.agent_type) ? n.description : n.name;
   }
@@ -130,7 +122,6 @@
     }
   }
 
-  // ---- linha do tempo ----
   let span = $derived.by(() => {
     const xs = (g?.nodes ?? []).flatMap((n) => [toMs(n.started), toMs(n.ended)]).filter((v) => v > 0);
     const a = Math.min(...xs);

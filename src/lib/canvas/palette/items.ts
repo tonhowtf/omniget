@@ -1,8 +1,3 @@
-// Batuta index (study 95 §J, 03 §10): every node of every workspace and floor,
-// note bodies, roles, workspaces, floors, and the global and contextual
-// actions. The current floor is read live from the engine; the rest is loaded
-// when the palette opens and cached briefly.
-
 import { invoke } from '@tauri-apps/api/core';
 import type { CanvasEngine } from '../engine.svelte';
 import { isTerminalKind, terminalIdOf, type AgentKind, type CanvasNode, type Snapshot } from '../model/types';
@@ -20,9 +15,7 @@ export interface PaletteItem {
   section: Section;
   label: string;
   detail?: string;
-  /** Icon key: a node kind, 'workspace', 'floor', 'role', 'action'... */
   icon: string;
-  /** Searchable, not shown (note body, text, aliases). */
   body?: string;
   aliases?: string;
   keys?: string;
@@ -30,9 +23,7 @@ export interface PaletteItem {
   floorId?: string;
   nodeId?: string;
   state?: AgentState;
-  /** Extra score (current workspace, attention). */
   boost?: number;
-  /** Keep the palette open and go to another mode. */
   mode?:
     | 'ask'
     | 'check'
@@ -46,7 +37,6 @@ export interface PaletteItem {
     | 'partitura-new'
     | 'partitura-update';
   run?: () => void | Promise<void>;
-  /** Mode-specific data (a file hit, a chat hit, a partitura id). */
   payload?: unknown;
 }
 
@@ -82,7 +72,6 @@ export class PaletteIndex {
   private loadedAt = 0;
   private loading: Promise<void> | null = null;
 
-  /** Loads other floors, note bodies and roles (cached for a few seconds). */
   load(engine: CanvasEngine, force = false): Promise<void> {
     if (!force && performance.now() - this.loadedAt < CACHE_MS) return Promise.resolve();
     if (this.loading) return this.loading;
@@ -113,7 +102,6 @@ export class PaletteIndex {
         );
       }
     }
-    // Note bodies: full text for the current workspace, previews elsewhere.
     const texts = new Map<string, string>();
     for (const ws of workspaces.list) {
       jobs.push(
@@ -128,7 +116,6 @@ export class PaletteIndex {
                 const c = await noteRead(ws.id, n.floorId, n.nodeId);
                 texts.set(n.nodeId, c.text);
               } catch {
-                // Keep the preview.
               }
             }
           }
@@ -178,7 +165,6 @@ function nodeBody(n: CanvasNode, index: PaletteIndex): string {
   return '';
 }
 
-/** Nodes of the current floor + everything loaded from elsewhere. */
 export function nodeItems(engine: CanvasEngine, index: PaletteIndex, tr: Tr): PaletteItem[] {
   const out: PaletteItem[] = [];
   const ws = engine.store.workspaceId;
@@ -204,12 +190,10 @@ export function nodeItems(engine: CanvasEngine, index: PaletteIndex, tr: Tr): Pa
     });
   };
   for (const n of engine.store.nodes) add(n, ws, floor, true);
-  // The cache may predate a workspace switch: the open floor is read live.
   for (const r of index.remote) if (!(r.workspaceId === ws && r.floorId === floor)) add(r.node, r.workspaceId, r.floorId, false);
   return out;
 }
 
-/** Terminals of every workspace in the Blocked state (⌥⌘A, Notifications). */
 export function attentionItems(engine: CanvasEngine, index: PaletteIndex, tr: Tr): PaletteItem[] {
   return nodeItems(engine, index, tr)
     .filter((i) => i.state === 'blocked')
@@ -292,7 +276,6 @@ async function openWorkspaceFolder(engine: CanvasEngine): Promise<void> {
   await invoke('open_path_default', { path: dir }).catch(() => engine.say('canvas.palette.noFolder'));
 }
 
-/** Workspace > Open in IDE from the palette (M-A8): the workspace's editor. */
 async function openWorkspaceInIde(engine: CanvasEngine): Promise<void> {
   if (!workspaces.byId(engine.store.workspaceId)?.workingDirectory) {
     engine.say('canvas.palette.noFolder');
@@ -303,10 +286,8 @@ async function openWorkspaceInIde(engine: CanvasEngine): Promise<void> {
   );
 }
 
-/** Global actions (empty query shows them first). */
 export function actionItems(engine: CanvasEngine, tr: Tr, hooks: ActionHooks): PaletteItem[] {
   const spawn = (kind: string, agent?: AgentKind) => () => {
-    // A file tree needs its root up front (Rust validates `rootPath`).
     const dir = workspaces.byId(engine.store.workspaceId)?.workingDirectory;
     const data = kind === 'filetree' && dir ? { rootPath: dir } : undefined;
     const node = engine.spawn(kind, null, { agent, data });
@@ -380,7 +361,6 @@ export function actionItems(engine: CanvasEngine, tr: Tr, hooks: ActionHooks): P
   return out;
 }
 
-/** Actions on the selected node (Maestri contextual actions). */
 export function contextItems(engine: CanvasEngine, tr: Tr): PaletteItem[] {
   const ids = engine.selection.list().filter((id) => engine.store.node(id));
   if (!ids.length) return [];
@@ -410,7 +390,6 @@ export function contextItems(engine: CanvasEngine, tr: Tr): PaletteItem[] {
       }),
       c('rename', tr('canvas.palette.ctx.rename', 'Rename…'), { mode: 'rename-note' }),
     );
-    // "Place in Fichário": one entry per fichário on the floor, plus a new one.
     const inStack = stackIdOf(node);
     const place = (stackId: string | null) =>
       void import('../notes/stack').then(({ placeInStack }) => placeInStack(engine, node.id, stackId));
@@ -432,7 +411,6 @@ export function contextItems(engine: CanvasEngine, tr: Tr): PaletteItem[] {
   }
   if (node.kind === 'filetree') out.push(c('files', tr('canvas.palette.ctx.searchFiles', 'Search Files'), { mode: 'files' }));
   if (isTerminalKind(node.kind)) {
-    // Maestri puts Edit, Reload, Unload and Delete first for a terminal.
     out.push(
       c('edit', tr('canvas.palette.ctx.edit', 'Edit…'), { mode: 'edit-terminal' }),
       c('reload', tr('canvas.palette.ctx.reload', 'Reload'), { run: () => engine.requestRestart(node.id) }),
@@ -468,7 +446,6 @@ export function contextItems(engine: CanvasEngine, tr: Tr): PaletteItem[] {
 }
 
 function newStackFromSelection(engine: CanvasEngine): void {
-  // Lazy import keeps the palette free of the stack module until used.
   void import('../notes/stack').then(({ createStackOps }) => {
     const notes = engine.selection
       .list()
@@ -494,7 +471,6 @@ function tidy(engine: CanvasEngine): void {
   }).catch(() => engine.say('canvas.palette.tidyFailed'));
 }
 
-/** Ranks items for a query; empty query keeps the given order. */
 export function rank(items: PaletteItem[], query: string, limit = 80): Ranked[] {
   const words = splitQuery(query);
   if (!words.length) return items.slice(0, limit).map((item) => ({ item, score: 0, nameIdx: [] }));
@@ -511,7 +487,6 @@ export function rank(items: PaletteItem[], query: string, limit = 80): Ranked[] 
     out.push({ item, score: r.score + (item.boost ?? 0), nameIdx: r.nameIdx });
   }
   out.sort((a, b) => b.score - a.score);
-  // One row per element: a terminal waiting for you is also a plain node.
   const seen = new Set<string>();
   const unique = out.filter((r) => {
     const s = r.item.section;

@@ -1,7 +1,3 @@
-// Typed bridge to the embedded terminal (src-tauri/src/pty). Sessions live in
-// the app process; a view attaches (history + cursor), then follows the live
-// `pty://data` stream, acking each chunk once xterm has written it.
-
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
@@ -25,23 +21,19 @@ export type PtySessionInfo = {
 type PtyOpenRequest = {
   id?: string;
   cwd?: string | null;
-  /** argv; empty opens the default shell. */
   command?: string[];
   env?: Record<string, string>;
   cols?: number;
   rows?: number;
   title?: string;
-  /** Typed after start, not submitted. */
   initial_input?: string;
   history_cap?: number;
 };
 
 type PtyAttached = {
   info: PtySessionInfo | null;
-  /** base64 of the sanitized history. */
   history: string;
   generation: number;
-  /** Absolute offset the history ends at. */
   offset: number;
   alive: boolean;
 };
@@ -50,7 +42,6 @@ export type PtyDataEvent = { id: string; generation: number; seq: number; start:
 type PtyExitEvent = { id: string; code: number | null; signal: string | null };
 type PtyActivityEvent = { id: string } & PtyForeground;
 
-/** What "add selection to chat" hands the composer. */
 export type TerminalSelection = { text: string; lines: [number, number]; terminal_id: string };
 
 export const ptyOpen = (req: PtyOpenRequest) => invoke<PtySessionInfo>("pty_open", { req });
@@ -75,7 +66,6 @@ export function errorCode(e: unknown): string {
   return i > 0 ? s.slice(0, i) : s;
 }
 
-// One listener per event for the whole app, dispatched by terminal id.
 type PtyHandlers = {
   data?: (e: PtyDataEvent) => void;
   exit?: (e: PtyExitEvent) => void;
@@ -104,8 +94,6 @@ function ensureHub(): Promise<UnlistenFn[]> {
   return hub;
 }
 
-/** Subscribes to one terminal's events. Resolves once the listeners are live,
- *  so an attach issued afterwards cannot miss a chunk. */
 export async function subscribePty(id: string, handlers: PtyHandlers): Promise<() => void> {
   let set = subscribers.get(id);
   if (!set) {

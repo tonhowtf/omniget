@@ -1,12 +1,5 @@
-// Shared types of the generic GL toolkit (world, canvas, pet). Constants only,
-// so any module can import it without pulling GL in. The world keeps its own
-// isometric types in `$lib/world/render/types`; the ones below are structurally
-// identical to their world counterparts.
-
-/** Measured machine tier (docs/llm-world-execution-plan.md §1.2/§1.3). */
 export type Tier = 0 | 1 | 2 | 3;
 
-/** Error codes the UI can map, in the mould of StreamError::code(). */
 export const ERR = {
   NO_WEBGL: 'ERR_WORLD_NO_WEBGL',
   NO_CANVAS2D: 'ERR_WORLD_NO_CANVAS2D',
@@ -28,7 +21,6 @@ export class RenderError extends Error {
 
 export interface TextHandle {
   id: number;
-  /** Width/height in CSS pixels of the rasterised line. */
   w: number;
   h: number;
 }

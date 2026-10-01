@@ -1,12 +1,4 @@
 <script lang="ts">
-  /**
-   * Where the numbers come from and what to do when one of them is wrong:
-   * freshness of the snapshot, the backend's error code when it has one, and
-   * one row per agent with "cancel the live turn" and "reset the history".
-   *
-   * The cancel goes through `llm_turn_cancel`, a command that already exists;
-   * this page adds no command of its own.
-   */
   import { t } from "$lib/i18n";
   import type { AgentTelemetry, LoadState } from "$lib/stores/llm-telemetry-store.svelte";
 

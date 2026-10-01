@@ -1,6 +1,3 @@
-// smartDraw (Maestri): on release, a freehand stroke becomes a line,
-// rectangle, ellipse or triangle when the fit error is small enough.
-
 import type { Rect } from '../model/types';
 import { boundsOf, distToPolyline, simplify } from '../spatial/geometry';
 import { ellipsePolygon, rectPolygon, trianglePolygon } from './shapes';
@@ -9,7 +6,6 @@ type Recognized =
   | { kind: 'line'; x0: number; y0: number; x1: number; y1: number }
   | { kind: 'rect' | 'ellipse' | 'triangle'; rect: Rect };
 
-/** Mean distance of the stroke points to a polygon outline, relative to its size. */
 function fitError(pts: number[], outline: number[], size: number): number {
   const closed = [...outline, outline[0], outline[1]];
   let sum = 0;
@@ -18,7 +14,6 @@ function fitError(pts: number[], outline: number[], size: number): number {
   return sum / n / Math.max(1, size);
 }
 
-/** `pts` flat, absolute. Returns null when nothing fits well. */
 export function recognize(pts: number[]): Recognized | null {
   const n = pts.length / 2;
   if (n < 3) return null;
@@ -31,7 +26,6 @@ export function recognize(pts: number[]): Recognized | null {
   const y1 = pts[pts.length - 1];
   const gap = Math.hypot(x1 - x0, y1 - y0);
 
-  // Open stroke: a straight line when every point is near the chord.
   if (gap > size * 0.35) {
     const err = fitError(pts, [x0, y0, x1, y1], size) ;
     if (err < 0.035) return { kind: 'line', x0, y0, x1, y1 };
@@ -43,7 +37,6 @@ export function recognize(pts: number[]): Recognized | null {
     { kind: 'ellipse', err: fitError(pts, ellipsePolygon(b, 48), size) },
     { kind: 'triangle', err: fitError(pts, trianglePolygon(b), size) },
   ];
-  // Corners decide between rect and ellipse when both fit similarly.
   const corners = simplify(pts, size * 0.08).length / 2 - 1;
   for (const c of candidates) {
     if (c.kind === 'rect' && corners >= 4 && corners <= 6) c.err *= 0.8;

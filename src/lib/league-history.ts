@@ -16,8 +16,6 @@ type HistorySummary = {
   remakes: number;
 };
 
-/// A game that ended before this mark was a remake: it carries no result worth
-/// averaging, so it is listed but kept out of the aggregates.
 const REMAKE_SECONDS = 180;
 
 function isRemake(game: HistoryGame): boolean {
@@ -70,7 +68,6 @@ export function summarise(games: readonly HistoryGame[]): HistorySummary {
     wins,
     losses,
     winrate: counted > 0 ? Math.round((wins / counted) * 100) : null,
-    // A deathless streak has no ratio to report, so it falls back to the sum.
     kda: counted > 0 ? (deaths > 0 ? (kills + assists) / deaths : kills + assists) : null,
     remakes,
   };

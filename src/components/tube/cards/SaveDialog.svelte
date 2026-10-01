@@ -1,6 +1,4 @@
 <script lang="ts">
-  // "Save to..." : Watch later plus the account playlists, each a checkbox,
-  // and "New playlist". Without an account only Watch later (local) shows.
   import { t } from "$lib/i18n";
   import * as api from "$lib/tube/api";
   import { showToast } from "$lib/stores/toast-store.svelte";
@@ -20,7 +18,6 @@
     anchor?: HTMLElement | null;
     saved?: boolean | null;
     onclose: () => void;
-    /** Shown in the local Watch later when there is no account. */
     meta?: { title?: string | null; channel_id?: string | null; channel_name?: string | null; avatar?: string | null } | null;
   } = $props();
 

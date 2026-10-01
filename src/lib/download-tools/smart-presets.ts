@@ -1,18 +1,9 @@
-/**
- * Named download presets for Downloads › Tools › Smart mode: choose the kind,
- * quality, subtitles and folder once, then download any link with one click.
- * Kept in this device's local storage; the app settings stay untouched.
- */
 export type SmartPreset = {
   id: string;
-  /** Empty for the built-in presets, which are named by the interface language. */
   name: string;
   mode: "video" | "audio";
-  /** Maximum height in pixels, or null for the best available. */
   height: number | null;
-  /** Subtitle languages for yt-dlp (`en`, `en,pt-BR`), or "" for none. */
   subs: string;
-  /** Output folder, or "" for the app's download folder. */
   folder: string;
 };
 
@@ -33,7 +24,6 @@ function defaultState(): SmartState {
   };
 }
 
-/** Accepts `en`, `pt-BR`, `en,es`; anything else is not a language list. */
 export function validSubs(value: string): boolean {
   const v = value.trim();
   return v === "" || (/^[A-Za-z0-9][A-Za-z0-9_.,-]{0,63}$/.test(v) && !v.includes(",,"));
@@ -70,11 +60,9 @@ export function saveState(state: SmartState): void {
   try {
     localStorage.setItem(KEY, JSON.stringify(state));
   } catch {
-    // Private storage off: the presets still work until the app closes.
   }
 }
 
-/** The arguments `download_from_url` takes for one link with this preset. */
 export function downloadArgs(preset: SmartPreset, url: string, fallbackFolder: string) {
   const audio = preset.mode === "audio";
   return {
@@ -89,7 +77,6 @@ export function downloadArgs(preset: SmartPreset, url: string, fallbackFolder: s
   };
 }
 
-/** Links in pasted text, one per line or separated by spaces, without repeats. */
 export function linksIn(text: string): string[] {
   const found = text.match(/\b(?:https?:\/\/|magnet:\?)[^\s<>"']+/gi) ?? [];
   return [...new Set(found.map((u) => u.replace(/[),.;]+$/, "")))];

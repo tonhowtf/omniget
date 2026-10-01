@@ -26,11 +26,6 @@
   import TweakRow from "./TweakRow.svelte";
   import TweakGroupCard from "./TweakGroupCard.svelte";
 
-  /// Windows tweaks, by category. The state of each one is read from
-  /// Windows every time; nothing changes until the picked items go through
-  /// the plan review, and the receipt can put the old values back. Exclusive
-  /// choices (power plan, taskbar search, IPv6...) are radio cards. Memory
-  /// integrity asks first, because it trades security for FPS.
   let { caps }: { caps: Caps } = $props();
 
   const mod = moduleById("tweaks");

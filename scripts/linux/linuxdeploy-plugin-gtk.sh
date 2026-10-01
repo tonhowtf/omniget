@@ -1,44 +1,7 @@
 #! /usr/bin/env bash
 
-# Vendored copy of linuxdeploy-plugin-gtk, patched for OmniGet.
-#
-# Source:    https://github.com/tauri-apps/linuxdeploy-plugin-gtk
-#            (a fork of https://github.com/linuxdeploy/linuxdeploy-plugin-gtk)
-# Copied at: commit b5eb8d05b4c0ed40107fe2158c5d8527f94568ef (2024-01-04)
-#            This is the exact URL the Tauri bundler fetches at
-#            tauri-bundler/src/bundle/linux/appimage/linuxdeploy.rs.
-#
 # License:   MIT. Copyright 2018-2019 TheAssassin and the linuxdeploy
-#            contributors. Permission is hereby granted, free of charge, to any
-#            person obtaining a copy of this software and associated
-#            documentation files (the "Software"), to deal in the Software
-#            without restriction, including without limitation the rights to
-#            use, copy, modify, merge, publish, distribute, sublicense, and/or
-#            sell copies of the Software, and to permit persons to whom the
-#            Software is furnished to do so, subject to the following
-#            conditions: the above copyright notice and this permission notice
-#            shall be included in all copies or substantial portions of the
-#            Software. THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
-#            ANY KIND, EXPRESS OR IMPLIED. See LICENSE.txt in the upstream
-#            repository for the full text.
-#
-# Local modifications (everything else is byte-identical to upstream):
-#   1. copy_tree() skips sources that do not exist instead of aborting the
-#      build. Arch ships builtin gdk-pixbuf loaders, so the pkg-config paths
-#      upstream trusts can point at files that are not there.
-#   2. The gdk-pixbuf loaders.cache directory is created before the cache is
-#      written, so the query tool has somewhere to write to.
-#   3. The `sed -i` on loaders.cache moved inside the `-f` guard. Upstream ran
-#      it unconditionally, so a missing cache tripped `set -e` right after
-#      warning that it was only a warning.
-#
-# Re-syncing: diff this file against the upstream URL above, re-apply the three
-# hunks, and update the commit and date recorded here.
 
-# GTK3 environment variables: https://developer.gnome.org/gtk3/stable/gtk-running.html
-# GTK4 environment variables: https://developer.gnome.org/gtk4/stable/gtk-running.html
-
-# abort on all errors
 set -e
 
 if [ "$DEBUG" != "" ]; then
@@ -55,9 +18,6 @@ show_usage() {
     echo
     echo "Required variables:"
     echo "  LINUXDEPLOY=\".../linuxdeploy\" path to linuxdeploy (e.g., AppImage); set automatically when plugin is run directly by linuxdeploy"
-    #echo
-    #echo "Optional variables:"
-    #echo "  DEPLOY_GTK_VERSION (major version of GTK to deploy, e.g. '2', '3' or '4'; auto-detect by default)"
 }
 
 variable_is_true() {
@@ -92,8 +52,6 @@ copy_tree() {
     local dst="${*:$#}"
 
     for elem in "${src[@]}"; do
-        # Some distros (e.g. Arch with builtin gdk-pixbuf loaders) ship stale
-        # pkg-config paths; skip missing sources instead of failing the build.
         if [ ! -e "$elem" ]; then
             echo "WARNING: copy_tree: '$elem' does not exist, skipping"
             continue
@@ -127,7 +85,6 @@ search_tool() {
     done
 }
 
-#DEPLOY_GTK_VERSION="${DEPLOY_GTK_VERSION:-0}" # When not set by user, this variable use the integer '0' as a sentinel value
 DEPLOY_GTK_VERSION=3 # Force GTK3 for tauri apps
 APPDIR=
 
@@ -161,7 +118,6 @@ if [ "$APPDIR" == "" ]; then
 fi
 
 mkdir -p "$APPDIR"
-# make lib64 writable again.
 chmod +w "$APPDIR"/usr/lib64 || true
 
 if command -v pkgconf > /dev/null; then
@@ -230,7 +186,6 @@ export XDG_DATA_DIRS="$APPDIR/usr/share:/usr/share:$XDG_DATA_DIRS" # g_get_syste
 EOF
 
 echo "Installing GLib schemas"
-# Note: schemasdir is undefined on Ubuntu 16.04
 glib_schemasdir="$(get_pkgconf_variable "schemasdir" "gio-2.0" "/usr/share/glib-2.0/schemas")"
 copy_tree "$glib_schemasdir" "$APPDIR/"
 glib-compile-schemas "$APPDIR/$glib_schemasdir"
@@ -240,14 +195,12 @@ EOF
 
 case "$DEPLOY_GTK_VERSION" in
     2)
-        # https://github.com/linuxdeploy/linuxdeploy-plugin-gtk/pull/20#issuecomment-826354261
         echo "WARNING: Gtk+2 applications are not fully supported by this plugin"
         ;;
     3)
         echo "Installing GTK 3.0 modules"
         gtk3_exec_prefix="$(get_pkgconf_variable "exec_prefix" "gtk+-3.0")"
         gtk3_libdir="$(get_pkgconf_variable "libdir" "gtk+-3.0")/gtk-3.0"
-        #gtk3_path="$gtk3_libdir/modules" export GTK_PATH="\$APPDIR/$gtk3_path"
         gtk3_immodulesdir="$gtk3_libdir/$(get_pkgconf_variable "gtk_binary_version" "gtk+-3.0")/immodules"
         gtk3_printbackendsdir="$gtk3_libdir/$(get_pkgconf_variable "gtk_binary_version" "gtk+-3.0")/printbackends"
         gtk3_immodules_cache_file="$(dirname "$gtk3_immodulesdir")/immodules.cache"
@@ -292,7 +245,6 @@ gdk_libdir="$(get_pkgconf_variable "libdir" "gdk-pixbuf-2.0")"
 gdk_pixbuf_binarydir="$(get_pkgconf_variable "gdk_pixbuf_binarydir" "gdk-pixbuf-2.0")"
 gdk_pixbuf_cache_file="$(get_pkgconf_variable "gdk_pixbuf_cache_file" "gdk-pixbuf-2.0")"
 gdk_pixbuf_moduledir="$(get_pkgconf_variable "gdk_pixbuf_moduledir" "gdk-pixbuf-2.0")"
-# Note: gdk_pixbuf_query_loaders variable is not defined on some systems
 gdk_pixbuf_query="$(search_tool "gdk-pixbuf-query-loaders" "gdk-pixbuf-2.0")"
 copy_tree "$gdk_pixbuf_binarydir" "$APPDIR/"
 cat >> "$HOOKFILE" <<EOF
@@ -338,8 +290,6 @@ done
 
 env LINUXDEPLOY_PLUGIN_MODE=1 "$LINUXDEPLOY" --appdir="$APPDIR" "${LIBRARIES[@]}"
 
-# Create symbolic links as a workaround
-# Details: https://github.com/linuxdeploy/linuxdeploy-plugin-gtk/issues/24#issuecomment-1030026529
 echo "Manually setting rpath for GTK modules"
 PATCH_ARRAY=(
     "$gtk3_immodulesdir"
@@ -352,18 +302,13 @@ for directory in "${PATCH_ARRAY[@]}"; do
     done < <(find "$directory" -name '*.so' -print0)
 done
 
-# set write permission on lib64 again to make it deletable.
 chmod +w "$APPDIR"/usr/lib64 || true
 
-# We have to copy the files first to not get permission errors when we assign gio_extras_dir
 find /usr/lib* -name libgiognutls.so -exec mkdir -p "$APPDIR"/"$(dirname '{}')" \; -exec cp --parents '{}' "$APPDIR/" \; || true
-# related files that we seemingly don't need:
-# libgiolibproxy.so - libgiognomeproxy.so - glib-pacrunner
 
 gio_extras_dir=$(find "$APPDIR"/usr/lib* -name libgiognutls.so -exec dirname '{}' \; 2>/dev/null)
 cat >> "$HOOKFILE" <<EOF
 export GIO_EXTRA_MODULES="\$APPDIR/${gio_extras_dir#"$APPDIR"/}"
 EOF
 
-#binary patch absolute paths in libwebkit files
 find "$APPDIR"/usr/lib* -name 'libwebkit*' -exec sed -i -e "s|/usr|././|g" '{}' \;

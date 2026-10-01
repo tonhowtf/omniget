@@ -1,6 +1,4 @@
 <script lang="ts">
-  // New flashcard from the line under the playhead (front) and your answer or
-  // translation (back).
   import { t } from "$lib/i18n";
   import { showToast } from "$lib/stores/toast-store.svelte";
   import { fmtTime } from "$lib/video/format";

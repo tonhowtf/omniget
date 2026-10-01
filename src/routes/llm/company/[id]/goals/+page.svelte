@@ -1,9 +1,4 @@
 <script lang="ts">
-  /**
-   * Goals and projects. Goals form a tree under the company mission (team →
-   * agent → task); projects group work with a lead, a folder and an
-   * isolation mode (shared folder or a git worktree per task).
-   */
   import { page } from "$app/state";
   import { t } from "$lib/i18n";
   import { errorText, onCompanyChange, rpc, type Company, type Goal, type Project, type Staff } from "$lib/company/rpc";
@@ -71,7 +66,6 @@
 
   let subGoals = $derived(goals.filter((g) => !(g.level === "company" && !g.parent_id)).length);
 
-  // ── Goal form ──
   let goalForm = $state<null | { id: string | null; title: string; body: string; level: string; parent: string; owner: string; status: string }>(null);
   let goalBusy = $state(false);
   let goalError = $state("");
@@ -135,7 +129,6 @@
     void goalAction(() => rpc("goal.delete", { company: id, goal_id: g.id }));
   }
 
-  // ── Project form ──
   type ProjectDraft = {
     id: string | null; name: string; description: string; goal: string; lead: string;
     workspace: string | null; isolation: "shared" | "worktree"; color: string; status: string;

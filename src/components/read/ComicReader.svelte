@@ -1,8 +1,4 @@
 <script lang="ts">
-  // Image-page reader for comics, manga and webtoons: paged left-to-right,
-  // right-to-left or vertical, or one continuous strip; single or double
-  // pages (cover alone, wide pages alone); fit, zoom and pan; border crop;
-  // colour filters; tap zones; preloading; and a chapter transition.
   import { onDestroy, onMount, tick, untrack } from "svelte";
   import { getCurrentWindow } from "@tauri-apps/api/window";
   import { invoke } from "@tauri-apps/api/core";
@@ -58,7 +54,6 @@
   let strip: HTMLDivElement | undefined = $state();
   let stage: HTMLDivElement | undefined = $state();
   let viewport = $state({ w: window.innerWidth, h: window.innerHeight });
-  // Pages translated by a manga-image-translator server, by index.
   let translated = $state<Record<number, string>>({});
   let showTranslated = $state(true);
   let translating = $state(false);
@@ -89,8 +84,6 @@
     reader.location = `${page + 1}/${pages.length}`;
   });
 
-  // ---------- spreads ----------
-
   function isWide(i: number) {
     const d = dims[i];
     return !!d && d.w > d.h * 1.1;
@@ -102,7 +95,6 @@
       (prefs.comicSpread === "double" || (prefs.comicSpread === "auto" && viewport.w > viewport.h * 1.15)),
   );
 
-  /** Page groups shown together: [i] or [i, i+1]. */
   let spreads = $derived.by(() => {
     const out: number[][] = [];
     let i = 0;
@@ -120,8 +112,6 @@
   let spreadIndex = $derived(Math.max(0, spreads.findIndex((s) => s.includes(page))));
   let shown = $derived(spreads[spreadIndex] ?? [page]);
   let rtl = $derived(mode === "rtl");
-
-  // ---------- navigation ----------
 
   function report() {
     onpage?.(page, pages.length);
@@ -172,8 +162,6 @@
     if (m === "webtoon") void tick().then(() => jump(page));
   }
 
-  // ---------- webtoon position ----------
-
   let io: IntersectionObserver | null = null;
   function observeStrip() {
     io?.disconnect();
@@ -200,11 +188,8 @@
     void tick().then(observeStrip);
   });
 
-  // ---------- images ----------
-
   function measure(i: number, img: HTMLImageElement) {
     if (!dims[i]) dims[i] = { w: img.naturalWidth, h: img.naturalHeight };
-    // Webtoons: mostly very tall pages and no mode chosen yet.
     if (!modeOverride && i < 4 && mode !== "webtoon") {
       const tall = Object.values(dims).filter((d) => d.h > d.w * 2.4).length;
       if (tall >= 2) setMode("webtoon");
@@ -226,7 +211,6 @@
     }
   });
 
-  /** Trims uniform margins by sampling pixels on a canvas. */
   async function cropPage(i: number) {
     if (cropped[i] !== undefined) return;
     cropped[i] = "";
@@ -303,8 +287,6 @@
       .filter(Boolean)
       .join(" ") || "none",
   );
-
-  // ---------- input ----------
 
   function tap(e: MouseEvent) {
     if (e.button !== 0 || dragged) return;
@@ -423,7 +405,6 @@
     try {
       await getCurrentWindow().setFullscreen(fullscreen);
     } catch {
-      /* not allowed */
     }
   }
 
@@ -479,7 +460,6 @@
     </header>
   {/if}
 
-  <!-- Keys are handled on the window, so the stage only takes the pointer. -->
   <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_click_events_have_key_events, a11y_no_noninteractive_element_interactions -->
   <div
     class="stage"

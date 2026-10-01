@@ -1,9 +1,6 @@
 <script lang="ts">
   import { monogram, sourceInfo } from "$lib/washmybelly/apps";
 
-  /// Generic app icon: a rounded tile in the colour of where the app came
-  /// from (App, Homebrew, MSI, apt...) with its initials. The real icon can
-  /// replace it later (`apps.<os>.icon`, see the handoff).
   let { name, source, size = 32, dim = false }: { name: string; source: string; size?: number; dim?: boolean } = $props();
 
   let info = $derived(sourceInfo(source));

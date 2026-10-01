@@ -8,7 +8,6 @@
     compact = false,
     children,
   }: {
-    /** id of an icon in static/icons/video */
     icon: string;
     title: string;
     body?: string;

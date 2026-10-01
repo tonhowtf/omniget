@@ -1,7 +1,4 @@
 <script lang="ts">
-  // Always mounted by the root layout: keeps playback alive across routes,
-  // imports finished music downloads, and shows the mini player when you
-  // leave /music with something playing.
   import { onMount } from "svelte";
   import { page } from "$app/state";
   import { getDownloads } from "$lib/stores/download-store.svelte";
@@ -16,7 +13,6 @@
   const NATIVE_ACTIVITY_RESERVED_INSET = 56;
   const STACKED_OVERLAYS_RESERVED_INSET = 120;
 
-  // what an agent (or a test) can read about playback without a screenshot
   onMount(() =>
     registerSemantic("music-player", () => ({
       ready: true,
@@ -34,7 +30,6 @@
 
   onMount(() => {
     initPlayer();
-    // a restored queue needs its rows to show the paused track; do it off the boot path
     if (player.queue.length || musicDownloads.items.some((x) => x.state === "running")) {
       const id = setTimeout(async () => {
         await loadLibrary();
@@ -60,8 +55,6 @@
   let show = $derived(!onMusic && (!!player.radio || (!!player.current && (player.playing || player.position > 0))));
 
   $effect(() => {
-    // The mini-player is a fixed overlay. Keep the page clear of it, and leave
-    // an extra row when the native-agent access control is stacked below it.
     shellLayout.bottomInset = shellLayout.overlayBottomInset
       ? (show ? STACKED_OVERLAYS_RESERVED_INSET : NATIVE_ACTIVITY_RESERVED_INSET)
       : (show ? MINI_PLAYER_RESERVED_INSET : 0);

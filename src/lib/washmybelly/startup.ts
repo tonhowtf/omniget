@@ -1,6 +1,3 @@
-/// Startup items from `wmb_startup_list` and the pure logic of the screen:
-/// grouping by type, the third-party filter, what a toggle can do.
-
 type StartupKind =
   | "login_item"
   | "agent"
@@ -68,7 +65,6 @@ export function groupOf(kind: string): StartupGroup {
   }
 }
 
-/// The toggle can move this item to the other state.
 export function canToggle(it: StartupItem): boolean {
   return it.enabled ? it.can_disable : it.can_enable;
 }
@@ -91,12 +87,10 @@ export function groupItems(items: StartupItem[]): { group: StartupGroup; items: 
   }).filter((g) => g.items.length > 0);
 }
 
-/// Ids of the chosen items that are on and can be turned off.
 export function disableIds(items: StartupItem[], selected: Set<string>): string[] {
   return items.filter((it) => selected.has(it.id) && it.enabled && it.can_disable).map((it) => it.id);
 }
 
-/// i18n key of a reason code from the backend (`washmybelly.startup.reason.*`).
 export const REASONS = [
   "system_item",
   "daemon_until_restart",
@@ -115,23 +109,19 @@ export function reasonKey(reason: string | null | undefined): string | null {
   return (REASONS as readonly string[]).includes(reason) ? `washmybelly.startup.reason.${reason}` : null;
 }
 
-/// Reasons that are only a note: the item can still be switched.
 export function isSoftReason(reason: string | null | undefined): boolean {
   return reason === "daemon_until_restart" || reason === "service_manual" || reason === "other_desktop" || reason === "turned_off_here";
 }
 
-/// Notes from the scan worth showing (`btm_unavailable: ...` → its code).
 export function noteCodes(notes: string[] | undefined): string[] {
   return [...new Set((notes ?? []).map((n) => n.split(":")[0].trim()).filter(Boolean))];
 }
 
-/// The letter tile of a row: first letter or digit of the name.
 export function initial(name: string): string {
   const m = name.match(/[\p{L}\p{N}]/u);
   return m ? m[0].toUpperCase() : "?";
 }
 
-/// A stable hue for the tile, from the name.
 export function hueOf(name: string): number {
   let h = 0;
   for (const c of name) h = (h * 31 + c.codePointAt(0)!) % 360;

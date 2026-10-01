@@ -1,6 +1,3 @@
-// Logged-in state for the `/telegram` screen: the chat list (shared by the
-// browser and the export tab), thumbnails and running batch downloads.
-
 import { get } from "svelte/store";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { t } from "$lib/i18n";
@@ -22,7 +19,6 @@ import {
   type WatchRunEvent,
 } from "./api";
 
-/** Error text for the screen; commands the backend lacks read as "not ready". */
 export function failText(e: unknown): string {
   return isUnknownCommand(e) ? (get(t)("telegram.common.not_ready") as string) : errText(e);
 }
@@ -35,11 +31,8 @@ export const chatsState = $state<{
   error: string | null;
 }>({ chats: [], next: null, loading: false, loaded: false, error: null });
 
-// After an app restart the engine only restores the saved session inside
-// `telegram_check_session`, so every other call waits for one check first.
 let sessionCheck: Promise<unknown> | null = null;
 
-/** Runs `telegram_check_session` (again when `force`) and shares the result. */
 export function ensureSession(force = false): Promise<unknown> {
   if (force || !sessionCheck) {
     const p = tg.checkSession();
@@ -85,7 +78,6 @@ export function resetSession(): void {
   recentState.loaded = false;
 }
 
-/** Finds a loaded chat by id and type, or builds a bare reference. */
 export function chatRef(id: number, chatType: string, title?: string | null): TelegramChat {
   const hit = chatsState.chats.find((c) => c.id === id && c.chat_type === chatType);
   if (hit) return hit;
@@ -101,8 +93,6 @@ export function chatRef(id: number, chatType: string, title?: string | null): Te
     is_online: false,
   };
 }
-
-// ---- continue watching ----
 
 export const recentState = $state<{ items: PlaybackEntry[]; loaded: boolean; unavailable: boolean }>({
   items: [],
@@ -123,7 +113,6 @@ export async function loadRecent(): Promise<void> {
   }
 }
 
-/** Keeps the resume bar on tiles and the "continue watching" row in step with the player. */
 export function notePlayback(chat: ChatRef, entry: Omit<PlaybackEntry, "chat_id" | "chat_type" | "chat_title">): void {
   const rest = recentState.items.filter((r) => !(r.chat_id === chat.id && r.chat_type === chat.chat_type && r.message_id === entry.message_id));
   const row: PlaybackEntry = { ...entry, chat_id: chat.id, chat_type: chat.chat_type, chat_title: chat.title };
@@ -133,8 +122,6 @@ export function notePlayback(chat: ChatRef, entry: Omit<PlaybackEntry, "chat_id"
 export function resumeOf(chat: ChatRef, messageId: number): PlaybackEntry | undefined {
   return recentState.items.find((r) => r.chat_id === chat.id && r.chat_type === chat.chat_type && r.message_id === messageId);
 }
-
-// ---- thumbnails ----
 
 const thumbs = new Map<string, Promise<string | null>>();
 let inflight = 0;
@@ -163,8 +150,6 @@ export function thumbnail(chat: TelegramChat, messageId: number): Promise<string
   return p;
 }
 
-// ---- batch downloads ----
-
 export interface Batch {
   id: number;
   chatTitle: string;
@@ -182,7 +167,6 @@ export function trackBatch(id: number, chatTitle: string, messageIds: number[]):
   batches[id] = { id, chatTitle, total: messageIds.length, finished: false, cancelled: false, files };
 }
 
-/** A batch whose items the screen did not list itself (whole chat, auto-save). */
 export function trackBatchCount(id: number, chatTitle: string, count: number): void {
   batches[id] = { id, chatTitle, total: count, finished: count === 0, cancelled: false, files: {} };
 }
@@ -199,7 +183,6 @@ export function batchCounts(b: Batch): { done: number; failed: number; percent: 
   return { done, failed, percent: b.total ? sum / b.total : 0 };
 }
 
-/** Latest status of a message across batches (for the per-tile progress). */
 export function fileStatus(messageId: number): { status: string; percent: number } | null {
   let out: { status: string; percent: number } | null = null;
   for (const b of Object.values(batches)) {
@@ -208,8 +191,6 @@ export function fileStatus(messageId: number): { status: string; percent: number
   }
   return out;
 }
-
-// ---- auto-save rules ----
 
 export const watchState = $state<{ rules: WatchRule[]; loaded: boolean; loading: boolean; error: string | null; lastRun: Record<string, WatchRunEvent> }>({
   rules: [],
@@ -233,8 +214,6 @@ export async function loadWatches(): Promise<void> {
   }
 }
 
-// ---- real time ----
-
 export const realtimeState = $state<{ state: RealtimeState | null }>({ state: null });
 
 export async function loadRealtime(): Promise<void> {
@@ -245,13 +224,10 @@ export async function loadRealtime(): Promise<void> {
   }
 }
 
-// ---- history scans (preview, backfill) ----
-
 export interface Scan {
   id: string;
   chatId: number;
   chatTitle: string;
-  /** What started it, for the label: "preview" | "backfill" | "search". */
   kind: string;
   scanned: number;
   matched: number;
@@ -261,7 +237,6 @@ export interface Scan {
 
 export const scans = $state<Record<string, Scan>>({});
 
-/** Registers a scan the screen started, so its progress shows before the first event. */
 export function trackScan(id: string, chatId: number, chatTitle: string, kind: string): void {
   scans[id] = { id, chatId, chatTitle, kind, scanned: 0, matched: 0, done: false, cancelled: false };
 }
@@ -269,13 +244,11 @@ export function trackScan(id: string, chatId: number, chatTitle: string, kind: s
 export function finishScan(id: string): void {
   const s = scans[id];
   if (s) s.done = true;
-  // Keep the last numbers a moment so the row does not blink away.
   setTimeout(() => {
     if (scans[id]?.done) delete scans[id];
   }, 2500);
 }
 
-/** Drops a tracked scan that never reported progress (the backend ran it without events). */
 export function expireScan(id: string, ms = 12000): void {
   setTimeout(() => {
     const s = scans[id];
@@ -289,18 +262,15 @@ export async function cancelScan(id: string): Promise<void> {
   try {
     await tg3.scanCancel(id);
   } catch {
-    /* already over */
   }
   finishScan(id);
 }
 
 function onScan(p: ChatScanEvent): void {
-  // Events without an id (older backend) update the one running scan of that chat.
   const id = p.scan_id ?? Object.values(scans).find((s) => s.chatId === p.chat_id && !s.done)?.id;
   if (!id) return;
   let s = scans[id];
   if (!s) {
-    // A backfill the screen asked for but the backend named itself: take over that row.
     const mine = Object.values(scans).find((x) => x.kind === "backfill" && x.chatId === p.chat_id && !x.done && x.scanned === 0);
     if (mine) {
       delete scans[mine.id];
@@ -309,7 +279,6 @@ function onScan(p: ChatScanEvent): void {
     }
   }
   if (!s) {
-    // Scans the screen did not start (auto-save backfill, an agent): show them too.
     if (p.done) return;
     const rule = watchState.rules.find((r) => r.chatId === p.chat_id);
     scans[id] = {
@@ -329,8 +298,6 @@ function onScan(p: ChatScanEvent): void {
   if (p.cancelled) s.cancelled = true;
   if (p.done) finishScan(id);
 }
-
-// ---- uploads ----
 
 export interface Upload {
   id: number;
@@ -391,7 +358,6 @@ export async function attachSessionEvents(): Promise<void> {
         if (watchState.loaded) void loadWatches();
       }),
     );
-    // Per-file rows only; `kind: "batch"` events summarise a whole send.
     type UploadProgress = { id: number; title?: string; percent?: number; kind?: string };
     unlisteners.push(
       await listen<UploadProgress>("telegram-upload-progress", (ev) => {
@@ -438,7 +404,6 @@ export async function attachSessionEvents(): Promise<void> {
       }),
     );
   } catch {
-    /* outside Tauri */
   }
 }
 

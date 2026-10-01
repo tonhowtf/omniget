@@ -1,11 +1,4 @@
 <script lang="ts">
-  /**
-   * Retrospectiva — qualquer período, qualquer ferramenta (ou todas).
-   *
-   * Cartões com o que marcou o período (modelos, tools, projetos, sequência,
-   * dia mais produtivo, marcos) e uma animação em canvas que reproduz os dias.
-   * Busca só ao abrir e quando o período ou a ferramenta mudam.
-   */
   import { onMount } from "svelte";
   import { goto } from "$app/navigation";
   import { t } from "$lib/i18n";

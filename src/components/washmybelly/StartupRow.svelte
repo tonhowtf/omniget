@@ -4,11 +4,6 @@
   import { canToggle, hueOf, initial, isSoftReason, reasonKey, type StartupItem } from "$lib/washmybelly/startup";
   import Icon from "./ui/Icon.svelte";
 
-  /// One startup entry: letter tile, name, who signed it, where it lives,
-  /// the measured impact when there is one, and the on/off switch. Ported
-  /// from the "Switch List Card" pattern (sean0205, 21st.dev): a hairline
-  /// row with the switch trailing; here with a select box for "turn off
-  /// selected" and the reason when the switch is locked.
   let {
     item,
     selected = false,

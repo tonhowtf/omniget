@@ -1,5 +1,4 @@
 <script lang="ts">
-  /** What an import (template or package) is about to create. */
   import type { ImportPlan } from "$lib/company/rpc";
   import { t } from "$lib/i18n";
 

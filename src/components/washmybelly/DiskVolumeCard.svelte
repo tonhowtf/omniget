@@ -1,6 +1,4 @@
 <script lang="ts">
-  // Volume card with a partition bar (used · purgeable · free), after the
-  // "Partition Bar" component on 21st.dev (8starlabs).
   import { t } from "$lib/i18n";
   import { formatBytes } from "$lib/washmybelly/api";
   import { usedFraction, volumeSegments, type Volume } from "$lib/washmybelly/disk";

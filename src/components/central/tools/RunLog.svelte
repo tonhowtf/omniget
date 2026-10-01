@@ -1,6 +1,4 @@
 <script lang="ts">
-  // Log ao vivo de uma execução (instalar/atualizar/ACP): linhas do
-  // `clitools://progress` mais o resultado final.
   import { t } from "$lib/i18n";
   import type { LogEntry, RunState } from "$lib/central/clitools";
 

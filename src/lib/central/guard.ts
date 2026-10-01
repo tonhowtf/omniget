@@ -1,11 +1,3 @@
-/**
- * Guard: security and health scan of agent components, typed bridge to the
- * `guard_*` Tauri commands (Rust: `omniget_core::core::guard`).
- *
- * Score is 0–100 where **higher is safer** (the opposite of SkillSpector's
- * risk number). Level is `ok` / `warn` / `block`; any critical finding
- * blocks, any high/medium finding warns.
- */
 import { invoke } from "@tauri-apps/api/core";
 
 export type Severity = "info" | "low" | "medium" | "high" | "critical";
@@ -46,16 +38,13 @@ interface GuardFinding {
   line?: number;
   column?: number;
   json_path?: string;
-  /** Offending line, already redacted when it held a secret. */
   snippet?: string;
   detail: string;
-  /** Lowered because it was quoted, in code, or negated. */
   downgraded: boolean;
 }
 
 interface GuardCommand {
   file: string;
-  /** hook | mcp | statusline | setting | inline | script | fence | agent_prompt */
   origin: string;
   json_path?: string;
   line?: number;
@@ -88,7 +77,6 @@ export interface GuardReport {
   kind: GuardKind | string;
   origin_tool?: string;
   detected_tool: string;
-  /** Another tool's format inside an item claimed for `origin_tool`. */
   foreign_format?: string;
   files: GuardFileDigest[];
   findings: GuardFinding[];
@@ -194,10 +182,7 @@ export interface ConfigStats {
   errors: { path: string; error: string }[];
 }
 
-/** Keys accepted by `guardConfigStats`. */
 export type StatsKind = "command" | "rule" | "agent" | "skill" | "memory" | "hook" | "setting" | "mcp";
-
-// ------------------------------------------------------------------ calls
 
 export function guardScanComponent(args: {
   kind: GuardKind | string;
@@ -242,7 +227,6 @@ export function guardConfigStats(
 
 let rulesCache: Promise<GuardRule[]> | null = null;
 
-/** The rule catalogue (cached for the session). */
 export function guardRules(): Promise<GuardRule[]> {
   if (!rulesCache) {
     rulesCache = invoke<GuardRule[]>("guard_rules").catch((e) => {
@@ -253,15 +237,12 @@ export function guardRules(): Promise<GuardRule[]> {
   return rulesCache;
 }
 
-// ------------------------------------------------------------------ helpers
-
 const SEVERITY_ORDER: Severity[] = ["critical", "high", "medium", "low", "info"];
 
 function severityRank(s: Severity): number {
   return 4 - SEVERITY_ORDER.indexOf(s);
 }
 
-/** Rule text in the UI language (Portuguese for `pt*`, English otherwise). */
 export function ruleText(rule: GuardRule | undefined, locale: string | null | undefined, fallback = ""): string {
   if (!rule) return fallback;
   return (locale ?? "").toLowerCase().startsWith("pt") ? rule.pt : rule.en;
@@ -271,7 +252,6 @@ export function rulesByCode(rules: GuardRule[]): Map<string, GuardRule> {
   return new Map(rules.map((r) => [r.code, r]));
 }
 
-/** Findings grouped by validator, worst first, validators in a fixed order. */
 export function findingsByValidator(report: GuardReport): [GuardValidator, GuardFinding[]][] {
   const order: GuardValidator[] = [
     "command",
@@ -294,12 +274,10 @@ export function findingsByValidator(report: GuardReport): [GuardValidator, Guard
     .map((v) => [v, (map.get(v) ?? []).sort((a, b) => severityRank(b.severity) - severityRank(a.severity))]);
 }
 
-/** Findings worth showing by default (hides info unless asked). */
 export function visibleFindings(list: GuardFinding[], showInfo: boolean): GuardFinding[] {
   return showInfo ? list : list.filter((f) => f.severity !== "info");
 }
 
-/** Summary counts of a batch of reports. */
 export function summarize(reports: GuardReport[]): Record<GuardLevel, number> {
   const out: Record<GuardLevel, number> = { ok: 0, warn: 0, block: 0 };
   for (const r of reports) out[r.level] += 1;

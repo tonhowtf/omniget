@@ -13,8 +13,6 @@
   } = $props();
 </script>
 
-<!-- Loop sticker art (Higgsfield, same recipe as the sidebar icons). Decorative:
-     the state is always said in text next to it. -->
 <div class="home-hero" style:--hero-size="{size}px">
   {#key art}
     <img

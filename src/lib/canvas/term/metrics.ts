@@ -1,23 +1,15 @@
-// Geometry shared by the GL pass, the input layer and the node chrome: where
-// the terminal body sits inside a node and how big one cell is in world units.
-
 import { terminalFont } from '$components/central/terminal/theme';
 import { canvasPrefs } from '../prefs.svelte';
 
-/** Base font size of a terminal in world units (CSS px at zoom 1). */
 export const TERM_FONT_SIZE = 13;
 const TERM_LINE_HEIGHT = 1.25;
-/** Height of the DOM chrome (title bar) on top of the body, world units. */
 export const TERM_HEADER_H = 30;
-/** Inner padding around the body, world units. */
 const TERM_PAD = 6;
 
 interface CellMetrics {
   font: string;
-  /** Cell size in world units at TERM_FONT_SIZE. */
   w: number;
   h: number;
-  /** Baseline offset from the cell top, as a fraction of the cell height. */
   ascent: number;
 }
 
@@ -25,12 +17,10 @@ let cached: CellMetrics | null = null;
 
 export function fontFamily(): string {
   if (typeof document === 'undefined') return 'ui-monospace, Menlo, Consolas, monospace';
-  // Settings → Canvas → Terminal font (falls back to the app's mono stack).
   const own = canvasPrefs().terminal.font_family.trim();
   return own ? `${/[\s,]/.test(own) && !/["',]/.test(own) ? `"${own}"` : own}, ${terminalFont()}` : terminalFont();
 }
 
-/** Measures the monospace advance once (cheap, cached until `resetMetrics`). */
 export function cellMetrics(): CellMetrics {
   if (cached) return cached;
   const font = fontFamily();
@@ -56,7 +46,6 @@ export function cellMetrics(): CellMetrics {
       }
     }
   } catch {
-    // keep the estimate
   }
   cached = { font, w, h: TERM_FONT_SIZE * TERM_LINE_HEIGHT, ascent };
   return cached;
@@ -73,7 +62,6 @@ export interface Rect {
   h: number;
 }
 
-/** Body rectangle of a terminal node in world units. */
 export function bodyRect(node: { x: number; y: number; w: number; h: number }): Rect {
   const p = termPadding();
   return {
@@ -84,16 +72,11 @@ export function bodyRect(node: { x: number; y: number; w: number; h: number }): 
   };
 }
 
-/** Body padding: the base margin plus Settings → Canvas → Terminal padding. */
 export function termPadding(): { x: number; y: number } {
   const p = canvasPrefs().terminal.padding;
   return { x: TERM_PAD + Math.max(0, p.x || 0), y: Math.max(0, p.y || 0) };
 }
 
-/**
- * Font scale of one terminal: its own size (node `data.appearance.fontSize`,
- * ⌘⇧+/⌘⇧−), else Settings → Canvas → Terminal font size, over the base 13.
- */
 export function termFontScale(node: { data?: unknown } | null | undefined): number {
   const a = (node?.data as { appearance?: { fontSize?: unknown } } | null | undefined)?.appearance;
   const own = typeof a?.fontSize === 'number' && a.fontSize > 0 ? a.fontSize : 0;
@@ -102,7 +85,6 @@ export function termFontScale(node: { data?: unknown } | null | undefined): numb
   return Math.max(0.5, Math.min(3, size / TERM_FONT_SIZE));
 }
 
-/** Columns and rows that fit a node of this size (never below 2×1). */
 export function gridSizeFor(w: number, h: number, fontScale = 1): { cols: number; rows: number } {
   const m = cellMetrics();
   const b = bodyRect({ x: 0, y: 0, w, h });

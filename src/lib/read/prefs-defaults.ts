@@ -1,5 +1,3 @@
-// Reader defaults, apart from the rune store so plain modules and tests can use them.
-
 import type { ReaderPrefs } from "./foliate";
 
 export const DEFAULT_PREFS: ReaderPrefs = {

@@ -1,8 +1,4 @@
 <script lang="ts">
-  // Horizontal video result. Sizes:
-  //   compact  "Up next" column: thumb 168×94 radius 8, title 14/500, meta 12
-  //   search   search results: thumb up to 360 (radius 12), title 18/400, channel line with avatar 24, snippet
-  //   list     playlists / history: thumb 160×90, title 16/500
   import { t } from "$lib/i18n";
   import { agentActions } from "$lib/native-agent/actions";
   import { bestAvatar, fmtCount, fmtDuration, thumbUrl, timeAgo, videoThumb } from "$lib/tube/format";
@@ -26,9 +22,7 @@
   }: {
     item: VideoItem;
     size?: "compact" | "search" | "list";
-    /** Position inside `list` (for playlist playback). */
     index?: number | null;
-    /** Visible number on the left (playlists). */
     number?: number | null;
     active?: boolean;
     list?: string | null;

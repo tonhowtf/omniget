@@ -1,9 +1,4 @@
 <script lang="ts">
-  /**
-   * The external MCP servers OmniGet connects to, one row each. A row shows
-   * what is already known (transport, cached tool count, last error) and
-   * nothing here opens a connection: that is the "test" button, and only it.
-   */
   import { t } from "$lib/i18n";
   import { mcpErrorKey, type McpServerRow, type McpTestResult } from "$lib/llm/mcp";
   import AgentOrb from "../AgentOrb.svelte";
@@ -120,8 +115,6 @@
     margin-left: var(--space-2);
   }
 
-  /* At phone width four buttons and a command line cannot share a row: the
-     command ends up one character per line. Stack instead. */
   @media (max-width: 720px) {
     .mcp-row {
       flex-direction: column;

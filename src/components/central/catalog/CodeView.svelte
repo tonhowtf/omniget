@@ -1,5 +1,4 @@
 <script lang="ts">
-  /** Plain source view with line numbers (text is never interpreted). */
   let {
     text = "",
     wrap = false,

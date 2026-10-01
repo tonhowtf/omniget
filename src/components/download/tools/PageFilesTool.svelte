@@ -80,7 +80,6 @@
           formatId: null,
           referer: result?.page_url ?? null,
           cookieSlug: null,
-          // A .torrent keeps its own engine; everything else is a plain file.
           engine: f.kind === "torrent" ? null : "direct_file",
         });
         queued++;

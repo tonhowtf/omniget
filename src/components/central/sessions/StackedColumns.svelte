@@ -1,14 +1,4 @@
 <script lang="ts">
-  /**
-   * Colunas empilhadas (ou uma série só) em SVG próprio.
-   *
-   * Uma coluna por categoria ordenada (dia, hora), segmentos na ordem fixa das
-   * séries, 2px de superfície entre segmentos, topo arredondado de 4px, grade
-   * recessiva, pico rotulado direto. Hover e teclado (setas) mostram um
-   * tooltip com todas as séries daquela coluna; a tabela de valores fica em
-   * "Valores" para quem não usa ponteiro e para o contraste baixo no tema
-   * claro. Com uma série só não há legenda: o título do cartão nomeia.
-   */
   import { t } from "$lib/i18n";
   import "./viz.css";
 
@@ -19,11 +9,9 @@
     rows: Row[];
     series: Series[];
     format?: (v: number) => string;
-    /** Rótulo do eixo x a cada N colunas (0 = automático). */
     tickEvery?: number;
     height?: number;
     label: string;
-    /** Clique numa coluna (ex.: abrir o dia). */
     onpick?: (key: string) => void;
   }
 
@@ -56,7 +44,6 @@
     return PAD_TOP + plotH - (v / axisTop) * plotH;
   }
 
-  /** Segmentos da coluna i: [serie, y0, y1]. */
   function segs(i: number): { s: Series; top: number; h: number; last: boolean }[] {
     const out: { s: Series; top: number; h: number; last: boolean }[] = [];
     let acc = 0;

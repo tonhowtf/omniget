@@ -1,7 +1,3 @@
-// Marquee selection (02-motor-do-canvas §4.3): dragging left-to-right selects
-// what is fully inside, right-to-left what intersects (CAD convention); ⌥
-// inverts. Group frames never block the marquee.
-
 import type { CanvasStore } from '../model/store.svelte';
 import { drawingBounds } from '../model/store.svelte';
 import type { Rect } from '../model/types';
@@ -23,7 +19,6 @@ function marqueeContains(m: MarqueeState): boolean {
   return m.invert ? !ltr : ltr;
 }
 
-/** Node and drawing ids the marquee picks. */
 export function marqueeHits(store: CanvasStore, m: MarqueeState): string[] {
   const r = marqueeRect(m);
   const contain = marqueeContains(m);

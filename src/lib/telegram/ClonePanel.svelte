@@ -1,5 +1,4 @@
 <script lang="ts">
-  // Clone a chat into a new or existing channel, with resumable sessions.
   import { onMount } from "svelte";
   import { listen, type UnlistenFn } from "@tauri-apps/api/event";
   import { t } from "$lib/i18n";

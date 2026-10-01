@@ -1,5 +1,4 @@
 <script lang="ts">
-  // Stroke icon on a 24×24 viewBox; `d` may hold several subpaths.
   let { d, size = 16 }: { d: string; size?: number } = $props();
 </script>
 

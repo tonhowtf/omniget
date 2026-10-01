@@ -1,9 +1,6 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
 
-  /// Pibble illustration from static/washmybelly/{art}.webp. Until the art
-  /// ships (or if it fails to load) a soap-bubble tile stands in, tinted by
-  /// mood, so the state never looks broken.
   type Art = "sleeping" | "happy" | "worried" | "searching";
   let {
     art = "sleeping",

@@ -1,5 +1,4 @@
 <script lang="ts">
-  // Small line icons for the Telegram screen (24px grid, 1.8 stroke).
   let { name, size = 14 }: { name: string; size?: number } = $props();
 
   const PATHS: Record<string, string> = {

@@ -1,7 +1,4 @@
 <script lang="ts">
-  // Seek bar drawn from precomputed peaks (0-255 per bucket), after
-  // wavesurfer.js: rounded bars, hi-DPI canvas, played part in the accent
-  // colour, a hover line with the time under the pointer.
   import { onMount } from "svelte";
   import { fmtTime } from "$lib/music/library";
   import { registerSemantic } from "$lib/native-agent/semantic";
@@ -27,7 +24,6 @@
     barGap?: number;
     normalize?: boolean;
     label?: string;
-    /** extra marks in seconds (intro end, outro start) */
     markers?: { at: number; kind: string }[];
   } = $props();
 
@@ -76,7 +72,6 @@
     const step = barWidth + barGap;
     const bars = Math.max(1, Math.floor(width / step));
     if (!n) {
-      // no waveform yet: a slim bar
       const y = height / 2 - 2;
       g.fillStyle = rest;
       g.beginPath();
@@ -96,7 +91,6 @@
     }
     const cut = progress * width;
     for (let b = 0; b < bars; b++) {
-      // max over the peaks this bar covers
       const s = Math.floor((b / bars) * n);
       const e = Math.max(s + 1, Math.floor(((b + 1) / bars) * n));
       let v = 0;

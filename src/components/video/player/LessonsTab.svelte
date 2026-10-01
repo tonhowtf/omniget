@@ -1,5 +1,4 @@
 <script lang="ts">
-  // "Lessons" tab: the course outline, or the folder queue for loose videos.
   import { t } from "$lib/i18n";
   import { fmtTime } from "$lib/video/format";
   import { openPlayer, player } from "$lib/video/player.svelte";

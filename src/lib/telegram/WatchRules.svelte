@@ -1,5 +1,4 @@
 <script lang="ts">
-  // "Save new" tab: rules that download new media from chats on their own.
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "$lib/i18n";
@@ -39,7 +38,6 @@
     }
   }
 
-  // Refresh the "duplicates avoided" count after each run.
   $effect(() => {
     if (Object.keys(watchState.lastRun).length) void loadStats();
   });

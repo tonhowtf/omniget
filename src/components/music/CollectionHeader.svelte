@@ -20,7 +20,6 @@
     title: string;
     subtitle?: string;
     cover?: string | null;
-    /** up to 4 hashes: drawn as a 2x2 collage (playlists) */
     covers?: string[];
     round?: boolean;
     icon?: string;

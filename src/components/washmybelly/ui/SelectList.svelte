@@ -9,7 +9,6 @@
     return /^(\/|~[\\/]|[A-Za-z]:\\|\\\\)/.test(s);
   }
 
-  /// Keeps the DOM `indeterminate` flag in sync (there is no attribute).
   function indeterminate(node: HTMLInputElement, on: boolean) {
     node.indeterminate = on;
     return {
@@ -39,9 +38,6 @@
   import RiskBadge from "./RiskBadge.svelte";
   import Icon from "./Icon.svelte";
 
-  /// Grouped inset list with a checkbox per row. Groups get a header with
-  /// their subtotal and a "select group" box; long lists (more than
-  /// `virtualizeAt` rows) render only what is on screen.
   let {
     items,
     selected = $bindable(new Set<string>()),
@@ -57,14 +53,12 @@
     items: Item[];
     selected?: Set<string>;
     showRisk?: boolean;
-    /// Turns a group key into its heading (an i18n lookup, usually).
     groupLabel?: (key: string) => string;
     showToolbar?: boolean;
     collapsible?: boolean;
     virtualizeAt?: number;
     maxHeight?: number;
     emptyText?: string;
-    /// Extra content at the end of a row (a "Reveal" button, a tag).
     trailing?: Snippet<[Item]>;
   } = $props();
 
@@ -102,7 +96,6 @@
     if (!d) return "";
     return it.detailIsPath || looksLikePath(d) ? shortenPath(d, 72) : d;
   }
-  // Lists without sizes (updates, startup) show no "0 B" totals.
   let hasSizes = $derived(items.some((it) => it.bytes !== undefined));
 </script>
 

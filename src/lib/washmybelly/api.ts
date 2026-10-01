@@ -1,9 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { Caps } from "$components/washmybelly/registry";
 
-/// Every wmb_* tool the screen calls goes through the same body an agent
-/// gets over MCP; only `washmybelly_ui` actions are screen-only.
-
 export type Risk = "read" | "reversible" | "destructive" | "extreme";
 
 type PlanItemPreview = {
@@ -84,7 +81,6 @@ export function monitorStop(): Promise<void> {
 
 const UNITS = ["B", "KB", "MB", "GB", "TB"];
 
-/// Decimal units, like Finder and Explorer's "size on disk" labels.
 export function formatBytes(n: number | null | undefined): string {
   if (!n || n < 0) return "0 B";
   let v = n;

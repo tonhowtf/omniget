@@ -10,9 +10,6 @@
   import SettingsChannels from "./SettingsChannels.svelte";
   import SettingsRules from "./SettingsRules.svelte";
 
-  // `section` and `searchActive` are kept for callers of the old drill-down
-  // panel; every group is now rendered in place and the shell focuses
-  // `settings-group-<section>` (collapsed groups open on `settings-reveal`).
   let {}: { searchActive?: boolean; section?: string } = $props();
 
   let settings = $derived(getSettings());
@@ -20,13 +17,11 @@
 
 {#if settings}
   <div class="settings-downloads">
-    <!-- Primary: where files go, which quality, subtitles and paste detection. -->
     <OutputSection part="files" />
     <QualitySection part="quality" />
     <SubtitlesSection />
     <ClipboardHotkeysSection part="clipboard" />
 
-    <!-- Advanced groups, collapsed until opened, searched or linked. -->
     <OutputSection part="output" />
     <QualitySection part="presets" />
     <ClipboardHotkeysSection part="hotkeys" />

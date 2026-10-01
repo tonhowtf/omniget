@@ -70,9 +70,6 @@
     return platform.charAt(0).toUpperCase() + platform.slice(1);
   }
 
-  // Rótulo do stream real ("1080p60 · mp4 · avc1"), montado do `info.*` que o
-  // yt-dlp manda no template de progresso — é o que está descendo, não o que
-  // foi pedido.
   function streamLabel(s: StreamInfo): string {
     const parts: string[] = [];
     const v = s.vcodec && s.vcodec !== "none" ? s.vcodec.split(".")[0] : null;
@@ -102,8 +99,6 @@
     return audio ? streamLabel(audio) : streamLabel(all[all.length - 1]);
   }
 
-  // Tamanho anunciado pelos streams, quando o total real ainda não existe
-  // (bv+ba: o áudio só revela o tamanho quando começa).
   function plannedSize(item: GenericDownloadItem): number | null {
     const all: StreamInfo[] = [...(item.streamsDone ?? []), ...(item.stream ? [item.stream] : [])];
     let sum = 0;
@@ -228,7 +223,6 @@
       await invoke("retry_download", { downloadId: id });
     } catch (e: any) {
       const msg = typeof e === "string" ? e : e.message ?? $t("common.error");
-      // Reloaded from history/recovery: the stored link lost its key.
       showToast("error", msg.startsWith("LINK_EXPIRED") ? ($t("downloads.history_link_expired") as string) : msg);
     }
   }
@@ -325,14 +319,11 @@
     kind: QueueKind | null;
   };
 
-  // `?view=tools&tool=<id>` opens Downloads › Tools straight on a tool.
   const initialTool = page.url.searchParams.get("tool");
   let viewMode = $state<"active" | "history" | "tools">(
     page.url.searchParams.get("view") === "tools" || initialTool ? "tools" : "active",
   );
 
-  // The toolbar acts on the list beneath it: view switcher in the centre,
-  // bulk actions trailing. Registered here so the shell renders them.
   $effect(() => {
     const actions: ToolbarAction[] = [];
     if (viewMode === "active") {
@@ -409,8 +400,6 @@
   }
 
   async function historyRetry(url: string, platform: string) {
-    // History only keeps the redacted URL; a signed link lost its key and
-    // would fail on the server with a confusing error.
     if (url.includes("[REDACTED]")) {
       showToast("error", $t("downloads.history_link_expired") as string);
       return;
@@ -1085,7 +1074,6 @@
 {/snippet}
 
 <style>
-  /* ---------- Empty state ---------- */
 
   .downloads-empty {
     display: flex;
@@ -1157,8 +1145,6 @@
       color: var(--text);
     }
   }
-
-  /* ---------- Page ---------- */
 
   .downloads-page {
     display: flex;
@@ -1264,16 +1250,12 @@
     color: var(--accent-hi);
   }
 
-  /* ---------- List (grouped rows) ---------- */
-
   .download-list {
     display: flex;
     flex-direction: column;
     gap: 0;
   }
 
-  /* One row of title + actions, then one wrapped meta line (platform · size · speed),
-     then the progress bar. Everything that is not the header flows inline. */
   .download-item {
     display: flex;
     flex-wrap: wrap;
@@ -1566,8 +1548,6 @@
     margin-top: var(--space-2);
   }
 
-  /* ---------- History ---------- */
-
   .history-view {
     display: flex;
     flex-direction: column;
@@ -1694,8 +1674,6 @@
     margin-left: auto;
   }
 
-  /* ---------- Drag reorder ---------- */
-
   .queue-drop-zone {
     position: relative;
     border-radius: var(--radius-lg);
@@ -1737,7 +1715,6 @@
     }
   }
 
-  /* ---------- Card do item (poster + corpo) ---------- */
   .download-item {
     display: block;
     padding: var(--space-3);

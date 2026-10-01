@@ -31,7 +31,6 @@
     error = null;
     resultPath = null;
     try {
-      // The export runs in the background; its end arrives as an event.
       let exportId: number | null = null;
       const done = new Promise<{ success: boolean; path?: string; error?: string | null }>((resolve) => {
         const off = listen<{ export_id: number; success: boolean; path?: string; error?: string | null }>(

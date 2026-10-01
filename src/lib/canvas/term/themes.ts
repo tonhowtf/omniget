@@ -1,13 +1,8 @@
-// Terminal colour schemes for Settings → Canvas → Terminal theme. `system`
-// follows the app's CSS tokens (see $components/central/terminal/theme);
-// the others are fixed schemes (iTerm2 / Ghostty classics).
-
 interface TermScheme {
   background: string;
   foreground: string;
   cursor: string;
   selectionBackground: string;
-  /** 16 ANSI colours: black, red, green, yellow, blue, magenta, cyan, white, then bright. */
   ansi: string[];
 }
 
@@ -100,7 +95,6 @@ const TERM_SCHEMES: Record<string, TermScheme> = {
 
 export const TERM_THEME_IDS = ['system', ...Object.keys(TERM_SCHEMES)];
 
-/** The xterm-style theme object for a scheme id, or null for `system`/unknown. */
 export function schemeTheme(id: string | null | undefined): Record<string, string> | null {
   const s = id ? TERM_SCHEMES[id] : undefined;
   if (!s) return null;
@@ -118,15 +112,9 @@ export function schemeTheme(id: string | null | undefined): Record<string, strin
   return out;
 }
 
-/** Ids of the user's own schemes (`~/.omniget/terminal/themes`), loaded by `loadUserSchemes`. */
 const userIds = new Set<string>();
 let userKey = '';
 
-/**
- * Reads the user's Ghostty themes through Rust and merges them into
- * `TERM_SCHEMES` (a built-in id is never replaced). Returns true when the
- * set changed, so the renderer rebuilds its palettes.
- */
 export async function loadUserSchemes(): Promise<boolean> {
   let list: Array<TermScheme & { id: string }>;
   try {

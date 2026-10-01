@@ -1,9 +1,4 @@
 <script lang="ts">
-  // Import review of a partitura before anything runs: the author's
-  // description, every startup command (editable here), role conflicts
-  // (Keep mine / Use theirs / Keep both), portals, hooks, budget and
-  // permissions. "Adding a partitura to a canvas starts its terminals and
-  // runs their commands on your machine."
   import { t } from "$lib/i18n";
   import { toBody } from "$lib/canvas/to-body";
   import { errorText } from "$lib/canvas/floors/api";
@@ -19,7 +14,6 @@
   interface Props {
     workspaceId: string;
     floorId: string;
-    /** Library id, or a partitura read from a file. */
     source: { id?: string; partitura?: LibraryPartitura };
     at: { x: number; y: number };
     onClose: () => void;

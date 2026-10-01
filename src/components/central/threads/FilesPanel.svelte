@@ -1,7 +1,4 @@
 <script lang="ts">
-  // Files surface: the working-tree changes of the thread's folder (HEAD →
-  // disk) and the files this thread touched, both as folder trees. A click
-  // opens the file in the Diff tab.
   import { t } from "$lib/i18n";
   import ChangedFilesCard from "$components/central/vcs/ChangedFilesCard.svelte";
   import { vcsWorkingChanges, vcsError, type ChangeSummary } from "$lib/central/vcs";

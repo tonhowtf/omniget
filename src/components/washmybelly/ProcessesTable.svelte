@@ -16,10 +16,6 @@
     type SortKey,
   } from "$lib/washmybelly/monitor";
 
-  // Top processes, sortable and filterable, with "End" by exact PID.
-  // Design after 21st.dev "Sortable Table" (ddoemonn): uppercase headers
-  // that are buttons, an arrow only on the active column, hairline rows,
-  // aria-sort and a polite live region; ported to Svelte 5 without motion.
   const LIMIT = 50;
   const REFRESH_MS = 3000;
 

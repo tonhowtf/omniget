@@ -1,7 +1,3 @@
-// Live list of Omni's summaries for the canvas panel: loaded once from
-// `canvas_companion_history`, then fed by `canvas://companion`. Reference
-// counted so several panels share one listener.
-
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import {
   EVENT_COMPANION,
@@ -35,10 +31,8 @@ class CompanionFeed {
       );
       const past = await history(undefined, CAP);
       const known = new Set(this.entries.map((x) => x.id));
-      // History is newest first; the live list too.
       this.entries = [...this.entries, ...past.filter((x) => !known.has(x.id))].slice(0, CAP);
     } catch {
-      // Outside Tauri: the list stays empty.
     }
   }
 

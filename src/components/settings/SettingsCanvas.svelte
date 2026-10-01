@@ -1,10 +1,4 @@
 <script lang="ts">
-  /**
-   * Settings → World → Canvas: look and gestures of the agent canvas, New
-   * Item Defaults, terminals, attention, sleep prevention and the user's
-   * agent presets ("bring your own agent"). Writes the whole `canvas`
-   * section (Rust normalises it: grid snap, clamps) so removing a preset works.
-   */
   import { t } from "$lib/i18n";
   import { showToast } from "$lib/stores/toast-store.svelte";
   import {
@@ -43,7 +37,6 @@
 
   const BUILTIN = ["shell", "claude", "codex", "gemini", "opencode", "ollama"];
 
-  // Shortcuts (Maestri Settings → Shortcuts): record a combination per action.
   const SHORTCUT_IDS = Object.keys(SHORTCUT_ACTIONS);
   const isMacOs = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
   let recording = $state<string | null>(null);
@@ -84,7 +77,6 @@
     recording = null;
     void save((c) => {
       const map: Record<string, string> = { ...(c.shortcuts ?? {}) };
-      // A combination recorded here leaves the action that had it unbound.
       if (combo) for (const other of SHORTCUT_IDS) if (other !== id && currentCombo(other) === combo) map[other] = "";
       map[id] = combo;
       c.shortcuts = map;
@@ -99,7 +91,6 @@
     });
   }
 
-  // Preset editor.
   type Draft = { name: string; command: string; args: string; env: string; icon: string; color: string; maestro: boolean; chat: boolean; cwd: string };
   const EMPTY: Draft = { name: "", command: "", args: "", env: "", icon: "", color: "", maestro: false, chat: false, cwd: "" };
   let draft = $state<Draft>({ ...EMPTY });

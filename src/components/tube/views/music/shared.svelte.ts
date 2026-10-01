@@ -1,6 +1,3 @@
-// Helpers shared by the OmniTube Music screens and cards: turning any Item
-// into something playable, opening it, and the song/collection actions of
-// the ⋮ menus. Views stay thin; the playback engine is `$lib/tube/music`.
 import { get } from "svelte/store";
 import { t } from "$lib/i18n";
 import * as api from "$lib/tube/api";
@@ -11,7 +8,6 @@ import type { AlbumPage, Item, SongItem } from "$lib/tube/types";
 
 const tr = (key: string, vars?: Record<string, unknown>) => get(t)(key, vars) as string;
 
-/** Account state for the Music face (sign-in banner, library invite). Loaded once. */
 export const macct = $state({ loaded: false, logged: false, name: null as string | null, avatar: null as string | null });
 let acctLoading: Promise<void> | null = null;
 
@@ -47,7 +43,6 @@ export async function signIn(): Promise<boolean> {
   }
 }
 
-/** Songs and music videos both play in the music player. */
 export function songFromItem(it: Item): SongItem | null {
   if (it.kind === "song") return it;
   if (it.kind === "video") {
@@ -77,12 +72,10 @@ export function songsOf(items: Item[]): SongItem[] {
   return out;
 }
 
-/** Stable key for keyed #each over items of any kind. */
 export function itemKey(it: Item, i: number): string {
   return `${it.kind}:${"id" in it ? it.id : it.browse_id + (it.params ?? "")}:${i}`;
 }
 
-/** Queue source string for a collection, matched against `mplayer.context`. */
 export function ctxOf(it: Item): string | null {
   if (it.kind === "album") return `album:${it.id}`;
   if (it.kind === "playlist") return `playlist:${it.id}`;
@@ -98,7 +91,6 @@ export function isPlayingCtx(ctx: string | null): boolean {
   return !!ctx && mplayer.context === ctx && mplayer.playing;
 }
 
-/** Card/row click on the body: navigate (collections) or play (songs). */
 export function openItem(it: Item): void {
   switch (it.kind) {
     case "album":
@@ -126,7 +118,6 @@ export function openItem(it: Item): void {
   }
 }
 
-/** Plays an album page's tracks, keeping the album as the queue context. */
 export function playAlbumPage(a: AlbumPage, start = 0, shuffle = false): void {
   if (!a.tracks.length) return;
   if (shuffle) {
@@ -138,7 +129,6 @@ export function playAlbumPage(a: AlbumPage, start = 0, shuffle = false): void {
   void playSongs(a.tracks, start, `album:${a.id}`);
 }
 
-/** The floating play button of a card. */
 export async function playItem(it: Item, shuffle = false): Promise<void> {
   try {
     switch (it.kind) {
@@ -250,12 +240,10 @@ export async function copyLink(url: string): Promise<void> {
   }
 }
 
-/** "Artist A, Artist B" */
 function artistNames(s: { artists: { name: string }[] }): string {
   return s.artists.map((a) => a.name).join(", ");
 }
 
-/** Second line under a card title, by kind. */
 export function subtitleOf(it: Item): string {
   switch (it.kind) {
     case "song":
@@ -281,14 +269,12 @@ export function titleOf(it: Item): string {
   return it.kind === "artist" || it.kind === "channel" ? it.name : it.title;
 }
 
-/** Most items carry `thumbs`; channels carry a single avatar URL. */
 export function thumbsOf(it: Item) {
   if (it.kind === "channel") return it.avatar ? [{ url: it.avatar, width: 176, height: 176 }] : [];
   if (it.kind === "mood") return [];
   return it.thumbs;
 }
 
-/** Infinite scroll: calls `load` when `node` gets near the viewport. */
 export function nearEnd(node: HTMLElement, load: () => void) {
   let cb = load;
   const io = new IntersectionObserver(

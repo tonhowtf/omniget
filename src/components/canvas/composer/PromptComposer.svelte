@@ -1,14 +1,4 @@
 <script lang="ts">
-  // Prompt Composer (Maestri H): ⌘⇧P floats a rich input over the focused
-  // terminal node and follows the focus. `@` mentions what the terminal is
-  // connected to (expanded into tags naming the skill to load) plus File…,
-  // Maestro, actions, floors and workspaces; `#` where a mention could start
-  // opens an inline picker of the terminal folder's files and inserts the
-  // relative path ("issue #42" stays text); pasted screenshots are saved to <ws>/inbox/attachments and go in as
-  // paths, large pastes fold into pills. One draft per terminal. With the
-  // composer empty, arrows, Return and Tab go to the terminal. Send = bracketed
-  // paste + Enter into the terminal.
-  // Mounted once by Canvas.svelte inside the screen-space layer.
   import { canvasPrefs } from "$lib/canvas/prefs.svelte";
   import { onDestroy, onMount, tick } from "svelte";
   import { t } from "$lib/i18n";
@@ -73,8 +63,6 @@
   const options = $derived(menu ? filterTargets(targets, menu.query).slice(0, 12) : []);
   const connectedCount = $derived(targets.filter((x) => x.id.startsWith("remote:") || !x.id.includes(":")).length);
 
-  // The MCP driver pastes through this event (a synthetic ClipboardEvent
-  // carries no data in WebKit); it runs the same pill logic as a real paste.
   $effect(() => {
     const el = ta;
     if (!el) return;
@@ -96,7 +84,6 @@
     try {
       localStorage.setItem("omniget.canvas.composer.dock", d);
     } catch {
-      // storage unavailable
     }
     place();
   }
@@ -140,7 +127,6 @@
     if (refocusTerminal && nodeId) engine.selection.focus(nodeId);
   }
 
-  // Follow the focus to another terminal while open (Maestri).
   $effect(() => {
     const f = engine.selection.focused;
     if (open && isTerminal(f) && f !== nodeId) attach(f);
@@ -201,7 +187,6 @@
     if (changed) loadFiles();
   }
 
-  /** Folder the `#` picker lists: the terminal's live cwd, its launch cwd, or the workspace folder. */
   function terminalDir(): string[] {
     const n = node;
     const out: string[] = [];
@@ -224,7 +209,6 @@
     }
     const seq = ++fileSeq;
     fileTimer = setTimeout(async () => {
-      // A terminal in SSH/Docker/runtime: list the files over there (Maestri).
       if (nodeId) {
         try {
           const live = node ? termLive(terminalIdOf(node)).cwd?.replace(/^file:\/\/[^/]*/, "") : undefined;
@@ -243,7 +227,6 @@
             return;
           }
         } catch {
-          // The environment did not answer: fall back to this machine.
         }
       }
       for (const dir of terminalDir()) {
@@ -253,7 +236,6 @@
             : (await filesList(workspaceId, dir, "")).map((e) => (e.isDir ? `${e.path}/` : e.path));
           if (seq !== fileSeq) return;
           const q = f.query.toLowerCase();
-          // Name matches first, then shorter paths.
           hits.sort((a, b) => {
             const an = (a.split("/").filter(Boolean).pop() ?? a).toLowerCase().startsWith(q) ? 0 : 1;
             const bn = (b.split("/").filter(Boolean).pop() ?? b).toLowerCase().startsWith(q) ? 0 : 1;
@@ -263,7 +245,6 @@
           fileRoot = dir;
           return;
         } catch {
-          // Not a root of this workspace: try the next folder.
         }
       }
       if (seq === fileSeq) fileHits = [];
@@ -275,7 +256,6 @@
     const caret = ta.selectionStart ?? draft.text.length;
     const isDir = rel.endsWith("/");
     if (isDir) {
-      // Folders drill in: keep the picker open under the folder.
       insertAt(fileMenu.start, caret, `#${rel}`);
       void tick().then(updateMenu);
       return;
@@ -307,7 +287,6 @@
     if (!menu || !ta) return;
     const caret = ta.selectionStart ?? draft.text.length;
     if (target.special === "file") {
-      // File… = the `#` picker in place of the `@query`.
       insertAt(menu.start, caret, "#");
       menu = null;
       void tick().then(updateMenu);
@@ -415,7 +394,6 @@
     }
   }
 
-  /** Text paste (the real `paste` event and the MCP `composerPaste` both land here). */
   function pasteText(text: string): boolean {
     const r = pastePill(draft, text);
     if (!r) return false;
@@ -441,7 +419,6 @@
         try {
           const ext = f.type.split("/")[1] || "png";
           let path = await attachmentSave(workspaceId, f.name || `screenshot.${ext}`, await blobToBase64(f));
-          // On a remote terminal the image goes to /tmp/omniget-drops there.
           if (nodeId) path = (await envDrop(nodeId, [path]))[0] ?? path;
           insert(pathToken(path));
         } catch (err) {

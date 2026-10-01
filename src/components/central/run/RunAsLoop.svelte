@@ -1,10 +1,4 @@
 <script lang="ts">
-  /**
-   * "Run as an OmniGet Loop" for a catalog loop: pick the runner (roster
-   * agent, Claude/Codex account, ACP agent or a coding CLI), the project, where
-   * the loop's referenced components get installed, then the interval, stop
-   * check and budget (rounds, minutes, cost) the Loops engine enforces.
-   */
   import { t } from "$lib/i18n";
   import { showToast } from "$lib/stores/toast-store.svelte";
   import ProjectPicker from "$components/central/catalog/ProjectPicker.svelte";
@@ -45,7 +39,6 @@
   let busy = $state(false);
   let error = $state("");
 
-  // editable loop fields
   let name = $state("");
   let prompt = $state("");
   let schedule = $state("");

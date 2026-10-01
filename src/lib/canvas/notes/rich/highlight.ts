@@ -1,9 +1,3 @@
-// Small syntax highlighter for fenced code in notes and chat (Maestri colours
-// fenced blocks by the info string). A table-driven tokenizer per language
-// family: comments, strings, numbers, keywords, types, function calls and
-// punctuation. No dependency; output is a list of tokens the caller turns
-// into DOM (never HTML strings), so nothing here can inject markup.
-
 export type TokenKind = 'plain' | 'comment' | 'string' | 'number' | 'keyword' | 'type' | 'fn' | 'punct' | 'tag' | 'attr' | 'var';
 
 export interface Token {
@@ -18,13 +12,9 @@ interface Lang {
   line?: string[];
   block?: [string, string][];
   strings: string[];
-  /** Triple-quoted strings (python). */
   triple?: boolean;
-  /** `$name` variables (bash, php). */
   dollarVars?: boolean;
-  /** Rust lifetimes / char literals need care: 'a is not a string start. */
   rustChars?: boolean;
-  /** Everything is case-insensitive keywords (sql). */
   ci?: boolean;
 }
 
@@ -139,7 +129,6 @@ const LANGS: Record<string, Lang | 'markup'> = {
   html: 'markup', xml: 'markup', svg: 'markup', svelte: 'markup', vue: 'markup',
 };
 
-/** Language of a `language-xxx` class or info string, or null when unknown. */
 export function langOf(info: string | null | undefined): string | null {
   const l = (info ?? '').trim().toLowerCase().split(/\s+/)[0] ?? '';
   return l && l in LANGS ? l : null;
@@ -168,7 +157,6 @@ function tokenizeMarkup(src: string): Token[] {
       const tag = m ? m[0] : '<';
       push(out, 'tag', tag);
       i += tag.length;
-      // attributes until '>'
       while (i < src.length && src[i] !== '>') {
         const rest = src.slice(i);
         const attr = /^[\w:@.#-]+/.exec(rest);
@@ -251,7 +239,6 @@ function tokenizeLang(src: string, L: Lang): Token[] {
       continue;
     }
     if (L.rustChars && c === "'") {
-      // 'a' / '\n' are chars; 'a (no closing quote soon) is a lifetime.
       const m = /^'(?:\\.|[^'\\])'/.exec(src.slice(i, i + 12));
       if (m) {
         push(out, 'string', m[0]);
@@ -297,7 +284,6 @@ function tokenizeLang(src: string, L: Lang): Token[] {
     if (idStart.test(c)) {
       const m = /^[A-Za-z_$@][\w$-]*/.exec(src.slice(i));
       let w = m ? m[0] : c;
-      // Hyphens only belong to identifiers in CSS/shell-ish languages.
       if (L !== CSS && L !== SH && L !== YAML) w = w.split('-')[0] || c;
       const key = L.ci ? w.toLowerCase() : w;
       let kind: TokenKind = 'plain';
@@ -315,7 +301,6 @@ function tokenizeLang(src: string, L: Lang): Token[] {
     push(out, /[{}()[\];,.:=<>+\-*/%!&|^~?]/.test(c) ? 'punct' : 'plain', c);
     i++;
   }
-  // JSON: strings followed by ':' are keys.
   if (L === JSON_L) {
     for (let k = 0; k < out.length; k++) {
       if (out[k].kind === 'string') {
@@ -328,16 +313,13 @@ function tokenizeLang(src: string, L: Lang): Token[] {
   return out;
 }
 
-/** Tokens for `src` in `lang`; unknown languages come back as one plain token. */
 function tokenize(src: string, lang: string | null): Token[] {
   const L = lang ? LANGS[lang] : undefined;
   if (!L) return src ? [{ kind: 'plain', text: src }] : [];
-  // Very large blocks stay plain: highlighting is a nicety, not worth a stall.
   if (src.length > 200_000) return [{ kind: 'plain', text: src }];
   return L === 'markup' ? tokenizeMarkup(src) : tokenizeLang(src, L);
 }
 
-/** Fills `code` with highlighted spans (DOM only, no innerHTML). */
 export function highlightInto(code: HTMLElement, src: string, lang: string | null): void {
   const doc = code.ownerDocument;
   const frag = doc.createDocumentFragment();

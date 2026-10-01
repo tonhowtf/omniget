@@ -1,19 +1,3 @@
-/**
- * State of the `/llm` section: roster, conversations and the live turn.
- *
- * Three rules shape this file:
- *
- * 1. **Nothing runs at rest.** The `llm://turn` listener is attached when a
- *    turn starts and dropped when it ends; the delta buffer only schedules a
- *    frame while there are events waiting. With no turn there is no listener,
- *    no timer and no `requestAnimationFrame`.
- * 2. **Deltas are applied in wire order.** Events land in a FIFO buffer and a
- *    single frame drains it; a `text_delta` never overtakes a `tool_call_end`.
- * 3. **A failure is shown, never dressed as data.** A backend that cannot
- *    list the roster or the saved chats leaves the lists as they were and
- *    sets an error the rail shows (U4: the old demo roster and canned turn
- *    are gone; the screenshot harness answers with its own fixture).
- */
 import { invoke } from "@tauri-apps/api/core";
 import type {
   AgentDef,
@@ -41,14 +25,10 @@ import { effectiveModelLabel, isRoomId, isRoomSession } from "$lib/llm/types";
 import { getJobs, reloadJobs } from "$lib/stores/llm-jobs-store.svelte";
 import { diagnoseConnectionError } from "$lib/llm/connection-setup";
 
-// ── Frame scheduler (seam: vitest runs in node, with no rAF) ────────────
-
 type FrameScheduler = (run: () => void) => () => void;
 
 function defaultScheduler(run: () => void): () => void {
   if (typeof requestAnimationFrame === "function") {
-    // A hidden or covered window gets no frames; the timer keeps the turn
-    // moving (and finishing) while the user is in another app.
     let done = false;
     const once = () => {
       if (done) return;
@@ -71,46 +51,26 @@ function defaultScheduler(run: () => void): () => void {
 
 let scheduler: FrameScheduler = defaultScheduler;
 
-// ── State ───────────────────────────────────────────────────────────────
-
 let agents = $state<AgentDef[]>([]);
 let rosterAvailable = $state(true);
-/** The saved chats could not be read (the rail says so and offers a retry). */
 let conversationsError = $state<string | null>(null);
 let conversations = $state<Conversation[]>([]);
 let activeConversationId = $state<string | null>(null);
-/** Composer text stays in memory and is isolated by conversation identity. */
 let conversationDrafts = $state<Record<string, string>>({});
 let turn = $state<TurnState | null>(null);
 let toolAsk = $state<ToolAsk | null>(null);
-/**
- * Questions of turns this chat does not drive (mission tasks, background
- * jobs). They are kept, not dropped: the conversation that owns the job and
- * the Missions page show them. Each expires with the broker's deadline.
- */
 let heldAsks = $state<(ToolAsk & { receivedMs: number })[]>([]);
-/**
- * Only a safety net now: every way out of a question (answer, expiry,
- * cancel) arrives as `omni://tool-resolved`, and a job's question may wait
- * as long as the job's deadline (30 min in chat, 60 min in a job by
- * default), far past the old fixed 120 s.
- */
 const HELD_ASK_TTL_MS = 24 * 60 * 60 * 1000;
 let errorKey = $state<string | null>(null);
 let rosterLoadError = $state<string | null>(null);
 let conversationListLoadError = $state<string | null>(null);
 let historyLoadErrors = $state<Record<string, string | null>>({});
 let historyLoading = $state<Record<string, boolean>>({});
-/** How the last permission request of a conversation ended when it did not get an answer. */
 let lastAsk = $state<{ conversationId: string; tool: string; state: "expired" | "cancelled" } | null>(null);
-/** Messages sent while a turn was running: they wait, visible and cancelable. */
 let queue = $state<QueuedMessage[]>([]);
-/** Last known end of the work of each conversation (never invented). */
 let outcomes = $state<Record<string, TurnStatus>>({});
-/** Latest `assist://run` update per conversation id. */
 let runUpdates = $state<Record<string, RunUpdate>>({});
 let rooms = $state<Room[]>([]);
-/** Live member turns of rooms, by run (request) id. */
 let roomLive = $state<Record<string, { runId: string; roomId: string; botId: string; text: string }>>({});
 let roomActivity = $state<Record<string, { runs: RoomRun[]; tasks: RoomTask[] }>>({});
 
@@ -123,15 +83,12 @@ let idCounter = 0;
 let startingRequestId: string | null = null;
 let roomUnlisten: (() => void) | null = null;
 let draining = false;
-/** Optimistic room messages not yet confirmed by the backend. */
 const pendingRoomMessages = new Set<string>();
 
 function nextId(prefix: string): string {
   idCounter += 1;
   return `${prefix}-${Date.now().toString(36)}-${idCounter}`;
 }
-
-// ── Roster ──────────────────────────────────────────────────────────────
 
 export function getAgents(): AgentDef[] {
   return agents;
@@ -142,12 +99,10 @@ export function getAgent(id: string | null | undefined): AgentDef | null {
   return agents.find((a) => a.id === id) ?? null;
 }
 
-/** False once the roster could not be read or saved. */
 export function isRosterAvailable(): boolean {
   return rosterAvailable;
 }
 
-/** Why the saved chats are missing from the rail, or `null`. */
 export function getConversationsError(): string | null {
   return conversationsError;
 }
@@ -162,7 +117,6 @@ export function getHistoryLoadError(id: string | null): string | null { return i
 export function isHistoryLoading(id: string | null): boolean { return id ? historyLoading[id] ?? false : false; }
 export async function retryConversationHistory(id: string): Promise<void> { await loadHistory(id); }
 
-/** Maps a backend error to an i18n key. */
 function llmErrorKey(err: unknown): string {
   const code = String(err ?? "");
   if (code.includes("ERR_LLM_BUDGET")) return "llm.err.budget";
@@ -171,7 +125,6 @@ function llmErrorKey(err: unknown): string {
   return "llm.err.turn_failed";
 }
 
-/** Loads once per session unless `force`. Never throws. */
 export function loadRoster(force = false): Promise<void> {
   if (rosterInFlight) return rosterInFlight;
   if (rosterLoadedOnce && !force) return Promise.resolve();
@@ -184,7 +137,6 @@ export function loadRoster(force = false): Promise<void> {
         rosterAvailable = true;
         return;
       }
-      // No list at all: a backend that does not answer. Say it, invent nothing.
       rosterAvailable = false;
       errorKey = "llm.err.unavailable";
     })
@@ -201,7 +153,6 @@ export function loadRoster(force = false): Promise<void> {
   return rosterInFlight;
 }
 
-/** Creates or updates one agent. Returns false when the backend refused. */
 export async function saveAgent(agent: AgentDef): Promise<boolean> {
   const existing = agents.some((a) => a.id === agent.id);
   try {
@@ -212,7 +163,6 @@ export async function saveAgent(agent: AgentDef): Promise<boolean> {
     rosterAvailable = true;
     return true;
   } catch {
-    // The caller says it failed (its own message); nothing changes here.
     return false;
   }
 }
@@ -221,11 +171,8 @@ export async function deleteAgent(agentId: string): Promise<boolean> {
   try {
     await invoke("llm_roster_delete", { agentId });
     agents = agents.filter((a) => a.id !== agentId);
-    // Chat logs are independent records. Keep them visible and readable even
-    // when their agent is removed; the composer becomes unavailable without it.
     return true;
   } catch {
-    // The caller says it failed (its own message); nothing changes here.
     return false;
   }
 }
@@ -240,12 +187,9 @@ export async function applyTemplate(template: string): Promise<boolean> {
     }
     return false;
   } catch {
-    // The caller says it failed (its own message); nothing changes here.
     return false;
   }
 }
-
-// ── Conversations ───────────────────────────────────────────────────────
 
 export function getConversations(): Conversation[] {
   return conversations;
@@ -281,7 +225,6 @@ export function getMessages(): ChatMessage[] {
   return getActiveConversation()?.messages ?? [];
 }
 
-/** Last assistant line of an agent, for the rail preview. */
 export function lastSpokenBy(agentId: string): string {
   for (let i = conversations.length - 1; i >= 0; i--) {
     const conversation = conversations[i];
@@ -308,7 +251,6 @@ export function newConversation(agentId: string): string {
   return conversation.id;
 }
 
-/** Opens the agent's newest conversation, creating one when there is none. */
 export function selectAgent(agentId: string): string {
   const existing = [...conversations].reverse().find((c) => c.agentId === agentId && c.kind !== "group");
   if (existing) {
@@ -326,10 +268,6 @@ export function selectConversation(id: string): void {
   else if (conversation.loaded === false) void loadHistory(id);
 }
 
-/**
- * Undo took a turn back on disk: drop its bubbles (and everything after them)
- * here too. `userMessagesKept` is how many user messages the backend kept.
- */
 export function rewindConversation(id: string, userMessagesKept: number): void {
   const conversation = conversations.find((c) => c.id === id);
   if (!conversation) return;
@@ -351,7 +289,6 @@ function deleteConversation(id: string): void {
   if (activeConversationId === id) activeConversationId = conversations[0]?.id ?? null;
 }
 
-/** Per-conversation model override (`llm_switch_model`). */
 export async function switchModel(model: ModelRef): Promise<boolean> {
   const conversation = getActiveConversation();
   if (!conversation) return false;
@@ -361,36 +298,26 @@ export async function switchModel(model: ModelRef): Promise<boolean> {
     conversation.updatedAtMs = Date.now();
     return true;
   } catch {
-    // The caller says it failed (its own message); nothing changes here.
     return false;
   }
 }
-
-// ── Turn ────────────────────────────────────────────────────────────────
 
 export function getActiveTurn(conversationId?: string | null): TurnState | null {
   if (conversationId === undefined) return turn;
   return turn?.conversationId === conversationId ? turn : null;
 }
 
-/**
- * Pending `GrantMode::Ask` prompt, or `null`. With no turn of its own, the
- * open conversation also shows a question raised by a job running in it (a
- * mission made from this chat).
- */
 export function getToolAsk(conversationId: string | null = activeConversationId): ToolAsk | null {
   if (toolAsk) return turn?.conversationId === conversationId ? toolAsk : null;
   if (turn || !conversationId) return null;
   return conversationAsk(conversationId);
 }
 
-/** Questions kept for turns the chat does not drive (see `heldAsks`). */
 function getHeldAsks(): ToolAsk[] {
   const now = Date.now();
   return heldAsks.filter((a) => now - a.receivedMs < HELD_ASK_TTL_MS);
 }
 
-/** The oldest held question raised by a job of this conversation (or its per-bot sub-conversation). */
 function conversationAsk(conversationId: string): ToolAsk | null {
   const jobs = getJobs() ?? [];
   for (const ask of getHeldAsks()) {
@@ -400,13 +327,11 @@ function conversationAsk(conversationId: string): ToolAsk | null {
   return null;
 }
 
-/** Entry point for `llm://tool-ask`; exported so tests can feed it. */
 function handleToolAsk(ask: ToolAsk): void {
   if (turn && turn.requestId === ask.request_id) {
     toolAsk = ask;
     return;
   }
-  // Another turn's question (a mission task, a background job): keep it.
   const now = Date.now();
   heldAsks = [
     ...heldAsks.filter((a) => a.tool_call_id !== ask.tool_call_id && now - a.receivedMs < HELD_ASK_TTL_MS),
@@ -415,7 +340,6 @@ function handleToolAsk(ask: ToolAsk): void {
   if (!(getJobs() ?? []).some((j) => j.request_id === ask.request_id)) void reloadJobs();
 }
 
-/** Someone answered a question (here, the pet, Activity, Missions): drop it everywhere. */
 function handleToolResolved(toolCallId: string): void {
   heldAsks = heldAsks.filter((a) => a.tool_call_id !== toolCallId);
   if (toolAsk?.tool_call_id === toolCallId) toolAsk = null;
@@ -426,7 +350,6 @@ function enqueue(event: TurnEvent): void {
   if (!frameCancel) frameCancel = scheduler(flushPending);
 }
 
-/** Drains the buffer in arrival order. Exported so tests can step the clock. */
 function flushPending(): void {
   frameCancel = null;
   if (pending.length === 0) return;
@@ -435,7 +358,6 @@ function flushPending(): void {
   for (const event of batch) applyEvent(event);
 }
 
-/** Entry point for both the Tauri event and the fake turn. */
 function handleTurnEvent(requestId: string, event: TurnEvent): void {
   if (!turn || turn.requestId !== requestId) return;
   enqueue(event);
@@ -508,11 +430,9 @@ function commitTurn(finish: ChatMessage["finish"], error: LlmError | null): void
   stopTurn();
 }
 
-/** Clears every resource a turn owns: buffer, frame, timer and listener. */
 function stopTurn(): void {
   const ended = turn;
   if (ended && toolAsk && toolAsk.request_id === ended.requestId) {
-    // The turn ended with a question still open: it was not answered, say so.
     lastAsk = { conversationId: ended.conversationId, tool: toolAsk.tool, state: "cancelled" };
   }
   turn = null;
@@ -533,7 +453,6 @@ async function attachListener(): Promise<void> {
       const payload = message.payload;
       if (payload?.request_id && payload.event) handleTurnEvent(payload.request_id, payload.event);
     });
-    // `GrantMode::Ask`: the coordinator re-emits `BusEvent::ToolAsk` here.
     const stopAsks = await listen<ToolAsk>("llm://tool-ask", (message) => {
       if (message.payload?.tool_call_id) handleToolAsk(message.payload);
     });
@@ -549,24 +468,16 @@ async function attachListener(): Promise<void> {
       stopRuns();
       stopResolved();
     };
-    // The turn may have ended while `listen` was in flight.
     if (turn) unlisten = stop;
     else stop();
   } catch {
-    // No Tauri event bridge (browser, tests): nothing streams, the turn ends
-    // by the reconcile or a cancel.
   }
 }
 
-/**
- * Starts a real turn and reports whether the draft was accepted. A startup
- * failure keeps the input recoverable and never fabricates an answer.
- */
 export async function sendMessage(text: string, conversationId?: string): Promise<boolean> {
   const trimmed = text.trim();
   if (!trimmed) return false;
   if (conversationId !== undefined) {
-    // The caller captured its origin: never redirect into whatever is active now.
     const origin = conversations.find((c) => c.id === conversationId);
     if (!origin) return false;
     if (origin.kind === "group") return sendRoomMessage(origin.id, trimmed);
@@ -585,8 +496,6 @@ export async function sendMessage(text: string, conversationId?: string): Promis
     if (!conversation) return false;
   }
   if (conversation.kind === "group") return sendRoomMessage(conversation.id, trimmed);
-  // A turn is running: the message waits in a visible queue instead of being
-  // refused in silence (or sent concurrently into a session that cannot take it).
   if (turn || startingRequestId) {
     enqueueMessage(conversation.id, trimmed);
     return true;
@@ -637,8 +546,6 @@ async function startDirectTurn(conversation: Conversation, trimmed: string): Pro
   }
 
   if (!turn || turn.requestId !== localRequestId) {
-    // Stop may arrive before startup returns its server id. Cancel that late
-    // server request too, without touching a newer conversation's active turn.
     if (requestId) {
       try { await invoke("llm_turn_cancel", { requestId }); }
       catch (err) {
@@ -659,20 +566,17 @@ async function startDirectTurn(conversation: Conversation, trimmed: string): Pro
     void attachListener().then(() => reconcileStartedTurn(conversation.id, startedId));
     return true;
   }
-  // A failed launch must not fabricate a successful assistant response.
-  // Roll back only this optimistic message so explicit retry cannot duplicate it.
   conversation.messages = conversation.messages.filter(message => message.id !== sentMessageId);
   stopTurn();
   return false;
 }
 
-/** Stops the running turn: the local state first, then the backend. */
 export async function cancelTurn(): Promise<void> {
   errorKey = null;
   const state = turn;
   if (!state) return;
   if (startingRequestId === state.requestId) {
-    stopTurn(); // sendMessage cancels the server id as soon as startup returns.
+    stopTurn();
     return;
   }
   try {
@@ -681,22 +585,14 @@ export async function cancelTurn(): Promise<void> {
     if (!String(err).includes("ERR_LLM_NO_TURN")) { errorKey = llmErrorKey(err); throw err; }
   }
   if (turn === state) {
-    // What already streamed stays on screen, then the turn closes as cancelled.
     flushPending();
     applyEvent({ type: "finished", reason: "cancelled" });
     if (turn === state) stopTurn();
   }
 }
 
-/** Last text each conversation sent from its composer, for Stop to put back. */
 let submittedDrafts: Record<string, string> = {};
 
-/**
- * Sends a composer draft on behalf of the conversation it was written in.
- * The origin is fixed before any await: if the reader moves to another chat
- * meanwhile, an accepted send still clears the origin's draft (only when it was
- * not edited since), and never touches the chat now on screen.
- */
 export async function sendConversationDraft(conversationId: string, text: string): Promise<boolean> {
   const trimmed = text.trim();
   if (!conversationId || !trimmed) return false;
@@ -706,11 +602,6 @@ export async function sendConversationDraft(conversationId: string, text: string
   return accepted;
 }
 
-/**
- * Stops the turn running in `conversationId` (and nothing else). After the stop
- * the interrupted text goes back into that conversation's draft, only when the
- * draft is still empty: a newer edit is never replaced.
- */
 export async function stopConversationTurn(conversationId: string): Promise<void> {
   const state = turn;
   if (!conversationId || !state || state.conversationId !== conversationId) return;
@@ -719,12 +610,10 @@ export async function stopConversationTurn(conversationId: string): Promise<void
   if (interrupted && !getConversationDraft(conversationId).trim()) setConversationDraft(conversationId, interrupted);
 }
 
-/** Answers a tool permission prompt (`GrantMode::Ask`). */
 export async function answerTool(toolCallId: string, allow: boolean, always = false): Promise<void> {
   errorKey = null;
   const held = heldAsks.find((a) => a.tool_call_id === toolCallId);
   if (!turn && held) {
-    // A job's question shown in its conversation (no chat turn of its own).
     try {
       await invoke("llm_tool_answer", { requestId: held.request_id, toolCallId, allow, always });
     } catch (err) {
@@ -743,8 +632,6 @@ export async function answerTool(toolCallId: string, allow: boolean, always = fa
     await invoke("llm_tool_answer", { requestId: state.requestId, toolCallId, allow, always });
   } catch (err) {
     const code = String(err ?? "");
-    // The request is gone: expired, cancelled or already answered. Say which,
-    // drop the buttons, and never pretend the answer applied.
     if (code.includes("ERR_PERMISSION_EXPIRED") || code.includes("ERR_PERMISSION_RESOLVED")) {
       if (toolAsk?.tool_call_id === toolCallId) {
         lastAsk = {
@@ -762,8 +649,6 @@ export async function answerTool(toolCallId: string, allow: boolean, always = fa
   if (toolAsk?.tool_call_id === toolCallId) toolAsk = null;
 }
 
-// ── Saved chats (backend JSONL, lazily loaded) ──────────────────────────
-
 interface ConversationInfoWire {
   id: string;
   title: string;
@@ -772,7 +657,6 @@ interface ConversationInfoWire {
   updated_ms: number;
 }
 
-/** Chats the backend kept (one agent each): they reopen as direct chats, same ids. */
 export async function loadConversations(): Promise<void> {
   let list: ConversationInfoWire[] | null = null;
   conversationListLoadError = null;
@@ -791,7 +675,6 @@ export async function loadConversations(): Promise<void> {
   const known = new Set(conversations.map((c) => c.id));
   const saved: Conversation[] = [];
   for (const info of list) {
-    // Member sessions of rooms, bridge/setup scratch chats are not chats of their own.
     if (known.has(info.id) || isRoomSession(info.id) || isRoomId(info.id)) continue;
     if (/^(bridge|setup|help)-/.test(info.id) || !info.agent_id) continue;
     saved.push({
@@ -806,8 +689,6 @@ export async function loadConversations(): Promise<void> {
     });
   }
   if (saved.length === 0) return;
-  // An empty chat opened before the saved ones arrived gives way to them,
-  // unless it already holds an unsent draft: that text must stay reachable.
   const savedAgents = new Set(saved.map((c) => c.agentId));
   const placeholders = new Set(
     conversations
@@ -819,7 +700,6 @@ export async function loadConversations(): Promise<void> {
   const activeAgent = placeholders.has(activeConversationId ?? "")
     ? conversations.find((c) => c.id === activeConversationId)?.agentId
     : null;
-  // Oldest first, so `selectAgent` (newest = last) keeps its meaning.
   conversations = [
     ...saved.sort((a, b) => a.updatedAtMs - b.updatedAtMs),
     ...conversations.filter((c) => !placeholders.has(c.id)),
@@ -834,7 +714,6 @@ function partsText(parts: ContentPart[]): string {
     .join("");
 }
 
-/** Backend `Message`s → bubbles. Tool results fold into the call before them. */
 function historyToChat(messages: Message[], prefix: string): ChatMessage[] {
   const out: ChatMessage[] = [];
   messages.forEach((message, i) => {
@@ -843,7 +722,7 @@ function historyToChat(messages: Message[], prefix: string): ChatMessage[] {
       .filter((p): p is Extract<ContentPart, { type: "tool_use" }> => p.type === "tool_use")
       .map((p) => ({ id: p.id, name: p.name, input: JSON.stringify(p.input ?? {}), done: true }));
     const text = partsText(message.parts);
-    if (message.role === "user" && !text) return; // tool results travel as user turns
+    if (message.role === "user" && !text) return;
     out.push({
       id: `${prefix}-${i}`,
       role: message.role,
@@ -866,7 +745,6 @@ async function loadHistory(id: string): Promise<void> {
     if (!target || target !== conversation || target.loaded !== false) return;
     if (!Array.isArray(answer?.messages)) throw new Error("Invalid conversation history");
     const history = historyToChat(answer.messages, id);
-    // Anything typed while the history loaded stays after it.
     target.messages = [...history, ...target.messages];
     target.loaded = true;
   } catch {
@@ -875,8 +753,6 @@ async function loadHistory(id: string): Promise<void> {
     historyLoading[id] = false;
   }
 }
-
-// ── Queue (messages sent while a turn runs) ─────────────────────────────
 
 export function getQueue(conversationId?: string | null): QueuedMessage[] {
   return conversationId ? queue.filter((q) => q.conversationId === conversationId) : queue;
@@ -888,7 +764,6 @@ function enqueueMessage(conversationId: string, text: string): QueuedMessage {
   return item;
 }
 
-/** Cancels a waiting message; returns its text so the caller can put it back in the draft. */
 export function removeQueued(id: string): string | null {
   const item = queue.find((q) => q.id === id);
   if (!item) return null;
@@ -896,7 +771,6 @@ export function removeQueued(id: string): string | null {
   return item.text;
 }
 
-/** A failed queued message is tried again (it waits again if a turn is running). */
 export function retryQueued(id: string): void {
   queue = queue.map((q) => (q.id === id ? { ...q, state: "waiting" } : q));
   scheduleDrain();
@@ -907,7 +781,6 @@ function scheduleDrain(): void {
   queueMicrotask(() => void drainQueue());
 }
 
-/** Sends the oldest waiting message once no turn is running. Exported for tests. */
 async function drainQueue(): Promise<void> {
   if (draining || turn || startingRequestId) return;
   const next = queue.find((q) => q.state === "waiting");
@@ -922,7 +795,6 @@ async function drainQueue(): Promise<void> {
     queue = queue.filter((q) => q.id !== next.id);
     const ok = await startDirectTurn(conversation, next.text);
     if (!ok) {
-      // Keep it, visible and recoverable: never lost, never sent twice.
       queue = [...queue, { ...next, state: "failed" }];
     }
   } finally {
@@ -930,9 +802,6 @@ async function drainQueue(): Promise<void> {
   }
 }
 
-// ── Status of the work (composer) ───────────────────────────────────────
-
-/** Entry point of `assist://run`; exported so tests can feed it. */
 function handleRunUpdate(update: RunUpdate): void {
   const conversationId = update.conversation_id;
   runUpdates = { ...runUpdates, [conversationId]: update };
@@ -945,22 +814,13 @@ function handleRunUpdate(update: RunUpdate): void {
   };
   const end = terminal[update.state];
   if (end) outcomes = { ...outcomes, [conversationId]: end };
-  // A room member's session reports under the room.
   const room = /^(grp-[0-9a-f]{12})[~_]/.exec(conversationId)?.[1];
   if (room && end) outcomes = { ...outcomes, [room]: end };
   if (end) settleFromRun(update);
 }
 
-/** How long `llm://turn` gets to deliver its own ending after the durable
- * record says the run ended (its text is coalesced at 30 Hz, so it can lag). */
 const RUN_END_GRACE_MS = 1500;
 
-/**
- * The durable run record is written before any event is emitted, so it is the
- * authority when `llm://turn` never delivers an ending: a turn that failed
- * before the listener attached, or a lost event. After a short grace, a turn
- * still open for a run that already ended is closed with that run's outcome.
- */
 function settleFromRun(update: RunUpdate): void {
   const requestId = update.run_id;
   if (!turn || turn.requestId !== requestId) return;
@@ -979,7 +839,6 @@ function settleFromRun(update: RunUpdate): void {
   }, RUN_END_GRACE_MS);
 }
 
-/** After the listener attached: a run that ended before it did is settled now. */
 async function reconcileStartedTurn(conversationId: string, requestId: string): Promise<void> {
   try {
     const list = await invoke<RunUpdate[] | { runs?: RunUpdate[] } | null>("assist_runs_list", { conversationId });
@@ -987,15 +846,9 @@ async function reconcileStartedTurn(conversationId: string, requestId: string): 
     const run = runs.find((r) => r.run_id === requestId);
     if (run?.state) handleRunUpdate({ ...run, conversation_id: run.conversation_id ?? conversationId });
   } catch {
-    // Older backend without the run record: `llm://turn` stays the only source.
   }
 }
 
-/**
- * What the composer shows: working, waiting for you, interrupted, failed,
- * cancelled, completed or nothing. Only from real events: never a success
- * that did not happen.
- */
 export function getTurnStatus(conversationId?: string | null): TurnStatus {
   const id = conversationId ?? activeConversationId;
   if (!id) return "idle";
@@ -1009,13 +862,11 @@ export function getTurnStatus(conversationId?: string | null): TurnStatus {
   return outcomes[id] ?? "idle";
 }
 
-/** How the last unanswered permission request of this conversation ended. */
 export function getLastAsk(conversationId?: string | null): { tool: string; state: "expired" | "cancelled" } | null {
   const id = conversationId ?? activeConversationId;
   return lastAsk && lastAsk.conversationId === id ? { tool: lastAsk.tool, state: lastAsk.state } : null;
 }
 
-/** Latest persisted run state of a conversation (after a restart: interrupted). */
 export async function refreshRunState(conversationId: string): Promise<void> {
   try {
     const list = await invoke<RunUpdate[] | { runs?: RunUpdate[] } | null>("assist_runs_list", { conversationId });
@@ -1025,11 +876,8 @@ export async function refreshRunState(conversationId: string): Promise<void> {
       handleRunUpdate({ ...latest, conversation_id: latest.conversation_id ?? conversationId });
     }
   } catch {
-    // Older backend without the run record: nothing to show, nothing invented.
   }
 }
-
-// ── Rooms ───────────────────────────────────────────────────────────────
 
 export function getRooms(): Room[] {
   return rooms;
@@ -1049,7 +897,6 @@ export function getRoomActivity(id: string | null | undefined): { runs: RoomRun[
   return (id && roomActivity[id]) || { runs: [], tasks: [] };
 }
 
-/** Live (streaming) member turns of a room. */
 export function getRoomLive(id: string | null | undefined): { runId: string; botId: string; text: string }[] {
   if (!id) return [];
   return Object.values(roomLive).filter((r) => r.roomId === id);
@@ -1089,7 +936,6 @@ export async function loadRooms(): Promise<void> {
     rooms = list;
     for (const room of list) upsertRoomConversation(room);
   } catch {
-    // No rooms backend: the rail simply shows none.
   }
 }
 
@@ -1126,13 +972,11 @@ async function loadRoom(id: string): Promise<void> {
     upsertRoomConversation(answer.room);
     const conversation = conversations.find((c) => c.id === id);
     if (conversation) {
-      // A reload that started before a send must not wipe the message being sent.
       const pending = conversation.messages.filter((m) => pendingRoomMessages.has(m.id));
       conversation.messages = [...(answer.messages ?? []).map(roomMessageToChat), ...pending];
       conversation.loaded = true;
     }
     roomActivity = { ...roomActivity, [id]: { runs: answer.runs ?? [], tasks: answer.tasks ?? [] } };
-    // Runs the backend says are over stop streaming here.
     const running = new Set((answer.runs ?? []).filter((r) => r.state === "running").map((r) => r.run_id));
     const next = { ...roomLive };
     for (const [runId, live] of Object.entries(next)) {
@@ -1151,7 +995,6 @@ async function loadRoom(id: string): Promise<void> {
     }
     if (Object.keys(roomLive).length === 0) detachRoomListener();
   } catch {
-    // Keep what is on screen.
   }
 }
 
@@ -1194,11 +1037,6 @@ export async function deleteRoom(id: string): Promise<boolean> {
   }
 }
 
-/**
- * Sends a user message into a room. The backend routes it (mention → that
- * member only; none → coordinator or default bot); here the message shows
- * at once and is rolled back if the backend refused it, so the draft stays.
- */
 async function sendRoomMessage(roomId: string, text: string): Promise<boolean> {
   const conversation = conversations.find((c) => c.id === roomId);
   if (!conversation) return false;
@@ -1226,7 +1064,6 @@ async function sendRoomMessage(roomId: string, text: string): Promise<boolean> {
     target.messages = target.messages.map((m) => (m.id === optimisticId ? roomMessageToChat(out!.message) : m));
     target.updatedAtMs = Date.now();
     if (!target.title) target.title = text.slice(0, 48);
-    // Who could not start says why, in the room, instead of silence.
     for (const skip of out.skipped ?? []) {
       target.messages = [
         ...target.messages,
@@ -1249,7 +1086,6 @@ async function sendRoomMessage(roomId: string, text: string): Promise<boolean> {
   return true;
 }
 
-/** Stops everything still running in the room; finished answers stay. */
 export async function cancelRoom(roomId: string): Promise<boolean> {
   try {
     await invoke("assist_group_cancel", { roomId });
@@ -1265,19 +1101,16 @@ export async function cancelRoom(roomId: string): Promise<boolean> {
   }
 }
 
-/** A streaming event of a room member's turn; exported for tests. */
 function handleRoomTurnEvent(requestId: string, event: TurnEvent): void {
   const live = roomLive[requestId];
   if (!live) return;
   if (event.type === "text_delta") {
     roomLive = { ...roomLive, [requestId]: { ...live, text: live.text + event.text } };
   } else if (event.type === "finished") {
-    // The backend writes the member's message; reload to show it with its author.
     void loadRoom(live.roomId);
   }
 }
 
-/** `assist://group` payload; exported for tests. */
 function handleRoomEvent(payload: { room_id?: string; kind?: string }): void {
   const id = payload?.room_id;
   if (!id) return;
@@ -1306,7 +1139,6 @@ async function attachRoomListener(): Promise<void> {
     if (Object.keys(roomLive).length > 0) roomUnlisten = stop;
     else stop();
   } catch {
-    // No event bridge (tests, browser).
   }
 }
 
@@ -1315,7 +1147,6 @@ function detachRoomListener(): void {
   roomUnlisten = null;
 }
 
-/** Scopes the user shared into a room (memory reaches a room only this way). */
 export interface RoomShare {
   id: string;
   room: string;

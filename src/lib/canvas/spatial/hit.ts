@@ -1,8 +1,3 @@
-// Geometric hit testing (02-motor-do-canvas §4.2): top-most node by z through
-// the spatial index, then cords (distance to the sampled bezier), then
-// drawings (polygon or polyline distance). Tolerance comes in screen pixels
-// and is converted to world units. Group frames never block a click.
-
 import type { CanvasStore } from '../model/store.svelte';
 import type { Drawing } from '../model/types';
 import { shapePolygon } from '../draw/shapes';
@@ -18,12 +13,9 @@ export type Hit =
 
 export type ResizeHandle = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw';
 
-/** Header strip height in screen pixels (the Maestri keeps it grabbable at any zoom). */
 const HEADER_PX = 28;
-/** Terminal chrome height in world units (term/metrics TERM_HEADER_H). */
 const TERMINAL_HEADER = 30;
 
-/** Height of the grab strip of a node, in world units, at this zoom. */
 export function headerWorld(kind: string, h: number, zoom: number): number {
   if (kind === 'terminal' || kind === 'agent') return Math.min(h, TERMINAL_HEADER);
   if (kind === 'text') return 0;
@@ -37,7 +29,6 @@ const LINEAR_DRAWINGS = new Set(['pen', 'brush', 'smartDraw', 'smart', 'highligh
 export function drawingHit(d: Drawing, x: number, y: number, tol: number): boolean {
   const lw = (d.strokeWidth ?? 2) / 2 + tol;
   if (d.rotation) {
-    // Test in the drawing's own frame: rotate the point back around the centre.
     const a = (-d.rotation * Math.PI) / 180;
     const cx = d.x + d.w / 2;
     const cy = d.y + d.h / 2;
@@ -60,9 +51,7 @@ export function drawingHit(d: Drawing, x: number, y: number, tol: number): boole
 
 interface HitOptions {
   zoom: number;
-  /** Nodes whose ports are showing (selected/hovered); ports hit first. */
   portsFor?: Iterable<string>;
-  /** Nodes whose resize handles are showing. */
   resizable?: Iterable<string>;
   skipDrawings?: boolean;
 }

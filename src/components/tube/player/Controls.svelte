@@ -1,7 +1,4 @@
 <script lang="ts">
-  // Control band of the 2025 player: everything lives in 48px glass pills
-  // (play is a 56px circle), progress bar above them. Volume sits in the
-  // right pill with CC, settings, mini player, theater and fullscreen.
   import { t } from "$lib/i18n";
   import { fmtDuration } from "$lib/tube/format";
   import { patchTubePrefs, tubePrefs } from "$lib/tube/prefs.svelte";
@@ -47,7 +44,6 @@
   });
   let timeText = $derived.by(() => {
     if (remaining && dur > 0) {
-      // YouTube 2025: remaining time follows the playback speed
       const left = (dur - vplayer.position) / (vplayer.rate || 1);
       return `-${fmtDuration(left)}`;
     }
@@ -81,7 +77,6 @@
   }
 
   function miniplayer() {
-    // leaving the watch page hands the video to the mini player
     if (vplayer.mini) expandMini();
     else back();
   }
@@ -214,7 +209,6 @@
     opacity: 1;
     pointer-events: auto;
   }
-  /* soft shade only under the pills, the Delhi player has no big gradient */
   .ctl::before {
     content: "";
     position: absolute;

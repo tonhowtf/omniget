@@ -1,5 +1,4 @@
 <script lang="ts">
-  // "Continue watching" row above the chat browser.
   import { onMount } from "svelte";
   import { t } from "$lib/i18n";
   import TgIcon from "./TgIcon.svelte";

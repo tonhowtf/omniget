@@ -1,6 +1,4 @@
 <script lang="ts">
-  // "Up next" column: chips All / From the channel / Related, the autoplay
-  // switch, compact rows (168×94) and more on scroll.
   import { t } from "$lib/i18n";
   import * as api from "$lib/tube/api";
   import { patchTubePrefs, tubePrefs } from "$lib/tube/prefs.svelte";

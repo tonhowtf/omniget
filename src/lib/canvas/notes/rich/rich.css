@@ -1,8 +1,3 @@
-/* Rich Markdown (notes and chat). Global on purpose: the nodes come from
-   {@html}, so component-scoped styles would not reach them. Everything is
-   under .rich-md and prefixed rich-. */
-
-/* light-dark() follows each theme's color-scheme (light, dark, catppuccin…). */
 .rich-md {
   --tok-keyword: light-dark(#a626a4, #c678dd);
   --tok-string: light-dark(#3f8f3e, #98c379);
@@ -183,7 +178,6 @@
   .rich-md caption.rich-table-tools { transition: none; }
 }
 
-/* Web links read as links (⌘-click opens them in the browser). */
 .rich-md a[href^='http'],
 .rich-md a[href^='mailto'] {
   color: var(--accent, #0a84ff);

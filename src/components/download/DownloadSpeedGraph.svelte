@@ -37,9 +37,6 @@
     return rawWindowPoints.map((p, idx) => {
       if (idx === 0) return p;
       ema = alpha * p.bps + (1 - alpha) * ema;
-      // Smooth the history, but keep the live endpoint exact. Otherwise a
-      // newly stalled transfer can say 0 KB/s while its line still ends above
-      // the baseline because the EMA is carrying the previous speed forward.
       if (idx === lastIndex) return p;
       return { ...p, bps: ema };
     });

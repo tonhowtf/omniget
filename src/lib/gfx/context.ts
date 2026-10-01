@@ -1,12 +1,7 @@
-// WebGL context lifecycle as an explicit state, not an accident.
-// The webview reclaims WebGL after inactivity in Tauri (pixijs#11731), so the
-// renderer drops the context on purpose when the route hides and rebuilds it on wake.
-
 type ContextState = 'new' | 'live' | 'sleeping' | 'lost' | 'restoring' | 'destroyed';
 
 type ContextEvent = 'init' | 'sleep' | 'wake' | 'lost' | 'restored' | 'destroy';
 
-/** Pure transition table; every backend and the tests share it. */
 function nextState(state: ContextState, event: ContextEvent): ContextState {
   if (event === 'destroy') return 'destroyed';
   if (state === 'destroyed') return 'destroyed';
@@ -33,12 +28,11 @@ interface ContextCallbacks {
 
 export class ContextTracker {
   state: ContextState = 'new';
-  /** True when the loss came from our own sleep() and must not be reported. */
   private intentional = false;
   private canvas: HTMLCanvasElement | null = null;
   private cbs: ContextCallbacks = {};
   private readonly lostHandler = (e: Event) => {
-    e.preventDefault(); // without this the browser never restores
+    e.preventDefault();
     this.state = nextState(this.state, 'lost');
     if (!this.intentional) this.cbs.onLost?.();
   };
@@ -68,7 +62,6 @@ export class ContextTracker {
     return this.state;
   }
 
-  /** Releases the GPU context on purpose (sleep). */
   loseDeliberately(gl: WebGLRenderingContext | WebGL2RenderingContext | null): void {
     this.intentional = true;
     this.state = nextState(this.state, 'sleep');
@@ -79,11 +72,9 @@ export class ContextTracker {
     try {
       ext?.loseContext();
     } catch {
-      // Some drivers throw when the context is already gone; the state already says so.
     }
   }
 
-  /** Asks the driver to give the context back; a full rebuild follows anyway. */
   restoreDeliberately(gl: WebGLRenderingContext | WebGL2RenderingContext | null): void {
     this.state = nextState(this.state, 'wake');
     const ext = gl?.getExtension('WEBGL_lose_context') as
@@ -93,7 +84,6 @@ export class ContextTracker {
     try {
       ext?.restoreContext();
     } catch {
-      // Ignored: wake() rebuilds from the ImageBitmaps kept in memory.
     }
     this.intentional = false;
     this.state = nextState(this.state, 'restored');

@@ -1,8 +1,3 @@
-/**
- * Maps backend yt-dlp error strings (from translate_ytdlp_error in Rust) to i18n keys.
- * The backend returns fixed English strings — we detect them and return the translated version.
- */
-
 const BACKEND_ERROR_MAP: Record<string, string> = {
   "rune pages are full": "league.runes_full",
   "Video requires login. Use browser cookies or try another URL.":
@@ -46,11 +41,6 @@ const BACKEND_ERROR_MAP: Record<string, string> = {
     "errors.platform_opted_out",
 };
 
-/**
- * Translate a backend error string to the user's locale.
- * Strips the "Failed to get formats: " prefix added by the Tauri command layer.
- * Falls back to the original message if not recognized.
- */
 export function translateBackendError(
   msg: string,
   t: (key: string) => string,
@@ -63,7 +53,6 @@ export function translateBackendError(
     const limit = Number(parts[1] ?? 0);
     const current = Number(parts[2] ?? 0);
     if (tWithValues) {
-      // sveltekit-i18n reads the payload itself: {{limit}}, {{current}}.
       return tWithValues("errors.path_too_long", { limit, current });
     }
     return t("errors.path_too_long");

@@ -10,9 +10,6 @@
     return () => { disposed = true; stop?.(); };
   });
   import "$lib/style/workspace-design.css";
-  // The settings store is the single appearance authority for every route:
-  // it applies theme/preset/typography, follows the OS while in system mode
-  // and re-reads when another window commits (settings-v3-changed).
   onMount(() => {
     setSettingsLocaleApplier(async (language) => {
       await loadTranslations(language, page.url.pathname);
@@ -66,9 +63,6 @@
   import type { Snippet } from "svelte";
   import type { Component } from "svelte";
 
-  // Deep links focus their destination (focusWhenReady). On a cold load SvelteKit
-  // resets focus to <body> at the end of the first navigation, so those requests wait
-  // for it; the extra task runs after SvelteKit's own deferred focus work.
   holdFocusUntilNavigated();
   afterNavigate(() => { setTimeout(releaseFocusAfterNavigation, 0); });
 
@@ -92,54 +86,33 @@
   let badgeLabel = $derived(counts.badge > 99 ? "99+" : String(counts.badge));
   let settings = $derived(getSettings());
 
-  // The tray menu is native, so the frontend owns the translations and pushes
-  // them whenever the locale changes (see sync_tray_strings in channels.rs).
-  // The values come from `rawTranslations`, not `$t`: the default parser
-  // substitutes `{{placeholders}}` and would strip the `{{count}}` / `{{speed}}`
-  // tokens the Rust side fills in, leaving the tray without the number and the
-  // speed in every language (see $lib/tray-strings).
   $effect(() => {
     const payload = trayStrings($rawTranslations, $locale);
     invoke("sync_tray_strings", payload).catch(() => {
-      // tray sync is best-effort (no backend in browser/dev)
     });
   });
 
-  // Same for the menu bar usage icon's native menu and tooltip (usage_tray).
   $effect(() => {
     const strings = usageTrayStrings($rawTranslations, $locale);
     invoke("usage_tray_sync_strings", { strings }).catch(() => {});
   });
 
-  // Same push-based pattern for the prompts of the agents the backend seeds:
-  // they are shown to the user, so they follow the interface language, while
-  // the compiled-in English set in roster_store.rs stays the fallback
-  // (see $lib/agent-prompts).
   $effect(() => {
     const payload = agentPrompts($rawTranslations, $locale);
     invoke("sync_llm_prompts", { prompts: payload }).catch(() => {
-      // prompt sync is best-effort (no backend in browser/dev)
     });
   });
 
-  // The agents' OS notifications ("needs you", "finished") are sent by Rust,
-  // which has no locale: same push as the prompts (see $lib/llm-notify-strings).
   $effect(() => {
     const strings = llmNotifyStrings($rawTranslations, $locale);
     invoke("sync_llm_notify_strings", { strings }).catch(() => {});
   });
 
-  // What the window shows, so a notification about a job already on screen
-  // is not sent (see $lib/llm/ui-focus). Bare windows (pet, strip) never
-  // report: they would overwrite the main window's route.
   $effect(() => {
     if (isBareWindow(page.url.pathname)) return;
     invoke("llm_ui_focus", focusPayload(page.url.pathname, getLlmFocus())).catch(() => {});
   });
 
-  // The pet, the limits strip and the usage panel are windows exactly as big
-  // as what they draw: no shell, no boot work, no global dialogs. They never
-  // navigate away from their route, so this is read once.
   const bareWindow = isBareWindow(page.url.pathname);
   let isCoreRoute = $derived(
     page.url.pathname === "/" ||
@@ -200,11 +173,6 @@
     initDownloadListener().then(stop => {
       if (disposed) stop(); else stopDownloads = stop;
     }).catch(() => {});
-    // If the first settings read failed while the shell was booting, the sidebar
-    // has no League entry and Settings shows only the error. Retry a few times
-    // instead of leaving the app half-configured until the next restart. The
-    // shell does not wait for that read (+layout.ts), so a read still in flight
-    // is left alone: a second one would only race it.
     if (!getSettings()) {
       let attempts = 0;
       const retry = () => {
@@ -261,8 +229,6 @@
     }).then((un) => {
       if (disposed) { un(); return; }
       unlistenExternalUrl = un;
-      // Only now is it safe to flip Rust into emit mode: links that arrived
-      // while the webview was booting were parked in a queue and come back here.
       invoke<Omit<ExternalUrlEvent, "id">[]>("register_external_frontend")
         .then((events) => {
           for (const event of events) handleExternalUrlEvent(event);
@@ -270,7 +236,6 @@
         .catch(() => {});
     });
 
-    // omniget://watch links from notes exported by /video
     let unlistenVideoLink: (() => void) | null = null;
     listen<{ key: string; t: number }>("video-deep-link", (event) => {
       const q = new URLSearchParams({ key: event.payload.key, t: String(event.payload.t ?? 0) });
@@ -311,8 +276,6 @@
         keywords: "preferences options config",
         action: () => goto("/settings"),
       },
-      // Contas & cota: ⌘K troca a assinatura do CLI sem abrir a aba. Lê só o
-      // estado já carregado, então não há IPC no boot.
       ...accountPaletteItems(
         getAccounts().accounts,
         {
@@ -379,11 +342,6 @@
         keywords: "info version changelog project",
         action: () => goto("/about"),
       },
-      // The three former "action" entries ran the same goto() as the
-      // navigation entries above them, so the palette listed Downloads and
-      // Settings twice and Home three times. Only the paste action does
-      // something navigation cannot — `command_palette.action_paste` was
-      // already translated in every locale, just never wired up.
       {
         id: "action-paste",
         label: get(t)("command_palette.action_paste"),
@@ -425,18 +383,12 @@
 
   $effect(() => {
     document.documentElement.setAttribute("data-shell", "mac");
-    // O shell é o mesmo em todas as plataformas, mas os controles de janela
-    // não: o macOS põe fechar/minimizar à esquerda (sobre a sidebar, titlebar
-    // overlay), Windows e Linux à direita. Sem data-platform o app reservava
-    // espaço morto e encostava a busca no botão de fechar.
     document.documentElement.setAttribute("data-platform", isMac() ? "macos" : "other");
     document.documentElement.setAttribute("dir", isRtlLocale($locale) ? "rtl" : "ltr");
     document.documentElement.setAttribute("lang", $locale || "en");
     buildCommandPaletteItems();
   });
 
-  // Icon-only sidebar. The state is a setting so it survives restarts and
-  // follows the user across windows; ⌃⌘S (Ctrl+Shift+S off macOS) toggles it.
   let sidebarCollapsed = $derived(getSettings()?.appearance?.sidebar_collapsed ?? false);
 
   $effect(() => {
@@ -445,7 +397,6 @@
 
   function toggleSidebar() {
     updateSettings({ appearance: { sidebar_collapsed: !sidebarCollapsed } }).catch(() => {
-      // settings IPC is unavailable in the browser preview; nothing to persist
     });
   }
 

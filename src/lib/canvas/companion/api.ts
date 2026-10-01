@@ -1,8 +1,3 @@
-// Omni as the canvas companion: typed wrappers over the
-// `canvas_companion_*` commands and the events `crate::canvas::companion`
-// emits. Summaries arrive on `canvas://companion` (the canvas panel and the
-// floating pet both listen); a dismissed one on `canvas://companion-dismiss`.
-
 import { invoke } from '@tauri-apps/api/core';
 
 export const EVENT_COMPANION = 'canvas://companion';
@@ -23,15 +18,12 @@ export interface CompanionEntry {
   summary: string;
   suggestions: string[];
   command?: string | null;
-  /** `ollama:<model>`, `llm:<model>` or `heuristic`. */
   source: string;
   atMs: number;
   workedMs: number;
   celebrate: boolean;
   dismissed?: boolean;
-  /** Only on the live event: whether the pet should show it. */
   petBalloon?: boolean;
-  /** Heuristic entries: i18n keys behind the text (shown in the window's language). */
   i18n?: EntryI18n | null;
 }
 
@@ -42,7 +34,6 @@ interface EntryI18n {
 
 type Tr = (key: string, vars?: Record<string, unknown>) => string;
 
-/** English defaults of the heuristic keys (the Rust side's own words). */
 const H_DEFAULTS: Record<string, string> = {
   'canvas.companion.h.done': '{{name}} finished after {{duration}}.',
   'canvas.companion.h.done_last': '{{name}} finished after {{duration}}. Last line: “{{last}}”',
@@ -54,18 +45,15 @@ const H_DEFAULTS: Record<string, string> = {
   'canvas.companion.h.manual_last': 'Here is where {{name}} is. Last line: “{{last}}”',
 };
 
-/** The summary in the window's language (heuristic entries), else as sent. */
 export function entrySummary(e: CompanionEntry, tr: Tr): string {
   const s = e.i18n?.summary;
   if (!s?.key) return e.summary;
-  // Values are escaped: a `{{` in a terminal line must not re-enter the parser.
   const vars = Object.fromEntries(
     Object.entries(s.vars ?? {}).map(([k, v]) => [k, String(v ?? '').replace(/[{}]/g, (c) => `\\${c}`)]),
   );
   return tr(s.key, { default: H_DEFAULTS[s.key] ?? e.summary, ...vars });
 }
 
-/** The three next steps in the window's language (commands stay as they are). */
 export function entrySuggestions(e: CompanionEntry, tr: Tr): string[] {
   const list = e.i18n?.suggestions;
   if (!list?.length) return e.suggestions;
@@ -84,9 +72,7 @@ export interface CompanionSettings {
   onBlocked: boolean;
   onFailed: boolean;
   language?: string | null;
-  /** With no local model, ask an installed agent CLI headless (cheapest model). */
   cliFallback?: boolean;
-  /** `claude`, `codex` or `gemini`; null = the CLI already used on the canvas. */
   cliAgent?: string | null;
 }
 
@@ -106,7 +92,6 @@ export function dismiss(id: string): Promise<boolean> {
   return invoke('canvas_companion_dismiss', { id });
 }
 
-/** Sends suggestion `index` (0-2, 3 = the direct command) or `text`. */
 export function act(id: string, index?: number, text?: string): Promise<unknown> {
   return invoke('canvas_companion_act', { id, index: index ?? null, text: text ?? null });
 }
@@ -115,7 +100,6 @@ export function summarize(nodeId: string): Promise<CompanionEntry> {
   return invoke('canvas_companion_summarize', { nodeId });
 }
 
-/** Omni's answer to a free question about the workspace. */
 export interface AskAnswer {
   intent: 'free' | 'note' | 'summarize_notes' | 'summary';
   answer: string;
@@ -125,7 +109,6 @@ export interface AskAnswer {
   created?: boolean;
 }
 
-/** A free question ("what is B doing?", "note that ...", "summarize my notes"). */
 export function askOmni(workspaceId: string, question: string, nodeId?: string): Promise<AskAnswer> {
   return invoke('canvas_companion_ask', { workspaceId, question, nodeId: nodeId ?? null });
 }
@@ -134,7 +117,6 @@ export function localModels(): Promise<string[]> {
   return invoke('canvas_companion_models');
 }
 
-/** Loose check of an event payload (the pet trusts nothing it is sent). */
 export function asEntry(raw: unknown): CompanionEntry | null {
   const e = raw as Partial<CompanionEntry> | null;
   if (!e || typeof e.id !== 'string' || typeof e.summary !== 'string') return null;

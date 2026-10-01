@@ -1,9 +1,4 @@
 #!/usr/bin/env node
-// Runs the browser extension's unit tests (`pnpm test:extension`).
-//
-// `node --test` only expands glob patterns itself from Node 21 on, and the
-// supported range includes Node 20, so the test files are listed here and
-// passed as plain paths. Extra arguments go through to `node --test`.
 import { spawnSync } from "node:child_process";
 import { readdirSync } from "node:fs";
 import path from "node:path";

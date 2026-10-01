@@ -1,8 +1,4 @@
 <script lang="ts">
-  // Maestro Mode on a terminal node: a baton badge in the node header that
-  // toggles the flag (`data.isManager`). A Maestro can recruit, connect,
-  // swap, dismiss, schedule routines and create workspaces and floors; the
-  // server checks the flag on every call.
   import { t } from "$lib/i18n";
   import { errorText, setMaestro } from "$lib/canvas/floors/api";
 
@@ -11,7 +7,6 @@
     floorId: string;
     nodeId: string;
     on: boolean;
-    /** Only show when on (read-only badge), e.g. on cards at low zoom. */
     compact?: boolean;
   }
   let { workspaceId, floorId, nodeId, on, compact = false }: Props = $props();

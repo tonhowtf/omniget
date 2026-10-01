@@ -1,11 +1,4 @@
 <script lang="ts">
-  /**
-   * The one card of a pending permission question (2.2, A6): the task row
-   * and the Activity panel both render this, never a second list. It answers
-   * by approval id through `llm_approval_respond`, the same door as the
-   * bridge, `omniget agent approve`, MCP and a paired phone, so a question
-   * answered anywhere leaves every window (`omni://tool-resolved`).
-   */
   import { t } from "$lib/i18n";
   import { answerAsk, respondApproval, type ApprovalDecision, type PendingAsk } from "$lib/stores/llm-jobs-store.svelte";
 

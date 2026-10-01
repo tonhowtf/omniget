@@ -5,11 +5,6 @@
   import Icon from "./ui/Icon.svelte";
   import SecuritySeal from "./SecuritySeal.svelte";
 
-  /// One persistent item: name, the signature seal, who signed it and the
-  /// Team ID, where it lives with "Show in Finder", neutral fact tags and,
-  /// when the startup module can switch it, a link there. Row layout of the
-  /// "List Group Badge" pattern (uiable, 21st.dev): hairline rows with the
-  /// badge trailing the title.
   let {
     item,
     onReveal,

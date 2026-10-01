@@ -1,9 +1,4 @@
 <script lang="ts">
-  /**
-   * Chat: rail, conversation, inspector. The roster loads once when the page
-   * mounts; nothing here polls, and the only timer that can exist belongs to a
-   * running turn.
-   */
   import { setLlmFocus } from "$lib/llm/ui-focus.svelte";
   import { onMount, untrack, tick } from "svelte";
   import { page } from "$app/stores";
@@ -40,7 +35,6 @@
   let detailsTrigger = $state<HTMLButtonElement>();
   let detailsClose = $state<HTMLButtonElement>();
   let detailsPanel = $state<HTMLElement>();
-  // Below 1180px the history rail becomes a drawer; focus returns to its trigger.
   let railOpen = $state(false);
   let railTrigger = $state<HTMLButtonElement>();
   let railPanel = $state<HTMLElement>();
@@ -93,13 +87,10 @@
   let agents = $derived(getAgents());
   let activeAgent = $derived(getAgent(getActiveAgentId()));
   let active = $derived(getActiveConversation());
-  // The conversation on screen: a "needs you" about its own turn is not sent
-  // while the window has the focus (see $lib/llm/ui-focus).
   $effect(() => {
     setLlmFocus({ conversationId: active?.id ?? null });
     return () => setLlmFocus({ conversationId: null });
   });
-  // Picking a chat in the drawer closes it and hands focus back to the trigger.
   let railSelection = $derived(active?.id ?? null);
   let railSelectionSeen: string | null = null;
   $effect(() => {
@@ -112,8 +103,6 @@
   let turn = $derived(getActiveTurn());
 
   onMount(() => {
-    // Saved chats (old ones reopen as direct chats, same ids) and rooms load
-    // with the roster; nothing here polls.
     void Promise.all([loadRoster(), loadConversations(), loadRooms()]).then(() => {
       rosterReady = true;
     }).catch(() => { rosterError = true; });
@@ -127,7 +116,6 @@
     }
   });
 
-  // `?conversation=<id>` (a chat turn listed under /llm/work) opens that chat.
   let followedConversation: string | null = null;
   $effect(() => {
     const id = $page.url.searchParams.get("conversation");
@@ -139,7 +127,6 @@
   });
 
   function onNew() {
-    // "New chat" from a room starts a direct chat with the room's answerer.
     const id = getActiveAgentId() ?? agents[0]?.id;
     if (id) newConversation(id);
   }
@@ -206,7 +193,6 @@
     .agent-details { position: absolute; right: 0; top: 0; bottom: 0; z-index: 10; background: var(--surface); box-shadow: var(--shadow-lg); max-width: 100%; }
   }
   @media (max-width: 1179px) {
-    /* History rail as a drawer: never three permanent columns on a small window. */
     .rail-toggle, .compact-only { display: inline-flex; }
     .agent-rail { display: none; }
     .agent-rail.open { display: flex; position: absolute; left: 0; top: 0; bottom: 0; z-index: 11; background: var(--surface); box-shadow: var(--shadow-lg); max-width: 100%; }

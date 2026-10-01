@@ -1,5 +1,3 @@
-// Light or dark, read from the app theme (`color-scheme` on <html>, set by the
-// theme CSS) and kept up to date when the theme changes.
 export const look = $state({ scheme: "dark" as "dark" | "light" });
 
 let started = false;

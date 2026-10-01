@@ -1,6 +1,3 @@
-// Registers the portal node kind (web portals; iOS/Android reserved with a
-// "coming soon" face). Imported once by Canvas.svelte.
-
 import PortalNode from '$components/canvas/nodes/PortalNode.svelte';
 import { DEFAULT_SIZES, ICONS, MIN_SIZES, registerNodeKind } from '../nodes/registry';
 

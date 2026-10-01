@@ -9,7 +9,6 @@ export interface UpdateInfo {
   body?: string;
 }
 
-// The proxy password never reaches the settings snapshot; Rust builds the URL.
 async function proxyUrl(): Promise<string | undefined> {
   const url = await invoke<string | null>("get_updater_proxy_url");
   return url ?? undefined;

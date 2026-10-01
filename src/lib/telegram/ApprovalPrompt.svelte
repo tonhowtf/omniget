@@ -1,7 +1,4 @@
 <script lang="ts">
-  // An AI agent (through the MCP tools `tg_*`) wants to write to the
-  // Telegram account: send, forward or delete. Nothing happens until the
-  // person answers here. Mounted in the root layout so it shows on any screen.
   import { onMount } from "svelte";
   import { listen } from "@tauri-apps/api/event";
   import { t } from "$lib/i18n";
@@ -22,7 +19,6 @@
     const end = current.expires_at ?? (current.created ? current.created + TIMEOUT_SEC : null);
     return end ? Math.max(0, Math.round(end - now / 1000)) : null;
   });
-  // `agent` is the app's own agent; anything else names the MCP client (or `cli`).
   let clientName = $derived.by(() => {
     const c = current?.client?.trim();
     if (!c || c === "agent") return null;
@@ -33,7 +29,6 @@
     try {
       queue = await tg3.approvalList();
     } catch {
-      /* the engine is not loaded or lacks the command; keep what came by event */
     }
   }
 
@@ -104,7 +99,6 @@
     return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
   }
 
-  // Focus "Refuse" once per request, the safe default for Enter.
   let focusedId = "";
   $effect(() => {
     const id = current?.id ?? "";
@@ -122,7 +116,6 @@
       if (disposed) f();
       else uns.push(f);
     };
-    // Answered here, in another window, or expired: drop it.
     listen<{ id?: string }>("telegram-approval-resolved", (ev) => {
       const id = ev.payload?.id;
       if (id) queue = queue.filter((q) => q.id !== id);
@@ -150,7 +143,6 @@
     })
       .then(keep)
       .catch(() => {});
-    // The countdown, and a periodic look in case an event was missed.
     const timer = setInterval(() => {
       now = Date.now();
       if (queue.some((q) => q.expires_at && q.expires_at <= now / 1000)) {

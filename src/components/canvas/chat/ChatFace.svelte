@@ -1,11 +1,4 @@
 <script lang="ts">
-  // Chat face of a terminal node (Maestri Chat): seven coloured threads, the
-  // app-owned transcript rendered as markdown, and an input that delivers the
-  // message with the chat envelope (the agent answers with `omniget canvas
-  // say`). Attachments are cards that can be dragged onto the canvas.
-  // `/` as the first character, or the shell button, goes back to the
-  // terminal face. Esc during a turn interrupts it; with "show the shell"
-  // on, a live window of the terminal sits under the working line.
   import { getContext, onDestroy, onMount, tick } from "svelte";
   import { termScreen } from "$lib/canvas/term/client";
   import { convertFileSrc } from "@tauri-apps/api/core";
@@ -40,20 +33,15 @@
     node: CanvasNode;
     workspaceId: string;
     focused?: boolean;
-    /** PTY of the node (the shell window under the working line). */
     termId?: string;
-    /** Back to the terminal face. */
     onshell?: () => void;
-    /** Merges fields into the node's data (remembered settings). */
     ondata?: (data: Record<string, unknown>) => void;
   } = $props();
 
-  /** MIME type the canvas drop handler reads to create a file node. */
   const DRAG_MIME = "application/x-omniget-file";
 
   // svelte-ignore state_referenced_locally
   const chat = chats.of(node.id);
-  // Rich Markdown in agent replies: paths open beside this terminal.
   const richEngine = getContext<CanvasEngine | undefined>(ENGINE_KEY);
   const richBase = $derived(
     (typeof node.data?.cwd === "string" && node.data.cwd) || (richEngine ? workspaceDir(richEngine) : null),
@@ -70,7 +58,6 @@
   let stick = true;
 
   const color = $derived(THREADS[chat.thread]?.color ?? THREADS[0].color);
-  /** Maestri `showsShellWindow`: the shell under the working line during a turn. */
   const showShell = $derived.by(() => {
     const d = (node.data ?? {}) as Record<string, unknown>;
     return d.showShellWindow === true || d.showsShellWindow === true;
@@ -102,7 +89,6 @@
     ondata?.({ showShellWindow: !showShell, showsShellWindow: undefined });
   }
 
-  // Palette chat search: scroll the entry to the centre and mark the term.
   let flashId = $state<string | null>(null);
   let flashTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -132,7 +118,6 @@
     }, 4000);
   }
 
-  /** Wraps the first matches of `term`'s words (no case, no accents) in <mark>. */
   function markTerm(root: HTMLElement, term: string): HTMLElement[] {
     const fold = (x: string) => x.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
     const words = term.split(/\s+/).map(fold).filter(Boolean);
@@ -143,7 +128,6 @@
     for (const w of words) {
       for (const tn of texts) {
         const raw = tn.textContent ?? "";
-        // Fold char by char so indexes stay aligned with the original.
         const folded = Array.from(raw, (c) => fold(c).charAt(0) || c).join("");
         const at = folded.indexOf(w);
         if (at < 0 || !tn.parentNode) continue;
@@ -156,7 +140,6 @@
           range.surroundContents(mark);
           out.push(mark);
         } catch {
-          // crosses an element boundary
         }
         break;
       }
@@ -195,7 +178,6 @@
   }
 
   async function selectThread(i: number) {
-    // Maestri: the threads are locked while the agent answers on another one.
     if (chat.turnOpen && i !== chat.turnThread) return;
     stick = true;
     await chat.select(i);
@@ -205,7 +187,6 @@
     }
   }
 
-  /** Esc mid-turn: interrupt the agent, as Esc in its terminal would. */
   async function interrupt() {
     error = "";
     try {
@@ -256,7 +237,6 @@
     }
   }
 
-  // Message menu (Maestri: Copy, Quote, Delete Message) and Clear Chat History.
   let menuFor = $state<string | null>(null);
   let confirmWipe = $state(false);
 
@@ -316,8 +296,6 @@
       return;
     }
     if (e.key === "Escape" && !e.isComposing && workspaceId) {
-      // The local flag can lag a turn opened elsewhere (MCP, remote): ask
-      // the server (Esc still reaches the canvas as usual).
       void chat.peek(workspaceId).then(() => {
         if (chat.turnOpen) void interrupt();
       });

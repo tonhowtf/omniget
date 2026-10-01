@@ -3,11 +3,7 @@
   import { canPick, reasonKey, type TweakGroup, type TweakItem } from "$lib/washmybelly/tweaks";
   import Icon from "./ui/Icon.svelte";
 
-  /// Choices that exclude each other (they write the same setting), as one
   /// card of radio rows. Ported from "Radio Group in Card with Separators"
-  /// (sean0205, 21st.dev): full-width rows split by hairlines; here the row
-  /// Windows is on now carries "Current", and picking another one only
-  /// marks it for the plan.
   let {
     group,
     items,
@@ -21,7 +17,6 @@
     picked: Set<string>;
     busy?: boolean;
     onPick: (it: TweakItem) => void;
-    /// Back to what Windows has now: drop this group's pick.
     onClear: (g: TweakGroup) => void;
   } = $props();
 

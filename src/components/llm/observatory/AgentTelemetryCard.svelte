@@ -1,13 +1,4 @@
 <script lang="ts">
-  /**
-   * One agent, one card: the five numbers that say whether it is healthy
-   * (throughput, time to first token, tokens in/out, cache hit, cost), the
-   * Context Guardian, a sparkline of the selected window, and the timeline
-   * where "switched to X" shows up.
-   *
-   * Every number arrives already aggregated from the store; the card holds no
-   * state of its own beyond which metric the sparkline plots.
-   */
   import { t } from "$lib/i18n";
   import ContextGuardian from "./ContextGuardian.svelte";
   import Sparkline from "./Sparkline.svelte";
@@ -35,7 +26,7 @@
   const METRICS: Metric[] = ["tps", "tokens_out", "cost_usd"];
   let metric = $state<Metric>("tps");
 
-  const BUCKETS = 96; // ≤ 200 points, the budget of the route
+  const BUCKETS = 96;
 
   let buckets = $derived(aggregateWindow(agent.history, nowMs, WINDOWS[windowKey], BUCKETS));
   let totals = $derived(windowTotals(buckets));

@@ -24,17 +24,14 @@
   let failedSaved = $derived((status?.routes ?? []).filter((v) => v.saved && v.health.ok === false).length);
   let okCount = $derived((status?.routes ?? []).filter((v) => v.health.ok === true).length);
 
-  // subscriptions
   let subUrl = $state("");
   let subName = $state("");
   let subBusy = $state<string | null>(null);
 
-  // advanced
   let opts = $state<NetOpts>({ prefer_ipv6: false, prefer_doh: false, connect_timeout_secs: 10 });
   let useRescue = $state(true);
   let optsLoadedAt = -1;
   $effect(() => {
-    // Take the backend values once per status snapshot the person has not edited.
     const s = status;
     if (!s || optsLoadedAt === s.scanned_at) return;
     optsLoadedAt = s.scanned_at;
@@ -42,7 +39,6 @@
     useRescue = s.use_rescue;
   });
 
-  // doctor
   let report = $state<Report | null>(null);
   let doctorBusy = $state(false);
 
@@ -158,7 +154,6 @@
     </div>
   {/if}
 
-  <!-- Mode + routes -->
   <section>
     <div class="sec-head">
       <h3>{$t("telegram.net.routes_title")}</h3>
@@ -199,14 +194,12 @@
     {/if}
   </section>
 
-  <!-- Paste links -->
   <section>
     <h3>{$t("telegram.net.paste_title")}</h3>
     <p class="sec-sub">{$t("telegram.net.paste_hint")}</p>
     <PasteLinks />
   </section>
 
-  <!-- Subscriptions -->
   <section>
     <div class="sec-head">
       <h3>{$t("telegram.net.subs_title")}</h3>
@@ -254,7 +247,6 @@
 
   <MihomoCard />
 
-  <!-- Diagnosis -->
   <section>
     <div class="sec-head">
       <h3>{$t("telegram.doctor.title")}</h3>
@@ -267,7 +259,6 @@
     {#if report}<DoctorReport {report} />{/if}
   </section>
 
-  <!-- Advanced -->
   <details class="adv">
     <summary>{$t("telegram.net.advanced")}</summary>
     <div class="group">

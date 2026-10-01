@@ -1,5 +1,3 @@
-/** Wire types of the `remote_*` commands (src-tauri/src/local_bridge_remote.rs). */
-
 export type RemoteScope = "read" | "drive";
 
 type InterfaceOption = { ip: string; kind: "loopback" | "lan" | "tailscale" | "other" | string };

@@ -1,7 +1,4 @@
 <script lang="ts">
-  // OmniTube Music player bar (spec §3.4): 72px, progress on the top edge
-  // (2px, 4px on hover, draggable), grid start | middle | end. Inside /youtube
-  // it docks under the content; elsewhere it floats like the /music mini player.
   import { goto } from "$app/navigation";
   import { t } from "$lib/i18n";
   import { agentActions } from "$lib/native-agent/actions";

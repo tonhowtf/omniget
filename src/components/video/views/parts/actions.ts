@@ -1,6 +1,3 @@
-// Actions several views share: adding folders and the context menu of a
-// local media item. Menu icons are MusicIcon names (the menu is /music's).
-
 import { get } from "svelte/store";
 import { t } from "$lib/i18n";
 import { showToast } from "$lib/stores/toast-store.svelte";
@@ -13,7 +10,6 @@ import { errText } from "./util";
 
 const tr = (key: string, vars?: Record<string, unknown>) => get(t)(key, vars) as string;
 
-/** Picks a folder and adds it as a library root (or imports it as a course), then scans. */
 export async function addFolder(kind: RootKind): Promise<boolean> {
   const { open } = await import("@tauri-apps/plugin-dialog");
   const picked = await open({ directory: true, multiple: false }).catch(() => null);
@@ -43,7 +39,6 @@ export async function markWatched(keys: string[], watched: boolean, after?: () =
   }
 }
 
-/** Right-click menu for a local file. */
 export function itemMenu(it: MediaItem, reload: () => void): MenuItem[] {
   const watched = !!it.progress?.watched;
   const menu: MenuItem[] = [

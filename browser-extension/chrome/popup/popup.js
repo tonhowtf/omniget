@@ -114,9 +114,6 @@ async function init() {
   });
 }
 
-// Deep search hooks the page itself, so it stays opt-in and only appears where
-// the browser can register a MAIN-world content script — Chrome 111+ and
-// Firefox 128+. Older Firefox simply never sees the control.
 function initDeepSearchToggle() {
   const group = document.getElementById("deep-search-group");
   const toggle = document.getElementById("deep-search-toggle");
@@ -286,9 +283,6 @@ function appendMediaList(container, hlsGroups, directMedia, totalItems) {
 
   let idx = 1;
   for (const group of hlsGroups) {
-    // A deep-search hit may carry a synthetic URL that exists nowhere but in
-    // the tab, so the row says where it came from instead of showing a host
-    // the user could never open.
     const domain = group.master.source === "deep-search"
       ? tr("popup_deep_search_badge")
       : getDomainFromUrl(group.master.url);
@@ -301,9 +295,6 @@ function appendMediaList(container, hlsGroups, directMedia, totalItems) {
     idx++;
   }
 
-  // Adaptive players fetch the video track and its audio track back to back, so
-  // showing them as two unrelated files is how someone ends up with a silent
-  // video. Pair them into one row that sends both.
   const { pairs, singles } = pairTracks(directMedia);
 
   for (const pair of pairs) {
@@ -411,9 +402,6 @@ async function handleBatchDownload(btn, groups) {
 }
 
 function showError(container, reason) {
-  // "OmniGet is not running" is the usual cause, but not the only one, and
-  // showing it for a playlist whose page went away sends the user off to debug
-  // the wrong thing.
   const message = reason === "manifest_gone"
     ? tr("popup_manifest_gone")
     : tr("popup_not_running");
@@ -445,8 +433,6 @@ function sendToApp(url, platform, mediaEntry) {
     if (currentData?.tabUrl) msg.referer = currentData.tabUrl;
     if (mediaEntry?.mediaType) msg.mediaType = mediaEntry.mediaType;
     if (mediaEntry?.contentType) msg.contentType = mediaEntry.contentType;
-    // Tells the background to go and fetch the captured playlist text from the
-    // page before enqueuing: a blob-backed manifest has no URL the app can use.
     if (mediaEntry?.hasManifest) {
       msg.hasManifest = true;
       msg.tabId = mediaEntry.tabId;
@@ -467,18 +453,12 @@ function sendToApp(url, platform, mediaEntry) {
   });
 }
 
-// The bridge queues one URL per call, so a pair becomes two downloads. The row
-// says so ("2 files") rather than pretending the app merges them.
 async function sendPair(pair) {
   const video = await sendToApp(pair.video.url, "generic", pair.video);
   const audio = await sendToApp(pair.audio.url, "generic", pair.audio);
   return { ok: video.ok && audio.ok, cookieSummary: video.cookieSummary ?? audio.cookieSummary };
 }
 
-// An m3u8 has no size worth showing — the manifest is a few KB while the media
-// behind it is hundreds of MB — so the row starts without one and fills in once
-// a few segments have been sampled. Failure is silent: the row simply keeps the
-// domain it already shows.
 function attachHlsSizeEstimate(item, master, fallbackMeta) {
   if (master.sizeText) return;
   const metaEl = item.querySelector(".media-meta");
@@ -575,9 +555,6 @@ function pickBestMedia(media) {
     return videoItems.reduce((best, m) => m.contentLength > best.contentLength ? m : best, videoItems[0]);
   }
 
-  // A DASH manifest carries no useful size, so it can only be picked by recency
-  // — and without this a page whose only media is an mpd renders as "listening"
-  // while the item sits in the list underneath.
   const dashItems = media.filter(m => m.mediaType === "dash");
   if (dashItems.length > 0) {
     return dashItems.reduce((best, m) => (m.detectedAt > best.detectedAt ? m : best), dashItems[0]);

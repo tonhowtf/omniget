@@ -6,9 +6,6 @@
   import TccPanel from "./TccPanel.svelte";
   import HostsPanel from "./HostsPanel.svelte";
 
-  /// Privacy: settings from privacy.sexy with their state read from the
-  /// system, app permissions (macOS), and tracker blocking through the
-  /// hosts file. Each tab loads the first time it is shown, then stays.
   let { caps }: { caps: Caps } = $props();
 
   type Tab = "settings" | "permissions" | "trackers";

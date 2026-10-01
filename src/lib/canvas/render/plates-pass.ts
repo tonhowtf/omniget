@@ -1,7 +1,3 @@
-// SDF passes of L0: group frames and far-level plates under everything
-// (order 10), and the gesture overlay on top (order 70): marquee, alignment
-// guides, eraser, the rectangle of a node being created.
-
 import type { CanvasEngine } from '../engine.svelte';
 import { isTerminalKind } from '../model/types';
 import { parseColor, withAlpha, type Rgba } from './color';
@@ -9,7 +5,6 @@ import type { FrameInfo, GlPass } from './gl-layer';
 import { LineBatch } from './lines';
 import { SdfBatch } from './sdf-shapes';
 
-/** Plate colour per node kind at the far level. */
 const KIND_TINT: Record<string, string> = {
   note: '#e9c46a',
   text: '#9aa5b1',
@@ -31,7 +26,6 @@ export function createPlatesPass(engine: CanvasEngine, colors: () => { surface: 
       const z = cam.zoom;
       const { surface, ink } = colors();
       sdf.begin();
-      // Group frames: bounds of the members plus padding, never stored.
       for (const g of engine.store.groups) {
         const b = engine.groupBounds(g.id);
         if (!b) continue;
@@ -44,7 +38,6 @@ export function createPlatesPass(engine: CanvasEngine, colors: () => { surface: 
           dash: 6,
         });
       }
-      // Far plates of non-agent nodes: coloured rectangle (title comes from the sprite pass).
       for (const v of frame.visibleNodes) {
         if (v.lod !== 'far' || isTerminalKind(v.kind)) continue;
         const tint = parseColor(KIND_TINT[v.kind] ?? '#9aa5b1');
@@ -60,7 +53,6 @@ export function createPlatesPass(engine: CanvasEngine, colors: () => { surface: 
           stroke: withAlpha(ink, 0.25),
         });
       }
-      // Mid-level shadow under cards (the cards themselves are DOM in L2).
       for (const v of frame.visibleNodes) {
         if (v.lod !== 'mid' || isTerminalKind(v.kind)) continue;
         sdf.rect((v.x - cam.x) * z + 2, (v.y - cam.y) * z + 4, v.w * z, v.h * z, {

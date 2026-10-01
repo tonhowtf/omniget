@@ -1,13 +1,4 @@
 <script lang="ts">
-  /**
-   * Instalados (`/llm/installed`): what the OmniGet installed, by tool or by
-   * project (locks: global + every project it knows), drift (files edited
-   * since), update (re-plan from the catalog: the dialog shows the diff
-   * against what is on disk now), uninstall (only our files/pieces), restore
-   * a transaction, copy an install to another tool, and import what a tool
-   * already has that did not come from the OmniGet. The Plugins tab lists
-   * the tools' own plugins/extensions with an on/off switch.
-   */
   import { onMount } from "svelte";
   import { t } from "$lib/i18n";
   import { showToast } from "$lib/stores/toast-store.svelte";
@@ -58,7 +49,6 @@
   let openDrift = $state<Set<string>>(new Set());
   let copyFor = $state<string | null>(null);
 
-  // import (what a tool has that we did not install)
   let importTool = $state<string>("");
   let importScope = $state<Scope>("project");
   let imported = $state<Component[] | null>(null);
@@ -134,7 +124,6 @@
     }
   }
 
-  /** Discard local edits: force-uninstall, then plan the catalog version again. */
   async function reinstall(rec: InstallRecord) {
     if (!(await doUninstall(rec, true))) return;
     await planFor(() =>

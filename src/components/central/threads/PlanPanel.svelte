@@ -1,6 +1,4 @@
 <script lang="ts">
-  // Plan surface: the live step list (Codex plan / TodoWrite) with a
-  // segmented bar, and the latest proposed plan card.
   import { t } from "$lib/i18n";
   import type { PlanRow } from "$lib/central/threads/types";
   import PlanCard from "./PlanCard.svelte";

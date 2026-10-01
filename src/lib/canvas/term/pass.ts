@@ -1,9 +1,3 @@
-// The terminal GL pass: draws every visible terminal body in the canvas's
-// single WebGL2 context. One quad per terminal; cells live in an RGBA32UI
-// texture per terminal (glyph slot, fg, bg, flags) re-uploaded row by row as
-// the wire reports damage. Three LODs: text, minimap (1 byte per cell) and
-// card (nothing drawn here; the node chrome shows the card).
-
 import { terminalTheme } from '$components/central/terminal/theme';
 import { canvasPrefs } from '../prefs.svelte';
 import { loadUserSchemes, schemeTheme } from './themes';
@@ -36,18 +30,9 @@ import {
 } from './wire';
 
 const BLINK_MS = 530;
-/**
- * Texture unit used for uploads only. Units 0–3 are what the shader samples
- * (cells, mini, atlas, palette); binding a cells or mini texture to the
- * palette unit while uploading made the next draw fail (sampler type
- * mismatch), leaving a terminal body blank until something else redrew it
- * (M-D4 after a theme change or scroll, M-D17 at the mini LOD).
- */
 const UPLOAD_UNIT = 4;
-/** Camera considered settled after this long without a scale change. */
 const SETTLE_MS = 150;
 
-// Texel.a bits (see shaders.ts).
 const TA_STRIKE = 8;
 const TA_SEL = 16;
 const TA_MATCH = 32;
@@ -62,7 +47,6 @@ interface Theme {
   cursor: Rgba;
   sel: Rgba;
   match: Rgba;
-  /** Packed 0xRRGGBBAA per xterm-256 index. */
   palette: Uint32Array;
 }
 
@@ -88,7 +72,6 @@ function pack(c: Rgba): number {
   );
 }
 
-/** Per-terminal appearance (node `data.appearance`); absent fields follow the global settings. */
 interface TermAppearance {
   theme?: string;
   customThemeId?: string;
@@ -101,7 +84,6 @@ function appearanceOf(node: { data?: unknown } | null | undefined): TermAppearan
   return a && typeof a === 'object' ? (a as TermAppearance) : {};
 }
 
-/** Scheme id a terminal draws with: its own choice, else Settings → Canvas → Terminal theme. */
 function themeIdOf(node: { data?: unknown } | null | undefined): string {
   const a = appearanceOf(node);
   const own = a.theme === 'custom' ? a.customThemeId : a.theme;
@@ -113,7 +95,6 @@ function themeIdOf(node: { data?: unknown } | null | undefined): string {
 function buildTheme(id: string = canvasPrefs().terminal.theme): Theme {
   let t: ReturnType<typeof terminalTheme> | null = null;
   try {
-    // Scheme id; `system` follows the app tokens.
     t = (schemeTheme(id) as ReturnType<typeof terminalTheme> | null) ?? null;
     if (!t && typeof document !== 'undefined') t = terminalTheme();
   } catch {
@@ -170,16 +151,13 @@ interface GridGpu {
   texels: Uint32Array;
   styleEpoch: number;
   glyphEpoch: number;
-  /** Scheme the texels were built with (colours are resolved at build time). */
   themeKey: string;
   miniCols: number;
   miniRows: number;
   lastUsed: number;
 }
 
-/** Where a terminal was drawn last frame, in CSS px of the canvas (for input/hit mapping). */
 interface TermLayout {
-  /** Top-left of cell (0,0), canvas CSS px. */
   x: number;
   y: number;
   cellW: number;
@@ -209,14 +187,12 @@ class TermPass implements GlPass {
   private readonly atlas = new TermAtlas();
   private gpus = new Map<string, GridGpu>();
   private theme: Theme = buildTheme();
-  /** Schemes in use by some terminal, with their palette texture. */
   private themes = new Map<string, { theme: Theme; palette: WebGLTexture | null }>();
   private lastScale = 0;
   private scaleChangedAt = 0;
   private settleTimer: ReturnType<typeof setTimeout> | null = null;
   private blinkTimer: ReturnType<typeof setTimeout> | null = null;
   private workPending = false;
-  /** Asks the host to draw another frame (set by the canvas at registration). */
   requestRedraw: () => void = () => {};
 
   constructor() {
@@ -237,7 +213,6 @@ class TermPass implements GlPass {
     this.themes.clear();
   }
 
-  /** Theme (and palette texture) of a scheme id, built once. */
   private themeFor(gl: WebGL2RenderingContext, id: string): { theme: Theme; palette: WebGLTexture | null } {
     let t = this.themes.get(id);
     if (!t) {
@@ -250,7 +225,6 @@ class TermPass implements GlPass {
     return t;
   }
 
-  /** Switches the colour uniforms and palette to one terminal's theme. */
   private useTheme(gl: WebGL2RenderingContext, t: { theme: Theme; palette: WebGLTexture | null }): void {
     this.theme = t.theme;
     gl.uniform4fv(this.u.u_defFg, t.theme.fg);
@@ -262,12 +236,6 @@ class TermPass implements GlPass {
     gl.bindTexture(gl.TEXTURE_2D, t.palette ?? this.palette);
   }
 
-  /**
-   * Paints the padding and the empty body of a terminal node in the colour
-   * the running program paints (the background of its top-left cell), or the
-   * theme background. A node whose screen has not arrived yet shows an
-   * opaque body instead of the canvas grid.
-   */
   private fillBody(gl: WebGL2RenderingContext, grid: TermGrid | undefined, x: number, y: number, w: number, h: number, vw: number, vh: number): void {
     const cx = Math.max(0, x);
     const cy = Math.max(0, y);
@@ -369,8 +337,6 @@ class TermPass implements GlPass {
     return tex;
   }
 
-  // ------------------------------------------------------------ colours
-
   private color(c: number, slot: 'fg' | 'bg'): number {
     const kind = c >>> 24;
     if (kind === COLOR_PALETTE) return this.theme.palette[c & 255];
@@ -378,8 +344,6 @@ class TermPass implements GlPass {
     if (kind === COLOR_SWAPPED) return pack(slot === 'fg' ? this.theme.bg : this.theme.fg);
     return 0;
   }
-
-  // ------------------------------------------------------------ cells
 
   private buildRow(g: GridGpu, y: number): void {
     const grid = g.grid;
@@ -459,7 +423,6 @@ class TermPass implements GlPass {
       grid.markAll();
     }
     for (let y = 0; y < grid.rows; y++) if (grid.dirty[y]) this.buildRow(g, y);
-    // A glyph table reset during the build leaves some rows pointing at old slots.
     if (this.atlas.glyphs.epoch !== glyphEpoch) {
       g.glyphEpoch = this.atlas.glyphs.epoch;
       for (let y = 0; y < grid.rows; y++) this.buildRow(g, y);
@@ -549,8 +512,6 @@ class TermPass implements GlPass {
     if (g.mini) gl.deleteTexture(g.mini);
   }
 
-  // ------------------------------------------------------------ draw
-
   private begin(gl: WebGL2RenderingContext, vw: number, vh: number): void {
     gl.useProgram(this.program);
     gl.bindVertexArray(this.vao);
@@ -571,12 +532,6 @@ class TermPass implements GlPass {
     gl.bindTexture(gl.TEXTURE_2D, this.palette);
   }
 
-  /**
-   * Lifted and docked terminals (`frame.screenNodes`): screen-space rects at
-   * scale 1 (real size whatever the canvas zoom), drawn by a late pass so no
-   * other pass paints over them. The node rect is cleared to the terminal
-   * background first (the plate pass does not draw screen nodes).
-   */
   drawScreen(gl: WebGL2RenderingContext, frame: FrameInfo): void {
     const list = (frame.screenNodes ?? []).filter((n) => n.screen && isTerminalKind(n.kind));
     if (!list.length || gl.isContextLost()) return;
@@ -702,7 +657,6 @@ class TermPass implements GlPass {
       this.useTheme(gl, th);
       const fs = termFontScale(node);
       const grid = termHub.grid(termId);
-      // Padding and a body with no screen yet: the program's background.
       this.fillBody(
         gl,
         grid,
@@ -759,7 +713,6 @@ class TermPass implements GlPass {
       const picked = this.atlas.pick(fontDevice * fs, settled);
       if (!picked || !picked.bucket.texture) continue;
       const b = picked.bucket;
-      // Exact bucket at rest: 1:1 texels, crisp. Otherwise stretch to the float cell.
       const cellW = picked.exact && settled ? b.cw : m.w * scale * fs;
       const cellH = picked.exact && settled ? b.ch : m.h * scale * fs;
 
@@ -815,7 +768,6 @@ class TermPass implements GlPass {
     termHub.afterDraw();
   }
 
-  /** Frees GPU textures of terminals not drawn for a while. */
   private evict(gl: WebGL2RenderingContext, now: number): void {
     for (const [id, g] of this.gpus) {
       if (now - g.lastUsed > 10_000 || !termHub.grid(id)) {
@@ -838,7 +790,6 @@ class TermPass implements GlPass {
       for (const t of this.themes.values()) if (t.palette) gl.deleteTexture(t.palette);
     }
     this.themes.clear();
-    // Grids must be fully re-uploaded into the new context.
     for (const g of this.gpus.values()) g.grid.resized = true;
     this.gpus.clear();
     this.atlas.dropGl();
@@ -864,15 +815,9 @@ class TermPass implements GlPass {
 let shared: TermPass | null = null;
 let unregister: (() => void) | null = null;
 
-/**
- * Registers the terminal pass on the canvas GL layer. `invalidate` asks the
- * engine for one more frame (new wire data, cursor blink, atlas fill, settle).
- * The returned function unregisters it and drops the frame subscription.
- */
 export function registerTermPass(invalidate: () => void): () => void {
   const pass = termPass();
   pass.requestRedraw = invalidate;
-  // User themes (Ghostty files) show up without a restart.
   const pollThemes = () => void loadUserSchemes().then((changed) => changed && pass.refreshTheme());
   pollThemes();
   const themeTimer = setInterval(pollThemes, 5000);
@@ -892,7 +837,6 @@ export function registerTermPass(invalidate: () => void): () => void {
   };
 }
 
-/** The one terminal pass of this webview. */
 export function termPass(): TermPass {
   if (!shared) shared = new TermPass();
   return shared;
@@ -900,11 +844,6 @@ export function termPass(): TermPass {
 
 let glSupport: boolean | null = null;
 
-/**
- * Whether the GL renderer can run here. The canvas engine calls
- * `setTermGlAvailable(false)` when its WebGL2 context cannot be created, so
- * terminal nodes fall back to xterm.js.
- */
 export function termGlAvailable(): boolean {
   if (glSupport !== null) return glSupport;
   try {

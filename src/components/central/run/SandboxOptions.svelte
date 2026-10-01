@@ -1,9 +1,4 @@
 <script lang="ts">
-  /**
-   * Sandbox choice for a coding-CLI run: none, OmniGet's Docker recipe (image
-   * generated per tool, project copied, normal permissions) or E2B with the
-   * user's key from the vault. Docker missing → the option says why.
-   */
   import { onMount } from "svelte";
   import { t } from "$lib/i18n";
   import { runSandboxDockerfile, runSandboxStatus, type SandboxOpts, type SandboxStatus } from "./run-api";

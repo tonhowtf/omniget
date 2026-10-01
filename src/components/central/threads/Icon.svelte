@@ -1,5 +1,4 @@
 <script lang="ts">
-  // Filled Phosphor glyph (MIT) drawn inline; colour follows `currentColor`.
   import { ICONS, type IconName } from "$lib/central/threads-ui/icons";
 
   let { name, size = 16, label = null }: { name: IconName; size?: number; label?: string | null } = $props();

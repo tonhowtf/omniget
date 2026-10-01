@@ -1,6 +1,4 @@
 <script lang="ts">
-  // Assistant Markdown, rendered incrementally while streaming (stable prefix
-  // cached, only the tail re-parses). Path-like inline code is a file chip.
   import { onDestroy } from "svelte";
   import { IncrementalMarkdown } from "$lib/central/threads-ui/markdown";
 

@@ -1,10 +1,4 @@
 <script lang="ts">
-  /**
-   * Summaries: run a video summary with the saved AI connection and read the
-   * saved results. Moved out of Settings, which keeps only the connection.
-   * `?section=form|history&setting=…` reveals and focuses that block; a deep
-   * link never starts a summary.
-   */
   import { page } from "$app/state";
   import { t } from "$lib/i18n";
   import { focusWhenReady, parseSummariesTarget } from "$lib/settings-navigation";

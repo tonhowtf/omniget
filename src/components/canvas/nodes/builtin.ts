@@ -1,8 +1,3 @@
-// Registers the node components that live in this folder, by file name, with
-// `ifAbsent` so an explicit registerNodeKind from another module always wins.
-// Components written later by other agents (TerminalNode, PortalNode,
-// FileTreeNode, NoteStackNode) are picked up automatically when present.
-
 import type { Component } from 'svelte';
 import { ICONS, MIN_SIZES, DEFAULT_SIZES, registerNodeKind } from '$lib/canvas/nodes/registry';
 

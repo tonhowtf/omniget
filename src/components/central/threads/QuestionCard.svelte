@@ -1,8 +1,4 @@
 <script lang="ts">
-  // Pending user question (AskUserQuestion) in the composer drawer: one
-  // question at a time ("2/3"), digits 1–9 pick options, single-select
-  // auto-advances after 200 ms, multi-select toggles. The composer text is
-  // the custom answer when allowed (`customText`).
   import { t } from "$lib/i18n";
   import type { UserInputRow } from "$lib/central/threads/types";
   import Icon from "./Icon.svelte";

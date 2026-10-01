@@ -1,14 +1,4 @@
 <script lang="ts">
-  /**
-   * The showcase: the skills published by OpenRouterTeam, filterable, each one
-   * installable (a shallow git clone, so it only runs on a click — nothing
-   * here touches the network on mount).
-   *
-   * Plan D-5: the OpenRouterTeam repository declares no licence, so an entry
-   * the catalogue does not license carries a badge and takes two clicks to
-   * install, the second one under the warning — the same shape as the git
-   * source in the install dialog.
-   */
   import { t } from "$lib/i18n";
   import {
     catalogPress,
@@ -28,13 +18,11 @@
   }: {
     entries?: SkillCatalogEntry[];
     installed?: SkillManifest[];
-    /** Name or url currently installing. */
     busy?: string | null;
     oninstall?: (entry: SkillCatalogEntry) => void;
   } = $props();
 
   let filter = $state("");
-  /** Name of the unlicensed entry waiting for its second click. */
   let confirming = $state<string | null>(null);
 
   function press(entry: SkillCatalogEntry) {
@@ -81,8 +69,6 @@
         <li class="entry">
           <div class="entry-head">
             <h3 class="name">{entry.name}</h3>
-            <!-- An entry only has a scan once it is installed: the showcase
-                 itself is static data and nothing has been run over it. -->
             {#if scan}
               <SkillScanBadge {scan} />
             {/if}

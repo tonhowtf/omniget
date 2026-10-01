@@ -26,9 +26,6 @@
   import { onProgress } from "./ui/progress";
   import JunkSummary from "./JunkSummary.svelte";
 
-  /// Junk: nothing is scanned until the person asks. The scan ticks what
-  /// is safe to remove; open apps stay unticked with the reason, admin
-  /// items carry a badge, history and cookies say they leave for good.
   let { caps }: { caps: Caps } = $props();
 
   type Phase = "idle" | "scanning" | "done" | "error";
@@ -54,7 +51,6 @@
   }
 
   function itemLabel(it: JunkItem): string {
-    // Items that are not a path (a snap revision, a runtime) carry their own label.
     return isPath(it.path) ? tr(ruleLabelKey(it.rule_id), it.label) : it.label;
   }
 
@@ -123,7 +119,6 @@
     phase = "idle";
   }
 
-  // A rescan may drop items: keep the selection honest.
   $effect(() => {
     if (!scan) return;
     const next = pruneSelection(selected, rows);
@@ -306,7 +301,6 @@
     bottom: 0;
     z-index: 2;
     padding: var(--space-3) 0;
-    /* Opaque bar so the button never sits on top of the list's totals. */
     background: var(--pane-bg);
     border-top: 1px solid var(--separator, var(--button-elevated));
   }

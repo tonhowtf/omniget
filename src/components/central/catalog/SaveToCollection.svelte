@@ -1,5 +1,4 @@
 <script lang="ts">
-  /** "Save to collection" popover: toggle membership in each collection, or create one with this item. */
   import { t } from "$lib/i18n";
   import { showToast } from "$lib/stores/toast-store.svelte";
   import { collections as coll, errText, type Collection } from "$lib/central/catalog";

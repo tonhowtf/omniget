@@ -1,9 +1,3 @@
-// Document sync with Rust (02-motor-do-canvas §9, contract-doc.md). The front
-// applies ops optimistically, sends them with `canvas_apply`, and follows
-// `canvas://patch` deduplicated by (epoch, seq); a new epoch or a gap means
-// "reload the snapshot". When the commands are not registered (or fail), the
-// canvas keeps working in memory and says so through `mode`.
-
 import { markWorkspaceOpen } from '../session';
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
@@ -45,7 +39,6 @@ export class CanvasSync {
   workspaces: Workspace[] = [];
   lastError: string | null = null;
   onModeChange?: (mode: SyncMode) => void;
-  /** Called after a remote patch or a reload changed the document. */
   onRemote?: (ops: Op[], origin: Origin) => void;
 
   private unlisten: UnlistenFn | null = null;
@@ -67,7 +60,6 @@ export class CanvasSync {
     this.onModeChange?.(mode);
   }
 
-  /** Loads the given (or first) workspace; falls back to an in-memory floor. */
   async open(workspaceId?: string, floorId?: string): Promise<void> {
     try {
       const list = await invoke<Workspace[]>('canvas_workspaces');
@@ -103,7 +95,6 @@ export class CanvasSync {
     if (this.mode !== 'rust') return;
     if (!p || p.workspaceId !== this.store.workspaceId || p.floorId !== this.store.floorId) return;
     if (this.inFlight > 0) {
-      // Might be the echo of an apply still in flight: decide once it resolves.
       this.deferred.push(p);
       return;
     }
@@ -122,7 +113,6 @@ export class CanvasSync {
     }
     if (p.seq <= this.lastSeq) return;
     if (p.seq > this.lastSeq + 1) {
-      // A gap: something was missed, the snapshot is the truth.
       void this.reload();
       return;
     }
@@ -157,10 +147,8 @@ export class CanvasSync {
     }
   }
 
-  /** Sends ops already applied locally. Ordered; never throws. */
   push(ops: Op[], origin: Origin = 'user'): Promise<void> {
     if (ops.length === 0 || this.mode !== 'rust') return Promise.resolve();
-    // Convert now: drawing updates read the store as it is right after the local apply.
     const wire = opsToWire(ops, this.store);
     if (wire.length === 0) return Promise.resolve();
     const mine = new Set(ops.map(recordKey));
@@ -176,7 +164,6 @@ export class CanvasSync {
         });
         if (res && typeof res.rev === 'number') this.store.rev = res.rev;
         if (res && typeof res.seq === 'number' && res.seq > this.lastSeq) this.mySeqs.add(res.seq);
-        // Effective ops: pick up what Rust added (cascades, filled ids, note files).
         if (res?.ops?.length) {
           const extra = (res.ops as Array<Record<string, unknown>>).filter((w) => {
             const key = wireKey(w);
@@ -200,7 +187,6 @@ export class CanvasSync {
     return p;
   }
 
-  /** Camera is saved when it settles, debounced, never per frame. */
   saveCamera(camera: CameraState): void {
     this.pendingCamera = { x: camera.x, y: camera.y, zoom: camera.zoom };
     if (this.cameraTimer) clearTimeout(this.cameraTimer);
@@ -219,7 +205,6 @@ export class CanvasSync {
     void this.push(ops, 'user');
   }
 
-  /** Flushes the pending camera and asks Rust to write now (blur, route change). */
   flush(): void {
     if (this.cameraTimer) {
       clearTimeout(this.cameraTimer);

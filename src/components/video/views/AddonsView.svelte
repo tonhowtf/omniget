@@ -1,7 +1,4 @@
 <script lang="ts">
-  // Add-ons that speak the open Stremio protocol: catalogs of the installed
-  // add-ons, a meta page with episodes, and the list of streams. Only direct
-  // http links and YouTube play; the rest is shown greyed out with the reason.
   import { untrack } from "svelte";
   import { t } from "$lib/i18n";
   import { showToast } from "$lib/stores/toast-store.svelte";
@@ -65,7 +62,6 @@
 
   const rowKey = (c: AddonCatalog) => `${c.addon}:${c.type}:${c.id}`;
 
-  // load each browse shelf once
   $effect(() => {
     if (metaId) return;
     const cats = browseCats;
@@ -110,7 +106,6 @@
     });
   });
 
-  // meta page
   $effect(() => {
     const ty = metaType;
     const id = metaId;

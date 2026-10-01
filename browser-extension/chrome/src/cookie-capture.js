@@ -1,12 +1,3 @@
-/**
- * Manual "Capture cookies from this site" flow.
- *
- * Reads cookies for the active tab's URL and ships them to the desktop app via
- * the localhost HTTP bridge (`POST /v1/cookies`). Includes metadata so the
- * desktop Cookie Manager UI can show the source URL, page title (as alias hint)
- * and label the capture as "manual".
- */
-
 import { sendCookiesViaBridge } from "./bridge-client.js";
 
 const TRACKED_PLATFORMS = {
@@ -31,9 +22,6 @@ const TRACKED_PLATFORMS = {
   "rocketseat.com.br": "rocketseat",
 };
 
-// Two-label public suffixes: the registrable name is the last three labels
-// (`app.rocketseat.com.br` -> `rocketseat.com.br`). Mirrors the desktop side
-// (`cookies/platform.rs`), so both file the capture under the same bucket.
 const TWO_LABEL_PUBLIC_SUFFIXES = new Set([
   "com.br", "net.br", "org.br", "edu.br", "gov.br", "art.br", "eng.br",
   "co.uk", "org.uk", "ac.uk", "gov.uk", "me.uk",

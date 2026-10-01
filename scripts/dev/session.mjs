@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-// External lifecycle owner. Cargo decides freshness; MCP proves the running UI.
 import {spawn, spawnSync} from 'node:child_process';
 import {readFileSync,writeFileSync,mkdirSync,existsSync,watch,openSync,closeSync,unlinkSync,appendFileSync,renameSync} from 'node:fs';
 import path from 'node:path';
@@ -161,7 +160,6 @@ async function start() {
   finally{busy=false;}
  }
  try {
-  // Vite owns frontend watching. This watcher only schedules Cargo for backend inputs.
   vite=spawn(process.execPath,[path.join(root,'node_modules/vite/bin/vite.js'),'--port',String(port),'--strictPort'],{cwd:root,env,detached:process.platform!=='win32',stdio:['ignore','pipe','pipe']});
   vite.stdout.on('data',b=>log('vite',b));vite.stderr.on('data',b=>log('vite',b));
   vite.on('exit',code=>{if(!stopping){save({phase:'failed',error:'VITE_EXITED: '+code});void stop(1);}});

@@ -1,7 +1,3 @@
-// Portal design-select (Maestri Design mode): typed wrappers over
-// commands::canvas::portal::canvas_portal_design_* and the
-// `canvas://design-select` event (Rust `crate::canvas::design`).
-
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 

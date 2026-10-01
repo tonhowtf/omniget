@@ -1,11 +1,3 @@
-// Video playback engine (W5). One <video> element lives for the whole app
-// session and is moved between hosts (the watch page player, the mini
-// player, an off-screen garage), so leaving the watch page never restarts the
-// video. Three ways to play, tried in order:
-//   dash   dash.js over the synthetic MPD (one element, quality switch in place)
-//   direct video-only <video> + hidden <audio>, kept in sync (Flow's policy)
-//   muxed  progressive itag (360p) as the last resort
-// Lives use HLS. Everything goes through the local proxy (`StreamSet.base`).
 import { goto } from "$app/navigation";
 import * as api from "./api";
 import {
@@ -47,9 +39,7 @@ export type PlayMode = "dash" | "direct" | "muxed" | "hls";
 type SbToast = { seg: SbSegment; undone: boolean; left: number; hold: boolean };
 
 export const vplayer = $state({
-  /** Why each playback mode failed for the current video, newest last (diagnostics). */
   failures: [] as string[],
-  /** Video currently loaded (watch page or mini player). */
   videoId: null as string | null,
   info: null as WatchInfo | null,
   streams: null as StreamSet | null,
@@ -60,37 +50,28 @@ export const vplayer = $state({
   volume: 1,
   muted: false,
   rate: 1,
-  /** Selected heights / itags; null = auto. */
   videoItag: null as number | null,
   audioItag: null as number | null,
   captions: null as string | null,
   segments: [] as SbSegment[],
-  /** Mini player visible (video kept playing after leaving the watch page). */
   mini: false,
   theater: false,
   error: null as string | null,
-  /** Autoplay queue (playlist or related) for "next". */
   upNext: [] as VideoItem[],
 
   loading: false,
   mode: null as PlayMode | null,
-  /** Quality menu (one rung per height, same list the download menu uses). */
   ladder: [] as Format[],
   autoQuality: true,
-  /** Height being rendered right now. */
   height: null as number | null,
   tracks: [] as AudioTrack[],
-  /** Audio track key (null = original). */
   track: null as string | null,
   buffered: 0,
   ended: false,
   fullscreen: false,
   ambient: true,
-  /** Caption text showing now. */
   cue: "",
-  /** Auto-translate target for captions. */
   translate: null as string | null,
-  /** Last OmniTube engine that played (mini player vs music bar). */
   active: false,
   list: null as string | null,
   index: null as number | null,
@@ -98,17 +79,11 @@ export const vplayer = $state({
   sbAsk: null as SbSegment | null,
   sbHighlight: null as SbSegment | null,
   sbFull: null as SbSegment | null,
-  /** SponsorBlock auto-skip turned off for this video only. */
   sbOffHere: false,
-  /** Seconds left before autoplaying the next video (null = no countdown). */
   nextIn: null as number | null,
-  /** Center bezel ("play", "+10s"...): bumped `n` retriggers the animation. */
   bezel: { icon: "", text: "", n: 0 },
-  /** Short (vertical) mode: loops, no mini player. */
   short: false,
 });
-
-// ------------------------------------------------------------ persistence
 
 const LS = "omnitube.video";
 
@@ -143,11 +118,8 @@ function persist() {
     };
     localStorage.setItem(LS, JSON.stringify(s));
   } catch {
-    /* storage off */
   }
 }
-
-// ------------------------------------------------------------ elements
 
 let video: HTMLVideoElement | null = null;
 let companion: HTMLAudioElement | null = null;
@@ -210,13 +182,11 @@ function el(): HTMLVideoElement {
   return v;
 }
 
-/** The watch player / mini player hands its stage: the <video> moves there. */
 export function attachVideo(node: HTMLElement) {
   host = node;
   node.appendChild(el());
 }
 
-/** Host going away: park the element so playback keeps going. */
 export function detachVideo(node: HTMLElement) {
   if (host !== node || !video) return;
   host = null;
@@ -235,9 +205,6 @@ function applyVolume() {
   if (companion && video) video.muted = true;
 }
 
-// ------------------------------------------------------------ navigation
-
-/** Open a video on the watch page (navigates). */
 export function openVideo(id: string, opts: { list?: string | null; index?: number | null; t?: number | null } = {}): void {
   vplayer.mini = false;
   vplayer.short = false;
@@ -245,13 +212,11 @@ export function openVideo(id: string, opts: { list?: string | null; index?: numb
   if (typeof location !== "undefined" && !location.pathname.startsWith("/youtube")) void goto("/youtube");
 }
 
-/** Back to the watch page of what the mini player is showing. */
 export function expandMini() {
   if (!vplayer.videoId) return;
   openVideo(vplayer.videoId, { list: vplayer.list, index: vplayer.index });
 }
 
-/** Watch page unmounted: keep playing in the corner (not for Shorts). */
 export function leaveWatch() {
   report();
   if (!vplayer.videoId) return;
@@ -268,7 +233,6 @@ export function closeMini(): void {
   stopVideo();
 }
 
-/** Unload everything. */
 function stopVideo() {
   report();
   loadSeq++;
@@ -286,8 +250,6 @@ function stopVideo() {
   vplayer.loading = false;
   setMeta("video", null, null);
 }
-
-// ------------------------------------------------------------ loading
 
 let loadSeq = 0;
 let mode: PlayMode | null = null;
@@ -356,7 +318,6 @@ function resetFor(id: string) {
   vplayer.failures = [];
 }
 
-/** Load and (by default) start a video. Called by the watch player. */
 export async function loadVideo(
   id: string,
   opts: { t?: number | null; list?: string | null; index?: number | null; autoplay?: boolean; short?: boolean } = {},
@@ -395,7 +356,6 @@ export async function loadVideo(
   await begin(set, seq);
 }
 
-/** Try again from scratch (error screen button). */
 export function retry() {
   const id = vplayer.videoId;
   if (!id) return;
@@ -477,7 +437,6 @@ async function exhausted(seq: number) {
   vplayer.error ??= "playback failed";
 }
 
-/** A mode broke (decode, 403, unsupported codec): try the next one at the same time. */
 async function fail(why: string) {
   const set = vplayer.streams;
   if (!set || !mode) return;
@@ -578,8 +537,6 @@ function pickRung(ladder: Format[], pref: string, box: number, dpr: number): For
   return chooseQuality(ladder, pref, box, dpr);
 }
 
-// ------------------------------------------------------------ element events
-
 let reportTimer: ReturnType<typeof setInterval> | null = null;
 let lastReportPos = -1;
 
@@ -665,8 +622,6 @@ export function cancelNext() {
   if (nextTimer) clearTimeout(nextTimer);
 }
 
-// ------------------------------------------------------------ A/V sync (direct mode)
-
 let syncTimer: ReturnType<typeof setInterval> | null = null;
 let held = false;
 let lastRealign = 0;
@@ -727,8 +682,6 @@ function syncTick() {
   }
 }
 
-// ------------------------------------------------------------ controls
-
 export async function play() {
   const v = video;
   if (!v) return;
@@ -736,7 +689,6 @@ export async function play() {
   try {
     await v.play();
   } catch {
-    /* autoplay refused; the play button still works */
   }
 }
 
@@ -773,7 +725,6 @@ export function seekBy(d: number) {
   bezel(d < 0 ? "rewind" : "forward", `${d > 0 ? "+" : "−"}${Math.abs(d)}s`);
 }
 
-/** 0–9 keys: jump to n×10 %. */
 export function seekFrac(f: number) {
   if (vplayer.duration > 0) seek(vplayer.duration * f);
 }
@@ -812,7 +763,6 @@ export function stepRate(dir: 1 | -1) {
   bezel("speed", `${RATES[j]}x`);
 }
 
-/** Quality menu: `null` = auto. */
 export function setQuality(itag: number | null) {
   const set = vplayer.streams;
   if (!set) return;
@@ -849,7 +799,6 @@ function switchTo(f: Format) {
   }
 }
 
-/** Audio track (dubs). Dash reloads at the same time; direct swaps the <audio>. */
 export async function setTrack(key: string | null) {
   const set = vplayer.streams;
   const v = video;
@@ -876,8 +825,6 @@ export async function setTrack(key: string | null) {
   }
 }
 
-// ------------------------------------------------------------ captions
-
 export function captionKey(c: Caption): string {
   return `${c.lang}${c.auto ? ".auto" : ""}`;
 }
@@ -893,7 +840,6 @@ function pickInitialCaptions() {
   void setCaptions(captionKey(pick), false);
 }
 
-/** Turn captions on for a track key (`captionKey`), or off with null. */
 export async function setCaptions(key: string | null, remember = true, translate: string | null = vplayer.translate) {
   const set = vplayer.streams;
   vplayer.captions = key;
@@ -935,8 +881,6 @@ export function toggleCaptions() {
   pickInitialCaptions();
   bezel("captions-fill", "");
 }
-
-// ------------------------------------------------------------ SponsorBlock
 
 let sbTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -1007,7 +951,6 @@ export function closeSbToast() {
   toastTimer = null;
 }
 
-/** "Undo": back to the start of the skipped segment, not re-skipped until playback leaves it. */
 export function undoSkip() {
   const tt = vplayer.sbToast;
   if (!tt) return;
@@ -1016,7 +959,6 @@ export function undoSkip() {
   tt.undone = true;
 }
 
-/** "Skip again" after an undo. */
 export function redoSkip() {
   const tt = vplayer.sbToast;
   if (!tt) return;
@@ -1025,7 +967,6 @@ export function redoSkip() {
   showSbToast(tt.seg);
 }
 
-/** Accept the "Skip X" prompt (also Enter). */
 export function skipAsked() {
   const s = vplayer.sbAsk;
   if (!s) return;
@@ -1046,7 +987,6 @@ export function jumpToHighlight() {
   if (s) seek(s.start_s);
 }
 
-/** Enter key: prompt first, then the toast (undo / redo). */
 export function sbEnter(): boolean {
   if (vplayer.sbAsk) {
     skipAsked();
@@ -1059,8 +999,6 @@ export function sbEnter(): boolean {
   }
   return false;
 }
-
-// ------------------------------------------------------------ view state
 
 export function setWatchInfo(info: WatchInfo | null) {
   vplayer.info = info;
@@ -1086,7 +1024,6 @@ export function next() {
   const inList = pl?.items.some((x) => x.id === n.id);
   const opts = inList ? { list: pl?.id ?? null, index: (vplayer.index ?? 0) + 1 } : {};
   if (vplayer.mini) {
-    // the mini player moves on in place, like YouTube's
     const rest = vplayer.upNext.slice(1);
     void loadVideo(n.id, { ...opts, autoplay: true });
     vplayer.upNext = rest;
@@ -1153,7 +1090,6 @@ export async function togglePip() {
     else if (v.requestPictureInPicture) await v.requestPictureInPicture();
     else if (v.webkitSetPresentationMode) v.webkitSetPresentationMode(v.webkitPresentationMode === "picture-in-picture" ? "inline" : "picture-in-picture");
   } catch {
-    /* PiP refused (no metadata yet) */
   }
 }
 
@@ -1161,7 +1097,6 @@ export function bezel(icon: string, text = "") {
   vplayer.bezel = { icon, text, n: vplayer.bezel.n + 1 };
 }
 
-/** "Download in this quality" from the settings menu. */
 export async function downloadCurrent(audioOnly = false): Promise<string> {
   const id = vplayer.videoId;
   if (!id) throw new Error("nothing loaded");
@@ -1175,8 +1110,6 @@ export async function downloadCurrent(audioOnly = false): Promise<string> {
     music: false,
   });
 }
-
-// ------------------------------------------------------------ progress & session
 
 function titleOf(): string {
   return vplayer.info?.title ?? vplayer.streams?.title ?? vplayer.videoId ?? "";

@@ -1,25 +1,4 @@
 #!/usr/bin/env node
-// Converts the Windows app catalogs washmybelly ships for the uninstaller
-// (src-tauri/omniget-core/src/core/washmybelly/apps/windows/catalog.rs):
-//
-// - Win11Debloat (MIT, Raphire)  Config/Apps.json   -> data/washmybelly/win11debloat/apps.json
-//   141 apps with a safe / optional / unsafe recommendation ("unsafe" becomes "dangerous").
-// - winutil (MIT, CT Tech Group) config/appx.json   -> data/washmybelly/winutil/appx.json
-//   PackageId -> StoreId, to reinstall a removed Appx from the Store.
-// - Sophia Script (MIT, farag2)  $ExcludedAppxPackages in every Sophia.psm1
-//                                                   -> data/washmybelly/sophia/excluded_appx.json
-//   Appx that are never removed (codecs, Store, winget, drivers' control panels, WSL...).
-//
-// Run it when an upstream list changes; the output is committed and embedded
-// with `include_str!`. Nothing is downloaded at run time.
-//
-// Usage:
-//   node scripts/washmybelly/win-apps-convert.mjs --repos <folder with the three checkouts>
-//   node scripts/washmybelly/win-apps-convert.mjs --repos <folder> --check   fail if a committed file differs
-//
-// The folder holds `Raphire_Win11Debloat`, `ChrisTitusTech_winutil` and
-// `farag2_Sophia-Script-for-Windows` (the layout of estudos/89-washmybelly/repos).
-// Without --repos it reads $WMB_REPOS.
 
 import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync, mkdirSync, copyFileSync, existsSync, readdirSync } from 'node:fs';
@@ -45,7 +24,6 @@ if (!repos || !existsSync(join(WD, 'Config', 'Apps.json')) || !existsSync(join(W
 const commitOf = (repo) => execFileSync('git', ['-C', repo, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
 const readJson = (p) => JSON.parse(readFileSync(p, 'utf8').replace(/^﻿/, ''));
 
-// ── Win11Debloat Apps.json ──────────────────────────────────────────
 const wdRaw = readJson(join(WD, 'Config', 'Apps.json'));
 const RECOMMENDATION = { safe: 'safe', optional: 'optional', unsafe: 'dangerous' };
 const wdApps = wdRaw.Apps.map((a) => {
@@ -64,14 +42,12 @@ const wdApps = wdRaw.Apps.map((a) => {
   };
 });
 
-// ── winutil appx.json ───────────────────────────────────────────────
 const wuRaw = readJson(join(WU, 'config', 'appx.json'));
 const storeIds = {};
 for (const v of Object.values(wuRaw)) {
   if (v.PackageId && v.StoreId) storeIds[v.PackageId] = v.StoreId;
 }
 
-// ── Sophia $ExcludedAppxPackages (union of every edition) ───────────
 const never = new Set();
 const sophiaFiles = [];
 for (const edition of readdirSync(join(SO, 'src')).sort()) {

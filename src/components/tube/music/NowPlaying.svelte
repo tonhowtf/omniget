@@ -1,8 +1,4 @@
 <script lang="ts">
-  // Now playing (spec §3.5): slides up over the content. Big cover (or the
-  // song's video, muted and following the audio) on the left, tabs Up next /
-  // Lyrics / Related on the right, background tinted with the cover's
-  // dominant colour. Covers crossfade when the song changes.
   import { onDestroy } from "svelte";
   import { fade } from "svelte/transition";
   import { t } from "$lib/i18n";
@@ -31,13 +27,11 @@
   let art = $derived(song ? thumbUrl(song.thumbs, 544) : "");
   let artKey = $derived(song?.id ?? "");
 
-  // underline follows the active tab
   let ind = $derived.by(() => {
     const el = tabEls[tab];
     return el ? { left: el.offsetLeft, width: el.offsetWidth } : { left: 0, width: 0 };
   });
 
-  // dominant colour of the cover, darkened (spec: luminance ≤ 20 %)
   $effect(() => {
     const src = art;
     if (!src) return;
@@ -75,7 +69,6 @@
     img.src = src;
   });
 
-  // related tab loads on demand
   $effect(() => {
     const id = mplayer.relatedId;
     if (tab !== "related" || !id || id === relatedFor) return;
@@ -90,7 +83,6 @@
       .catch(() => (relatedErr = true));
   });
 
-  // video mode: a muted <video> of the song that follows the audio clock
   let vid = $state<HTMLVideoElement>();
   let vidSrc = $state("");
   let vidFor = "";

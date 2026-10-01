@@ -1,4 +1,3 @@
-// Pure helpers of the auto-download rule editor.
 import type { AutoRule } from "$lib/tube/types";
 
 export const RULE_QUALITIES = ["best", "1080", "720", "480", "audio"] as const;
@@ -32,7 +31,6 @@ export function newRule(name = "", channelIds: string[] = []): AutoRule {
   };
 }
 
-/** "a, b\nc" -> ["a", "b", "c"]; trims, drops empties and case-insensitive duplicates. */
 export function parseWords(text: string): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
@@ -47,7 +45,6 @@ export function parseWords(text: string): string[] {
   return out;
 }
 
-/** Minutes field (string from an <input>) -> seconds, or null when empty/invalid. */
 export function minutesToSeconds(v: string | number | null | undefined): number | null {
   if (v == null || v === "") return null;
   const n = typeof v === "number" ? v : Number(String(v).replace(",", "."));
@@ -63,7 +60,6 @@ export function secondsToMinutes(s: number | null | undefined): string {
 
 type RuleProblem = "name" | "duration" | "numbers";
 
-/** What is wrong with a rule before saving (empty = ok). */
 export function ruleProblems(r: AutoRule): RuleProblem[] {
   const out: RuleProblem[] = [];
   if (!r.name.trim()) out.push("name");
@@ -72,7 +68,6 @@ export function ruleProblems(r: AutoRule): RuleProblem[] {
   return out;
 }
 
-/** Normalized copy for saving: trimmed name/words, empty folder -> null. */
 export function cleanRule(r: AutoRule): AutoRule {
   return {
     ...r,
@@ -86,7 +81,6 @@ export function cleanRule(r: AutoRule): AutoRule {
   };
 }
 
-/** Share of the cap in use, 0..1 (0 when there is no cap). */
 export function usageRatio(usedBytes: number, capGb: number): number {
   if (!capGb || capGb <= 0) return 0;
   return Math.min(1, Math.max(0, usedBytes / (capGb * 1024 ** 3)));

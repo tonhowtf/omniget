@@ -1,5 +1,3 @@
-// Reactive view of `settings.tube` with defaults filled in, plus a patch
-// helper. Everyone reads prefs through `tubePrefs()`.
 import { getSettings, updateSettings } from "$lib/stores/settings-store.svelte";
 import type { TubeSettings } from "./types";
 

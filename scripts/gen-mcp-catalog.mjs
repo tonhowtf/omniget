@@ -1,7 +1,4 @@
 #!/usr/bin/env node
-// Regenerates src-tauri/omniget-cli/mcp-catalog.json, the offline tool list the
-// omniget-mcp binary embeds, from the desktop's MCP tools. Run it after adding,
-// removing or renaming an MCP tool. `--check` only fails when the file is stale.
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 

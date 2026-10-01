@@ -1,5 +1,3 @@
-// Shapes returned by the `music_*` Tauri commands (src-tauri/src/commands/music).
-
 export type Track = {
   id: number;
   path: string;
@@ -150,7 +148,6 @@ type TrackMeta = {
 
 export type TagDetail = { meta: TrackMeta; path: string; size: number; cover: string | null };
 
-/** Partial edit: absent = untouched, "" = remove. */
 export type TagPatch = Partial<Record<
   | "title" | "artist" | "album" | "album_artist" | "genre" | "composer" | "comment"
   | "year" | "track" | "track_total" | "disc" | "disc_total" | "bpm" | "musical_key" | "lyrics",

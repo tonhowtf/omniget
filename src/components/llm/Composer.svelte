@@ -1,13 +1,5 @@
 <script lang="ts">
   import { agentActions } from "$lib/native-agent/actions";
-  // Presentation follows 21st AI Input by Hayden Bleasel (1887): one autosizing input and a compact action row. Original Svelte implementation with no simulated attachments or capabilities.
-  /**
-   * Composer: one auto-growing textarea, Enter sends, Shift+Enter breaks the
-   * line. While a turn runs, Stop is offered and Send puts the message in a
-   * visible queue (cancelable) instead of refusing it in silence. The status
-   * line says what the work is really doing, from real events only. In a room,
-   * `@` opens an accessible list of members (combobox pattern).
-   */
   import { t } from "$lib/i18n";
   import { handleOf, mentionAt, type QueuedMessage, type TurnStatus } from "$lib/llm/types";
   import RunModeSelect from "./RunModeSelect.svelte";
@@ -35,7 +27,6 @@
     status?: TurnStatus;
     queue?: QueuedMessage[];
     members?: MemberOption[];
-    /** The chat conversation whose run mode (2.7) the picker shows and sets. */
     conversationId?: string | null;
     onsend: (text: string) => boolean | Promise<boolean>;
     onvaluechange?: (text: string) => void;
@@ -100,7 +91,6 @@
     sending = true;
     try {
       const accepted = await onsend(text);
-      // Keep text typed during startup, and retain the entire draft on failure.
       if (accepted && value.trim() === text) {
         value = "";
         onvaluechange?.(value);

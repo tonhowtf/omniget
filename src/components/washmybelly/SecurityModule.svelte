@@ -11,10 +11,6 @@
   import Icon from "./ui/Icon.svelte";
   import SecurityRow from "./SecurityRow.svelte";
 
-  /// Security (macOS): an honest inventory of everything set up to start by
-  /// itself or to live inside the system, with the facts macOS can check
-  /// (signature, notarization, quarantine, Team ID). It only reads; switching
-  /// items off happens in Startup, linked from each row.
   let { caps }: { caps: Caps } = $props();
 
   const mod = moduleById("security");

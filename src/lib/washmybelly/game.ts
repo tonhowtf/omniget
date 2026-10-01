@@ -1,7 +1,5 @@
 import type { ProcessRow } from "./monitor";
 
-/// Game mode screen logic: pure, tested in game.test.ts.
-
 type GameBackend = "feral_gamemode" | "portal" | "native" | "windows" | "macos" | "none";
 
 type GameActive = {
@@ -30,8 +28,6 @@ export type GameStatus = {
 
 export type Candidate = ProcessRow & { score: number };
 
-/// Names that are never "the game": OmniGet itself, browsers' helper
-/// processes, shells, system daemons and our own tools.
 const NOT_GAMES = [
   "omniget",
   "yt-dlp",
@@ -88,9 +84,6 @@ function isHelper(name: string): boolean {
 const MIN_CPU = 5;
 const MIN_MEMORY = 400 * 1024 * 1024;
 
-/// Running processes that could be the game: the person's own, busy (CPU or
-/// memory), not a helper or system process, not already in game mode.
-/// Sorted by how busy they are; the person picks.
 export function candidates(list: ProcessRow[], activePids: number[], limit = 12): Candidate[] {
   const active = new Set(activePids);
   return list
@@ -101,7 +94,6 @@ export function candidates(list: ProcessRow[], activePids: number[], limit = 12)
     .slice(0, limit);
 }
 
-/// The one-line state of the system's game mode, for the pill.
 export type Tone = "success" | "info" | "warning" | "default";
 
 export function statusPill(s: GameStatus): { key: string; tone: Tone } {
@@ -121,7 +113,6 @@ export function statusPill(s: GameStatus): { key: string; tone: Tone } {
   }
 }
 
-/// The honest explanation for this system and backend.
 export function explainKey(s: GameStatus): string {
   if (s.os === "macos") return "washmybelly.games.explain.macos";
   if (s.os === "windows") return "washmybelly.games.explain.windows";
@@ -134,27 +125,20 @@ function systemOn(s: GameStatus): boolean {
   return s.system?.["game_mode_on"] === true;
 }
 
-/// macOS Game Mode as the system reports it: true, false, or null when it
-/// cannot be read (no Xcode tools).
 export function macGameMode(s: GameStatus): boolean | null {
   const v = s.system?.["game_mode_on"];
   return typeof v === "boolean" ? v : null;
 }
 
-/// Windows' own Game Mode setting: null means absent, and Windows then uses
-/// its default (on).
 export function windowsAutoGameMode(s: GameStatus): boolean | null {
   const v = s.system?.["auto_game_mode"];
   return typeof v === "boolean" ? v : null;
 }
 
-/// The install command as one line to copy. Arguments never contain spaces
-/// (fixed package names), so a plain join is exact.
 export function installLine(install: GameStatus["install"]): string {
   return install?.argv?.join(" ") ?? "";
 }
 
-/// i18n key for a method.
 export function methodKey(method: string): string {
   const known = ["feral_gamemode", "portal", "native", "windows", "macos"];
   return `washmybelly.games.method.${known.includes(method) ? method : "other"}`;
@@ -174,17 +158,14 @@ const APPLIED = [
   "display_awake",
 ];
 
-/// Keys of what is on for a game, in a stable order, unknown codes dropped.
 export function appliedKeys(applied: string[]): string[] {
   return APPLIED.filter((a) => applied.includes(a)).map((a) => `washmybelly.games.applied.${a}`);
 }
 
-/// Minutes since `since` (seconds since the epoch).
 export function minutesSince(since: number, nowMs = Date.now()): number {
   return Math.max(0, Math.floor((nowMs / 1000 - since) / 60));
 }
 
-/// Error codes the backend uses for game mode.
 export function gameErrorKey(e: unknown): string | null {
   const s = String(e);
   for (const c of ["REFUSED", "NOT_FOUND", "NOT_ACTIVE", "NOTHING_APPLIED", "TIMEOUT"]) {

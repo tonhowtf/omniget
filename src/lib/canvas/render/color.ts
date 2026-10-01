@@ -1,10 +1,7 @@
-// Colour helpers shared by the GL passes and the Canvas 2D fallback.
-
 export type Rgba = [number, number, number, number];
 
 const cache = new Map<string, Rgba>();
 
-/** Parses #rgb, #rrggbb, #rrggbbaa, rgb()/rgba() and named colours (via Canvas 2D). */
 export function parseColor(css: string | undefined, fallback: Rgba = [0.9, 0.9, 0.9, 1]): Rgba {
   if (!css) return fallback;
   const hit = cache.get(css);
@@ -53,7 +50,6 @@ export function withAlpha(c: Rgba, a: number): Rgba {
   return [c[0], c[1], c[2], c[3] * a];
 }
 
-/** True when the app background is dark (measured on the --bg token, not the OS setting). */
 export function prefersDark(): boolean {
   if (typeof document === 'undefined') return true;
   const bg = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim();

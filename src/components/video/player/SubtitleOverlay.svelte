@@ -1,6 +1,4 @@
 <script lang="ts">
-  // Subtitles drawn in HTML (not <track>) so size, background, delay and a
-  // second language can be changed live.
   import { cueAt } from "$lib/video/format";
   import { player } from "$lib/video/player.svelte";
 

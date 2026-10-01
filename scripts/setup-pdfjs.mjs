@@ -1,9 +1,3 @@
-// Copies the pdf.js runtime files the vendored foliate-js loads from
-// /vendor/pdfjs/ (worker, wasm decoders, CJK cmaps, standard fonts and the
-// text/annotation layer CSS) out of node_modules into static/vendor/pdfjs.
-// Runs from the Vite config on dev and build, so the copy always matches
-// the pdfjs-dist version in package.json. Output is git-ignored.
-
 import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -22,8 +16,6 @@ export function setupPdfjs() {
   for (const dir of ["wasm", "cmaps", "standard_fonts"]) {
     if (existsSync(path.join(dist, dir))) cpSync(path.join(dist, dir), path.join(out, dir), { recursive: true });
   }
-  // foliate-js fetches the two layer stylesheets separately; pdf_viewer.css
-  // carries both, so ship it under each name.
   const css = readFileSync(path.join(dist, "web", "pdf_viewer.css"), "utf8");
   writeFileSync(path.join(out, "text_layer_builder.css"), css);
   writeFileSync(path.join(out, "annotation_layer_builder.css"), css);

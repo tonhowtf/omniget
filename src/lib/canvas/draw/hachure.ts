@@ -1,7 +1,3 @@
-// Hachure fill (the rough.js / Excalidraw look): parallel lines at −41°
-// clipped by the polygon with an even-odd scanline; cross-hatch adds a second
-// pass at +49°. Output: flat segment list [x0,y0,x1,y1, ...].
-
 const HACHURE_ANGLE = -41;
 
 export function hachureLines(poly: ArrayLike<number>, gap: number, angleDeg = HACHURE_ANGLE): number[] {
@@ -10,7 +6,6 @@ export function hachureLines(poly: ArrayLike<number>, gap: number, angleDeg = HA
   const a = (angleDeg * Math.PI) / 180;
   const cos = Math.cos(a);
   const sin = Math.sin(a);
-  // Rotate the polygon so the hachure becomes horizontal scanlines.
   const rx: number[] = [];
   const ry: number[] = [];
   let minY = Infinity;

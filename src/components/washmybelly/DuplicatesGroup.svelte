@@ -3,9 +3,6 @@
   import { formatBytes, shortenPath } from "$lib/washmybelly/format";
   import { baseName, trashId, type DupGroup } from "$lib/washmybelly/clean";
 
-  /// One set of identical files, the way Photos shows duplicates: the file
-  /// kept wears "Keep", every other copy has a box. Choosing "Keep" on
-  /// another file moves it there (the parent recomputes the selection).
   let {
     group,
     keep,

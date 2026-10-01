@@ -1,8 +1,3 @@
-// Destaque de sintaxe leve por regex, sem lib: comentários, strings,
-// números, palavras-chave, tipos (Maiúscula) e chamadas de função. Uma linha
-// por vez, com o estado de comentário de bloco carregado entre linhas. Saída
-// em HTML já escapado.
-
 export type HlState = { block: boolean };
 
 type Lang = {
@@ -10,7 +5,6 @@ type Lang = {
   block: [string, string] | null;
   quotes: string;
   keywords: Set<string>;
-  /** `#` inicia comentário só no começo de palavra (shell/yaml/python). */
 };
 
 const words = (s: string) => new Set(s.split(/\s+/).filter(Boolean));
@@ -128,7 +122,6 @@ const span = (cls: string, s: string) => `<span class="hl-${cls}">${escapeHtml(s
 const ID_START = /[A-Za-z_$@]/;
 const ID_CHAR = /[\w$?!-]/;
 
-/** Destaca uma linha. `state` é lido e atualizado (comentário de bloco aberto). */
 export function highlightLine(text: string, language: string, state: HlState): string {
   const lang = langFor(language);
   if (!lang || text.length > 2000) return escapeHtml(text);
@@ -151,14 +144,12 @@ export function highlightLine(text: string, language: string, state: HlState): s
   };
   while (i < n) {
     const rest = text.slice(i);
-    // comentário de linha
     const lc = lang.line.find((p) => rest.startsWith(p) && (p !== "#" || i === 0 || /\s/.test(text[i - 1])));
     if (lc) {
       flush();
       out += span("comment", rest);
       return out;
     }
-    // comentário de bloco
     if (lang.block && rest.startsWith(lang.block[0])) {
       flush();
       const end = text.indexOf(lang.block[1], i + lang.block[0].length);
@@ -172,7 +163,6 @@ export function highlightLine(text: string, language: string, state: HlState): s
       continue;
     }
     const c = text[i];
-    // string
     if (lang.quotes.includes(c)) {
       flush();
       let j = i + 1;
@@ -181,7 +171,6 @@ export function highlightLine(text: string, language: string, state: HlState): s
       i = j + 1;
       continue;
     }
-    // número
     if (/[0-9]/.test(c) && (i === 0 || !ID_CHAR.test(text[i - 1]))) {
       flush();
       const m = /^(0x[0-9a-fA-F_]+|0b[01_]+|\d[\d_]*(\.\d+)?([eE][+-]?\d+)?)[a-zA-Z0-9]*/.exec(rest);
@@ -190,7 +179,6 @@ export function highlightLine(text: string, language: string, state: HlState): s
       i += s.length;
       continue;
     }
-    // identificador
     if (ID_START.test(c) && (i === 0 || !ID_CHAR.test(text[i - 1]))) {
       let j = i + 1;
       while (j < n && /[\w$]/.test(text[j])) j++;

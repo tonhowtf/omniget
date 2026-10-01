@@ -1,6 +1,4 @@
 <script lang="ts">
-  // Seek bar: chapter segments, note markers, the A-B range and silences on
-  // one track. Dragging previews the time and seeks on release.
   import { t } from "$lib/i18n";
   import { fmtTime } from "$lib/video/format";
   import { player, seek } from "$lib/video/player.svelte";

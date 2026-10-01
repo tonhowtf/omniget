@@ -1,8 +1,3 @@
-// Context meter data: tokens in the model's window after the last request
-// and the window size. The driver's `usedTokens/maxTokens` win when a live
-// usage event carried them; otherwise we estimate from the last turn's usage
-// and a table of known windows.
-
 import type { UsageRow } from "$lib/central/threads/types";
 
 const WINDOWS: [RegExp, number][] = [
@@ -31,7 +26,6 @@ function windowForModel(model: string | null | undefined, driver?: string | null
 
 type ContextFill = { used: number; max: number | null; estimated: boolean };
 
-/** Prompt side of the last request ≈ what sits in the context now. */
 export function contextFromUsage(u: UsageRow | null, model: string | null, driver: string | null): ContextFill | null {
   if (!u) return null;
   const used = u.inputTokens + u.cachedInputTokens + u.cacheWriteTokens + u.outputTokens;

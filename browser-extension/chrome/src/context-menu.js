@@ -2,8 +2,6 @@ const MENU_ID = "omniget-download";
 const PAGE_MENU_ID = "omniget-download-page";
 const SELECTION_MENU_ID = "omniget-download-selection";
 
-// A selection can hold a whole list of links; past this many it is more likely
-// a page of text than a list someone meant to download.
 const MAX_SELECTION_LINKS = 20;
 
 function title(key, fallback) {
@@ -14,10 +12,6 @@ function title(key, fallback) {
   }
 }
 
-// Three entries, like NeoDLP's extension: a link or media element, the page
-// itself (the video you are watching), and the links in selected text.
-// Chrome shows the page entry only where no link, media or selection is under
-// the pointer, so a right-click never offers two OmniGet entries at once.
 export function registerContextMenu() {
   chrome.contextMenus.removeAll(() => {
     chrome.contextMenus.create({
@@ -52,17 +46,11 @@ function httpUrl(raw) {
   }
 }
 
-/**
- * Every http(s) link written in `text`, in order and without repeats.
- * A link that starts with `www.` gets `https://`. Punctuation that ends a
- * sentence or closes a bracket around the link is not part of it.
- */
 export function linksInText(text, max = MAX_SELECTION_LINKS) {
   if (typeof text !== "string" || !text) return [];
   const out = [];
   for (const match of text.matchAll(/\b(?:https?:\/\/|www\.)[^\s<>"'`]+/gi)) {
     let raw = match[0].replace(/[.,;:!?]+$/, "");
-    // Drop a closing bracket only when the link did not open one.
     while (/[)\]}]$/.test(raw)) {
       const close = raw.at(-1);
       const open = { ")": "(", "]": "[", "}": "{" }[close];
@@ -76,7 +64,6 @@ export function linksInText(text, max = MAX_SELECTION_LINKS) {
   return out;
 }
 
-/** The URLs a click on one of the entries should send to the app. */
 export function urlsForMenuClick(info) {
   if (!info) return [];
   if (info.menuItemId === MENU_ID) {

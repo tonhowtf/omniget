@@ -1,7 +1,3 @@
-// Camera flights (⌘1–⌘9, zoom to node, frame selection, "next needs you"):
-// van Wijk & Nuij "Smooth and efficient zooming and panning" (2003) — zoom out,
-// glide, zoom in — with a duration proportional to the path, 250–700 ms.
-
 import type { CameraState } from '../model/types';
 
 const RHO = 1.4;
@@ -9,15 +5,10 @@ const MIN_FLIGHT_MS = 250;
 const MAX_FLIGHT_MS = 700;
 
 export interface Flight {
-  /** Camera at progress t (0..1, already eased by the caller if wanted). */
   at(t: number): CameraState;
   durationMs: number;
 }
 
-/**
- * Builds the flight between two cameras for a viewport of vw × vh CSS px.
- * Works on the centre and the visible width in world units, as in the paper.
- */
 export function flyTo(from: CameraState, to: CameraState, vw: number, vh: number): Flight {
   const c0x = from.x + vw / (2 * from.zoom);
   const c0y = from.y + vh / (2 * from.zoom);
@@ -38,7 +29,6 @@ export function flyTo(from: CameraState, to: CameraState, vw: number, vh: number
   let S: number;
   let at: (t: number) => CameraState;
   if (u1 < 1e-6) {
-    // Pure zoom.
     const k = w1 < w0 ? -1 : 1;
     S = Math.abs(Math.log(w1 / w0)) / RHO;
     at = (t) => {

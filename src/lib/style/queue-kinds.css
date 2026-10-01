@@ -1,5 +1,3 @@
-/* Definições de token da paleta de tipos de fila (--queue-kind-*): valores-fonte
-   em hex por serem a própria definição, como os blocos de tema em app.css. */
 :root {
   --queue-kind-video-bg: color-mix(in oklab, var(--accent) 18%, transparent);
   --queue-kind-video-fg: var(--accent);

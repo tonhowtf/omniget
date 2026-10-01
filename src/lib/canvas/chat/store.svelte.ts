@@ -1,7 +1,3 @@
-// Chat face state per terminal node: which face shows (terminal or chat),
-// the selected thread, the loaded window of each thread and unread counts.
-// `canvas://chat` events are folded in by `startChatEvents()` (register.ts).
-
 import {
   chatHistory,
   chatMarkRead,
@@ -17,7 +13,6 @@ import {
   type ThreadInfo,
 } from './client';
 
-/** A request to show one entry (palette chat search): ChatFace scrolls it to the centre and marks `term`. */
 interface ChatFocusRequest {
   thread: number;
   entryId?: string;
@@ -30,18 +25,13 @@ class NodeChat {
   readonly nodeId: string;
   workspaceId = $state('');
   thread = $state(0);
-  /** Entries of the selected thread, oldest first. */
   entries = $state.raw<ChatEntry[]>([]);
   hasOlder = $state(false);
   threads = $state.raw<ThreadInfo[]>([]);
   unread = $state<Record<number, number>>({});
-  /** A user message is waiting for the agent's reply. */
   turnOpen = $state(false);
-  /** Thread of the open (or last) turn: the only one selectable while it runs. */
   turnThread = $state(0);
-  /** The last turn was interrupted (Esc) or ended without a reply. */
   turnInterrupted = $state(false);
-  /** Set by `chats.openAt`; ChatFace consumes it. */
   focusRequest = $state<ChatFocusRequest | null>(null);
   loading = $state(false);
   error = $state('');
@@ -51,7 +41,6 @@ class NodeChat {
     this.nodeId = nodeId;
   }
 
-  /** Without `thread`: the thread the app has selected (same as the MCP's `activeThread`). */
   async load(workspaceId: string, thread?: number): Promise<void> {
     this.workspaceId = workspaceId;
     this.loading = true;
@@ -85,7 +74,6 @@ class NodeChat {
     this.hasOlder = page.hasOlder;
   }
 
-  /** Unread counts of every thread without reading anything (header badge). */
   async peek(workspaceId: string): Promise<void> {
     this.workspaceId = workspaceId;
     try {
@@ -95,7 +83,6 @@ class NodeChat {
       this.turnThread = page.turnThread ?? page.thread;
       if (!this.loaded) this.thread = page.activeThread;
     } catch {
-      // no transcript yet
     }
   }
 
@@ -108,11 +95,6 @@ class NodeChat {
     this.unread = u;
   }
 
-  /**
-   * Selects a thread in the app (persisted: the MCP and the next message see
-   * it). Refused with CHAT_TURN_ACTIVE while the agent answers on another
-   * thread; `viewOnly` then still shows the thread without selecting it.
-   */
   async select(thread: number, viewOnly = false): Promise<void> {
     if (thread < 0 || thread >= THREADS.length) return;
     try {
@@ -127,7 +109,6 @@ class NodeChat {
     await this.load(this.workspaceId, thread);
   }
 
-  /** Server state (thread selected elsewhere, turn opened/closed, unread). */
   applyState(ev: ChatStateEvent, visible: boolean): void {
     this.turnOpen = ev.turnOpen;
     this.turnThread = ev.turnThread;
@@ -140,7 +121,6 @@ class NodeChat {
     if (this.loaded && ev.activeThread !== this.thread) void this.load(this.workspaceId, ev.activeThread);
   }
 
-  /** Folds an event entry in (dedupes by id, replaces an optimistic one by clientMessageId). */
   receive(e: ChatEntry, visible: boolean): void {
     const i = this.threads.findIndex((t) => t.index === e.thread);
     if (i >= 0 && e.kind !== 'divider') {
@@ -152,7 +132,6 @@ class NodeChat {
       this.turnThread = e.thread;
     }
     if ((e.role === 'agent' && e.kind !== 'progress') || e.kind === 'interrupted') this.turnOpen = false;
-    // Unread counts come from the server (`canvas://chat-state`).
     if (e.thread !== this.thread || !this.loaded) return;
     if (this.entries.some((x) => x.id === e.id)) return;
     const opt = e.clientMessageId ? this.entries.findIndex((x) => x.clientMessageId === e.clientMessageId) : -1;
@@ -164,7 +143,6 @@ class NodeChat {
     void visible;
   }
 
-  /** Entries left the transcript (Delete Message / Clear Chat History). */
   drop(ev: ChatRemovedEvent): void {
     if (ev.cleared) {
       if (ev.thread == null) this.unread = {};
@@ -173,7 +151,6 @@ class NodeChat {
     }
     const gone = new Set(ev.removed);
     this.entries = this.entries.filter((e) => !gone.has(e.id));
-    // Thread counts come from the server.
     if (this.loaded) void this.load(this.workspaceId, this.thread);
   }
 
@@ -184,7 +161,6 @@ class NodeChat {
 
 class ChatStore {
   private nodes = new Map<string, NodeChat>();
-  /** Node ids showing the chat face. */
   faces = $state<Record<string, boolean>>({});
 
   of(nodeId: string): NodeChat {
@@ -202,7 +178,6 @@ class ChatStore {
 
   setFace(nodeId: string, chat: boolean): void {
     this.faces = { ...this.faces, [nodeId]: chat };
-    // Showing the chat reads the thread on screen.
     const c = this.nodes.get(nodeId);
     if (chat && c?.loaded && (c.unread[c.thread] ?? 0) > 0) {
       c.unread = { ...c.unread, [c.thread]: 0 };
@@ -210,11 +185,6 @@ class ChatStore {
     }
   }
 
-  /**
-   * Palette chat search result: shows the chat face of `nodeId` on `thread`
-   * (selected, or only shown while a turn runs elsewhere) and asks ChatFace
-   * to scroll `entryId` to the centre with `term` highlighted.
-   */
   async openAt(nodeId: string, thread: number, entryId?: string, term?: string, workspaceId?: string): Promise<void> {
     const c = this.of(nodeId);
     if (workspaceId) c.workspaceId = workspaceId;
@@ -223,7 +193,6 @@ class ChatStore {
     if (c.workspaceId) await c.select(thread, true);
   }
 
-  /** ⌘J: flips the face of a node. */
   toggle(nodeId: string): boolean {
     const next = !this.faces[nodeId];
     this.setFace(nodeId, next);
@@ -231,8 +200,6 @@ class ChatStore {
   }
 
   handle(ev: ChatEvent): void {
-    // `of`, not `get`: a turn opened by the MCP or an agent before this
-    // node's face ever loaded must still be known (Esc interrupts it).
     const c = this.of(ev.nodeId);
     if (!c.workspaceId) c.workspaceId = ev.workspaceId;
     c.receive(ev.message, this.isChat(ev.nodeId));
@@ -256,7 +223,6 @@ let unlistenRemoved: Promise<UnlistenFn> | null = null;
 let unlistenState: Promise<UnlistenFn> | null = null;
 let users = 0;
 
-/** Starts the single `canvas://chat` listener; returns the stop function. */
 export function startChatEvents(): () => void {
   users++;
   if (!unlisten) unlisten = onChat((e) => chats.handle(e)).catch(() => () => {});

@@ -1,6 +1,3 @@
-// Typed wrappers over commands::canvas::roles and the `canvas://role` event.
-// Role JSON is camelCase (serde rename_all), optionals omitted.
-
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import type { AgentKind } from '../model/types';
@@ -15,7 +12,6 @@ export interface Role {
   icon?: string;
   color?: string;
   agent?: AgentKind;
-  /** Absent = global library. */
   workspaceId?: string;
   builtin?: boolean;
   createdAt?: string;

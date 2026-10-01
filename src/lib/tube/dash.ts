@@ -1,11 +1,4 @@
-// Playback helpers for the OmniTube players: format choice (quality ladder,
-// audio track), proxy URLs, the video/audio drift policy for the two-element
-// fallback, storyboard frames, SponsorBlock decisions and a tiny VTT parser.
-// Everything above the "engines" section is pure and unit-tested; dash.js and
-// hls.js are imported lazily so tests (and the first paint) don't load them.
 import type { Format, SbCategory, SbMode, SbSegment, Storyboard, StreamSet } from "./types";
-
-// ---------------------------------------------------------------- formats
 
 type CodecFamily = "avc1" | "vp9" | "av01" | "mp4a" | "opus" | "other";
 
@@ -19,19 +12,16 @@ function codecFamily(f: Pick<Format, "codecs" | "mime">): CodecFamily {
   return "other";
 }
 
-/** `video/mp4; codecs="avc1.640028"` for MSE / canPlayType checks. */
 export function mimeCodecs(f: Pick<Format, "codecs" | "mime">): string {
   return f.codecs ? `${f.mime}; codecs="${f.codecs}"` : f.mime;
 }
 
-/** WKWebView (macOS) and WebKitGTK (Linux): VP9/AV1/Opus in MSE are unreliable there. */
 export function isWebKit(ua = typeof navigator !== "undefined" ? navigator.userAgent : ""): boolean {
   return /AppleWebKit/.test(ua) && !/Chrome|Chromium|Edg\//.test(ua);
 }
 
 type Supports = (f: Format) => boolean;
 
-/** MSE support probe; false outside a browser. */
 export const mseSupports: Supports = (f) => {
   try {
     const MS = (globalThis as { MediaSource?: typeof MediaSource }).MediaSource;
@@ -48,7 +38,6 @@ export function hasRanges(f: Format): boolean {
 type LadderPrefs = {
   codec: "auto" | "avc1" | "vp9" | "av01" | string;
   webkit: boolean;
-  /** Only formats dash.js can play (init/index ranges present). */
   needRanges?: boolean;
   supports?: Supports;
 };
@@ -61,11 +50,6 @@ function familyOrder(p: LadderPrefs): CodecFamily[] {
   return base;
 }
 
-/**
- * Video-only formats of ONE codec family (an MPD adaptation set can't mix
- * containers), one entry per height, tallest first. Per height the best is
- * the highest fps, then SDR over HDR, then bitrate.
- */
 export function videoLadder(formats: Format[], p: LadderPrefs): Format[] {
   const vids = formats.filter((f) => f.kind === "video" && (f.height ?? 0) > 0 && (!p.needRanges || hasRanges(f)));
   for (const fam of familyOrder(p)) {
@@ -90,14 +74,12 @@ function better(a: Format, b: Format): boolean {
   return a.bitrate > b.bitrate;
 }
 
-/** "1080p60", "2160p HDR" — YouTube's quality menu labels. */
 export function qualityLabel(f: Pick<Format, "height" | "fps" | "hdr">): string {
   const h = f.height ?? 0;
   const fps = f.fps && f.fps > 30 ? String(Math.round(f.fps)) : "";
   return `${h}p${fps}${f.hdr ? " HDR" : ""}`;
 }
 
-/** Superscript badge next to the label: HD from 720p, 4K/8K above. */
 export function qualityBadge(h: number | null | undefined): string {
   const v = h ?? 0;
   if (v >= 4320) return "8K";
@@ -107,11 +89,6 @@ export function qualityBadge(h: number | null | undefined): string {
   return "";
 }
 
-/**
- * Pick from the ladder. `pref` is the user setting ("auto" or a height).
- * Auto = the smallest rung covering the player box at the device pixel
- * ratio (ABR stays off: the box decides, not the bandwidth), capped at 1080p.
- */
 export function chooseQuality(ladder: Format[], pref: string | number, boxHeight: number, dpr = 1): Format | null {
   if (!ladder.length) return null;
   const asc = [...ladder].sort((a, b) => (a.height ?? 0) - (b.height ?? 0));
@@ -130,7 +107,6 @@ function trackKey(f: Format): string {
   return `${f.audio_lang ?? ""}|${f.auto_dubbed ? 1 : 0}`;
 }
 
-/** Distinct audio tracks (dubs), original first. Single-track videos return one entry. */
 export function audioTracks(formats: Format[]): AudioTrack[] {
   const out = new Map<string, AudioTrack>();
   for (const f of formats) {
@@ -147,13 +123,11 @@ export function audioTracks(formats: Format[]): AudioTrack[] {
 type AudioPrefs = {
   quality: "high" | "normal" | "low" | string;
   webkit: boolean;
-  /** Track key from `audioTracks` (null = original). */
   track?: string | null;
   needRanges?: boolean;
   supports?: Supports;
 };
 
-/** Best audio format: the chosen/original track, WebKit-safe codec, bitrate by setting. */
 export function pickAudio(formats: Format[], p: AudioPrefs): Format | null {
   let aud = formats.filter((f) => f.kind === "audio" && (!p.needRanges || hasRanges(f)) && (!p.supports || p.supports(f)));
   if (!aud.length) return null;
@@ -186,13 +160,11 @@ function byBitrate(list: Format[], q: string): Format {
   return s[s.length - 1];
 }
 
-/** Best progressive (muxed) format: last resort when neither MSE nor two elements work. */
 export function pickMuxed(formats: Format[]): Format | null {
   const m = formats.filter((f) => f.kind === "muxed").sort((a, b) => (b.height ?? 0) - (a.height ?? 0));
   return m[0] ?? null;
 }
 
-/** Video-only format for the two-element mode: closest to `height` without going over. */
 export function pickDirectVideo(formats: Format[], p: LadderPrefs, height: number): Format | null {
   const lad = videoLadder(formats, { ...p, needRanges: false, supports: p.supports });
   if (!lad.length) return null;
@@ -200,17 +172,12 @@ export function pickDirectVideo(formats: Format[], p: LadderPrefs, height: numbe
   return fit[0] ?? lad[lad.length - 1];
 }
 
-// ---------------------------------------------------------------- proxy URLs
-
 function withKey(url: string, token: string): string {
   if (/[?&]k=/.test(url)) return url;
   return `${url}${url.includes("?") ? "&" : "?"}k=${encodeURIComponent(token)}`;
 }
 
-/** Resolve a server path ("/yt/…") or keep an absolute URL, adding the token. */
 export function absUrl(set: Pick<StreamSet, "base" | "token">, url: string): string {
-  // `base` is the session root (`http://127.0.0.1:PORT/yt/<session>`); server
-  // paths are absolute from the origin.
   const origin = serverOrigin(set.base);
   const abs = url.startsWith("/") ? `${origin}${url}` : url;
   return origin && abs.startsWith(origin) ? withKey(abs, set.token) : abs;
@@ -237,9 +204,7 @@ export function hlsUrl(set: Pick<StreamSet, "base" | "token" | "session" | "hls"
   return set.hls.startsWith("/") || set.hls.startsWith(set.base) ? absUrl(set, set.hls) : absUrl(set, `/yt/${set.session}/hls.m3u8`);
 }
 
-// ---------------------------------------------------------------- A/V sync
 // Port of Flow Desktop's externalAudioSync.ts (GPL-3.0): the rules that keep
-// a separate <audio> glued to a video-only <video> without starving either.
 
 const AUDIO_DRIFT_TOLERANCE_S = 0.5;
 const AUDIO_RESYNC_MIN_INTERVAL_MS = 1200;
@@ -248,7 +213,6 @@ const AUDIO_HOLD_RELEASE_DRIFT_S = 0.12;
 type SyncAction = "steady" | "hold" | "resume" | "realign" | "wait";
 
 type SyncInput = {
-  /** audio.currentTime - video.currentTime; positive = audio ahead. */
   drift: number;
   held: boolean;
   videoAdvancing: boolean;
@@ -264,27 +228,20 @@ export function decideAudioSync(i: SyncInput): SyncAction {
     return i.drift <= AUDIO_HOLD_RELEASE_DRIFT_S ? "resume" : "wait";
   }
   if (Math.abs(i.drift) <= AUDIO_DRIFT_TOLERANCE_S) return "steady";
-  // audio ahead of a stalled video: rewinding would just restart it, so wait
   if (i.drift > 0 && (!i.videoAdvancing || i.videoStarved)) return "hold";
   if (i.msSinceLastRealign < AUDIO_RESYNC_MIN_INTERVAL_MS) return "wait";
   if (i.audioSeeking || i.audioReadyState < 2) return "wait";
   return "realign";
 }
 
-/** Small rate trim for in-tolerance drift (never on WebKitGTK, where each write glitches). */
+// WHY: no rate trim on WebKitGTK: each playbackRate write glitches there.
 export function trimRate(rate: number, drift: number): number {
   if (Math.abs(drift) <= 0.08) return rate;
   return Math.min(rate + 0.05, Math.max(rate - 0.05, rate - drift * 0.12));
 }
 
-// ---------------------------------------------------------------- storyboard
-
 type SbFrame = { url: string; x: number; y: number; w: number; h: number; sheetW: number; sheetH: number };
 
-/**
- * Storyboard tile for time `t` scaled to `boxW` px wide. The sheet URL has
- * `$M` (or `{n}`) for the sheet number.
- */
 export function storyboardFrame(sb: Storyboard, t: number, duration: number, boxW = 160): SbFrame | null {
   if (!sb.count || !sb.cols || !sb.rows || !sb.width) return null;
   const interval = sb.interval_ms > 0 ? sb.interval_ms : duration > 0 ? (duration * 1000) / sb.count : 0;
@@ -307,14 +264,9 @@ export function storyboardFrame(sb: Storyboard, t: number, duration: number, box
   };
 }
 
-// ---------------------------------------------------------------- SponsorBlock
-
 type SbStep = {
-  /** Segment to jump over now. */
   skip: SbSegment | null;
-  /** Segment to offer a "Skip" button for. */
   ask: SbSegment | null;
-  /** Inside a mute segment. */
   mute: boolean;
 };
 
@@ -322,11 +274,6 @@ function sbInside(s: SbSegment, t: number): boolean {
   return t >= s.start_s && t < s.end_s - 0.05;
 }
 
-/**
- * What to do at time `t`. `auto` is false when the channel is whitelisted
- * (skips turn into prompts). `dontSkip`: undone segments, not re-skipped
- * until playback leaves them. `dismissed`: prompts closed by the user.
- */
 export function sbStep(
   segs: SbSegment[],
   t: number,
@@ -354,12 +301,9 @@ export function sbStep(
   return out;
 }
 
-/** Forget undo/dismiss marks for segments playback has left. */
 export function sbForget(segs: SbSegment[], t: number, marks: Set<string>): void {
   for (const s of segs) if (marks.has(s.uuid) && !sbInside(s, t)) marks.delete(s.uuid);
 }
-
-// ---------------------------------------------------------------- captions
 
 export type Cue = { start: number; end: number; text: string };
 
@@ -370,7 +314,6 @@ function vttTime(s: string): number {
   return sec;
 }
 
-/** Minimal WebVTT: cue timings + text, tags stripped (YouTube's auto captions carry <c> and timing tags). */
 export function parseVtt(text: string): Cue[] {
   const cues: Cue[] = [];
   const blocks = text.replace(/\r/g, "").split(/\n\n+/);
@@ -391,7 +334,6 @@ export function parseVtt(text: string): Cue[] {
       .trim();
     if (!body) continue;
     const c = { start: vttTime(a), end: vttTime(end), text: body };
-    // auto captions repeat the previous line as a rolling window; keep the new text only
     const prev = cues[cues.length - 1];
     if (prev && c.text.startsWith(prev.text + "\n") && c.start <= prev.end + 0.05) {
       c.text = c.text.slice(prev.text.length + 1);
@@ -401,7 +343,6 @@ export function parseVtt(text: string): Cue[] {
   return cues;
 }
 
-/** Cues showing at `t` (binary search on start, then scan). */
 export function cuesAt(cues: Cue[], t: number): Cue[] {
   let lo = 0;
   let hi = cues.length;
@@ -415,24 +356,17 @@ export function cuesAt(cues: Cue[], t: number): Cue[] {
   return out;
 }
 
-// ---------------------------------------------------------------- loudness
-
-/** YouTube's loudnessDb is relative to its target; positive = too loud. Only attenuate. */
 export function loudnessGain(db: number | null | undefined): number {
   if (db == null || !Number.isFinite(db) || db <= 0) return 1;
   return Math.max(0.1, Math.pow(10, -db / 20));
 }
 
-// ---------------------------------------------------------------- engines (not pure)
-
 export type DashHandle = {
   destroy(): void;
-  /** Switch to the representation for `itag`/`height`. */
   setVideo(itag: number, height: number | null): void;
   currentHeight(): number | null;
 };
 
-/** Start dash.js on `video` with ABR off. `onFatal` fires once on errors worth a fallback. */
 export async function startDash(video: HTMLVideoElement, url: string, startAt: number, onFatal: (why: string) => void, onReady?: () => void): Promise<DashHandle> {
   const dashjs = await import("dashjs");
   const player = dashjs.MediaPlayer().create();
@@ -460,7 +394,6 @@ export async function startDash(video: HTMLVideoElement, url: string, startAt: n
   player.on(ev.ERROR, (e: unknown) => {
     const err = (e as { error?: { code?: number; message?: string } })?.error;
     const code = Number(err?.code);
-    // 25 manifest, 27/28/17 fragments, 3 decode, 34 capabilities
     if ([3, 17, 25, 27, 28, 34].includes(code) || /decode|manifest|segmentbase/i.test(err?.message ?? "")) fail(`dash:${code}`);
   });
   player.on(ev.PLAYBACK_ERROR, () => fail("dash:playback"));
@@ -472,7 +405,6 @@ export async function startDash(video: HTMLVideoElement, url: string, startAt: n
       try {
         player.destroy();
       } catch {
-        /* already gone */
       }
     },
     setVideo(itag, height) {
@@ -483,7 +415,6 @@ export async function startDash(video: HTMLVideoElement, url: string, startAt: n
           [...reps].sort((a, b) => Math.abs((a.height || 0) - (height || 0)) - Math.abs((b.height || 0) - (height || 0)))[0];
         if (rep) player.setRepresentationForTypeById("video", rep.id, false);
       } catch {
-        /* not initialized yet: the next STREAM_INITIALIZED applies it */
       }
     },
     currentHeight() {
@@ -498,7 +429,6 @@ export async function startDash(video: HTMLVideoElement, url: string, startAt: n
 
 export type HlsHandle = { destroy(): void };
 
-/** HLS: native where the webview has it (WKWebView), hls.js elsewhere. */
 export async function startHls(video: HTMLVideoElement, url: string, onFatal: (why: string) => void): Promise<HlsHandle> {
   if (video.canPlayType("application/vnd.apple.mpegurl")) {
     video.src = url;

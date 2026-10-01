@@ -1,10 +1,4 @@
 <script lang="ts">
-  // Partitura palette (⌘⇧L): search, scope filter (All / Global / this
-  // workspace), cards with a schematic preview and role chips. Drag a card
-  // onto the canvas to stamp it there, double-click to stamp at the center;
-  // both go through the import review. "Save selection" makes a new one or
-  // updates an existing one (keeping its identity). Files: import and
-  // export (one partitura or a bundle).
   import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
   import { t } from "$lib/i18n";
   import { errorText } from "$lib/canvas/floors/api";
@@ -27,12 +21,9 @@
   interface Props {
     workspaceId: string;
     floorId: string;
-    /** Current selection (for "Save selection"). */
     selection: { nodeIds: string[]; drawingIds?: string[] };
-    /** Where a double-clicked card lands (world coords, top-left). */
     center: { x: number; y: number };
     onClose: () => void;
-    /** Select these after a stamp. */
     onImported: (r: ImportResult) => void;
   }
   let { workspaceId, floorId, selection, center, onClose, onImported }: Props = $props();
@@ -43,7 +34,6 @@
   let error = $state("");
   let reviewing = $state<{ source: { id?: string; partitura?: LibraryPartitura }; at: { x: number; y: number } } | null>(null);
 
-  // save form
   let saving = $state(false);
   let name = $state("");
   let summary = $state("");
@@ -101,7 +91,6 @@
     }
   }
 
-  // Update Existing keeps what the partitura left out: the boxes follow it.
   const updating = $derived(items.find((p) => p.id === updateExisting));
   const lockedCommands = $derived(!!updating?.privacy?.noStartupCommands);
   const lockedNotes = $derived(!!updating?.privacy?.blankNotes);
@@ -150,7 +139,6 @@
       const all: LibraryPartitura[] = [];
       for (const p of paths) all.push(...(await readPartituraFile(p)));
       if (all.length === 1) {
-        // One file: full review, then it also goes to the library.
         await addToLibrary(all);
         reviewing = { source: { partitura: all[0] }, at: center };
       } else {

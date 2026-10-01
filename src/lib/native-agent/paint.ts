@@ -1,4 +1,3 @@
-/** WebKit suspends rAF for occluded windows; DOM readiness cannot wait indefinitely. */
 export function waitForPaint(): Promise<void> {
   return new Promise(resolve => {
     let finished = false;

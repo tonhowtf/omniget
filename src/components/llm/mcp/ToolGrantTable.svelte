@@ -1,9 +1,4 @@
 <script lang="ts">
-  /**
-   * Who may run what: one row per tool of a server, one `Auto / Ask / Deny`
-   * per agent. A tool with no grant is not merely denied — it is not offered to
-   * the model at all, which is why the fourth option exists and is the default.
-   */
   import { t } from "$lib/i18n";
   import { grantModeOf, toolSignature, type McpServerRow } from "$lib/llm/mcp";
   import type { AgentDef, GrantMode } from "$lib/llm/types";

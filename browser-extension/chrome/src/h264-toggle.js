@@ -1,7 +1,3 @@
-// Liga/desliga o "Forçar H.264" registrando (ou não) o script de página no
-// YouTube. Persistido em chrome.storage.local; o registro sobrevive a
-// reinícios do navegador (persistAcrossSessions), então só é preciso
-// reconciliar quando o estado muda ou o service worker acorda.
 const STORAGE_KEY = "omniget_h264_enabled";
 const STORAGE_60 = "omniget_h264_block60";
 const SCRIPT_ID = "omniget-h264ify";

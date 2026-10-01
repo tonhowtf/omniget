@@ -1,7 +1,4 @@
 <script lang="ts">
-  // Role editor (Maestri Settings → Agents → Role): name, one-line summary,
-  // icon, colour, default agent, scope and instructions. New roles default to
-  // the current workspace scope (Maestri 0.45.3).
   import { t } from "$lib/i18n";
   import { roles } from "$lib/canvas/roles/store.svelte";
   import { errorText, type RoleInfo, type RoleScope } from "$lib/canvas/roles/client";

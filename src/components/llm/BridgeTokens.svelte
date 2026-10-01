@@ -1,11 +1,4 @@
 <script lang="ts">
-  /**
-   * Access tokens of the local bridge's agent routes (2.1): scripts, webhooks
-   * and the omniget CLI use a scoped token, never the browser extension's
-   * key. A new token's secret is copied once and never printed (U6); the
-   * list shows only `ogt_<id>_…`. The extension key's grace period (one
-   * version) is switched here, with the last time it was used.
-   */
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "$lib/i18n";
@@ -35,7 +28,6 @@
   let chosen = $state<string[]>(["jobs:read", "jobs:operate"]);
   let expiresDays = $state(90);
   let busy = $state(false);
-  /** The secret of the token just created, until it is copied or dismissed. */
   let fresh = $state<{ token: string; hint: string } | null>(null);
 
   async function load() {

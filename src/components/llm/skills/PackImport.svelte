@@ -1,11 +1,4 @@
 <script lang="ts">
-  /**
-   * Selective import of a pack folder (skills, agents, rules, context,
-   * commands). Nothing is selected by default; the plan shows what each item
-   * would do before anything is written; a conflict is overwritten only
-   * when its own box is ticked. Importing is text only: hooks and scripts
-   * are listed but never installed, nothing runs, no dependency is installed.
-   */
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "$lib/i18n";
@@ -91,7 +84,6 @@
     await openCatalog();
   }
 
-  /** The same pack folder typed by hand (no native dialog). */
   async function useTyped() {
     const d = typedDir.trim();
     if (!isAbsolutePath(d)) {

@@ -35,7 +35,6 @@
 {/if}
 
 <style>
-  /* In flow and sticky to the form's end: it takes its own space, so it never covers fields. */
   .settings-save-bar {
     position: sticky;
     inset-block-end: 0;

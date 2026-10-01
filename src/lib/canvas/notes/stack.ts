@@ -1,8 +1,3 @@
-// Fichários (note stacks, study 95 §G 94–96): a stack node holds pages in
-// `data.tabs`; each page is a note node with `stackId`, hidden from the canvas
-// but still addressable. Unnamed stacks vanish when emptied, named ones stay
-// (they become kanban lanes). Pure op builders + one drop controller per engine.
-
 import type { CanvasEngine } from '../engine.svelte';
 import type { CanvasStore } from '../model/store.svelte';
 import { newId, type CanvasNode, type Op, type Rect } from '../model/types';
@@ -23,7 +18,6 @@ export function stackData(node: CanvasNode): StackData {
   return { ...d, tabs: Array.isArray(d.tabs) ? d.tabs.filter((t) => typeof t === 'string') : [] } as StackData;
 }
 
-/** `data` patch that keeps every other key (the front replaces `data` whole; Rust merges). */
 export function dataWith(node: CanvasNode, changes: Record<string, unknown>): Record<string, unknown> {
   return { ...(node.data ?? {}), ...changes };
 }
@@ -32,7 +26,6 @@ function nodePatch(id: string, patch: Record<string, unknown>): Op {
   return { op: 'update_node', id, patch: patch as Partial<CanvasNode> };
 }
 
-/** Pages of a stack that still exist, in tab order. */
 export function stackPages(store: CanvasStore, stack: CanvasNode): CanvasNode[] {
   const out: CanvasNode[] = [];
   for (const id of stackData(stack).tabs) {
@@ -48,12 +41,6 @@ export function frontPage(store: CanvasStore, stack: CanvasNode): CanvasNode | u
   return pages.find((p) => p.id === d.frontNoteId) ?? pages[0];
 }
 
-/**
- * Puts notes into a stack (at `index`, default the top: the newest page comes
- * first, Maestri) and brings the first of them to the front. A note belongs to
- * one fichário: with `store`, it leaves the stack it was in (an unnamed stack
- * left empty goes away).
- */
 function addToStackOps(stack: CanvasNode, notes: CanvasNode[], index?: number, store?: CanvasStore): Op[] {
   const d = stackData(stack);
   const ids = notes.map((n) => n.id).filter((id) => id !== stack.id);
@@ -69,7 +56,6 @@ function addToStackOps(stack: CanvasNode, notes: CanvasNode[], index?: number, s
   return ops;
 }
 
-/** Takes `notes` out of any other stack than `keep` (one fichário per note). */
 function detachOps(store: CanvasStore, notes: CanvasNode[], keep: string): Op[] {
   const byStack = new Map<string, string[]>();
   for (const n of notes) {
@@ -91,10 +77,6 @@ function detachOps(store: CanvasStore, notes: CanvasNode[], keep: string): Op[] 
   return ops;
 }
 
-/**
- * Takes a page out, placing it at `at` (top-left, world units) or beside the
- * stack. An unnamed stack left empty is removed.
- */
 export function removeFromStackOps(store: CanvasStore, stack: CanvasNode, noteId: string, at?: { x: number; y: number }): Op[] {
   const d = stackData(stack);
   const note = store.node(noteId);
@@ -129,7 +111,6 @@ export function bringToFrontOps(stack: CanvasNode, noteId: string): Op[] {
   return [nodePatch(stack.id, { data: dataWith(stack, { frontNoteId: noteId }) })];
 }
 
-/** New stack at `rect` holding `notes` (the first dropped-on note keeps its place). */
 export function createStackOps(store: CanvasStore, notes: CanvasNode[], rect: Rect, name?: string): { ops: Op[]; stackId: string } {
   const stack: CanvasNode = {
     id: newId(),
@@ -146,22 +127,15 @@ export function createStackOps(store: CanvasStore, notes: CanvasNode[], rect: Re
     stack.data = { ...stack.data, name, hasCustomName: true };
   }
   const ops: Op[] = [{ op: 'add_node', node: stack }];
-  // Tab order as given (the note dropped on first), each leaving its old stack.
   ops.push(...addToStackOps(stack, notes, 0, store));
   return { ops, stackId: stack.id };
 }
 
-/** Fichários on the floor that can take `noteId` (all but the one it is in). */
 export function stackTargets(store: CanvasStore, noteId: string): CanvasNode[] {
   const cur = stackIdOf(store.node(noteId));
   return store.nodes.filter((n) => n.kind === 'stack' && n.id !== cur);
 }
 
-/**
- * "Place in Fichário": files the selected loose notes (or `noteId`) into
- * `stackId`, or into a new fichário where the note stands when `stackId` is
- * null. Returns the fichário id.
- */
 export function placeInStack(engine: CanvasEngine, noteId: string, stackId: string | null): string | null {
   const store = engine.store;
   const sel = engine.selection.list();
@@ -185,13 +159,6 @@ function centerIn(n: Rect, r: Rect): boolean {
   const cy = n.y + n.h / 2;
   return cx >= r.x && cx <= r.x + r.w && cy >= r.y && cy <= r.y + r.h;
 }
-
-// ---- drop controller ------------------------------------------------------
-//
-// Drag a note onto a fichário = file it; drag a note onto another note = new
-// fichário with both (Maestri). The engine moves nodes live during a drag, so
-// the controller remembers which loose notes moved while a pointer was down
-// and decides on pointer-up.
 
 const controllers = new WeakMap<CanvasEngine, () => void>();
 
@@ -220,7 +187,6 @@ export function ensureStackController(engine: CanvasEngine): void {
     }
     const ids = Array.from(moved);
     moved.clear();
-    // Let the engine record the move first (its pointerup runs on the root).
     setTimeout(() => fileMoved(engine, ids), 0);
   };
   window.addEventListener('pointerdown', onDown, true);
@@ -238,13 +204,11 @@ function fileMoved(engine: CanvasEngine, ids: string[]): void {
   if (!notes.length) return;
   const movedSet = new Set(notes.map((n) => n.id));
   const anchor = notes[0];
-  // Topmost stack under the dragged note.
   const stacks = store.nodes.filter((n) => n.kind === 'stack' && centerIn(anchor, n)).sort((a, b) => b.z - a.z);
   if (stacks[0]) {
     engine.commit(addToStackOps(stacks[0], notes, undefined, store), { selectionAfter: [stacks[0].id] });
     return;
   }
-  // Onto a loose note that did not move: both become a fichário in its place.
   const target = store.nodes
     .filter((n) => n.kind === 'note' && !movedSet.has(n.id) && !stackIdOf(n) && centerIn(anchor, n))
     .sort((a, b) => b.z - a.z)[0];

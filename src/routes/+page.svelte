@@ -74,7 +74,6 @@
   let omniState = $state<OmniState>({ kind: "idle" });
   let debounceTimer = $state<ReturnType<typeof setTimeout> | null>(null);
   let downloadMode = $state<"auto" | "audio" | "mute">("auto");
-  // Picked for this link (selector or preset); a matching rule never overrides it.
   let downloadModeExplicit = $state(false);
   let selectedQuality = $state("best");
   let clipStart = $state("");
@@ -95,8 +94,6 @@
   let referer = $state("");
   let selectedOutputDir = $state("");
 
-  // Derived quality data from real yt-dlp format info.
-  // These update after the user loads formats via FormatSelector.
   let availableHeights = $derived(
     formats.length > 0
       ? [...new Set(
@@ -122,8 +119,6 @@
   let cookieHint = $state<"stale" | "expired" | null>(null);
   let advancedMode = $state(false);
 
-  // First run = until the first download starts. The terms line and the sites
-  // line live only there (RCD: put friction where it is justified, once).
   const FIRST_RUN_KEY = "omniget.home.terms_seen_v1";
   const SITES_URL = "https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md";
   let firstRun = $state(readFirstRun());
@@ -138,8 +133,6 @@
     void openExternal(SITES_URL).catch(() => {});
   }
 
-  // A short "added" moment after a download starts, instead of snapping back
-  // to an empty page (21st Morph Button idea: the state morphs, then settles).
   let success = $state<{ first: boolean } | null>(null);
   let successTimer: ReturnType<typeof setTimeout> | null = null;
   function flashSuccess(first: boolean) {
@@ -335,9 +328,7 @@
       return;
     }
 
-    // Links in any text, cleaned of trackers and counted once (paste-links.ts).
     const urls = linksFromPaste(trimmed);
-    // Several links that are all the same video collapse to that one link.
     if (urls.length === 1 && /\s/.test(trimmed) && isUrl(trimmed)) {
       url = urls[0];
       trimmed = urls[0];
@@ -649,9 +640,6 @@
     const currentUrl = url.trim();
     const platform = info.platform;
 
-    // B40: a regra do usuário decide antes de a gente perguntar de novo. Só
-    // preenche o que ele não escolheu explicitamente nesta sessão — uma regra
-    // não pode sobrescrever a escolha feita agora, na frente dele.
     let ruleQuality = selectedQuality;
     let ruleDownloadMode: "audio" | "mute" | null = downloadMode === "auto" ? null : downloadMode;
 
@@ -686,11 +674,8 @@
         );
       }
     } catch {
-      // Regra é conveniência: se falhar, o download segue com as escolhas manuais.
     }
 
-    // B39: comparar com o que esta URL era da última vez, antes de sobrescrever.
-    // Depois do download é tarde: o arquivo antigo já foi.
     const snapshot = {
       duration_secs: mediaPreview?.duration_seconds ?? null,
       chapters: [],
@@ -711,7 +696,6 @@
         );
       }
     } catch {
-      // Aviso é cortesia: se falhar, o download segue como sempre seguiu.
     }
 
     void invoke("record_media_snapshot", {
@@ -747,7 +731,6 @@
       const msg =
         typeof e === "string" ? e : e.message ?? $t("omnibox.error");
 
-    // keep the link in the field so the user can fix or retry it
     url = currentUrl;
     omniState = {
         kind: "error",
@@ -781,9 +764,6 @@
       outputDir = selected;
     }
 
-    // B34: conferir antes de enfileirar. Sem isto, uma URL sem suporte ou
-    // repetida entra na fila e so falha depois, uma por uma — o usuario
-    // descobre item a item o que dava para saber de uma vez.
     let paraBaixar = batchUrls;
     try {
       const report = await invoke<PreflightReport>("preflight_batch", {
@@ -803,8 +783,6 @@
         }) as string);
       }
     } catch {
-      // A conferencia e uma cortesia, nao um portao: se ela falhar, o lote
-      // segue como seguia antes.
     }
 
     omniState = { kind: "idle" };
@@ -845,7 +823,6 @@
     p2pReceiveUrl = "";
 
     const settings = getSettings();
-    // P2P receive has no omnibox location picker; never inherit selectedOutputDir.
     let outputDir = settings?.download.default_output_dir || "";
 
     if ((settings?.download.always_ask_path && !settings?.download.auto_download_on_paste) || !outputDir) {
@@ -923,9 +900,6 @@
   }
 
   function handleHomeModeChange(mode: HomeInputMode) {
-    // batch/torrent/p2p are momentary actions, not persistent input modes:
-    // return to "url" so the tab bar never strands on an empty state when
-    // the picker/dialog is cancelled
     if (mode === "p2p") {
       showP2pSendDialog = true;
       homeInputMode = "url";
@@ -946,8 +920,6 @@
     url = "";
   }
 
-  // `/?panel=download-advanced` (Settings > Downloads links here) only reveals
-  // the existing advanced omnibox: nothing is imported, queued or saved.
   $effect(() => {
     if (parseHomeTarget(page.url.searchParams).panel !== "download-advanced") return;
     advancedMode = true;
@@ -956,7 +928,6 @@
 
   function closeAdvanced() {
     advancedMode = false;
-    // `page.url` is not updated by replaceState: read the live address.
     const next = new URL(location.href);
     if (parseHomeTarget(next.searchParams).panel === null) return;
     next.searchParams.delete("panel");
@@ -971,8 +942,6 @@
     handleHomeModeChange(action);
   }
 
-  // Enter / the arrow: download when the link is already understood, else
-  // check it right away instead of waiting for the paste debounce.
   function handleSubmit() {
     if (omniState.kind === "detected") {
       void handleAction();
@@ -1031,8 +1000,6 @@
     urlInput?.focus();
   }
 
-  // Files arrive through Tauri (the webview never sees their paths); links
-  // dragged from a browser arrive as HTML5 text drops.
   onMount(() => {
     let unlisten: (() => void) | null = null;
     let disposed = false;
@@ -1053,7 +1020,6 @@
         })
         .catch(() => {});
     } catch {
-      // not running inside Tauri (tests, shots): HTML5 handlers below still work
     }
 
     let depth = 0;
@@ -1097,9 +1063,6 @@
     };
   });
 
-  // Loop stays in one fixed slot through every state, so the input never
-  // jumps when a link is pasted (Shazam: the hero object changes, the page
-  // does not). The pose carries the state; the text next to it says it.
   let homeArt = $derived.by((): HomeArt | null => {
     if (advancedMode) return null;
     if (success) return "success";
@@ -1441,7 +1404,6 @@
 </div>
 
 <style>
-  /* detection line under the omnibox */
   .feedback-sep {
     opacity: 0.5;
     margin: 0 2px;
@@ -1460,7 +1422,6 @@
     to { transform: rotate(360deg); }
   }
 
-  /* the one primary action on the page */
   .download-primary-btn {
     display: inline-flex;
     align-items: center;
@@ -1502,7 +1463,6 @@
     cursor: not-allowed;
   }
 
-  /* playlist / torrent pickers: a grouped list */
   .playlist-picker {
     width: 100%;
     display: flex;
@@ -1607,7 +1567,6 @@
     font-variant-numeric: tabular-nums;
   }
 
-  /* disclosure: "Options" / "Advanced" */
   .options-panel {
     width: 100%;
   }
@@ -1806,7 +1765,6 @@
     color: var(--text);
   }
 
-  /* ---------- layout ---------- */
   .home {
     position: relative;
     min-height: 100%;
@@ -1821,8 +1779,6 @@
     padding-top: clamp(24px, 6vh, 64px);
   }
 
-  /* warmth that follows any theme: an accent glow + a faint dot grid, both
-     static (21st Radial Glow #7422 + Animated Grid #29376, motion removed) */
   .home-backdrop {
     position: absolute;
     inset: 0;
@@ -1887,7 +1843,6 @@
     border: 0;
   }
 
-  /* ---------- lines under the input ---------- */
   .first-run {
     display: flex;
     flex-direction: column;
@@ -2104,7 +2059,6 @@
 
   .dismiss-btn:hover { color: var(--text); background: var(--fill-2); }
 
-  /* ---------- advanced ---------- */
   .adv-head {
     display: flex;
     flex-direction: column;
@@ -2137,7 +2091,6 @@
     letter-spacing: -0.02em;
   }
 
-  /* 21st Blur Fade (#1079), CSS only */
   @keyframes blur-fade {
     from { opacity: 0; transform: translateY(6px); filter: blur(4px); }
     to { opacity: 1; transform: none; filter: none; }

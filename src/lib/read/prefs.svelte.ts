@@ -1,7 +1,3 @@
-// Reader preferences: per device, in the webview (like the music player's
-// EQ). A book or series can override the comic layout; that part is saved
-// with the book in read.db (`prefs` / `reader`).
-
 import type { ReaderPrefs } from "./foliate";
 import { DEFAULT_PREFS } from "./prefs-defaults";
 
@@ -23,7 +19,6 @@ export function savePrefs() {
   try {
     localStorage.setItem(KEY, JSON.stringify($state.snapshot(prefs)));
   } catch {
-    /* private mode */
   }
 }
 
@@ -32,7 +27,6 @@ export function resetPrefs() {
   savePrefs();
 }
 
-// Named presets ("Night manga", "Study PDF"...), like Moku's reader presets.
 const PKEY = "omniget.read.presets.v1";
 
 export type Preset = { name: string; prefs: Partial<ReaderPrefs> };
@@ -51,7 +45,6 @@ export function savePreset(name: string) {
   try {
     localStorage.setItem(PKEY, JSON.stringify(list));
   } catch {
-    /* ignore */
   }
 }
 
@@ -59,7 +52,6 @@ export function deletePreset(name: string) {
   try {
     localStorage.setItem(PKEY, JSON.stringify(presets().filter((p) => p.name !== name)));
   } catch {
-    /* ignore */
   }
 }
 

@@ -1,16 +1,10 @@
 <script lang="ts">
-  // Right-click menu. On empty canvas: Add (agents and every node kind) at the
-  // click, connected when a cord was dropped there. On a node: node actions.
-  // Both come from the shared menu model ($lib/canvas/menu/model), which the
-  // MCP tool app_menu also lists and invokes. Positioned in screen pixels,
-  // clamped to the viewport.
   import { t } from "$lib/i18n";
   import { useEngine } from "$lib/canvas/engine.svelte";
   import { addMenu, nodeMenu, type MenuEntry } from "$lib/canvas/menu/model";
 
   const engine = useEngine();
   let el = $state<HTMLDivElement | null>(null);
-  /** Measured height, so the menu never runs past the bottom edge. */
   let menuH = $state(0);
 
   const menu = $derived(engine.spawnMenu);
@@ -18,7 +12,6 @@
     const m = menu;
     if (!m) return [];
     if (m.nodeId) return nodeMenu(engine, m.nodeId);
-    // The Add menu shows the agents inline (Terminal's submenu flattened).
     return addMenu(engine, { wx: m.wx, wy: m.wy, connectFrom: m.connectFrom, free: m.free }).flatMap((x) =>
       x.id === "terminal" && x.children ? x.children : [x],
     );
@@ -33,7 +26,6 @@
     };
   });
 
-  // Runs before closing: entries read the open menu's node.
   function act(item: MenuEntry) {
     try {
       void Promise.resolve(item.run?.()).catch(() => {});
@@ -59,7 +51,6 @@
         e.key === "Home" ? 0 : e.key === "End" ? n - 1 : e.key === "ArrowDown" ? (i + 1 + n) % n : (i - 1 + n) % n;
       buttons[next].focus();
     } else if (e.key === "Enter" || e.key === " ") {
-      // Enter confirms the highlighted entry (the first one when nothing is highlighted).
       e.preventDefault();
       e.stopPropagation();
       (buttons[i] ?? buttons[0]).click();

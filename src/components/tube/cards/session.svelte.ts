@@ -1,5 +1,3 @@
-// Account + local subscriptions for the video screens. Backed by the shell's
-// session (W5), so subscribing here updates the guide's channel list too.
 import type { LocalSub } from "$lib/tube/types";
 import { loadSession, session as shell, signIn } from "../shell/session.svelte";
 
@@ -35,7 +33,6 @@ export function dropLocalSub(channelId: string) {
   shell.subs = shell.subs.filter((s) => s.channel_id !== channelId);
 }
 
-/** Sign in through the shell (refreshes the session afterwards). */
 export async function login(): Promise<void> {
   await signIn();
 }

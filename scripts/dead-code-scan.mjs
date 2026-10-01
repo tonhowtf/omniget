@@ -1,17 +1,4 @@
 #!/usr/bin/env node
-// Lists dead-code candidates: Tauri commands nobody invokes, invokes of
-// commands nobody registered, events emitted without a listener (and the
-// reverse), i18n keys no file references, frontend modules nothing imports,
-// static assets nothing points at, dependencies no source file uses, and
-// texts that still name removed features.
-//
-// Everything here is a candidate, found by text search. A name built at run
-// time, or a file loaded by convention, looks unused to a grep: check each
-// hit before deleting it.
-//
-//   node scripts/dead-code-scan.mjs            # full report
-//   node scripts/dead-code-scan.mjs --json     # machine-readable
-//   node scripts/dead-code-scan.mjs --only i18n,commands
 
 import { readFileSync, readdirSync, statSync, existsSync } from "node:fs";
 import { join, relative, dirname, extname, basename, resolve } from "node:path";
@@ -24,8 +11,6 @@ const onlyArg = args.find((a) => a.startsWith("--only"));
 const only = onlyArg ? (onlyArg.split("=")[1] ?? args[args.indexOf(onlyArg) + 1] ?? "").split(",") : null;
 const want = (name) => !only || only.includes(name);
 
-// Words that point at features removed from the app. A hit in these texts
-// usually means a string that promises something the app no longer does.
 const STALE_TERMS = [
   /\budemy\b/i,
   /\bhotmart\b/i,
@@ -42,7 +27,6 @@ const STALE_TERMS = [
   /\bTools section\b/i,
   /\b156 tools\b/i,
 ];
-// Paths where those words are legitimate (the opt-out list, the scanner itself).
 const STALE_ALLOW = [/platform_optout\.rs$/, /bilibili[\\/]parser[\\/]cheese\.rs$/, /PLATFORM-OWNERS\.md$/, /dead-code-scan\.mjs$/, /MEDIA-KIT\.md$/, /llms\.txt$/, /\.test\.(ts|mjs)$/, /_test\.rs$/, /claude-plugin\//];
 
 const SKIP_DIRS = new Set(["node_modules", "target", ".svelte-kit", "build", ".git", "gen", "binaries", ".pnpm-store", "docs", "estudos", ".agents", ".claude", "art"]);
@@ -71,7 +55,6 @@ const allFront = [...frontText.values()].join("\n");
 const allRust = [...rustText.values()].join("\n");
 const report = {};
 
-// --- Tauri commands -------------------------------------------------------
 if (want("commands")) {
   const lib = read(join(ROOT, "src-tauri", "src", "lib.rs"));
   const block = lib.slice(lib.indexOf("generate_handler!["));
@@ -90,7 +73,6 @@ if (want("commands")) {
       if (!invoked.has(m[1])) invoked.set(m[1], `${rel(f)}:${lineOf(t, m.index)}`);
     }
   }
-  // A command name can also travel as a plain string (a table of commands).
   const quoted = new Set([...allFront.matchAll(/["'`]([a-z][a-z0-9_]+)["'`]/g)].map((m) => m[1]));
   report.commands = {
     registeredNeverInvoked: registered.filter((n) => !invoked.has(n) && !quoted.has(n)),
@@ -98,7 +80,6 @@ if (want("commands")) {
   };
 }
 
-// --- Events ---------------------------------------------------------------
 if (want("events")) {
   const emitted = new Map();
   for (const [f, t] of rustText) {
@@ -128,7 +109,6 @@ if (want("events")) {
   };
 }
 
-// --- i18n keys ------------------------------------------------------------
 if (want("i18n")) {
   const en = JSON.parse(read(join(ROOT, "src", "lib", "i18n", "en.json")));
   const keys = [];
@@ -140,12 +120,9 @@ if (want("i18n")) {
     }
   };
   flatten(en);
-  // keys.ts is generated from en.json and names every key: leave the i18n folder out.
   const i18nDir = join("src", "lib", "i18n");
   const frontNoI18n = [...frontText].filter(([f]) => !f.includes(i18nDir) || /\.test\.ts$/.test(f)).map(([, t]) => t).join("\n");
   const haystack = frontNoI18n + "\n" + allRust + "\n" + read(join(ROOT, "src", "app.html"));
-  // Prefixes of keys built at run time: `foo.bar.${x}` or "foo.bar." + x.
-  // Also `pluralKey("a.b", n)`, which reads "a.b_one" / "a.b_other".
   const dynamic = new Set();
   for (const m of haystack.matchAll(/["'`]([a-z0-9_]+(?:\.[a-z0-9_]+)*\.?[a-z0-9_]*)(?:\$\{|["'`]\s*\+)/gi)) if (m[1].includes(".")) dynamic.add(m[1]);
   for (const m of haystack.matchAll(/pluralKey\(\s*["'`]([^"'`]+)["'`]/g)) dynamic.add(`${m[1]}_`);
@@ -158,7 +135,6 @@ if (want("i18n")) {
   report.i18n = { total: keys.length, unreferenced: unused };
 }
 
-// --- Frontend modules nothing imports ------------------------------------
 if (want("modules")) {
   const importers = new Map(frontFiles.map((f) => [f, 0]));
   const aliases = { $lib: join(ROOT, "src", "lib"), $components: join(ROOT, "src", "components") };
@@ -185,11 +161,7 @@ if (want("modules")) {
   report.modules = { importedByNothing: frontFiles.filter((f) => importers.get(f) === 0 && !isEntry(f)).map(rel) };
 }
 
-// --- Rust functions nothing calls ------------------------------------------
 if (want("rust")) {
-  // Counts every occurrence of each `pub fn` name across the Rust sources. A
-  // name that only shows up where it is defined has no caller. Tauri commands
-  // are skipped (the commands section covers them), as are trait methods.
   const counts = new Map();
   for (const m of allRust.matchAll(/\b([a-z_][a-z0-9_]{2,})\b/g)) counts.set(m[1], (counts.get(m[1]) ?? 0) + 1);
   const commandAttr = /#\[tauri::command[^\]]*\]\s*(?:#\[[^\]]*\]\s*)*pub(?:\([^)]*\))?\s+(?:async\s+)?fn\s+([a-z0-9_]+)/g;
@@ -206,7 +178,6 @@ if (want("rust")) {
   report.rust = { pubFnNoCaller: hits };
 }
 
-// --- TypeScript exports nothing imports -------------------------------------
 if (want("exports")) {
   const counts = new Map();
   for (const t of frontText.values()) for (const m of t.matchAll(/\b([A-Za-z_$][A-Za-z0-9_$]{2,})\b/g)) counts.set(m[1], (counts.get(m[1]) ?? 0) + 1);
@@ -220,13 +191,11 @@ if (want("exports")) {
   report.exports = { noOtherUse: hits };
 }
 
-// --- static/ assets -------------------------------------------------------
 if (want("static")) {
   const staticDir = join(ROOT, "static");
   const assets = walk(staticDir, null);
   const css = walk(join(ROOT, "src"), [".css"]).map(read).join("\n") + walk(staticDir, [".json", ".css", ".html"]).map(read).join("\n");
   const refs = allFront + allRust + css + read(join(ROOT, "src", "app.html")) + read(join(ROOT, "src-tauri", "tauri.conf.json"));
-  // Folders reached through a template (`/icons/menu/${id}-64.webp`) count as referenced.
   const templated = [...refs.matchAll(/["'`](\/[a-z0-9_\/-]+\/)[^"'`]*\$\{/gi)].map((m) => m[1]);
   report.static = {
     unreferenced: assets
@@ -241,7 +210,6 @@ if (want("static")) {
   };
 }
 
-// --- dependencies ---------------------------------------------------------
 if (want("deps")) {
   const pkg = JSON.parse(read(join(ROOT, "package.json")));
   const configs = ["vite.config.js", "svelte.config.js", "vitest.config.ts", "tsconfig.json"].map((f) => (existsSync(join(ROOT, f)) ? read(join(ROOT, f)) : "")).join("\n");
@@ -249,7 +217,7 @@ if (want("deps")) {
   const jsHay = allFront + configs + scripts + JSON.stringify(pkg.scripts ?? {});
   const npmUnused = Object.keys({ ...pkg.dependencies, ...pkg.devDependencies }).filter((d) => {
     if (d.startsWith("@types/")) return !jsHay.includes(d.slice(7));
-    if (d === "@tauri-apps/cli") return false; // provides the `tauri` binary behind `pnpm tauri`
+    if (d === "@tauri-apps/cli") return false;
     return !jsHay.includes(`"${d}"`) && !jsHay.includes(`'${d}'`) && !jsHay.includes(`${d}/`) && !jsHay.includes(`"${d}`) && !jsHay.includes(` ${d} `) && !jsHay.includes(`${d}"`);
   });
   const crateUnused = [];
@@ -271,13 +239,11 @@ if (want("deps")) {
   report.deps = { npmUnused, crateUnused };
 }
 
-// --- texts about removed features ----------------------------------------
 if (want("stale")) {
   const hits = [];
   const en = read(join(ROOT, "src", "lib", "i18n", "en.json"));
   en.split("\n").forEach((line, i) => {
     const m = line.match(/^\s*"([^"]+)":\s*"(.*)",?\s*$/);
-    // Bilibili's own paid courses ("cheese") are a Bilibili content type, not the removed course platforms.
     if (m && !m[1].includes("cheese") && STALE_TERMS.some((r) => r.test(m[2]))) hits.push(`src/lib/i18n/en.json:${i + 1}  ${m[1]}: ${m[2].slice(0, 120)}`);
   });
   const stringFiles = [...rustFiles, ...frontFiles.filter((f) => !f.includes(join("lib", "i18n"))), ...extFiles];
@@ -293,7 +259,6 @@ if (want("stale")) {
   report.stale = hits;
 }
 
-// --- output ---------------------------------------------------------------
 if (asJson) {
   console.log(JSON.stringify(report, null, 2));
 } else {

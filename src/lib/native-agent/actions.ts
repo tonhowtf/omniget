@@ -1,4 +1,3 @@
-/** Authority comes from component registration, never attributes in rendered content. */
 const actions = new WeakMap<Element, readonly string[]>();
 export function agentActions(node: HTMLElement, allowed: readonly string[]) {
   actions.set(node, allowed);

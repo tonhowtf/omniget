@@ -1,8 +1,3 @@
-// Undo/redo per origin (02-motor-do-canvas §4.6). Every transaction keeps its
-// forward ops and their inverse. ⌘Z undoes only the user's own entries; when an
-// agent touched the same record afterwards, that record is skipped (never
-// overwrite the agent) and the caller is told so it can warn.
-
 import { recordKey } from './ops';
 import type { Op, Origin } from './types';
 
@@ -13,15 +8,12 @@ export interface HistoryEntry {
   origin: Origin;
   forward: Op[];
   inverse: Op[];
-  /** Selection before and after, restored with the entry (never an entry of its own). */
   selectionBefore?: string[];
   selectionAfter?: string[];
 }
 
 interface UndoStep {
-  /** Ops to apply now. */
   ops: Op[];
-  /** Records left alone because an agent changed them later. */
   skipped: string[];
   selection?: string[];
 }
@@ -30,14 +22,11 @@ export class History {
   private undoStack: HistoryEntry[] = [];
   private redoStack: HistoryEntry[] = [];
   private seq = 0;
-  /** Last writer of each record: seq and origin. */
   private lastWrite = new Map<string, { seq: number; origin: Origin }>();
-  /** Open mark: ops recorded while a gesture is in progress squash into one entry. */
   private mark: HistoryEntry | null = null;
 
   constructor(readonly limit = HISTORY_LIMIT) {}
 
-  /** Records an applied transaction. Agent entries only feed the conflict map. */
   record(origin: Origin, forward: Op[], inverse: Op[], selectionBefore?: string[], selectionAfter?: string[]): void {
     if (forward.length === 0) return;
     const seq = ++this.seq;
@@ -52,7 +41,6 @@ export class History {
     this.redoStack = [];
     if (this.mark) {
       this.mark.forward.push(...fwd);
-      // Inverse of (A then B) is (inv B then inv A).
       this.mark.inverse = [...inv, ...this.mark.inverse];
       this.mark.seq = seq;
       if (selectionAfter) this.mark.selectionAfter = selectionAfter;
@@ -66,13 +54,11 @@ export class History {
     if (this.undoStack.length > this.limit) this.undoStack.shift();
   }
 
-  /** Opens a squash mark (pointerdown). Nested calls are ignored. */
   beginMark(selectionBefore?: string[]): void {
     if (this.mark) return;
     this.mark = { seq: this.seq, origin: 'user', forward: [], inverse: [], selectionBefore };
   }
 
-  /** Closes the mark; an empty mark leaves no entry. */
   endMark(selectionAfter?: string[]): void {
     const m = this.mark;
     this.mark = null;
@@ -108,7 +94,6 @@ export class History {
     return { ops: out, skipped: Array.from(skipped) };
   }
 
-  /** Pops the newest user entry; the caller applies `ops` without recording. */
   undo(): UndoStep | null {
     const entry = this.undoStack.pop();
     if (!entry) return null;

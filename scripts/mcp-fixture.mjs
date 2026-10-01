@@ -1,28 +1,4 @@
 #!/usr/bin/env node
-// Toy MCP server used by the Rust tests of `core/mcp` (and by the MCP UI).
-// It speaks the 2025-06-18 spec on both transports:
-//   stdio           — newline-delimited JSON-RPC on stdin/stdout, logs on stderr
-//   Streamable HTTP — POST /mcp answering `application/json` or `text/event-stream`,
-//                     GET /mcp opening a server stream, DELETE /mcp ending the session,
-//                     `Mcp-Session-Id` handed out on `initialize`.
-//
-// Every misbehaviour the client has to survive is a flag, so the tests never
-// need a second server:
-//
-//   node scripts/mcp-fixture.mjs --stdio
-//   node scripts/mcp-fixture.mjs --http [--port N] [--sse] [--partial-sse]
-//                                [--no-session] [--no-get] [--expire-after N]
-//                                [--status N] [--protocol V]
-//   ... --crash-after N   exit(1) after N handled requests (server dies mid-call)
-//   ... --garbage         write one non-JSON line before the first answer
-//   ... --slow-ms N       extra delay on the `slow` tool
-//   ... --huge-line N     pad the tools/list answer to N MiB on one line
-//   ... --string-ids      echo the JSON-RPC id back as a string ("3" for 3)
-//
-// In HTTP mode the chosen port is printed on stdout as `MCP_FIXTURE_PORT <n>`
-// before anything else, so a test can pass `--port 0` and read it back.
-// The script name carries "mcp-fixture" on purpose: `pgrep -f mcp-fixture`
-// is how the test gate proves no orphan process was left behind.
 
 import http from 'node:http';
 import process from 'node:process';
@@ -111,7 +87,6 @@ const TOOLS = [
   },
 ];
 
-/** Headers of the last HTTP request, for the `headers` tool. */
 let lastHeaders = {};
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -149,18 +124,15 @@ async function callTool(name, args) {
     case 'headers':
       return textResult(JSON.stringify(lastHeaders), { headers: lastHeaders });
     default:
-      return null; // unknown tool -> JSON-RPC error
+      return null;
   }
 }
 
-/** Handle one JSON-RPC message. Returns the response, or null for a notification. */
 async function handle(msg) {
   const method = typeof msg?.method === 'string' ? msg.method : '';
   const params = msg?.params ?? {};
   if (method.startsWith('notifications/')) return null;
   if (msg?.id === undefined || msg?.id === null) return null;
-  // Real servers do echo a numeric id back as a string: the client must match
-  // on the normalised key, not on the JSON type.
   const id = opts.stringIds ? String(msg.id) : msg.id;
   handled += 1;
   const ok = (result) => ({ jsonrpc: '2.0', id, result });
@@ -179,7 +151,6 @@ async function handle(msg) {
     case 'tools/list': {
       const result = { tools: TOOLS };
       if (opts.hugeLine > 0) {
-        // One line far past any sane ceiling, still valid JSON.
         result.filler = 'x'.repeat(opts.hugeLine * 1024 * 1024);
       }
       return ok(result);
@@ -208,8 +179,6 @@ function maybeCrash() {
   }
 }
 
-// ── stdio ──────────────────────────────────────────────────────────────
-
 function runStdio() {
   let buf = '';
   let wroteGarbage = false;
@@ -231,24 +200,19 @@ function runStdio() {
       const resp = await handle(msg);
       if (opts.garbage && !wroteGarbage) {
         wroteGarbage = true;
-        // A server that logs on stdout: the client must skip the line, not die.
         process.stdout.write('not json at all\n');
       }
       if (resp) process.stdout.write(`${JSON.stringify(resp)}\n`);
       maybeCrash();
     }
   });
-  // Exit only once stdout has drained: a big answer must not be cut in half
-  // just because the client closed our stdin.
   process.stdin.on('end', () => {
     process.stdout.write('', () => process.exit(0));
   });
   process.stderr.write('fixture: stdio ready\n');
 }
 
-// ── Streamable HTTP ────────────────────────────────────────────────────
-
-const sessions = new Map(); // id -> { requests }
+const sessions = new Map();
 
 function newSessionId() {
   return `fixture-${Math.random().toString(36).slice(2)}-${Date.now().toString(36)}`;
@@ -307,7 +271,6 @@ async function onPost(req, res, body) {
 
   const resp = await handle(msg);
   if (!resp) {
-    // Notification or response: 202 with no body, per the spec.
     res.writeHead(202).end();
     maybeCrash();
     return;
@@ -328,7 +291,6 @@ async function onPost(req, res, body) {
 
   if (opts.sse || opts.partialSse) {
     res.writeHead(200, { ...headers, 'content-type': 'text/event-stream' });
-    // A server message that is not the response: the client must skip it.
     res.write(
       sseFrame(
         { jsonrpc: '2.0', method: 'notifications/message', params: { level: 'info', data: 'hi' } },
@@ -337,7 +299,6 @@ async function onPost(req, res, body) {
       ),
     );
     if (opts.partialSse) {
-      // Close before the response ever arrives.
       await sleep(20);
       res.end();
       return;

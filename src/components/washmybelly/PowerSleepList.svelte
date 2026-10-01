@@ -3,7 +3,6 @@
   import { groupBlockers, type SleepBlocker } from "$lib/washmybelly/power";
   import Icon from "./ui/Icon.svelte";
 
-  /// What keeps the machine (or the display) awake right now.
   let { blockers, needsAdmin }: { blockers: SleepBlocker[]; needsAdmin: boolean } = $props();
   let rows = $derived(groupBlockers(blockers));
 </script>

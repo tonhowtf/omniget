@@ -1,12 +1,3 @@
-/**
- * The pet's side of `canvas://companion` (Omni as the canvas companion):
- * turns a summary into what the 200-pixel window can show — a short line,
- * three short chips, a mood and a clip. Pure; the window owns the clock.
- *
- * Celebration only when the Rust side says the agent worked at least the
- * threshold (`celebrate`), never for a two-second turn (study 97).
- */
-
 import { ANIMATION_CLIP, type Mood } from './pet-state';
 import { asEntry, entrySuggestions, entrySummary } from '$lib/canvas/companion/api';
 
@@ -20,9 +11,7 @@ export interface CompanionBalloon {
   chips: string[];
   mood: Mood;
   clip: string;
-  /** How long the balloon stays, in ms. */
   ms: number;
-  /** Where the words came from when a model was asked ("via Claude (Haiku)", a local model). */
   via?: string;
 }
 
@@ -55,7 +44,6 @@ export function balloonOf(
   } | null;
   if (!e || e.petBalloon !== true) return null;
   if (typeof e.id !== 'string' || typeof e.summary !== 'string') return null;
-  // Heuristic entries carry i18n keys: shown in this window's language.
   const entry = tr ? asEntry(raw) : null;
   const localized = entry?.i18n && tr ? { summary: entrySummary(entry, tr), suggestions: entrySuggestions(entry, tr) } : null;
   const suggestions: unknown = localized?.suggestions ?? e.suggestions;

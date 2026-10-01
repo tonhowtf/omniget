@@ -1,18 +1,4 @@
 <script lang="ts">
-  /**
-   * "Replay" do período em canvas 2D próprio.
-   *
-   * Um cursor de data anda do primeiro ao último dia; no centro fica você,
-   * à esquerda os modelos, à direita as tools. Cada nó nasce no dia do
-   * primeiro uso (marco `new_model`) ou no primeiro dia ativo e cresce com a
-   * atividade acumulada do período até chegar ao seu total; feixes saem do
-   * centro para os nós na proporção das mensagens e tool calls do dia. Os
-   * marcos aparecem como avisos. Play/pausa/reiniciar e uma régua para
-   * arrastar o cursor (teclado incluso). Com `prefers-reduced-motion` não há
-   * autoplay nem feixes: a régua mostra qualquer dia parado.
-   *
-   * O laço de quadros só existe enquanto toca e a janela está visível.
-   */
   import { onMount } from "svelte";
   import { t } from "$lib/i18n";
   import { compact, fill, type Milestone, type Retro } from "$lib/central/sessions";
@@ -29,7 +15,7 @@
   let canvas: HTMLCanvasElement | undefined = $state();
   let box: HTMLDivElement | undefined = $state();
   let playing = $state(false);
-  let progress = $state(0); // 0..1
+  let progress = $state(0);
   let reduced = $state(false);
 
   type NodeSpec = { name: string; kind: "model" | "tool"; total: number; appear: number; x: number; y: number };
@@ -38,7 +24,6 @@
   let days = $derived(retro.heatmap.length ? retro.heatmap : []);
   let dayCount = $derived(Math.max(1, days.length));
 
-  /** Atividade acumulada normalizada por dia (mensagens + tool calls). */
   let cum = $derived.by(() => {
     const out: number[] = [];
     let acc = 0;
@@ -121,8 +106,6 @@
     const cy = centerY();
     const rx = Math.min(W * 0.3, 380);
     const ry = ry0();
-    // Coluna vertical com espaço igual (rótulos não se chocam), levemente
-    // curvada para o centro nas pontas.
     const place = (list: NodeSpec[], side: -1 | 1) => {
       list.forEach((n, i) => {
         const tt = list.length === 1 ? 0 : -1 + (2 * i) / (list.length - 1);
@@ -135,7 +118,6 @@
     draw();
   }
 
-  // Faixa de cima fica para a data e os avisos; a de baixo, para a régua.
   const TOP = 104;
   const BOTTOM = 56;
 
@@ -143,7 +125,6 @@
     return (TOP + (H - BOTTOM)) / 2;
   }
 
-  /** Metade da altura útil das colunas de nós. */
   function ry0(): number {
     return Math.max(60, (H - BOTTOM - TOP) / 2 - 10);
   }
@@ -164,7 +145,6 @@
     const cx = W / 2;
     const cy = centerY();
 
-    // Arestas finas centro → nós visíveis.
     for (const n of nodes) {
       const v = nodeValue(n);
       if (v <= 0) continue;
@@ -176,7 +156,6 @@
       ctx.stroke();
     }
 
-    // Feixes.
     for (const b of beams) {
       const n = nodes[b.node];
       if (!n) continue;
@@ -190,7 +169,6 @@
     }
     ctx.globalAlpha = 1;
 
-    // Nós.
     ctx.textBaseline = "middle";
     ctx.font = `500 11px ${getComputedStyle(canvas).fontFamily || "system-ui"}`;
     for (const n of nodes) {
@@ -213,14 +191,12 @@
       ctx.fillText(compact(Math.round(v)), lx, n.y + 8);
     }
 
-    // Centro.
     const act = curDay ? curDay.messages + curDay.tool_calls : 0;
     ctx.fillStyle = colors.text;
     ctx.beginPath();
     ctx.arc(cx, cy, 10 + Math.min(10, Math.sqrt(act) / 2), 0, Math.PI * 2);
     ctx.fill();
 
-    // Régua de atividade (heat) + cursor.
     const y0 = H - 26;
     const bw = W / dayCount;
     const peak = Math.max(1, ...days.map((d) => d.messages));
@@ -240,7 +216,6 @@
     const dt = last ? Math.min(64, now - last) : 16;
     last = now;
     progress = Math.min(1, progress + dt / DURATION_MS);
-    // Novos feixes do dia corrente.
     const d = curDay;
     if (d && !reduced) {
       const rate = Math.min(6, (d.messages + d.tool_calls) / 40);
@@ -317,7 +292,6 @@
     };
   });
 
-  // Dados novos (outro período): recomeça.
   let seen: Retro | null = null;
   $effect(() => {
     if (retro !== seen) {

@@ -3,16 +3,6 @@
 </script>
 
 <script lang="ts">
-  /**
-   * Saúde da config de uma ferramenta (F8): abas Configuração (arquivos reais
-   * por escopo + estatísticas do guard), Segurança (varredura do instalado)
-   * e Diagnóstico (doctor). "Otimizar com um agente" cria um Job com o
-   * runner escolhido e um prompt de revisão dos arquivos listados.
-   *
-   * Nada é aberto aqui: a lista vem de `clitools_config_files` (só caminho e
-   * tamanho, credenciais puladas); quem lê conteúdo é o guard, e só os
-   * caminhos que a lista mandou.
-   */
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { goto } from "$app/navigation";

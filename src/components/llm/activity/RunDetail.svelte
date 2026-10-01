@@ -1,11 +1,4 @@
 <script lang="ts">
-  /**
-   * One run, reviewed without a terminal: what was asked, the files it
-   * really changed (the diff from the folder's snapshots, not the model's
-   * word), the commands and tests it ran, the permissions, and what you can
-   * do next. Jargon (runtime, session, launch id) stays in the collapsed
-   * advanced details.
-   */
   import { t } from "$lib/i18n";
   import {
     cancelRun,
@@ -42,7 +35,6 @@
     void load(id);
   });
 
-  // A state change of any run may be this one: refresh quietly.
   $effect(() => {
     const tick = getRunTick();
     if (tick > 0 && !busy) void load(runId);
@@ -95,8 +87,6 @@
     {/if}
 
     {#if pending.length > 0}
-      <!-- Answered on its one card (the task row or the panel above), never
-           here too (A6). -->
       <div class="field-label">{$t("assist.runs.permissions_title")}</div>
       {#each pending as p (p.id)}
         <div class="ask" role="group" aria-label={$t("assist.runs.permission_label", { action: p.action })}>

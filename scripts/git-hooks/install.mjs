@@ -1,9 +1,4 @@
 #!/usr/bin/env node
-// `pnpm hooks:install` / `pnpm hooks:uninstall`: points git at the hooks in
-// scripts/git-hooks (core.hooksPath), or back at the default .git/hooks.
-//
-// The setting lives in the repository's config, so it covers every worktree of
-// this clone; the path is relative and resolves inside each one.
 import { spawnSync } from "node:child_process";
 import { chmodSync, readdirSync } from "node:fs";
 import { join, resolve } from "node:path";
@@ -29,8 +24,6 @@ if (process.argv.includes("--uninstall")) {
   process.exit(0);
 }
 
-// Git runs a hook only when it is executable; a checkout on a filesystem that
-// drops the bit (or a Windows clone) may not have it.
 if (process.platform !== "win32") {
   for (const name of readdirSync(here)) {
     if (!name.includes(".")) chmodSync(join(here, name), 0o755);

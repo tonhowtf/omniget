@@ -1,7 +1,4 @@
 <script lang="ts">
-  // Preview of a workspace style. The selector that used to live here was a second
-  // theme picker writing to localStorage; Appearance now owns mode and style and
-  // saves them through the settings store, so this only renders the sample.
   import { t } from "$lib/i18n";
 
   let { preset, mode }: { preset: string; mode: "light" | "dark" } = $props();

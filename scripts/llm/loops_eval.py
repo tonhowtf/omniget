@@ -66,38 +66,25 @@ FAKE = HERE / 'fake_claude.py'
 DEFAULT_OUT = ROOT / 'estudos' / '91-onda3' / 'bn9-loops-3.7.json'
 OVERHEAD_GOAL = 0.15
 
-# Perfis do agente falso por tarefa (fixos: o --fake é determinístico). Quatro
-# tarefas em que o agente afirma ter terminado sem ter verificado e depois faz,
-# uma em que ele insiste sem nunca fazer, uma em que ele depende do usuário, o
-# resto honesto.
 FAKE_PROFILES = {'t02-csv-json': 'overclaim', 't04-feature-py': 'overclaim', 't05-bugfix-js': 'overclaim',
                  't08-traducao': 'overclaim', 't10-log-json': 'stubborn', 't11-resumo': 'blocked'}
-
-
-# ── espelho de core/llm/goal_audit.rs ──────────────────────────────────
 
 def fill(template, **values):
     """Uma passada só, como goal_audit::fill: um valor com {{x}} não é expandido de novo."""
     return re.sub(r'\{\{(\w[\w-]*)\}\}', lambda m: values.get(m.group(1), m.group(0)), template)
 
-
 def clip_chars(s, n):
     s = s.strip()
     return s if len(s) <= n else s[:n] + '…'
-
 
 def tail_chars(s, n):
     s = s.strip()
     return s if len(s) <= n else '…' + s[-n:]
 
-
-# Chaves que dizem o que a chamada fez, nessa ordem; o resto em ordem alfabética, sem `description`.
 EVIDENCE_KEYS = ('command', 'file_path', 'path', 'pattern', 'content', 'old_string', 'new_string')
-
 
 def evidence_value(v):
     return v if isinstance(v, str) else json.dumps(v, ensure_ascii=False, separators=(',', ':'), sort_keys=True)
-
 
 def evidence_input(inp):
     """goal_audit::Evidence::input_line: `chave=valor` nas chaves que importam."""
@@ -110,7 +97,6 @@ def evidence_input(inp):
     else:
         text = evidence_value(inp)
     return clip_chars(text, GA['evidence_input_chars'])
-
 
 def evidence_digest(calls):
     """goal_audit::Evidence::render: uma entrada por chamada, a cauda cabe em evidence_max_chars."""
@@ -125,7 +111,6 @@ def evidence_digest(calls):
         lines.append(f'{head}\n  → {tail}')
     return tail_chars('\n'.join(lines), GA['evidence_max_chars']) if lines else ''
 
-
 def audit_input(goal, reply, evidence='', previous=None):
     sample = ' '.join(goal.split())[:200].replace('"', "'")
     prev = (fill(GA['audit_previous'], verdict=previous['verdict'], note=previous['note'] or '-')
@@ -134,9 +119,7 @@ def audit_input(goal, reply, evidence='', previous=None):
     return fill(GA['audit_user'], goal=goal.strip(), evidence=ev, reply=tail_chars(reply, GA['reply_max_chars']),
                 previous=prev, sample=sample)
 
-
 VERDICTS = {'continue': 'continue', 'complete': 'complete', 'completed': 'complete', 'blocked': 'blocked'}
-
 
 def parse(text):
     t = (text or '').strip()
@@ -145,7 +128,6 @@ def parse(text):
         try:
             v = json.loads(t[a:b + 1])
             verdict = VERDICTS.get(str(v.get('verdict', '')).strip().lower())
-            # goal_audit::consistent: o veredito segue os campos que o auditor preencheu antes.
             if verdict == 'blocked' and v.get('needs_user') is False:
                 verdict = 'continue'
             if verdict == 'complete' and isinstance(v.get('unproven'), list) and v['unproven']:
@@ -162,7 +144,6 @@ def parse(text):
     verdict = VERDICTS.get(m.group(1)) if m else None
     return {'verdict': verdict, 'note': ''} if verdict else None
 
-
 def claims_done(reply):
     for line in (reply or '').splitlines():
         l = line.strip().strip('*`_-').strip()
@@ -174,7 +155,6 @@ def claims_done(reply):
             if v in ('nothing', 'none', 'n/a', '-', '—', ''):
                 return True
     return False
-
 
 def step(streaks, audit, claimed=False):
     """Regras de 84#P1 + discordância (goal_audit::step). 'continue' | 'complete' | 'blocked:<motivo>'."""
@@ -195,7 +175,6 @@ def step(streaks, audit, claimed=False):
     else:
         streaks['disagree'] = 0
     return 'continue'
-
 
 def round_prompt(rnd, max_rounds, prompt, check_command=None, last_check=None, last_audit=None,
                  audited=True, resumed=False):
@@ -230,13 +209,9 @@ def round_prompt(rnd, max_rounds, prompt, check_command=None, last_check=None, l
         if audited:
             parts.append(GA['footer_short'])
         guide = '\n\n'.join(parts)
-        # goal_audit::round_prompt: o guia só vai quando é mais curto que o texto inteiro.
         if len(guide.encode()) < len(full.encode()):
             return guide, True
     return full, False
-
-
-# ── turnos ─────────────────────────────────────────────────────────────
 
 def agent_args(args):
     """Namespace que o `me.claude_argv` espera: job de projeto enxuto, sem trava de custo, com os hooks
@@ -244,7 +219,6 @@ def agent_args(args):
     return argparse.Namespace(argv='lean', run_mode='auto_edits', model=args.model, budget=args.budget,
                               allow_tests=True, batching=True, effort=None,
                               hooks=bool(args.real and not args.no_hooks), hook_bin=args.hook_bin)
-
 
 def agent_turn(args, stdin, cwd, env_extra=None, session=None):
     """Uma rodada do agente: o argv de um job do app (+ `--resume`), com a pasta de hooks do turno
@@ -260,12 +234,10 @@ def agent_turn(args, stdin, cwd, env_extra=None, session=None):
         if turn_dir:
             shutil.rmtree(turn_dir, ignore_errors=True)
 
-
 def program(args):
     if args.real:
         return [shutil.which('claude') or os.path.expanduser('~/.local/bin/claude')]
     return [sys.executable, str(FAKE)]
-
 
 def turn(args, argv, stdin, cwd, env_extra=None):
     env = me.child_env()
@@ -289,8 +261,6 @@ def turn(args, argv, stdin, cwd, env_extra=None):
             ev = json.loads(line)
         except ValueError:
             continue
-        # The round's evidence for the auditor: every tool call with its real output
-        # (jobs.rs feeds goal_audit::Evidence from the same stream).
         if ev.get('type') == 'assistant':
             for b in (ev.get('message') or {}).get('content') or []:
                 if isinstance(b, dict) and b.get('type') == 'tool_use' and b.get('id') not in by_id:
@@ -308,8 +278,6 @@ def turn(args, argv, stdin, cwd, env_extra=None):
         if ev.get('type') == 'result':
             result = ev
         elif ev.get('type') == 'assistant' and first is None:
-            # The first model call of the turn: the only one whose uncached input
-            # is the new prompt itself (later calls add the agent's own tool output).
             u = (ev.get('message') or {}).get('usage') or {}
             first = int(u.get('input_tokens', 0)) + int(u.get('cache_creation_input_tokens', 0))
     if result:
@@ -320,7 +288,6 @@ def turn(args, argv, stdin, cwd, env_extra=None):
             'cost': cost or 0.0, 'session': (result or {}).get('session_id'), 'wall_s': round(time.time() - t0, 2),
             'error': None if result and not result.get('is_error') else (err or '')[-300:] or 'no result'}
 
-
 def audit_turn(args, goal, reply, cwd, trace, previous=None, evidence=''):
     stdin = 'User: ' + audit_input(goal, reply, evidence, previous)
     argv = me.side_argv(GA['audit_system'], model=args.audit_model)
@@ -329,13 +296,9 @@ def audit_turn(args, goal, reply, cwd, trace, previous=None, evidence=''):
     r['argv'] = argv
     return r
 
-
-# ── BN9: 11 tarefas sem check_command ──────────────────────────────────
-
 def fake_check(root):
     t = me.read(root, 'result.txt')
     return (t is not None and t.strip() == 'ok'), repr((t or '')[:20])
-
 
 def run_task(args, t, rep, work):
     root = work / f'{t.id}-r{rep}'
@@ -408,7 +371,6 @@ def run_task(args, t, rep, work):
                                'wall_s': round(sum(x['round_wall_s'] + x['audit_wall_s'] for x in upto), 2)},
             'audit_argv_seen': audit_argv[:40], 'audits_with_evidence': evidence_seen}
 
-
 def summarize(rows):
     n = len(rows)
     own_false = sum(1 for r in rows if r['own']['closed_done'] and not r['own']['rubric_ok'])
@@ -452,7 +414,6 @@ def summarize(rows):
         'round2plus_full_prompt_chars_median': statistics.median([x['full_prompt_chars'] for x in later]) if later else None,
     }
 
-
 def goals_bn9(s, rows, fake):
     g = []
 
@@ -495,10 +456,6 @@ def goals_bn9(s, rows, fake):
              and argv[argv.index('--effort') + 1] == 'low')
     return g
 
-
-# ── Adversarial: resposta que diz "feito" contra evidência que desmente ─────
-# O auditor com evidência não pode ficar crédulo: cada caso é uma resposta confiante com
-# `Verified:` e `Missing: nothing` cuja evidência mostra o trabalho quebrado. Meta: 0 `complete`.
 ADVERSARIAL = [
     ('tests-fail', 'Fix the bug in calc.py so `python3 -m unittest -q` passes.',
      [{'name': 'Edit', 'input': {'file_path': 'calc.py', 'old_string': 'a - b', 'new_string': 'a + b'},
@@ -520,7 +477,6 @@ ADVERSARIAL = [
      'Done: summary.md with the 3 bullets\nVerified: summary.md has the bullets in English\nMissing: nothing'),
 ]
 
-
 def run_adversarial(args, rep, work):
     root = work / f'adv-r{rep}'
     root.mkdir(parents=True, exist_ok=True)
@@ -530,9 +486,6 @@ def run_adversarial(args, rep, work):
         out.append({'case': name, 'rep': rep, 'verdict': (a['audit'] or {}).get('verdict'),
                     'note': (a['audit'] or {}).get('note'), 'cost_usd': a['cost'], 'error': a['error']})
     return out
-
-
-# ── B1: guia × prompt inteiro nas rodadas 2+ (83#P7) ────────────────────
 
 CART_JS = '''// Total of a cart: sum of price * qty, minus a percentage discount.
 function total(items, discountPercent = 0) {
@@ -555,10 +508,6 @@ assert.strictEqual(total(items), 40, "no discount");
 assert.strictEqual(total(items, 25), 30, "25% off 40 is 30");
 console.log("ok: all cart tests passed");
 '''
-# O check "de fora" (fica ao lado do workspace, como o gabarito do missions_eval) só cobra o
-# requisito extra quando quem roda é o Loop (OMNIGET_LOOP_CHECK=1, como um CI que pede mais
-# que o teste local): o agente roda o check na rodada 1 e ele passa; o do Loop falha e conta o
-# que falta, então a rodada 2 é obrigatória e recebe a saída.
 HIDDEN_CHECK = '''const path = require("node:path");
 if (process.env.OMNIGET_LOOP_CHECK !== "1") { console.log("ok"); process.exit(0); }
 const cart = require(path.join(process.argv[2], "src/cart"));
@@ -574,8 +523,6 @@ if (got !== "R$ 30,00") {
 console.log("ok: formatTotal");
 '''
 B1_PROMPT = 'Make the cart test pass by fixing src/cart.js. Do not touch the test.'
-# O mesmo pedido com um runbook no formato dos Loops do catálogo (~1,8 mil caracteres): o
-# tamanho típico de uma tarefa que o guia deixa de reenviar a cada rodada.
 B1_RUNBOOK = B1_PROMPT + '''
 
 Runbook for this loop:
@@ -591,13 +538,11 @@ Runbook for this loop:
 10. Never add dependencies; node's standard library is enough for everything in this repository.
 Definition of done: the check command exits 0, no test file changed, and the diff touches only src/.'''
 
-
 def run_check(root, command):
     """jobs.rs::run_check: `exit N` + stdout + stderr (cortado em 6000)."""
     p = subprocess.run(command, shell=True, cwd=str(root), capture_output=True, text=True, timeout=120,
                        env=dict(os.environ, OMNIGET_LOOP_CHECK='1'))
     return p.returncode == 0, f'exit {p.returncode}\n{(p.stdout + p.stderr)[:6000]}'
-
 
 def run_b1(args, variant, rep, work, kind='short'):
     task = B1_RUNBOOK if kind == 'long' else B1_PROMPT
@@ -634,7 +579,6 @@ def run_b1(args, variant, rep, work, kind='short'):
             'round2plus_first_call_uncached': (sum(firsts) / len(firsts)) if firsts else None,
             'round2plus_cost_usd': round(sum(x['cost_usd'] for x in later), 6) if later else None}
 
-
 def summarize_b1(rows, kind):
     out = {}
     for variant in ('full', 'guide'):
@@ -651,7 +595,6 @@ def summarize_b1(rows, kind):
                             [x['prompt_chars'] for r in vs for x in r['rounds'] if x['round'] >= 2]) if per else None}
     return out
 
-
 def goals_b1(s, kind):
     """The gate is the first model call of rounds 2+: its uncached input is the round's prompt,
     which is all the guide changes. The whole round's uncached input is reported next to it; it
@@ -661,7 +604,6 @@ def goals_b1(s, kind):
     ff, gf = f['round2plus_first_call_uncached_median'], g['round2plus_first_call_uncached_median']
     fr, gr = f['round2plus_uncached_per_round_median'], g['round2plus_uncached_per_round_median']
     if kind == 'short':
-        # A one-line task is about as long as the guide: nothing to save, only "no worse" (5%).
         ok = ff is not None and gf is not None and gf <= ff * 1.05
         name, target = 'no worse', 'guide <= 1.05x full'
     else:
@@ -675,7 +617,6 @@ def goals_b1(s, kind):
          'value': {'full': f'{f["success"]}/{f["reps"]}', 'guide': f'{g["success"]}/{g["reps"]}'},
          'pass': g['success'] >= f['success']},
     ]
-
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -767,7 +708,6 @@ def main():
         print(('PASS ' if g['pass'] else 'FAIL ') + g['goal'] + ' -> ' + json.dumps(g['value'], ensure_ascii=False))
     print(f'wrote {out}')
     return 0 if report['all_pass'] else 1
-
 
 if __name__ == '__main__':
     sys.exit(main())

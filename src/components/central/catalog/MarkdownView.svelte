@@ -1,8 +1,4 @@
 <script lang="ts">
-  /**
-   * Markdown viewer: preview (sanitised HTML) or code, "On this page" TOC
-   * with the active heading, Cmd/Ctrl+F search, copy and expand.
-   */
   import { tick } from "svelte";
   import { open as openUrl } from "@tauri-apps/plugin-shell";
   import { t } from "$lib/i18n";

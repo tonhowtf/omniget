@@ -34,7 +34,6 @@ export type {
   TypographySettings,
 } from "./settings-v3-types";
 
-/** Alias kept for the existing consumers: the redacted v3 public document. */
 export type AppSettings = SettingsPublicV3;
 
 type Patch = Record<string, unknown>;
@@ -47,10 +46,6 @@ type SettingsLoadState =
   | { kind: "failed"; code: string };
 type AppearanceMigrationState = "unknown" | "importing" | "done" | "failed";
 
-// ---------------------------------------------------------------------------
-// Appearance: one authority for theme, preset, typography and motion.
-// ---------------------------------------------------------------------------
-
 export const OMNIGET_PRESET = "omniget-desktop";
 const WORKSPACE_PRESET_IDS = [
   "amber-minimal", "orange-soft", "claude-amber", "amber-hearth", "amber-slate", "orange-vivid",
@@ -61,7 +56,6 @@ const MODES = new Set<string>(["system", "light", "dark"]);
 type AppearancePresentation = {
   mode: AppearanceMode;
   preset: string;
-  /** Named theme id ("Mais estilos") when the preset is one, else null. */
   namedTheme: string | null;
   resolvedMode: "light" | "dark";
   systemDark: boolean;
@@ -76,10 +70,6 @@ const TYPOGRAPHY_DEFAULTS: TypographySettings = {
   preset_name: "system",
 };
 
-/**
- * The single spacing base. `src/app.css` declares the same values on :root
- * (guarded by a test), so scale 1 removes the inline overrides without a jump.
- */
 const SPACING_BASE_PX: Readonly<Record<string, number>> = {
   "--space-1": 4,
   "--space-2": 8,
@@ -92,7 +82,6 @@ const SPACING_BASE_PX: Readonly<Record<string, number>> = {
   "--space-9": 80,
 };
 
-/** CSS generic families and system keywords: never quoted. */
 const GENERIC_FAMILIES = new Set([
   "system-ui", "ui-sans-serif", "ui-serif", "ui-monospace", "ui-rounded",
   "sans-serif", "serif", "monospace", "cursive", "fantasy", "math", "emoji", "fangsong",
@@ -105,7 +94,6 @@ function quoteFamily(name: string): string {
   return `'${name.replace(/\\/g, "\\\\").replace(/'/g, "\\'")}'`;
 }
 
-/** Font stack for a chosen family. Custom families are preserved as typed. */
 function resolveFontStack(kind: "display" | "body" | "mono", family: string): string {
   const name = family.trim();
   if (kind === "mono") {
@@ -148,13 +136,11 @@ function applyTypography(typo: TypographySettings | undefined) {
   if (!rootEl) return;
   const t = typo ?? TYPOGRAPHY_DEFAULTS;
   const root = rootEl.style;
-  // 'OmniGet Lao' is unicode-range limited to Lao, so it only affects Lao glyphs.
   root.setProperty("--font-display", `'OmniGet Lao', ${resolveFontStack("display", t.font_display)}`);
   root.setProperty("--font-body", `'OmniGet Lao', ${resolveFontStack("body", t.font_body)}`);
   root.setProperty("--font-mono", resolveFontStack("mono", t.font_mono));
   root.setProperty("--leading-base", String(t.line_height_base));
   const scale = typeof t.spacing_scale === "number" && Number.isFinite(t.spacing_scale) ? t.spacing_scale : 1.0;
-  // One base multiplied continuously; at 1 the stylesheet already holds base × 1.
   if (Math.abs(scale - 1.0) > 0.001) {
     for (const [key, base] of Object.entries(SPACING_BASE_PX)) {
       root.setProperty(key, `${(base * scale).toFixed(2)}px`);
@@ -171,7 +157,6 @@ function applyAccessibility(a: AppSettings["accessibility"]) {
   rootEl.setAttribute("data-reduce-transparency", a?.reduce_transparency ? "true" : "false");
 }
 
-/** Mode/preset of the confirmed document; before the import only the legacy theme counts. */
 function resolveAppearance(appearance: AppSettings["appearance"] | undefined): { mode: AppearanceMode; preset: string; namedTheme: string | null } {
   const legacy = typeof appearance?.theme === "string" ? appearance.theme : "system";
   const migrated = (appearance?.migration_version ?? 0) >= 1;
@@ -201,18 +186,16 @@ function readSystemDark(): boolean {
   }
 }
 
-/** Follow OS changes only while the mode is system; the listener is removed otherwise. */
 function syncSystemListener(follow: boolean) {
   if (follow && !systemListener) {
     if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
     try {
       const query = window.matchMedia(SYSTEM_DARK_QUERY);
-      // Before the first confirmed read the fallback follows the OS as well.
       const listener = () => { applyTheme(settings?.appearance); };
       query.addEventListener("change", listener);
       systemQuery = query;
       systemListener = listener;
-    } catch { /* No media queries in this runtime: the sampled value stays. */ }
+    } catch { }
   } else if (!follow && systemListener) {
     systemQuery?.removeEventListener("change", systemListener);
     systemQuery = null;
@@ -236,7 +219,6 @@ function applyTheme(appearance: AppSettings["appearance"] | undefined) {
   const workspace = namedTheme === null && WORKSPACE_PRESETS.has(preset);
   if (namedTheme === null) root.setAttribute("data-preset", preset);
   else root.removeAttribute("data-preset");
-  // Workspace presets keep their palettes in workspace-design.css, now for every route.
   if (workspace) {
     root.setAttribute("data-ds-preset", preset);
     root.setAttribute("data-ds-mode", resolvedMode);
@@ -252,8 +234,6 @@ export function getAppearancePresentation(): AppearancePresentation {
   return presentation;
 }
 
-// Locale is applied by the layout (it owns the translation loader); the store
-// only says when the confirmed language changed.
 type LocaleApplier = (language: string) => Promise<void> | void;
 let localeApplier: LocaleApplier | null = null;
 let appliedLanguage: string | null = null;
@@ -261,13 +241,11 @@ let localApplyFailed = $state<Record<string, string>>({});
 
 export function setSettingsLocaleApplier(applier: LocaleApplier | null): void {
   localeApplier = applier;
-  // The first read may have been confirmed before the layout mounted its applier.
   if (applier && settings) applyLocale(settings.appearance?.language);
 }
 
 function applyLocale(language: string | undefined) {
   if (!language || language === appliedLanguage) return;
-  // Without an applier nothing was applied yet: remember nothing, so it runs on registration.
   if (!localeApplier) return;
   appliedLanguage = language;
   const target = language;
@@ -288,16 +266,11 @@ function applyPresentation(s: AppSettings) {
   applyLocale(s.appearance?.language);
 }
 
-/** Retries the frontend-only application (locale) of the confirmed snapshot. */
 export function retryLocalPresentation(): void {
   if (!settings) return;
   appliedLanguage = null;
   applyPresentation(settings);
 }
-
-// ---------------------------------------------------------------------------
-// Confirmed snapshot. Only revisions >= the confirmed one are published.
-// ---------------------------------------------------------------------------
 
 let settings = $state<AppSettings | null>(null);
 let confirmedRevision: Revision | null = null;
@@ -309,7 +282,6 @@ let migrationState = $state<AppearanceMigrationState>("unknown");
 type SnapshotListener = (reason: "publish" | "reset") => void;
 const snapshotListeners = new Set<SnapshotListener>();
 
-/** Internal hook for settings-drafts: called after a confirmed snapshot is published. */
 export function onConfirmedSnapshot(listener: SnapshotListener): () => void {
   snapshotListeners.add(listener);
   return () => snapshotListeners.delete(listener);
@@ -317,7 +289,7 @@ export function onConfirmedSnapshot(listener: SnapshotListener): () => void {
 
 function notify(reason: "publish" | "reset") {
   for (const listener of snapshotListeners) {
-    try { listener(reason); } catch { /* A draft never breaks the store. */ }
+    try { listener(reason); } catch { }
   }
 }
 
@@ -338,7 +310,6 @@ export function getSettings(): AppSettings | null {
   return settings;
 }
 
-/** The confirmed revision (decimal string), or null before the first read. */
 export function getSettingsRevision(): Revision | null {
   return confirmedRevision;
 }
@@ -368,14 +339,12 @@ async function readSnapshot(): Promise<SettingsSnapshot> {
 function acceptRead(snapshot: SettingsSnapshot): boolean {
   if (!snapshot || snapshot.settings === null) {
     const code = snapshot?.loadStatus?.kind === "failed" ? snapshot.loadStatus.code : "read_failed";
-    // A failed read never replaces a confirmed snapshot with editable defaults.
     if (!settings) loadState = { kind: "failed", code };
     throw new SettingsLoadError(code);
   }
   return publish(snapshot);
 }
 
-/** Before a mutation: a fresh read, never joined with an older in-flight load. */
 async function ensureRevision(): Promise<void> {
   if (confirmedRevision !== null) return;
   try {
@@ -385,10 +354,6 @@ async function ensureRevision(): Promise<void> {
     throw error;
   }
 }
-
-// ---------------------------------------------------------------------------
-// Appearance import (runs once; the backend marker is the only authority).
-// ---------------------------------------------------------------------------
 
 const WORKSPACE_RAW_MAX_BYTES = 65536;
 
@@ -406,7 +371,6 @@ function needsImport(): boolean {
   return !!settings && (settings.appearance?.migration_version ?? 0) < 1;
 }
 
-/** Must run inside the mutation queue. The legacy key is read, never removed. */
 async function importAppearance(): Promise<void> {
   if (!needsImport()) return;
   migrationState = "importing";
@@ -417,18 +381,12 @@ async function importAppearance(): Promise<void> {
     publish(result.snapshot);
     migrationState = needsImport() ? "failed" : "done";
   } catch {
-    // Other settings stay usable; the next load tries again.
     migrationState = "failed";
   }
 }
 
-// ---------------------------------------------------------------------------
-// Install locale: only for an absent profile whose language was never chosen.
-// ---------------------------------------------------------------------------
-
 const PRIMARY_LOCALES = new Set(["en", "pt", "es", "fr", "it", "ru", "el", "fa", "lo", "ja"]);
 
-/** Maps an OS/browser language tag to one of the 12 catalogs; fallback "en". */
 function detectInstallLocale(tag: string | null | undefined): string {
   if (!tag) return "en";
   const parts = tag.trim().replace(/_/g, "-").toLowerCase().split("-").filter(Boolean);
@@ -441,16 +399,11 @@ function detectInstallLocale(tag: string | null | undefined): string {
   return PRIMARY_LOCALES.has(primary) ? primary : "en";
 }
 
-/**
- * Presentation before the first confirmed read (or when it failed): OS light/dark on the
- * default preset. Never touches a confirmed snapshot and never persists anything.
- */
 export function applyFallbackPresentation(): void {
   if (settings) return;
   applyTheme(undefined);
 }
 
-/** Interface language to use until the confirmed snapshot answers (06 locale rules). */
 export function fallbackLocale(): string {
   return detectInstallLocale(systemLanguageTag());
 }
@@ -466,16 +419,11 @@ function systemLanguageTag(): string | null {
 
 async function applyInstallLocale(): Promise<void> {
   const current = settings?.appearance?.language;
-  // The backend may already have detected it; an explicit or detected value wins.
   if (current && current !== "en") return;
   const detected = detectInstallLocale(systemLanguageTag());
   if (detected === "en") return;
-  try { await updateSettings({ appearance: { language: detected } }); } catch { /* Stays "en". */ }
+  try { await updateSettings({ appearance: { language: detected } }); } catch { }
 }
-
-// ---------------------------------------------------------------------------
-// Mutation queue: one serial chain per WebView; queued autosaves coalesce by field.
-// ---------------------------------------------------------------------------
 
 type Waiter = { resolve: (value: AppSettings) => void; reject: (error: unknown) => void };
 type PatchTask = {
@@ -491,7 +439,6 @@ type Task = PatchTask | ResetTask | ImportTask;
 
 const queue: Task[] = [];
 let running = false;
-/** Autosave intents that failed, kept for an explicit retry (never secrets). */
 const failedIntents = new Map<string, unknown>();
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -565,12 +512,11 @@ function settle(task: Task, error?: unknown) {
   }
 }
 
-/** After conflict or an indeterminate write: re-read, keep the intent, never resend it. */
 async function reconcile() {
   try {
     const snapshot = await readSnapshot();
     if (snapshot.settings) publish(snapshot);
-  } catch { /* The error of the mutation is what the caller sees. */ }
+  } catch { }
 }
 
 const APPEARANCE_STYLE_KEYS = ["theme", "mode", "preset", "legacy_theme"];
@@ -591,7 +537,6 @@ async function runTask(task: Task) {
     await ensureRevision();
     if (task.kind === "patch" && isPlainObject(task.patch.appearance)
       && APPEARANCE_STYLE_KEYS.some((key) => key in (task.patch.appearance as Patch)) && needsImport()) {
-      // The backend refuses appearance edits until the import committed.
       await importAppearance();
     }
     const expectedRevision = confirmedRevision!;
@@ -622,7 +567,6 @@ async function runTask(task: Task) {
   }
 }
 
-/** Legacy `appearance.theme` edits become mode/preset; the backend keeps `theme` coherent. */
 function normalizeLegacyPatch(partial: Patch): Patch {
   const appearance = partial.appearance;
   if (!isPlainObject(appearance) || !("theme" in appearance)) return partial;
@@ -639,14 +583,12 @@ function normalizeLegacyPatch(partial: Patch): Patch {
   return { ...partial, appearance: next };
 }
 
-/** Autosave of a toggle/select: minimal patch, queued by field, confirmed revision only. */
 export async function updateSettings(partial: Record<string, unknown>): Promise<AppSettings> {
   const patch = clonePatch(normalizeLegacyPatch(partial));
   setStatus(leafPaths(patch).map(([path]) => path), { state: "saving" });
   return enqueue({ kind: "patch", mode: "auto", patch, waiters: [] });
 }
 
-/** Explicit Save of a form (proxy, fonts, hotkeys). Secrets only as write-only operations. */
 export async function saveSettingsForm(
   patch: Record<string, unknown>,
   secretOperations?: SettingsSecretOperations,
@@ -657,7 +599,6 @@ export async function saveSettingsForm(
 }
 
 export async function resetSettings(scope: ResetScope = { kind: "app" }): Promise<AppSettings> {
-  // Queued edits of the previous generation must not re-apply values after the reset.
   const superseded = new Error("settings_superseded");
   for (let index = queue.length - 1; index >= 0; index -= 1) {
     const task = queue[index];
@@ -678,21 +619,16 @@ export async function retrySettingsEffect(effectId: EffectId): Promise<void> {
   publish(result.snapshot);
 }
 
-/** A first read still unanswered after this long is shown as a failure (with retry). */
 const SETTINGS_READ_TIMEOUT_MS = 15000;
 
-/** Reads the confirmed document; a late read never rolls back a newer confirmation. */
 export async function loadSettings(): Promise<AppSettings> {
   let snapshot: SettingsSnapshot;
-  // The shell no longer waits for this read. If it hangs, Settings leaves the skeleton
-  // for a real error state; an answer that arrives later still publishes normally.
   const slow = settings ? null : setTimeout(() => {
     if (!settings && loadState.kind === "loading") loadState = { kind: "failed", code: "timeout" };
   }, SETTINGS_READ_TIMEOUT_MS);
   try {
     snapshot = await readSnapshot();
   } catch (error) {
-    // Transport failure is unavailability, never a new profile.
     if (!settings) loadState = { kind: "failed", code: "unavailable" };
     throw error;
   } finally {
@@ -703,10 +639,6 @@ export async function loadSettings(): Promise<AppSettings> {
   if (published && snapshot.loadStatus.kind === "absent") await applyInstallLocale();
   return settings!;
 }
-
-// ---------------------------------------------------------------------------
-// Field status and cross-window sync.
-// ---------------------------------------------------------------------------
 
 const EFFECT_BY_PATH: Array<[RegExp, EffectId]> = [
   [/^proxy(\.|$)/, "network.proxy"],
@@ -728,7 +660,6 @@ function effectForPath(path: string): EffectId | null {
 
 const STATE_WEIGHT: Record<FieldState, number> = { idle: 0, saved: 1, pendingApply: 2, saving: 3, failed: 4 };
 
-/** Status of a field, or the most urgent status under a prefix (e.g. "proxy"). */
 export function getFieldStatus(path: string): FieldStatus {
   let found: FieldStatus = { state: "idle" };
   for (const [key, status] of Object.entries(statuses)) {
@@ -758,12 +689,11 @@ function scheduleRefresh() {
       try {
         const snapshot = await readSnapshot();
         if (snapshot.settings) publish(snapshot);
-      } catch { /* The next event or reopening reconciles. */ }
+      } catch { }
     } while (refreshAgain);
   })().finally(() => { refreshing = null; });
 }
 
-/** Handles a `settings-v3-changed` payload: coalesced re-read, stale revisions ignored. */
 function handleSettingsChanged(payload: { revision?: unknown } | null | undefined): void {
   const revision = payload?.revision;
   if (!isRevision(revision)) return;
@@ -771,13 +701,12 @@ function handleSettingsChanged(payload: { revision?: unknown } | null | undefine
   scheduleRefresh();
 }
 
-/** Subscribes to other writers (windows, backend) and returns the cleanup. */
 export function startSettingsSync(): () => void {
   let disposed = false;
   let unlisten: (() => void) | null = null;
   listen<{ revision: Revision }>("settings-v3-changed", (event) => handleSettingsChanged(event.payload))
     .then((stop) => { if (disposed) stop(); else unlisten = stop; })
-    .catch(() => { /* No event bridge (browser preview); commands still answer. */ });
+    .catch(() => { });
   return () => {
     disposed = true;
     unlisten?.();

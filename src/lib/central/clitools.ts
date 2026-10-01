@@ -1,14 +1,7 @@
-// Invokes tipados dos comandos `clitools_*` da Central (/llm/tools): tabela de
-// CLIs, detecção com prova de dono, versão mais nova, planos com o comando
-// visível, execução com log ao vivo, registro ACP, login e diagnóstico.
-// Os erros chegam como "CODE: mensagem".
-
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
 const PROGRESS_EVENT = "clitools://progress";
-
-// ---- tipos (espelham os structs Rust, snake_case) ----
 
 export type ToolStatus = "active" | "maintenance" | "discontinued";
 type ToolKind = "cli" | "app" | "cli+app";
@@ -204,7 +197,6 @@ export type DoctorReport = {
   issues: string[];
 };
 
-/** Uma execução acompanhada na tela (plano ou instalação ACP). */
 export type LogEntry = {
   key: string;
   title: string;
@@ -213,8 +205,6 @@ export type LogEntry = {
   state: RunState;
   result: RunResult | null;
 };
-
-// ---- invokes ----
 
 export const listTools = () => invoke<ToolList>("clitools_list");
 export const detectTools = (force = false) => invoke<Detection[]>("clitools_detect", { force });
@@ -233,7 +223,6 @@ export function onProgress(fn: (p: Progress) => void): Promise<UnlistenFn> {
   return listen<Progress>(PROGRESS_EVENT, (e) => fn(e.payload));
 }
 
-/** Código do erro "CODE: mensagem". */
 export function errorCode(e: unknown): string {
   const s = String(e);
   const i = s.indexOf(":");

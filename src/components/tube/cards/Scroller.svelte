@@ -1,6 +1,4 @@
 <script lang="ts">
-  // Horizontal row with hidden scrollbar, edge fades and round arrow buttons
-  // that appear only when there is more to see (21st "Scroller").
   import type { Snippet } from "svelte";
   import { t } from "$lib/i18n";
   import TIcon from "../TIcon.svelte";
@@ -130,7 +128,6 @@
   .right {
     right: 0;
   }
-  /* Chip bars: smaller arrows sitting on the fade, like YouTube. */
   .scroller.chips .arrow {
     width: 32px;
     height: 32px;

@@ -1,7 +1,4 @@
 <script lang="ts">
-  // Proposed plan card: title from the first heading, 10-line preview for
-  // long plans, copy / download, and (when actionable) Implement, Refine or
-  // Implement in a new thread.
   import { t } from "$lib/i18n";
   import type { PlanRow } from "$lib/central/threads/types";
   import Markdown from "./Markdown.svelte";
@@ -40,7 +37,6 @@
       copied = true;
       setTimeout(() => (copied = false), 1500);
     } catch {
-      /* clipboard denied */
     }
     menu = false;
   }

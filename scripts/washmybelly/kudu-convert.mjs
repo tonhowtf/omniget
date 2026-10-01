@@ -1,24 +1,4 @@
 #!/usr/bin/env node
-// Converts the Kudu (MIT, AdventDevInc/kudu) Windows cleaner rules into the
-// washmybelly `Rule` shape (src-tauri/omniget-core/src/core/washmybelly/clean/rule.rs).
-//
-// Run it when the upstream rules change; the output is committed and embedded
-// with `include_str!`. Nothing is downloaded at run time.
-//
-// Usage:
-//   node scripts/washmybelly/kudu-convert.mjs --repo <kudu checkout>           write
-//   node scripts/washmybelly/kudu-convert.mjs --repo <kudu checkout> --check   fail if the committed file differs
-//
-// Without --repo it reads $KUDU_REPO.
-//
-// What is converted: rules/win32/{system,apps,gaming,gpu-cache,browsers}.json.
-// What is left out on purpose (listed in the output under `skipped`):
-// - databases.json (SQLite vacuum of history/cookies: the BleachBit side owns browser privacy),
-// - steam.json redistributable folders (they live inside game folders: never game files),
-// - misc.json (event logs, Recycle Bin path),
-// - targets inside protected trees (System32, WinSxS, Defender, Windows.old, Installer, AppCompat),
-// - Prefetch (placebo list), component store cleanup (no DISM here), native actions whose
-//   program is not in plan::NATIVE_PROGRAMS, and actions washmybelly implements itself.
 
 import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync, mkdirSync, copyFileSync, existsSync } from 'node:fs';
@@ -42,7 +22,6 @@ if (!repo || !existsSync(join(repo, 'rules', 'win32'))) {
 const commit = execFileSync('git', ['-C', repo, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
 const read = (f) => JSON.parse(readFileSync(join(repo, 'rules', 'win32', f), 'utf8'));
 
-// Kudu template variables → Windows environment variables `fsops::expand_vars` resolves.
 const VARS = {
   HOME: '%USERPROFILE%',
   LOCALAPPDATA: '%LOCALAPPDATA%',
@@ -64,7 +43,6 @@ function win(path) {
   return out.replace(/\//g, '\\');
 }
 
-// Same list as `rules_windows::PROTECTED` (lower case, forward slashes).
 const PROTECTED = [
   '%windir%/system32',
   '%windir%/syswow64',
@@ -101,12 +79,10 @@ function slug(s) {
   return s.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
 }
 
-// Dev tools and package caches get the `dev` screen group.
 const DEV = new Set(
   'vscode jetbrains jetbrains-logs npm yarn pnpm uv bun pip pipenv nuget sccache cargo go go-build gradle maven composer docker postman github-desktop android-studio conda unity visual-studio ruby-gems deno node-gyp electron-builder electron java-cache aws-cli gcloud typescript-typings vscode-cpptools poetry zed vscodium vscode-insiders sublime-text windsurf cursor cursor-partitions scoop chocolatey-logs winget-logs unreal-ddc hyper github-copilot-logs claude-code-cache codex-cache codex-temp t3-code t3-code-partitions t3-code-logs todesktop-builder'.split(' '),
 );
 
-// Chromium-family and Firefox-family process names, for `running`.
 const BROWSER_EXE = {
   chrome: 'chrome.exe', edge: 'msedge.exe', brave: 'brave.exe', opera: 'opera.exe', operaGX: 'opera.exe',
   vivaldi: 'vivaldi.exe', arc: 'Arc.exe', chromium: 'chrome.exe', thorium: 'thorium.exe',
@@ -136,8 +112,6 @@ function rule({ id, category, label, description = '', targets, minAge, action, 
     include: [],
     exclude: [],
     running,
-    // Kudu: never delete a cache used yesterday. Upstream value when set,
-    // two days for "recent descendants are protected" targets, one otherwise.
     min_age_days: minAge,
     action,
     destination: 'unlink',
@@ -151,7 +125,6 @@ function rule({ id, category, label, description = '', targets, minAge, action, 
 const DELETE_CONTENTS = { type: 'delete_contents' };
 const DELETE = { type: 'delete' };
 
-// ── system.json ──
 const SYSTEM_SKIP = {
   '${WINDIR}/Prefetch': 'Prefetch is on the placebo list (slower boot and launches until it rebuilds)',
   '${WINDIR}/WinSxS': 'component store cleanup is DISM territory (maintenance module), never ResetBase',
@@ -195,7 +168,6 @@ for (const t of sys.singleFileTargets || []) {
   });
 }
 
-// ── apps.json, gaming.json, gpu-cache.json ──
 const NATIVE = {
   'pnpm-prune': { type: 'command', program: 'pnpm', args: ['store', 'prune'] },
 };
@@ -247,9 +219,6 @@ function convertApps(file, prefix, defaultCategory) {
         for (const anchor of anchors) {
           const base = anchor ? `${win(p)}\\${anchor}` : win(p);
           for (const t of m.targets) {
-            // Chromium layout: <anchor>\<profile or partition>\<cache>, plus
-            // shared caches right under the anchor. Deeper nesting is not
-            // offered (it is where Local Storage and IndexedDB live).
             targets.push(`${base}\\*\\${t}`);
             if (m.anchorPaths) targets.push(`${base}\\${t}`);
           }
@@ -281,7 +250,6 @@ convertApps('apps.json', 'apps', 'apps');
 convertApps('gaming.json', 'games', 'games');
 convertApps('gpu-cache.json', 'shader', 'shader_cache');
 
-// ── browsers.json (caches only; history and cookies stay with BleachBit/rules_windows) ──
 const br = read('browsers.json');
 for (const b of br.chromium) {
   const base = win(b.base);
@@ -289,7 +257,6 @@ for (const b of br.chromium) {
   for (const d of br.chromiumCacheDirs.profile) {
     const dir = d.dir.replace(/\//g, '\\');
     targets.push(`${base}\\*\\${dir}`);
-    // Opera keeps its default profile in the user-data folder itself.
     if (b.key.startsWith('opera')) targets.push(`${base}\\${dir}`);
   }
   for (const d of br.chromiumCacheDirs.shared || []) targets.push(`${base}\\${d.dir.replace(/\//g, '\\')}`);

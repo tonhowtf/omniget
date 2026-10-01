@@ -1,7 +1,3 @@
-// Shared connection state for the `/telegram` screen. One listener on
-// `telegram-net-status` keeps every panel (status strip, wizard, Connection
-// tab) looking at the same snapshot.
-
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { net, errText, type NetStatus, type RouteView } from "./api";
 
@@ -22,7 +18,6 @@ export async function attachNet(): Promise<void> {
       netState.status = ev.payload;
     });
   } catch {
-    /* outside Tauri */
   }
   try {
     netState.status = await net.status();
@@ -39,7 +34,6 @@ export function detachNet(): void {
   }
 }
 
-/** Runs a full scan. Concurrent callers share the running one. */
 let running: Promise<NetStatus | null> | null = null;
 export function scanNet(): Promise<NetStatus | null> {
   if (running) return running;
@@ -82,5 +76,4 @@ export function hasWorkingRoute(s: NetStatus | null): boolean {
   return workingRoutes(s).length > 0;
 }
 
-/** Clock drift beyond this breaks MTProto's message ids. */
 export const CLOCK_WARN_SECS = 30;

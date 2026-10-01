@@ -1,7 +1,4 @@
 <script lang="ts">
-  // Blur (M-B10): the body of a node hidden behind an eye; the header and the
-  // name stay. Visual only: the terminal keeps running and reading. Clicking
-  // the eye (or Node > Remove Blur) takes it away.
   import { t } from "$lib/i18n";
   import { useEngine } from "$lib/canvas/engine.svelte";
   import { TERM_HEADER_H } from "$lib/canvas/term/metrics";

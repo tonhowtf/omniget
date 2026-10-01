@@ -1,9 +1,4 @@
 <script lang="ts">
-  /**
-   * A pending approval: hires show the candidate, strategies and plans show
-   * the text, decisions show their options as buttons. Every decision sends
-   * the version the owner saw, so a concurrent decision loses cleanly.
-   */
   import { t } from "$lib/i18n";
   import { rpc, errorText, type Approval, type Staff } from "$lib/company/rpc";
   import IssueMarkdown from "./IssueMarkdown.svelte";

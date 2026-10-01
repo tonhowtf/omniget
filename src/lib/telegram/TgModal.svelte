@@ -1,7 +1,4 @@
 <script lang="ts">
-  // Dialog shell for the Telegram screen: title, close button, scrollable
-  // body and an optional sticky footer. Esc and a click outside close it;
-  // Tab stays inside.
   import { onMount, tick, type Snippet } from "svelte";
   import { t } from "$lib/i18n";
   import TgIcon from "./TgIcon.svelte";

@@ -1,7 +1,4 @@
 <script lang="ts">
-  // Video mini player (spec §2.6): 400×225 in a corner, the same <video>
-  // element the watch page used. Hover shows prev/play/next, expand and close;
-  // drag it and it snaps to the nearest corner.
   import { onDestroy, onMount } from "svelte";
   import { t } from "$lib/i18n";
   import { shellLayout } from "$lib/stores/shell-layout.svelte";
@@ -71,7 +68,6 @@
     try {
       localStorage.setItem(LS, corner);
     } catch {
-      /* storage off */
     }
   }
 </script>

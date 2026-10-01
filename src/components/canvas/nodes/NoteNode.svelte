@@ -1,6 +1,4 @@
 <script lang="ts">
-  // Placeholder note face: title + rendered markdown from node.data.text.
-  // Focused = plain textarea editing; a later agent brings the full notes (.md files).
   import { onDestroy } from "svelte";
   import { t } from "$lib/i18n";
   import { renderSafeMarkdownSync } from "$lib/llm/markdown";

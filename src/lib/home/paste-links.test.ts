@@ -10,9 +10,7 @@ describe("cleanLink", () => {
     expect(cleanLink("https://example.com/video?id=7&utm_source=x&utm_medium=y&fbclid=z")).toBe(
       "https://example.com/video?id=7",
     );
-    // `t` is a start time on YouTube and a tracker on X: only X loses it.
     expect(cleanLink("https://x.com/user/status/1?s=20&t=abc")).toBe("https://x.com/user/status/1");
-    // `si` means something else on other sites and stays.
     expect(cleanLink("https://example.org/page?si=2")).toBe("https://example.org/page?si=2");
   });
 

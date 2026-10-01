@@ -1,9 +1,3 @@
-// Envelopes that fly along cords (estudo 97 §8c, ideas 15–17; 02 §5).
-// One envelope per `canvas://message`, coloured by the speech act, following
-// the cord's curve at ~230 screen px/s (0.8–2.0 s, ease-in-out, slight sway),
-// ending in a 0.34 s ring. Endpoints are frozen at launch: if a node moves
-// mid-flight the envelope finishes on the old path. At most 16 in the air.
-
 import { pointAtLength, arcLengths } from '../spatial/geometry';
 
 const MAX_ENVELOPES = 16;
@@ -12,7 +6,6 @@ const MIN_FLIGHT_S = 0.8;
 const MAX_FLIGHT_S = 2.0;
 const ARRIVAL_S = 0.34;
 
-/** Speech-act colours (0xRRGGBB). */
 const KIND_COLORS: Record<string, number> = {
   ask: 0x6cb8e6,
   request: 0x6cb8e6,
@@ -44,12 +37,10 @@ interface Envelope {
   id: string;
   kind: string;
   color: number;
-  /** Frozen world polyline and its arc table. */
   pts: number[];
   lens: number[];
   start: number;
   duration: number;
-  /** Connection it travels on, if any (lights the cord while active). */
   connectionId?: string;
   toNode: string;
 }
@@ -59,7 +50,6 @@ interface EnvelopeFrame {
   y: number;
   angle: number;
   color: number;
-  /** 0..1 while flying; > 1 during the arrival ring. */
   t: number;
   ring: number;
   alpha: number;
@@ -69,20 +59,13 @@ function ease(t: number): number {
   return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
 }
 
-/** An ask stays "in flight" at most this long without news (lost events). */
 const ASK_TTL_MS = 15 * 60 * 1000;
 
 export class Traffic {
   private flying: Envelope[] = [];
   private seen = new Set<string>();
-  /** Asks in flight (`canvas://ask` queued/delivered): askId → ends. */
   private asks = new Map<string, { from: string; to: string; at: number }>();
 
-  /**
-   * Follows `canvas://ask`: the cord between asker and target stays lit
-   * from the moment the ask is queued until it is answered, fails or is
-   * released (Maestri's `isActive`). Returns true when the set changed.
-   */
   trackAsk(p: { id: string; from: string; to: string; state: string }, now = Date.now()): boolean {
     if (!p?.id) return false;
     if (p.state === 'queued' || p.state === 'delivered') {
@@ -93,7 +76,6 @@ export class Traffic {
     return this.asks.delete(p.id);
   }
 
-  /** An ask is in flight between these two nodes (either direction). */
   pairActive(a: string, b: string, now = Date.now()): boolean {
     for (const [id, x] of this.asks) {
       if (now - x.at > ASK_TTL_MS) {
@@ -105,7 +87,6 @@ export class Traffic {
     return false;
   }
 
-  /** Launches an envelope; `zoom` converts the path to screen length. */
   launch(e: Omit<Envelope, 'lens' | 'duration' | 'start'> & { lens?: number[] }, now: number, zoom: number): void {
     if (this.seen.has(e.id)) return;
     this.seen.add(e.id);
@@ -121,14 +102,12 @@ export class Traffic {
     return this.flying.length > 0;
   }
 
-  /** Connections carrying something right now. */
   activeConnections(): Set<string> {
     const out = new Set<string>();
     for (const e of this.flying) if (e.connectionId) out.add(e.connectionId);
     return out;
   }
 
-  /** Positions at `now`; drops finished envelopes. */
   frame(now: number): EnvelopeFrame[] {
     const out: EnvelopeFrame[] = [];
     const keep: Envelope[] = [];

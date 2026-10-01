@@ -10,20 +10,17 @@
   let method = $state<Method>("qr");
   let needPassword = $state(false);
 
-  // QR
   let qr = $state<QrStart | null>(null);
   let qrError = $state<string | null>(null);
   let qrTimer: ReturnType<typeof setTimeout> | null = null;
   let disposed = false;
 
-  // phone
   let phone = $state("");
   let code = $state("");
   let codeSent = $state(false);
   let phoneBusy = $state(false);
   let phoneError = $state<string | null>(null);
 
-  // 2FA
   let password = $state("");
   let passwordHint = $state("");
   let passwordBusy = $state(false);
@@ -53,7 +50,6 @@
   }
 
   async function pollQr() {
-    // Telegram's login tokens live ~30 s; ask for a fresh one when it runs out.
     if (qr && qr.expires && Date.now() / 1000 > qr.expires - 1) {
       await startQr();
       return;
@@ -168,7 +164,6 @@
       <div class="card surface-card qr-card">
         <div class="qr-box" aria-label={$t("telegram.login.qr_alt")}>
           {#if qr}
-            <!-- The SVG comes from our own QR encoder in the engine. -->
             {@html qr.svg}
           {:else if qrError}
             <TgIcon name="warn" size={28} />

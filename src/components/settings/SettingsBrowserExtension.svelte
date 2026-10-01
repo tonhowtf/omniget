@@ -104,9 +104,6 @@
   }
 
   onMount(() => {
-    // The backend emits `bridge-paired` the moment the extension fetches the
-    // token from GET /v1/pair, so we can flip the countdown into a success
-    // state instead of letting it silently expire.
     listen("bridge-paired", () => {
       if (!pairing) return;
       pairing = false;
@@ -173,7 +170,6 @@
 </SettingGroup>
 
 {#if info && info.enabled && info.port !== 0 && info.token && !loadError}
-  <!-- Endpoint, token and rotation are technical details: collapsed by default. -->
   <SettingGroup id="extension-details" title={$t("settings.rebrand.category.advanced")} advanced>
     <SettingRow id="bridge-endpoint" label={$t("settings.bridge.endpoint_label")} settingKey="settings.bridge.endpoint_label">
       {#snippet control(c)}

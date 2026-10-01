@@ -1,7 +1,4 @@
 <script lang="ts">
-  // Squarified treemap. Layout and label tiers ported from the "Market
-  // Heatmap" component on 21st.dev (arihantcodes); colours are one Apple
-  // hue per folder, files lighter, the "other" tile grey.
   import { formatBytes } from "$lib/washmybelly/api";
   import { colorFor, labelTier, squarify, type UsageNode } from "$lib/washmybelly/disk";
 

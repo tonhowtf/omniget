@@ -1,6 +1,3 @@
-/// Trackers tab: the hosts file block (`hosts.status`, `hosts.preview`,
-/// `hosts.plan` screen actions).
-
 type HostsList = { id: string; name: string; license: string; source_url: string; domains: number };
 
 export type HostsPrefs = { lists: string[]; whitelist: string[]; extra: string[] };
@@ -41,8 +38,6 @@ export type HostsPlan = HostsPreview & {
   commands?: string[];
 };
 
-/// Same rules as the core's `normalize_domain`, so the screen can refuse a
-/// typo before the backend drops it silently.
 function normalizeDomain(raw: string): string | null {
   let d = raw.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "").replace(/\.$/, "");
   if (d.startsWith("*.")) d = d.slice(2);
@@ -54,8 +49,6 @@ function normalizeDomain(raw: string): string | null {
   return d;
 }
 
-/// Split free text (spaces, commas, new lines) into valid domains; returns
-/// what was accepted and what was not.
 function parseDomains(text: string): { ok: string[]; bad: string[] } {
   const ok: string[] = [];
   const bad: string[] = [];
@@ -87,7 +80,6 @@ export function toggleList(lists: readonly string[], id: string, on: boolean): s
   return [...set];
 }
 
-/// Lines of the preview that belong to the OmniGet block (to tint them).
 export function blockLineFlags(lines: readonly string[]): boolean[] {
   let inside = false;
   return lines.map((l) => {

@@ -1,7 +1,3 @@
-// GL context and program helpers shared by the world, the canvas and the
-// calibration. One set of context attributes for the whole app (premultiplied
-// alpha end to end), plus the textured-quad program every sprite pass uses.
-
 import { ERR, RenderError } from './types';
 
 export type GL = WebGLRenderingContext | WebGL2RenderingContext;
@@ -11,13 +7,9 @@ const GL_ATTRIBUTES: WebGLContextAttributes = {
   antialias: false,
   depth: false,
   stencil: false,
-  // Premultiplied end to end (textures, blending, the canvas): the webview hands
-  // ImageBitmaps over already premultiplied.
   premultipliedAlpha: true,
   preserveDrawingBuffer: false,
   powerPreference: 'high-performance',
-  // Left false on purpose: llvmpipe would be rejected on Linux, where it is the
-  // only option. The calibration decides the tier by measuring instead.
   failIfMajorPerformanceCaveat: false,
 };
 
@@ -42,7 +34,6 @@ export function compileShader(gl: GL, type: number, src: string): WebGLShader {
   return sh;
 }
 
-/** Compiles and links a vertex + fragment pair; throws RenderError on failure. */
 export function linkProgram(gl: GL, vsSrc: string, fsSrc: string): WebGLProgram {
   const vs = compileShader(gl, gl.VERTEX_SHADER, vsSrc);
   const fs = compileShader(gl, gl.FRAGMENT_SHADER, fsSrc);
@@ -102,7 +93,6 @@ void main() {
   gl_FragColor = c;
 }`;
 
-/** The textured-quad program (x, y, u, v, rgba per vertex; uRes; uTex). */
 export function buildProgram(gl: GL, version: 1 | 2): WebGLProgram {
   return version === 2
     ? linkProgram(gl, SPRITE_VS2, SPRITE_FS2)

@@ -1,9 +1,4 @@
 <script lang="ts">
-  /**
-   * What the specialists did in this room: delegated tasks (who asked whom,
-   * what, state, result) and member runs. Collapsed by default; the answers
-   * themselves stay in the transcript with their authors.
-   */
   import { t } from "$lib/i18n";
   import { getAgent, getRoomActivity } from "$lib/stores/llm-store.svelte";
 

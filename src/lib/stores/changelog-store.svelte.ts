@@ -76,7 +76,6 @@ export async function fetchChangelog(): Promise<string> {
       return data.notes;
     }
   } catch {
-    // A missing network or slow site should end in the empty state.
   } finally {
     clearTimeout(timeout);
   }

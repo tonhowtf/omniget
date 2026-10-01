@@ -1,11 +1,4 @@
 <script lang="ts">
-  /**
-   * "How it looks in each tool": compatibility per tool (computed by the
-   * backend with the real converters, `agentkit_parse_preview`), and for the
-   * chosen tool a preview plan (`agentkit_plan`, never applied): the file it
-   * would get side by side with the original, what is lost, the commands it
-   * would run and, for merged config files, the diff.
-   */
   import { t } from "$lib/i18n";
   import DiffViewer from "$components/central/vcs/DiffViewer.svelte";
   import {

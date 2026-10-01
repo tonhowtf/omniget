@@ -3,10 +3,6 @@
   import { t } from "$lib/i18n";
   import { capacityBars, healthTone, type Battery } from "$lib/washmybelly/power";
 
-  /// Battery health: a battery that fills to the current charge (after
-  /// ravikatiyar162's "Battery Card" on 21st.dev: the animated liquid became
-  /// a CSS wave on a filled glyph), the health figures, and two bars that
-  /// compare today's full charge with the factory capacity.
   let { battery, footer }: { battery: Battery; footer?: Snippet } = $props();
 
   let charge = $derived(Math.round(battery.charge_percent ?? 0));
@@ -78,7 +74,6 @@
   .glyph { display: flex; align-items: center; flex: none; }
   .shell { position: relative; width: 64px; height: 32px; border-radius: 8px; box-shadow: inset 0 0 0 2px var(--text-dim); overflow: hidden; display: grid; place-items: center; }
   .cap { width: 4px; height: 12px; margin-left: 2px; border-radius: 0 2px 2px 0; background: var(--text-dim); }
-  /* Horizontal battery, so the liquid grows left to right. */
   .liquid { position: absolute; left: 3px; top: 3px; bottom: 3px; background: var(--success); border-radius: 5px; transition: width 0.6s ease; overflow: hidden; }
   .low .liquid { background: var(--danger); }
   .wave { position: absolute; inset: 0; background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.28), transparent); transform: translateX(-100%); animation: wave 2.4s ease-in-out infinite; }

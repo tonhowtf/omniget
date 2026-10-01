@@ -1,10 +1,4 @@
 <script lang="ts">
-  /**
-   * Multi-file viewer for folder items (skill, mod, plugin, template,
-   * sandbox): filterable file tree, and for the open file preview / code /
-   * slides (Markdown), tree (JSON) or plain code. Binary files show their
-   * size and, for images, the picture.
-   */
   import { t } from "$lib/i18n";
   import { buildTree, formatBytes, type ItemFiles, type TreeNode } from "$lib/central/catalog";
   import CodeView from "./CodeView.svelte";

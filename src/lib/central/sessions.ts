@@ -1,12 +1,4 @@
-// Invokes tipados dos comandos `sessions_*` da Central (/llm/usage,
-// /llm/sessions, /llm/retro): índice de sessões de todas as ferramentas de
-// código com LLM, busca, análise por sessão, time, retrospectiva, exportar e
-// importar. Os structs Rust chegam em snake_case; os argumentos de topo dos
-// comandos vão em camelCase (conversão do Tauri). Erros: "CODE: mensagem".
-
 import { invoke } from "@tauri-apps/api/core";
-
-// ---- tipos (espelham omniget_core::core::sessions) ----
 
 export type TokenUsage = {
   input: number;
@@ -72,7 +64,6 @@ export type ListFilter = {
   limit?: number | null;
   offset?: number | null;
   id?: string | null;
-  /** Só é honrado quando o índice aceita filtro por modelo (ver handoff). */
   model?: string | null;
 };
 
@@ -359,9 +350,6 @@ type RefreshStats = {
   elapsed_ms: number;
 };
 
-// ---- comandos ----
-
-/** Tira campos vazios: o Rust trata `""` como filtro literal em alguns lugares. */
 function clean<T extends Record<string, unknown>>(f: T): T {
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(f)) {
@@ -417,10 +405,6 @@ export const sessionsActive = (windowSecs?: number) =>
 
 export const sessionsRefresh = (full = false) => invoke<RefreshStats>("sessions_refresh", { full });
 
-/**
- * "Abrir como thread": o comando é da rodada das threads e pode não existir
- * ainda. Devolve `null` quando o comando não está registrado.
- */
 export async function importAsThread(tool: string, id: string): Promise<unknown | null> {
   try {
     return await invoke("threads_import_external", { tool, id, sessionId: id });
@@ -431,7 +415,6 @@ export async function importAsThread(tool: string, id: string): Promise<unknown 
   }
 }
 
-/** Grava texto num caminho escolhido pelo usuário (diálogo de salvar). */
 export async function saveTextAs(filename: string, content: string, ext: string): Promise<string | null> {
   const { save } = await import("@tauri-apps/plugin-dialog");
   const dest = await save({ defaultPath: filename, filters: [{ name: ext.toUpperCase(), extensions: [ext] }] });
@@ -454,8 +437,6 @@ export async function copyText(text: string): Promise<void> {
     await navigator.clipboard.writeText(text);
   }
 }
-
-// ---- nomes e formatação ----
 
 export const TOOL_NAMES: Record<string, string> = {
   claude: "Claude Code",
@@ -495,7 +476,6 @@ export const TOOL_NAMES: Record<string, string> = {
   omniget: "OmniGet",
 };
 
-/** Ferramentas cuja importação grava uma sessão retomável. */
 export const NATIVE_IMPORT = ["claude", "codex"];
 
 export function toolName(id: string): string {
@@ -554,7 +534,6 @@ export function toMs(ts: string | null | undefined): number {
 export function relTime(ms: number, now = Date.now()): string {
   if (!ms) return "—";
   let diff = Math.round((ms - now) / 1000);
-  // Relógios de arquivo um pouco à frente do "agora" da tela não viram futuro.
   if (diff > 0 && diff < 300) diff = 0;
   const abs = Math.abs(diff);
   const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: "auto", style: "short" });
@@ -576,7 +555,6 @@ export function projectName(path: string | null | undefined): string {
   return parts[parts.length - 1] ?? path;
 }
 
-/** `YYYY-MM-DD` local. */
 export function isoDay(d: Date): string {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
@@ -607,7 +585,6 @@ export function rangeFrom(key: RangeKey, now = new Date()): string | null {
   }
 }
 
-/** Todos os dias entre `from` e `to` (inclusivo), para eixo sem buracos. */
 export function daySpan(from: string, to: string): string[] {
   const out: string[] = [];
   const [fy, fm, fd] = from.split("-").map(Number);
@@ -627,8 +604,6 @@ export function sessionHref(tool: string, id: string, turn?: number | null): str
   return turn != null ? `${base}?turn=${turn}` : base;
 }
 
-// ---- preferências por espectador (conveniência; falha em silêncio) ----
-
 export function prefGet(key: string, fallback: string): string {
   try {
     return localStorage.getItem(`central.sessions.${key}`) ?? fallback;
@@ -641,11 +616,9 @@ export function prefSet(key: string, value: string): void {
   try {
     localStorage.setItem(`central.sessions.${key}`, value);
   } catch {
-    /* sem storage: a preferência só vale nesta tela */
   }
 }
 
-/** Interpola `{{x}}` e `{x}` (as chaves do núcleo vieram com chave simples). */
 export function fill(text: string, vars: Record<string, string | number>): string {
   return text.replace(/\{\{?\s*(\w+)\s*\}?\}/g, (m, k) => (k in vars ? String(vars[k]) : m));
 }

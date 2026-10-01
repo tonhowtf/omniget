@@ -1,6 +1,4 @@
 <script lang="ts">
-  // Open enums on read: a kind this build does not know renders as a plain box
-  // and is written back untouched.
   import { t } from "$lib/i18n";
   import type { CanvasNode } from "$lib/canvas/model/types";
 

@@ -9,7 +9,6 @@ export function emptyPermissionRuleDraft(): PermissionRuleDraft {
   return { tool: "shell_exec", pattern: "", action: "ask" };
 }
 
-/** A broad `*` scope is valid only when the person entered it explicitly. */
 export function normalizePermissionRule(draft: PermissionRuleDraft): PermissionRuleDraft | null {
   const tool = draft.tool.trim();
   const pattern = draft.pattern.trim();

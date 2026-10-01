@@ -1,6 +1,3 @@
-// Floors and environments: typed wrappers over the `canvas_floor_*` and
-// `canvas_env_*` commands, and the events the Rust host emits.
-
 import { invoke } from '@tauri-apps/api/core';
 
 export const EVENT_FLOOR_PROGRESS = 'canvas://floor-progress';
@@ -137,9 +134,7 @@ export interface EnvRecord {
   dir?: string;
   sshOptions?: string;
   user?: string;
-  /** Custom runtime name (kind `custom`). */
   runtime?: string;
-  /** Keep the shell in a tmux session on that side. */
   persistent?: boolean;
 }
 
@@ -177,13 +172,11 @@ export const getEnvProviders = () => invoke<EnvProviders>('canvas_env_providers_
 export const setEnvProviders = (patch: Partial<EnvProviders> | Record<string, unknown>) =>
   invoke<EnvProviders>('canvas_env_providers_set', { patch });
 
-/** A persistent session (tmux `omniget-*`) here or in a remote environment; `error` when that environment did not answer. */
 export interface EnvSession {
   session?: string;
   createdS?: number;
   attached?: boolean;
   command?: string;
-  /** Where it runs: `local`, `docker:web`, `ssh:me@box`, `custom:podman`. */
   env: string;
   kind: EnvKind;
   host?: string;
@@ -202,7 +195,6 @@ export interface SshHost {
   proxyJump?: string;
 }
 
-/** Hosts of `~/.ssh/config` for the SSH picker. */
 export const sshHosts = () => invoke<SshHost[]>('canvas_env_ssh_hosts');
 
 interface EnvFiles {
@@ -212,11 +204,9 @@ interface EnvFiles {
   hits?: { path: string; isDir: boolean }[];
 }
 
-/** Files where the terminal runs (`remote: false` = a local terminal). */
 export const envFiles = (nodeId: string, dir: string | null, query: string) =>
   invoke<EnvFiles>('canvas_env_files', { nodeId, dir, query });
 
-/** Local files for a terminal: copied to `/tmp/omniget-drops/` on a remote one; the paths to type. */
 export const envDrop = (nodeId: string, paths: string[]) => invoke<string[]>('canvas_env_drop', { nodeId, paths });
 
 export const listFloors = (workspaceId: string) => invoke<FloorView[]>('canvas_floor_list', { workspaceId });
@@ -252,7 +242,6 @@ export function newHook(command = ''): HookCommand {
   return { id: crypto.randomUUID(), command, enabled: true };
 }
 
-/** Rust errors start with a code (`CANVAS_LAND_BLOCKED: ...`); show the rest. */
 export function errorText(e: unknown): string {
   const s = typeof e === 'string' ? e : e instanceof Error ? e.message : String(e);
   return s.replace(/^[A-Z_]+:\s*/, '');

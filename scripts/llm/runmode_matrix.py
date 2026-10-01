@@ -38,14 +38,12 @@ import tempfile
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 TABLE = {"approval_required": 2, "auto_edits": 1, "auto": 0, "full_access": 0}
 
-
 def run_tests(crate, filter_, out_file):
     env = dict(os.environ, OMNIGET_BENCH_OUT=str(out_file))
     cmd, p = run_prepared_tests(crate, filter_, env)
     summary = [l for l in p.stdout.splitlines() if l.startswith("test result")]
     return {"cmd": " ".join(str(c) for c in cmd), "exit": p.returncode, "summary": summary,
             "stderr_tail": p.stderr[-1500:] if p.returncode else ""}
-
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -103,7 +101,6 @@ def main():
         print(("PASS " if g["pass"] else "FAIL ") + g["goal"] + f"  ({g['value']})")
     print("all_pass:", report["all_pass"], "->", args.out)
     return 0 if report["all_pass"] else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

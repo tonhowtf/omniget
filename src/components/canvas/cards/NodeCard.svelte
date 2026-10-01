@@ -1,7 +1,4 @@
 <script lang="ts">
-  // Mid-zoom face (L2, never scaled, always crisp): title, role, state, last
-  // line, an 8-segment context meter (normal up to 6/8, amber at 6/8, coral at
-  // 7/8, estudo 97 idea 12) and cost. Notes and others show their first lines.
   import { t } from "$lib/i18n";
   import { isTerminalKind, type CanvasNode } from "$lib/canvas/model/types";
   import { agentStates, stateCss, type AgentState } from "$lib/canvas/state/agents.svelte";

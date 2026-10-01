@@ -1,6 +1,3 @@
-// Plane geometry for the canvas: rectangles, cubic beziers, arc-length tables,
-// polylines and polygons. Pure; world coordinates in float64.
-
 import type { Rect } from '../model/types';
 
 export type { Rect };
@@ -14,7 +11,6 @@ export function rect(x: number, y: number, w: number, h: number): Rect {
   return { x, y, w, h };
 }
 
-/** Rectangle from two corners in any order. */
 export function rectFromPoints(a: Pt, b: Pt): Rect {
   const x = Math.min(a.x, b.x);
   const y = Math.min(a.y, b.y);
@@ -65,7 +61,6 @@ export function dist(a: Pt, b: Pt): number {
   return Math.hypot(a.x - b.x, a.y - b.y);
 }
 
-/** Squared distance from p to segment ab. */
 function distToSegmentSq(px: number, py: number, ax: number, ay: number, bx: number, by: number): number {
   const dx = bx - ax;
   const dy = by - ay;
@@ -77,7 +72,6 @@ function distToSegmentSq(px: number, py: number, ax: number, ay: number, bx: num
   return cx * cx + cy * cy;
 }
 
-/** Distance from p to a flat polyline [x0,y0,x1,y1,...] (offset added to each point). */
 export function distToPolyline(px: number, py: number, pts: ArrayLike<number>, ox = 0, oy = 0): number {
   if (pts.length < 2) return Infinity;
   if (pts.length < 4) return Math.hypot(px - (pts[0] + ox), py - (pts[1] + oy));
@@ -89,7 +83,6 @@ export function distToPolyline(px: number, py: number, pts: ArrayLike<number>, o
   return Math.sqrt(best);
 }
 
-/** Even-odd point in polygon; `poly` is flat [x0,y0,...]. */
 export function pointInPolygon(px: number, py: number, poly: ArrayLike<number>): boolean {
   let inside = false;
   const n = poly.length / 2;
@@ -122,7 +115,6 @@ function cubicAt(c: Cubic, t: number): Pt {
   };
 }
 
-/** Samples a cubic into a flat polyline of `n + 1` points. */
 export function sampleCubic(c: Cubic, n = 32): number[] {
   const out: number[] = [];
   for (let i = 0; i <= n; i++) {
@@ -132,7 +124,6 @@ export function sampleCubic(c: Cubic, n = 32): number[] {
   return out;
 }
 
-/** Cumulative arc length of a flat polyline; last entry = total length. */
 export function arcLengths(pts: ArrayLike<number>): number[] {
   const out = [0];
   let acc = 0;
@@ -143,7 +134,6 @@ export function arcLengths(pts: ArrayLike<number>): number[] {
   return out;
 }
 
-/** Point at fraction `f` (0..1) of the polyline's length, via its arc table. */
 export function pointAtLength(pts: ArrayLike<number>, lens: number[], f: number): Pt & { angle: number } {
   const total = lens[lens.length - 1] ?? 0;
   const n = lens.length;
@@ -165,7 +155,6 @@ export function pointAtLength(pts: ArrayLike<number>, lens: number[], f: number)
   return { x: x0 + (x1 - x0) * t, y: y0 + (y1 - y0) * t, angle: Math.atan2(y1 - y0, x1 - x0) };
 }
 
-/** Bounding box of a flat point list plus an offset. */
 export function boundsOf(pts: ArrayLike<number>, ox = 0, oy = 0): Rect {
   let x0 = Infinity;
   let y0 = Infinity;
@@ -183,7 +172,6 @@ export function boundsOf(pts: ArrayLike<number>, ox = 0, oy = 0): Rect {
   return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
 }
 
-/** Ramer-Douglas-Peucker simplification of a flat polyline. */
 export function simplify(pts: number[], tolerance: number): number[] {
   const n = pts.length / 2;
   if (n <= 2) return pts.slice();

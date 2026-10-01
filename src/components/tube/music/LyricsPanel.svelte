@@ -1,7 +1,4 @@
 <script lang="ts">
-  // "Lyrics" tab: synced lines follow the song (current line bright, the rest
-  // dimmed, smooth scroll to keep it centered, click a line to jump there);
-  // plain lyrics just scroll. Manual scrolling pauses the follow for 4 s.
   import { t } from "$lib/i18n";
   import { currentSong, lyricsFor, mplayer, seek } from "$lib/tube/music.svelte";
   import type { Lyrics } from "$lib/tube/types";

@@ -1,14 +1,3 @@
-/**
- * Budget policies and incidents (roadmap 3.3, S18, D5).
- *
- * The backend (`llm_budget.rs` over `core::llm::budget::policy`) owns the
- * ceilings, the ledger and the incidents; this store reads `llm_budget_state`
- * once and again on every `llm://budget` event (a policy saved or removed,
- * an incident opened or settled, a warning). No polling.
- *
- * An open incident is "needs you" work (`/llm/work`): the scope is paused
- * until someone raises the ceiling or keeps it paused.
- */
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { get } from "svelte/store";
@@ -58,7 +47,6 @@ export async function reloadBudget(): Promise<void> {
   }
 }
 
-/** Idempotent: the /llm layout and the budgets panel both call it. */
 export function initBudgetStore(): void {
   if (started) return;
   started = true;
@@ -90,7 +78,6 @@ export function getBudgetIncidents(): BudgetIncident[] {
   return incidents;
 }
 
-/** Open or kept-paused incidents: the scopes that start nothing now. */
 export function getBlockingIncidents(): BudgetIncident[] {
   return incidents.filter((i) => i.state === "open" || i.state === "paused");
 }
@@ -124,7 +111,6 @@ export async function deleteBudgetPolicy(id: string): Promise<void> {
   }
 }
 
-/** "Raise and resume" (`raise` with the new ceiling) or "keep paused". */
 export async function resolveIncident(id: string, action: "raise" | "keep_paused", amount?: number): Promise<boolean> {
   try {
     await invoke("llm_budget_incident_resolve", { id, action, amount: amount ?? null });

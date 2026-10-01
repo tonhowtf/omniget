@@ -6,7 +6,6 @@
   let { onPick }: { onPick: (action: MoreAction) => void } = $props();
 
   // Ported from the coss Menu (21st #11561): one trigger, a roving-focus list,
-  // Esc and outside click close it and focus goes back to the trigger.
   const items: { action: MoreAction; key: string; icon: string }[] = [
     { action: "batch", key: "home.action_batch", icon: "M4 6h16M4 12h16M4 18h10" },
     { action: "torrent", key: "home.action_torrent", icon: "M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5" },
@@ -143,7 +142,6 @@
     outline-offset: var(--focus-ring-offset);
   }
 
-  /* Grows out of the + (Morphing Popover feel, 21st #1670), CSS only. */
   .more-menu {
     position: absolute;
     top: calc(100% + 10px);

@@ -1,7 +1,4 @@
 <script lang="ts">
-  // like | dislike segmented pill. The like "pops" with a few particles
-  // (21st 26660); the count slides. Return YouTube Dislike fills in the
-  // dislike count (and the likes when YouTube hides them).
   import { t } from "$lib/i18n";
   import * as api from "$lib/tube/api";
   import { fmtCount } from "$lib/tube/format";

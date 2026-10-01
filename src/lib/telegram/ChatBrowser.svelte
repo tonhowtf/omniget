@@ -65,7 +65,6 @@
   let mediaQuery = $state("");
   let searching = $state(false);
   let loadSeq = 0;
-  // Extra search filters (period and size), folded under a button.
   let showFilters = $state(false);
   let sFrom = $state("");
   let sTo = $state("");
@@ -167,7 +166,6 @@
     picked[id] = !picked[id];
   }
 
-  // With a selection going, a click adds to it; otherwise videos and audio open the player.
   function activate(item: TelegramMediaItem, e: MouseEvent) {
     if (!selected) return;
     if (pickedItems.length || e.metaKey || e.ctrlKey || e.shiftKey || !isPlayable(item)) {
@@ -204,7 +202,6 @@
     if (searching) void search();
   }
 
-  // A timestamp in the transcript dialog opens the player right there.
   function playAt(item: TelegramMediaItem, sec: number) {
     if (!selected) return;
     transcribing = null;
@@ -299,7 +296,6 @@
     return (title.trim()[0] ?? "?").toUpperCase();
   }
 
-  // Loads the preview only once the tile scrolls into view.
   function thumb(node: HTMLElement, args: { chat: TelegramChat; item: TelegramMediaItem }) {
     if (!["photo", "video", "gif"].includes(args.item.media_type)) return;
     let done = false;

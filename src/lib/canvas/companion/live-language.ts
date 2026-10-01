@@ -1,8 +1,3 @@
-// Live language: the Rust side emits `app://language` when the app language
-// changes (the settings screen, or `app_settings_set appearance.language`
-// over MCP). Every window that imports this switches its translations right
-// away instead of waiting for a reload. Importing it twice is harmless.
-
 import { listen } from '@tauri-apps/api/event';
 import { loadTranslations, locale } from '$lib/i18n';
 

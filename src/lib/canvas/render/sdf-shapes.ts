@@ -1,8 +1,3 @@
-// Rounded rectangles, circles and rings by signed distance, one instanced draw
-// call per flush (02-motor-do-canvas §6.2: "formas simples por SDF, nítidas em
-// qualquer zoom"). Coordinates are CSS pixels of the viewport; the camera
-// transform happens on the CPU (float64), so nothing trembles far from origin.
-
 import { linkProgram } from '$lib/gfx/gl';
 import type { Rgba } from './color';
 
@@ -66,14 +61,11 @@ void main() {
   outColor = col;
 }`;
 
-/** Floats per instance: rect(4) style(4) fill(4) stroke(4). */
 const STRIDE = 16;
 
 interface SdfShape {
-  /** Centre in CSS px. */
   cx: number;
   cy: number;
-  /** Half extents in CSS px. */
   hw: number;
   hh: number;
   radius?: number;
@@ -160,7 +152,6 @@ export class SdfBatch {
     this.count++;
   }
 
-  /** Rectangle given by top-left + size in CSS px. */
   rect(x: number, y: number, w: number, h: number, style: Omit<SdfShape, 'cx' | 'cy' | 'hw' | 'hh'>): void {
     this.push({ cx: x + w / 2, cy: y + h / 2, hw: w / 2, hh: h / 2, ...style });
   }
@@ -173,7 +164,6 @@ export class SdfBatch {
     return this.count;
   }
 
-  /** Draws everything pushed since begin(); viewport in CSS px. */
   flush(gl: WebGL2RenderingContext, vw: number, vh: number): void {
     if (this.count === 0) return;
     this.ensure(gl);

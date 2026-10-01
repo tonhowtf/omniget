@@ -1,9 +1,4 @@
 <script lang="ts">
-  /**
-   * One company: header (name, mission, status with pause/resume) and the
-   * inner tabs. Each tab loads its own data; the shell only keeps the
-   * company and the inbox count fresh.
-   */
   import type { Snippet } from "svelte";
   import { page } from "$app/state";
   import { t } from "$lib/i18n";
@@ -59,7 +54,6 @@
       const inbox = await rpc<{ issues: unknown[]; approvals: unknown[]; incidents: unknown[] }>("inbox.list", { company: cid });
       if (cid === id) inboxCount = inbox.issues.length + inbox.approvals.length + inbox.incidents.length;
     } catch {
-      /* the count is decoration */
     }
   }
 

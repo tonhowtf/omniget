@@ -45,14 +45,12 @@ TAURI = ROOT / "src-tauri"
 IDLE_S = 2.0
 START_S = 2.0
 
-
 def run_tests(filter_, crate, out_file):
     env = dict(os.environ, OMNIGET_BENCH_OUT=str(out_file))
     cmd, p = run_prepared_tests(crate, filter_, env)
     summary = [l for l in p.stdout.splitlines() if l.startswith("test result")]
     return {"cmd": " ".join(cmd), "exit": p.returncode, "summary": summary,
             "stderr_tail": p.stderr[-1500:] if p.returncode else ""}
-
 
 def read_metrics(path):
     per = {}
@@ -66,10 +64,8 @@ def read_metrics(path):
         per.setdefault(m["metric"], []).append(m["value"])
     return per
 
-
 def goal(name, value, ok, target):
     return {"goal": name, "target": target, "value": value, "pass": bool(ok)}
-
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -89,7 +85,6 @@ def main():
             runs.append(run_tests("cli_runtime::session::tests::bn1_", "omniget-core", out))
             for k, v in read_metrics(out).items():
                 metrics.setdefault(k, []).extend(v)
-        # The argv proof: the watchdog only fills timing fields.
     with tempfile.TemporaryDirectory() as d:
         argv_run = run_tests("the_watchdog_leaves_the_argv_alone", "omniget-core", pathlib.Path(d) / "x")
     diff = subprocess.run(
@@ -155,7 +150,6 @@ def main():
         print(("PASS " if g["pass"] else "FAIL ") + g["goal"] + f"  ({g['value']})")
     print("all_pass:", report["all_pass"], "->", args.out)
     return 0 if report["all_pass"] else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

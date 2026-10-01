@@ -1,5 +1,4 @@
 <script lang="ts">
-  // Role icon in its colour: a named stroke icon or the icon string (emoji).
   import { iconPath } from "$lib/canvas/roles/icons";
 
   let { icon, color, size = 16 }: { icon?: string; color?: string; size?: number } = $props();

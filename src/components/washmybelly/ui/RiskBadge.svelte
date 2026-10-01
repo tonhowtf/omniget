@@ -2,7 +2,6 @@
   import { t } from "$lib/i18n";
   import type { Risk } from "$lib/washmybelly/api";
 
-  /// `count` turns the badge into a summary chip ("Can be undone · 12").
   let { risk, count, compact = false }: { risk: Risk; count?: number; compact?: boolean } = $props();
 </script>
 

@@ -1,5 +1,3 @@
-// Account + local subscriptions for the shell (masthead avatar, guide lists).
-// Loaded once when /youtube opens; refreshed after sign in / out.
 import * as api from "$lib/tube/api";
 import type { Account, LocalSub, PlaylistItem } from "$lib/tube/types";
 
@@ -7,7 +5,6 @@ export const session = $state({
   loaded: false,
   account: null as Account | null,
   subs: [] as LocalSub[],
-  /** YT Music library playlists (logged in). */
   musicPlaylists: [] as PlaylistItem[],
   busy: false,
 });

@@ -1,8 +1,4 @@
 <script lang="ts">
-  // The canvas being visited, over the whole World screen while visiting
-  // (joined from the Share panel, the CLI or MCP): read-only cards and
-  // cords, the room chat, wave/react, refresh and leave. Mounted once by
-  // Canvas.svelte, so it does not depend on the Share panel being open.
   import { onMount } from "svelte";
   import { t } from "$lib/i18n";
   import { toBody } from "$lib/canvas/to-body";
@@ -20,7 +16,6 @@
     return () => visitSession.stop();
   });
 
-  // Visiting without a picture yet (joined elsewhere): ask the host for one.
   $effect(() => {
     if (vs.role === "visitor" && !visitSession.scene) void visitRefresh().catch(() => {});
   });
@@ -44,7 +39,6 @@
 
 {#if vs.role === "visitor" && visitSession.scene}
   <div class="overlay" use:toBody role="dialog" aria-label={$t("canvas.visit.viewer", { default: "Shared canvas" }) as string} data-canvas-chrome>
-    <!-- Full window: the bar is the title bar (drag, room for the traffic lights). -->
     <div class="bar" class:mac={isMac} data-tauri-drag-region>
       <strong>{visitSession.scene.workspace.name} · {visitSession.scene.floor.name}</strong>
       <span class="muted">{$t("canvas.visit.read_only", { default: "read-only" })} · {vs.hostName ?? visitSession.scene.host ?? ""}</span>

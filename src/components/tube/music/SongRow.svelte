@@ -1,9 +1,4 @@
 <script lang="ts">
-  // One song line, YT Music style. Variants:
-  //   list   56px: cover 40 · title · artists · album · duration · ⋮ (playlists, search, library)
-  //   album  48px: track number · title · (artists) · duration · ⋮ (album pages)
-  //   pick   56px: cover 48 · title / artists • plays · ⋮ (Quick picks columns)
-  // The playing row gets the tonal background and animated equalizer bars.
   import { t } from "$lib/i18n";
   import { agentActions } from "$lib/native-agent/actions";
   import { fmtDuration, thumbUrl } from "$lib/tube/format";
@@ -27,7 +22,6 @@
     index?: number | null;
     showArtists?: boolean;
     showAlbum?: boolean;
-    /** Defaults to playing the song with its up-next radio. */
     onplay?: () => void;
   } = $props();
 
@@ -207,7 +201,6 @@
   .sr:hover .sr-play :global(.sr-pause) { display: block; }
   .sr:hover .sr-eq { display: none; }
 
-  /* equalizer (21st Signal Bars, 3 bars) */
   .sr-eq { display: inline-flex; align-items: flex-end; gap: 2px; height: 16px; }
   .sr-eq i { width: 3px; height: 100%; border-radius: 2px; background: currentColor; transform-origin: bottom; animation: sr-eq .9s ease-in-out infinite; }
   .sr-eq i:nth-child(2) { animation-duration: 1.15s; animation-delay: -.3s; }

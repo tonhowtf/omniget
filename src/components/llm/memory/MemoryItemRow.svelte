@@ -1,9 +1,4 @@
 <script lang="ts">
-  /**
-   * One memory: what it says, "why?" (where it came from, readable), edit as
-   * a new version, confirm or discard a guess, history, forget. A failed
-   * action keeps the draft and says why.
-   */
   import { goto } from "$app/navigation";
   import { t } from "$lib/i18n";
   import { getAgent, getConversations, selectConversation } from "$lib/stores/llm-store.svelte";
@@ -54,7 +49,7 @@
       editing = false;
       errorKey = null;
     } else {
-      errorKey = out.errorKey; // the draft stays in the box
+      errorKey = out.errorKey;
     }
   }
 

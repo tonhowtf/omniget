@@ -62,7 +62,6 @@
     void playTracks(shuffled(tracks.map((x) => x.id)), undefined, $t("music.home.shuffle_all") as string);
   }
 
-  /** A mix from the most played genre, harmonically sorted by key then tempo. */
   function dailyMix() {
     const genreCount = new Map<string, number>();
     for (const x of tracks) if (x.genre) genreCount.set(x.genre, (genreCount.get(x.genre) ?? 0) + x.play_count + 1);

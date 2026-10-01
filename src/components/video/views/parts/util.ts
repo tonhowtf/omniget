@@ -1,21 +1,15 @@
-// Small helpers shared by the /video views: formatting, image URLs, the
-// library-changed listener and guarded localStorage.
-
 import { listen } from "@tauri-apps/api/event";
 import { ensureServer, serverUrl } from "$lib/video/api";
 import type { Progress } from "$lib/video/types";
 
-/** Makes sure the local server info is cached so `/thumb` paths resolve. */
 export async function ready(): Promise<void> {
   await ensureServer().catch(() => null);
 }
 
-/** Absolute URL for a server path or a remote image, or null. */
 export function img(p: string | null | undefined): string | null {
   return serverUrl(p);
 }
 
-/** "1h 23m", "45m", "38s". */
 export function fmtDur(ms: number | null | undefined): string {
   if (!ms || ms < 0) return "";
   const s = Math.round(ms / 1000);
@@ -26,7 +20,6 @@ export function fmtDur(ms: number | null | undefined): string {
   return `${s}s`;
 }
 
-/** "1:02:03" or "12:34". */
 export function fmtClock(ms: number | null | undefined): string {
   const s = Math.max(0, Math.floor((ms ?? 0) / 1000));
   const h = Math.floor(s / 3600);
@@ -35,7 +28,6 @@ export function fmtClock(ms: number | null | undefined): string {
   return h ? `${h}:${String(m).padStart(2, "0")}:${sec}` : `${m}:${sec}`;
 }
 
-/** Wall clock "21:30" in the user's locale. */
 export function fmtHour(ts: number): string {
   return new Date(ts).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
 }
@@ -50,7 +42,6 @@ export function fmtDay(ts: number): string {
   return d.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short", year: d.getFullYear() === today.getFullYear() ? undefined : "numeric" });
 }
 
-/** 0..1 share of the resume position, or null when there is nothing to show. */
 export function ratio(p: Progress | null | undefined): number | null {
   if (!p || p.watched || !p.duration_ms || p.position_ms <= 0) return null;
   return Math.min(1, p.position_ms / p.duration_ms);
@@ -88,11 +79,9 @@ export function lsSet(key: string, value: unknown): void {
   try {
     localStorage.setItem(key, JSON.stringify(value));
   } catch {
-    /* private mode or quota: the setting just isn't remembered */
   }
 }
 
-/** Calls `cb` when the scanner or a mark-watched changes the library. Returns the unsubscribe. */
 export function onLibraryChanged(cb: () => void): () => void {
   let off: (() => void) | null = null;
   let dead = false;
@@ -113,7 +102,6 @@ export function errText(e: unknown): string {
   return typeof e === "string" ? e : JSON.stringify(e);
 }
 
-/** Last path segment, for folder labels. */
 export function baseName(p: string): string {
   return p.replace(/[\\/]+$/, "").split(/[\\/]/).pop() || p;
 }

@@ -1,5 +1,4 @@
 <script lang="ts" module>
-  // Stroke icons for the Watch views. Path data from Lucide (ISC license).
   const P: Record<string, string> = {
     play: '<polygon points="6 3 20 12 6 21 6 3" fill="currentColor"/>',
     pause: '<rect x="6" y="4" width="4" height="16" rx="1" fill="currentColor"/><rect x="14" y="4" width="4" height="16" rx="1" fill="currentColor"/>',

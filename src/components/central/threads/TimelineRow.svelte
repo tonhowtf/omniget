@@ -20,8 +20,6 @@
 </script>
 
 <script lang="ts">
-  // One timeline row, by kind. Rows are keyed by stable ids from
-  // `deriveRows`, so the live row and folds keep their DOM while text streams.
   import { t } from "$lib/i18n";
   import ChangedFilesCard from "$components/central/vcs/ChangedFilesCard.svelte";
   import { formatClock, formatCost, formatDuration, formatFull, formatTokens } from "$lib/central/threads-ui/format";
@@ -60,7 +58,6 @@
       copied = true;
       setTimeout(() => (copied = false), 1400);
     } catch {
-      /* denied */
     }
   }
 

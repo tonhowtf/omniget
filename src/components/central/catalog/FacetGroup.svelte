@@ -1,5 +1,4 @@
 <script lang="ts">
-  /** One facet (category, source, licence, origin tool): checkboxes with counts, first 8 then "more". */
   import { t } from "$lib/i18n";
   import type { FacetValue } from "$lib/central/catalog";
 
@@ -24,7 +23,6 @@
   let list = $derived.by(() => {
     const q = filter.trim().toLowerCase();
     const base = q ? values.filter((v) => label(v.value).toLowerCase().includes(q)) : values;
-    // keep selected values visible even with a zero count
     const extra = selected.filter((s) => !base.some((v) => v.value === s)).map((value) => ({ value, count: 0 }));
     return [...base, ...extra];
   });

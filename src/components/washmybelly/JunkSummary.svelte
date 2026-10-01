@@ -3,24 +3,17 @@
   import { formatBytes } from "$lib/washmybelly/format";
   import { categoryKey, type CategorySlice } from "$lib/washmybelly/clean";
 
-  /// What a junk scan found, per category: one proportional bar (the way
-  /// "Storage" in System Settings draws a disk) and a tile per category
-  /// with its size and how much of it is ticked. Clicking a tile jumps to
   /// that category in the list. Ported from "Partition Bar" by 8starlabs
-  /// (21st.dev): segments sized by share, label and value under each; here
-  /// the labels move to a legend grid because a scan has many categories.
   let {
     slices,
     selected,
     onPick,
   }: {
     slices: CategorySlice[];
-    /// Selected bytes per category.
     selected: Map<string, number>;
     onPick?: (id: string) => void;
   } = $props();
 
-  // A sliver still shows, so a tiny category is visible in the bar.
   const MIN = 0.012;
 
   function label(id: string): string {

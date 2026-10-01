@@ -1,9 +1,6 @@
 <script lang="ts">
   import { HISTORY, linePath, niceMax } from "$lib/washmybelly/monitor";
 
-  // Live line chart with the area under it, drawn in SVG. Design after the
-  // 21st.dev "Line Charts" cards (sean0205): title, big current value, a
-  // soft gradient under the line; ported without Recharts.
   let {
     label,
     value,
@@ -19,11 +16,9 @@
     label: string;
     value: string;
     values: number[];
-    /// Fixed ceiling (percentages: 100). 0 = follow the data.
     max?: number;
     floor?: number;
     color?: string;
-    /// Optional second line (network send, disk write).
     second?: number[];
     secondColor?: string;
     sub?: string;

@@ -1,9 +1,4 @@
 <script lang="ts">
-  /**
-   * One catalog result (grid tile or list row): kind tile, name, category and
-   * source, description, tools coloured by compatibility, stars, licence,
-   * guard seal and the stack toggle. The whole card links to the detail.
-   */
   import { t } from "$lib/i18n";
   import GuardBadge from "$components/central/guard/GuardBadge.svelte";
   import { compactNumber, itemHref, type Compat, type SearchHit } from "$lib/central/catalog";

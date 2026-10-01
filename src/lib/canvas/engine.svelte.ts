@@ -1,12 +1,3 @@
-// The canvas engine: glue between the document (store, history, sync), the
-// camera, selection, tools, cords traffic and the four render layers
-// (02-motor-do-canvas). One instance per mounted Canvas.svelte, shared with
-// the layers and chrome through Svelte context.
-//
-// Rendering is on demand: `invalidate()` asks for one frame; the loop keeps
-// running only while something animates (flight, inertia, rubber band,
-// envelopes at 30 fps, far sprites at their clip fps). Idle = zero frames.
-
 import { bootWorkspace } from './session';
 import { getContext, setContext } from 'svelte';
 import { invoke } from '@tauri-apps/api/core';
@@ -53,14 +44,11 @@ import { workspaces } from './palette/workspaces.svelte';
 import { Panels } from './panels/panels.svelte';
 
 export const ENGINE_KEY = Symbol('canvas-engine');
-/** Camera must rest this long before costly swaps (mount terminals, show portals). */
 export const SETTLE_MS = 150;
-/** Soft delete: a removed terminal keeps its PTY this long for undo. */
 const SOFT_DELETE_MS = 60_000;
 const MESSAGE_EVENT = 'canvas://message';
 const ASK_EVENT = 'canvas://ask';
 
-/** Modal panels of the canvas (toolbar, node menu, shortcuts). */
 type CanvasPanel =
   | { kind: 'partituras' }
   | { kind: 'import'; id: string; at: { x: number; y: number } }
@@ -95,11 +83,8 @@ interface SpawnMenuState {
   sy: number;
   wx: number;
   wy: number;
-  /** Node the menu was opened on (node menu instead of spawn menu). */
   nodeId?: string;
-  /** Cord dropped on empty canvas: the new node gets connected from here. */
   connectFrom?: string;
-  /** Opened from the toolbar: place at the nearest free spot of the view. */
   free?: boolean;
 }
 
@@ -110,7 +95,6 @@ interface SpawnOptions {
   data?: Record<string, unknown>;
   connectFrom?: string;
   select?: boolean;
-  /** User agent preset (Settings → Canvas → Agent presets) for a terminal. */
   preset?: string;
 }
 
@@ -126,14 +110,12 @@ const AGENT_TITLES: Record<string, string> = {
 
 export class CanvasEngine {
   readonly store = new CanvasStore();
-  /** Undo history per workspace and floor (Maestri: ⌘Z is per workspace). */
   private histories = new Map<string, History>();
   get history(): History {
     const key = `${this.store.workspaceId}\u0000${this.store.floorId}`;
     let h = this.histories.get(key);
     if (!h) {
       h = new History();
-      // Kept for the workspaces visited in this session; older ones are dropped.
       if (this.histories.size >= 24) this.histories.delete(this.histories.keys().next().value!);
       this.histories.set(key, h);
     }
@@ -146,18 +128,14 @@ export class CanvasEngine {
   readonly layer = new GlLayer();
   readonly tools: PointerTools;
   readonly inertia = new Inertia();
-  /** Lifted and docked nodes (shown at real size outside the canvas). */
   readonly panels: Panels = new Panels(this);
 
-  // Reactive UI state (Svelte reads these).
   tool = $state<ToolName>('select');
   createKind = $state<string | null>(null);
   createAgent = $state<AgentKind | null>(null);
-  /** User agent preset armed with the create tool (Settings → Canvas). */
   createPreset = $state<string | null>(null);
   syncMode = $state<SyncMode>('connecting');
   #minimap = $state(readFlag('omniget.canvas.minimap', true));
-  /** Minimap shown (remembered per viewer). */
   get minimapVisible(): boolean {
     return this.#minimap;
   }
@@ -166,13 +144,10 @@ export class CanvasEngine {
     try {
       localStorage.setItem('omniget.canvas.minimap', v ? '1' : '0');
     } catch {
-      /* storage unavailable */
     }
   }
   lod = $state.raw<Record<string, Lod>>({});
-  /** Nodes mounted in the world layer (near + terminals kept alive), with visibility. */
   mounted = $state.raw<Array<{ id: string; hidden: boolean }>>([]);
-  /** Nodes showing a card in the screen layer (mid). */
   cards = $state.raw<string[]>([]);
   moving = $state(false);
   zoomUi = $state(1);
@@ -186,16 +161,11 @@ export class CanvasEngine {
   sketch = $state(true);
   fillStyle = $state<FillStyle>('none');
   splitConnects = $state(true);
-  /** 'rope' swings with Verlet physics (Maestri); 'bezier' is the default. */
   cordStyle: 'bezier' | 'rope' = 'bezier';
-  /** Open modal panel, if any. */
   panel = $state<CanvasPanel | null>(null);
-  /** Per-node restart counter: a terminal node reopens its PTY when its entry changes (role swap). */
   restarts = $state.raw<Record<string, number>>({});
-  /** Drawing-in-progress and gesture overlays; read by passes every frame. */
   draft: Draft = {};
 
-  // Frame loop.
   private raf = 0;
   private timer: ReturnType<typeof setTimeout> | null = null;
   private lastTick = 0;
@@ -205,9 +175,7 @@ export class CanvasEngine {
   private flight: { f: Flight; t0: number } | null = null;
   private zoomVelocity = 0;
   pinching = false;
-  /** Called after each rendered frame (minimap, overlays). */
   private frameHooks = new Set<(now: number) => void>();
-  /** Frame-rate requests of animated passes this frame (fps). */
   private wantFps = 0;
   private prevCamera: CameraState | null = null;
   private pendingKills = new Map<string, ReturnType<typeof setTimeout>>();
@@ -222,7 +190,6 @@ export class CanvasEngine {
     this.sync = new CanvasSync(this.store);
     this.sync.onModeChange = (m) => (this.syncMode = m);
     this.sync.onRemote = (ops, origin) => {
-      // Agent writes feed the undo conflict map ("undo yours, never the agent's").
       if (ops.length && origin !== 'user' && origin !== 'load' && origin !== 'normalise') {
         this.history.record(origin, ops, []);
       }
@@ -232,7 +199,6 @@ export class CanvasEngine {
     this.tools = new PointerTools(this);
     this.unlisten.push(
       this.store.subscribe((ops) => {
-        // Undo of a soft-deleted terminal: keep its PTY.
         for (const op of ops) {
           if (op.op === 'add_node' && isTerminalKind(op.node.kind)) this.cancelKill(terminalIdOf(op.node));
           if (op.op === 'remove_node') this.panels.forget(op.id);
@@ -241,8 +207,6 @@ export class CanvasEngine {
     );
     this.unlisten.push(onRegistryChange(() => this.registryRev++));
     this.unlisten.push(onPassesChange(() => this.invalidate()));
-    // Anything reactive that L0 draws asks for one frame: document, selection,
-    // hover, agent states. Everything else invalidates explicitly.
     this.unlisten.push(
       $effect.root(() => {
         $effect(() => {
@@ -258,9 +222,6 @@ export class CanvasEngine {
     );
   }
 
-  // ---- lifecycle -------------------------------------------------------
-
-  /** Home folder (fallback root of a new file tree). */
   homeDir = '';
 
   async start(workspaceId?: string): Promise<void> {
@@ -269,7 +230,6 @@ export class CanvasEngine {
       .then((m) => m.homeDir())
       .then((h) => (this.homeDir = h))
       .catch(() => {});
-    // Last workspace of this profile, unless it failed to open twice (M-A19).
     await this.sync.open(await bootWorkspace(workspaceId));
     if (this.destroyed) return;
     this.selection.setScope(this.store.workspaceId, this.store.floorId);
@@ -286,9 +246,7 @@ export class CanvasEngine {
         MESSAGE_EVENT,
         (e) => this.onMessage(e.payload),
       );
-      // An answered ask flies back along the cord (same id as its reply message).
       const u2: UnlistenFn = await listen<{ id: string; from: string; to: string; state: string }>(ASK_EVENT, (e) => {
-        // The cord stays lit while the ask is in flight.
         if (this.traffic.trackAsk(e.payload)) this.invalidate();
         if (e.payload?.state === 'answered') {
           this.onMessage({ id: e.payload.id, from: e.payload.from, to: e.payload.to, state: 'answered' });
@@ -301,7 +259,6 @@ export class CanvasEngine {
       }
       this.unlisten.push(u1, u2);
     } catch {
-      // Outside Tauri.
     }
   }
 
@@ -320,7 +277,6 @@ export class CanvasEngine {
     for (const u of this.unlisten) u();
     this.unlisten = [];
     this.layer.destroy();
-    // Soft-deleted terminals die now rather than leak.
     for (const [tid, t] of this.pendingKills) {
       clearTimeout(t);
       void closeTerminal(tid);
@@ -333,9 +289,6 @@ export class CanvasEngine {
     return () => this.frameHooks.delete(fn);
   }
 
-  // ---- frame loop ------------------------------------------------------
-
-  /** Asks for a frame. Cheap to call many times. */
   invalidate(): void {
     if (this.destroyed || this.raf) return;
     if (this.timer) {
@@ -345,7 +298,6 @@ export class CanvasEngine {
     this.raf = requestAnimationFrame((t) => this.tick(t));
   }
 
-  /** A pass asks to be redrawn at `fps` while it animates (sprites, blinking). */
   wantFrames(fps: number): void {
     if (fps > this.wantFps) this.wantFps = fps;
   }
@@ -418,7 +370,6 @@ export class CanvasEngine {
     else if (!this.settled) this.schedule(SETTLE_MS);
   }
 
-  /** Set by the Canvas 2D fallback (tier 0). */
   fallbackDraw: ((frame: FrameInfo) => void) | null = null;
 
   private writeTransforms(): void {
@@ -436,7 +387,6 @@ export class CanvasEngine {
   private visibleViews: NodeView[] = [];
   private screenViews: NodeView[] = [];
 
-  /** Lifted or docked: shown at real size outside the canvas. */
   isRaised(id: string): boolean {
     return this.panels.isRaised(id);
   }
@@ -456,8 +406,6 @@ export class CanvasEngine {
     const raised = new Set(this.panels.raisedIds());
     for (const id of ids) {
       const n = this.store.node(id);
-      // Pages filed in a fichário are drawn by their stack, not on their own.
-      // Lifted/docked nodes are drawn in screen space (`screenViews`).
       if (!n || n.stackId || raised.has(id)) continue;
       let lod: Lod = id === focused ? 'near' : nodeLod(n, z, prevLod[id]);
       const prev = prevLod[id];
@@ -479,7 +427,6 @@ export class CanvasEngine {
     }
     this.screenViews = screen;
 
-    // Terminals stay mounted (hidden) up to a budget so leaving and coming back is instant.
     for (const id of near) this.mountedLru.set(id, now);
     for (const id of Array.from(this.mountedLru.keys())) {
       const n = this.store.node(id);
@@ -519,8 +466,6 @@ export class CanvasEngine {
     this.panels.rev++;
     this.invalidate();
   }
-
-  // ---- camera ----------------------------------------------------------
 
   panBy(dx: number, dy: number): void {
     this.flight = null;
@@ -585,7 +530,6 @@ export class CanvasEngine {
     return union(rects);
   }
 
-  /** `z`: zoom onto the selection; again = back to the previous camera. */
   zoomToggle(): void {
     if (this.prevCamera) {
       const back = this.prevCamera;
@@ -599,7 +543,6 @@ export class CanvasEngine {
     this.flyToRect(b, 1.5);
   }
 
-  /** Makes sure a node is on screen, flying only when it is not. */
   reveal(id: string): void {
     const n = this.store.node(id);
     if (!n) return;
@@ -608,9 +551,6 @@ export class CanvasEngine {
     if (!inside) this.flyToRect(n, Math.max(this.camera.zoom, 0.6));
   }
 
-  // ---- document --------------------------------------------------------
-
-  /** Applies, records and syncs a user (or agent) transaction. */
   commit(ops: Op[], opts: { origin?: Origin; history?: boolean; sync?: boolean; selectionAfter?: string[] } = {}): void {
     if (ops.length === 0) return;
     const origin = opts.origin ?? 'user';
@@ -622,7 +562,6 @@ export class CanvasEngine {
     this.invalidate();
   }
 
-  /** Records a change already applied live (drags): forward + inverse. */
   recordApplied(forward: Op[], inverse: Op[]): void {
     if (forward.length === 0) return;
     const sel = this.selection.list();
@@ -662,8 +601,6 @@ export class CanvasEngine {
     this.noticeTimer = setTimeout(() => (this.notice = null), 3200);
   }
 
-  // ---- nodes -----------------------------------------------------------
-
   uniqueTitle(base: string): string {
     const taken = new Set(this.store.nodes.map((n) => n.title));
     if (!taken.has(base)) return base;
@@ -671,7 +608,6 @@ export class CanvasEngine {
     return `${base} ${Date.now()}`;
   }
 
-  /** Creates a node of `kind` at world point (x, y) (top-left snapped) or the nearest free spot. */
   spawn(kind: string, at: { x: number; y: number } | null, opts: SpawnOptions = {}): CanvasNode {
     const preset = kind === 'terminal' || kind === 'agent' ? userPreset(opts.preset) : null;
     const agent = preset ? presetAgent(preset) : (opts.agent ?? (kind === 'terminal' ? 'shell' : undefined));
@@ -712,7 +648,6 @@ export class CanvasEngine {
       data.portalKind = data.portalKind ?? 'web';
       title = title ?? this.uniqueTitle('Portal');
     } else if (kind === 'filetree') {
-      // Rust requires a root: the workspace folder, else the home folder.
       data.rootPath =
         data.rootPath ||
         workspaces.byId(this.store.workspaceId)?.workingDirectory ||
@@ -793,11 +728,6 @@ export class CanvasEngine {
     this.dissolveSmallGroups();
   }
 
-  /**
-   * A deleted terminal stops at once (Maestri: ⌘W ends the process). Its
-   * scrollback stays for SOFT_DELETE_MS so an undo brings the node back with
-   * its history (the node reopens a fresh process on mount); then it goes.
-   */
   private scheduleKill(terminalId: string): void {
     this.cancelKill(terminalId);
     void closeTerminal(terminalId, false);
@@ -863,8 +793,6 @@ export class CanvasEngine {
     this.commit(nodes.map((n) => ({ op: 'update_node' as const, id: n.id, patch: { locked: lock ? true : undefined } })));
   }
 
-  // ---- z-order ---------------------------------------------------------
-
   zOrder(mode: 'raise' | 'lower' | 'front' | 'back'): void {
     const sel = this.selection.list().map((id) => this.store.node(id)).filter((n): n is CanvasNode => !!n);
     if (!sel.length) return;
@@ -890,8 +818,6 @@ export class CanvasEngine {
     this.commit(ops);
   }
 
-  // ---- groups ----------------------------------------------------------
-
   group(): void {
     const nodes = this.selection.list().map((id) => this.store.node(id)).filter((n): n is CanvasNode => !!n);
     const drawings = this.selection.list().map((id) => this.store.drawing(id)).filter((d): d is Drawing => !!d);
@@ -899,7 +825,6 @@ export class CanvasEngine {
       ? nodes.map((n) => ({ id: n.id, groupId: n.groupId, isNode: true }))
       : drawings.map((d) => ({ id: d.id, groupId: d.groupId, isNode: false }));
     if (members.length < 2) return;
-    // Selecting members together with an existing group extends that group (Maestri).
     const existing = members.find((m) => m.groupId && this.store.group(m.groupId))?.groupId;
     const groupId = existing ?? newId();
     const ops: Op[] = [];
@@ -935,7 +860,6 @@ export class CanvasEngine {
         ops.push({ op: 'update_drawing', id, patch: { groupId: undefined } });
       }
     }
-    // A lone selected group header ungroups everything in it.
     for (const id of this.selection.list()) {
       if (this.store.group(id)) {
         for (const m of this.store.groupMembers(id)) ops.push({ op: 'update_node', id: m.id, patch: { groupId: undefined } });
@@ -946,7 +870,6 @@ export class CanvasEngine {
     this.dissolveSmallGroups();
   }
 
-  /** Groups with fewer than 2 members dissolve on their own. */
   dissolveSmallGroups(): void {
     const ops: Op[] = [];
     for (const g of this.store.groups) {
@@ -975,8 +898,6 @@ export class CanvasEngine {
     const pad = GRID;
     return { x: u.x - pad, y: u.y - pad - GRID, w: u.w + pad * 2, h: u.h + pad * 2 + GRID };
   }
-
-  // ---- arrange ---------------------------------------------------------
 
   align(mode: AlignMode): void {
     const items = this.selection
@@ -1011,9 +932,6 @@ export class CanvasEngine {
     return alignGuides(moving, near, tol);
   }
 
-  // ---- navigation ------------------------------------------------------
-
-  /** Terminal/agent nodes in reading order (rows of 200 units, then x): ⌘1–⌘9. */
   numbered(): CanvasNode[] {
     return this.store.nodes
       .filter((n) => isTerminalKind(n.kind))
@@ -1029,17 +947,8 @@ export class CanvasEngine {
     this.selection.focus(n.id);
   }
 
-  /** Last target of ⌘⇧A, so repeated presses walk the list instead of restarting. */
   private attentionLast: string | null = null;
 
-  /**
-   * "Next needs you" (⌘⇧A): cycles through every agent that waits for the
-   * person, on every floor and workspace (the cords inbox), switching floor or
-   * workspace when needed. Blocked on you (permission, question, stuck
-   * delivery) comes before "finished, ready to review"; the current workspace
-   * first within each group. Falls back to the local Blocked states when the
-   * inbox is unavailable.
-   */
   async nextAttention(): Promise<void> {
     type Item = { nodeId: string; workspaceId: string; floorId: string; reason: string; sinceMs?: number };
     const inbox = (await tryInvoke<Item[]>('canvas_inbox', { workspaceId: null })) ?? [];
@@ -1048,7 +957,6 @@ export class CanvasEngine {
     const items: Item[] = inbox
       .filter((i) => i && i.nodeId && i.workspaceId)
       .map((i) => ({ ...i, floorId: i.floorId || 'ground' }));
-    // Local Blocked states the inbox may not know yet (this floor).
     for (const n of this.store.nodes) {
       if (!isTerminalKind(n.kind) || agentStates.stateOf(n) !== 'blocked') continue;
       if (!items.some((i) => i.nodeId === n.id)) {
@@ -1079,20 +987,12 @@ export class CanvasEngine {
     this.selection.focus(n.id);
   }
 
-  /** Walk state of ⌘⌥→/←: the node the walk started from and its targets. */
   private cordWalkState: {
     anchor: string;
     targets: Array<{ nodeId: string; workspaceId: string; floorId: string }>;
     index: number;
   } | null = null;
 
-  /**
-   * ⌘⌥→ / ⌘⌥← (Maestri "walk the cord"): the next/previous node tied to the
-   * selection by a cord, in a fixed order (reading order: rows, then x; the
-   * far end of a floor/workspace connector counts as the node behind it), and
-   * across floors. Notes and text blocks open in edit mode. Pressing again
-   * keeps walking the same anchor's cords until the selection changes by hand.
-   */
   async walkCord(delta: number): Promise<void> {
     const sel = this.selection.focused ?? this.selection.list().find((id) => this.store.node(id)) ?? null;
     let st = this.cordWalkState;
@@ -1159,7 +1059,6 @@ export class CanvasEngine {
     this.reveal(next);
   }
 
-  /** tmux split: a new terminal right of / below the selected node. */
   split(dir: 'right' | 'down'): void {
     const cur = this.store.node(this.selection.focused ?? this.selection.list().at(-1) ?? '');
     const agent = (cur?.data.agent as AgentKind | undefined) ?? 'shell';
@@ -1178,7 +1077,6 @@ export class CanvasEngine {
     this.selection.focus(node.id);
   }
 
-  /** Asks the terminal node `nodeId` to reopen its PTY (same terminal id, new launch). */
   requestRestart(nodeId: string): void {
     this.restarts = { ...this.restarts, [nodeId]: (this.restarts[nodeId] ?? 0) + 1 };
   }
@@ -1215,9 +1113,6 @@ export class CanvasEngine {
     this.createPreset = preset ?? null;
   }
 
-  // ---- traffic ---------------------------------------------------------
-
-  /** Resolves a node from an id, terminal id or title (the bus may use any). */
   resolveNode(ref: string): CanvasNode | undefined {
     const direct = this.store.node(ref);
     if (direct) return direct;
@@ -1229,7 +1124,6 @@ export class CanvasEngine {
     const state = (p.state ?? '').toLowerCase();
     const answered = state === 'answered' || state === 'replied';
     if (state && !answered && !['queued', 'sent', 'delivering', 'delivered', 'pending'].includes(state)) return;
-    // A reply message and its ask's "answered" event are one envelope.
     if (p.kind === 'reply' && p.askId) p = { ...p, id: `${p.askId}:answer` };
     const src = p.from;
     if (!src) return;
@@ -1290,7 +1184,6 @@ export function useEngine(): CanvasEngine {
   return e;
 }
 
-/** Best-effort call that tolerates a command not registered yet. */
 async function tryInvoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T | null> {
   try {
     return await invoke<T>(cmd, args);

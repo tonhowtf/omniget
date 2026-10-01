@@ -1,17 +1,4 @@
 <script lang="ts">
-  /**
-   * The second click. An install whose scan came back over SkillSpector's own
-   * threshold is not installed: it sits in quarantine and this dialog shows the
-   * score, the worst findings and two ways out — discard it, or install it
-   * anyway after one more press.
-   *
-   * The arming step is [`scanPress`] in the store, so the rule is a pure
-   * function with tests rather than something living in a click handler. Same
-   * shape as the unlicensed-catalogue confirmation next door.
-   *
-   * Nothing here claims the skill is safe if the user goes ahead; it says what
-   * the scanner found and gets out of the way.
-   */
   import { t } from "$lib/i18n";
   import {
     SCAN_RISK_THRESHOLD,
@@ -32,7 +19,6 @@
     ondiscard?: () => void;
   } = $props();
 
-  /** Name of the skill whose "install anyway" is armed. */
   let confirming = $state<string | null>(null);
 
   let scan = $derived(pending.scan);

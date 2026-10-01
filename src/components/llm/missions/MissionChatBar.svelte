@@ -1,11 +1,4 @@
 <script lang="ts">
-  /**
-   * The chat's view of missions. `chip` mode: a compact chip in the
-   * conversation header when the conversation has missions, linking to the
-   * mission. `action` mode: "Make it a mission" beside the composer, shown
-   * while there is a draft; it opens the create form prefilled with the text,
-   * the conversation and its bot.
-   */
   import { t } from "$lib/i18n";
   import {
     getMissionTick, initMissionsStore, isFinal, listMissions, missionStateKey, missionTone,
@@ -25,7 +18,6 @@
   let open = $state(false);
   let objective = $state("");
 
-  // The newest unfinished mission leads; otherwise the newest one.
   let lead = $derived(missions.find((m) => !isFinal(m.state)) ?? missions[0] ?? null);
 
   $effect(() => {

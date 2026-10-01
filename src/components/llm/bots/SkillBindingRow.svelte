@@ -1,5 +1,4 @@
 <script lang="ts">
-  /** One skill bound to a bot: its real state this turn, what it depends on, and the fixes. */
   import { t } from "$lib/i18n";
   import {
     bindingStateKey, bindingTone, fixPlan, reasonKey, versionLabel, type BindingStatus, type Fix,

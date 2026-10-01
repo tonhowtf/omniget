@@ -1,5 +1,4 @@
 <script lang="ts">
-  /** Paired devices: scope, last use, open sockets; revoke closes them now. */
   import { invoke } from "@tauri-apps/api/core";
   import { ask } from "@tauri-apps/plugin-dialog";
   import { t } from "$lib/i18n";

@@ -5,16 +5,6 @@
   import { t } from "$lib/i18n";
   import { showToast } from "$lib/stores/toast-store.svelte";
 
-  /**
-   * "Connect your AI tools": every coding tool that can hold an MCP server,
-   * the ones installed here first. Two ways in:
-   * - Connect, from here: the app writes the `omniget` entry into the tool.
-   * - From the tool: the `omniget-connect` skill (or the sentence below) asks
-   *   for access and the person clicks Allow in the dialog (ConnectPrompt).
-   *
-   * Budget: opening reads the tool list once (a PATH and home-folder scan);
-   * no timer, no network.
-   */
   type Tool = { id: string; name: string; installed: boolean; connected: boolean; skill: boolean };
 
   let { onchange }: { onchange?: () => void } = $props();

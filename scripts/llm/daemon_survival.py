@@ -57,10 +57,8 @@ TARGET = pathlib.Path(os.environ.get("CARGO_TARGET_DIR", str(pathlib.Path.home()
 FAKE = ROOT / "scripts" / "llm" / "fake_claude.py"
 BIN = ".exe" if os.name == "nt" else ""
 
-
 def now():
     return time.time()
-
 
 class Lab:
     """One isolated profile, the copied binaries and every pid we started."""
@@ -71,7 +69,6 @@ class Lab:
         self.profile = self.dir / "profile"
         (self.profile / "bin").mkdir(parents=True)
         (self.profile / "llm").mkdir(parents=True)
-        # Copies: another session may rebuild the shared target mid-run.
         self.app = self.dir / ("omniget" + BIN)
         self.cli = self.dir / ("omniget-cli" + BIN)
         shutil.copy2(app, self.app)
@@ -100,8 +97,6 @@ class Lab:
             "FAKE_CLAUDE_TRACE": str(self.trace),
             "FAKE_CLAUDE_LEDGER": str(self.ledger),
             "FAKE_CLAUDE_LIVE_DIR": str(self.live),
-            # `--system-prompt` etc.: a Loop without a check is audited by a
-            # side call (3.7); the fake answers it at once, apart from rounds.
             "FAKE_CLAUDE_HELP_EXTRA": "--resume --include-partial-messages --system-prompt "
                                       "--tools --no-session-persistence --strict-mcp-config",
             "RUST_LOG": e.get("RUST_LOG", "info"),
@@ -111,8 +106,6 @@ class Lab:
         if extra:
             e.update(extra)
         return e
-
-    # ── the app ────────────────────────────────────────────────────────
 
     def breadcrumb(self):
         try:
@@ -149,8 +142,6 @@ class Lab:
                              stdin=subprocess.DEVNULL, start_new_session=True)
         self.started_pids.add(p.pid)
         return p.pid
-
-    # ── the bridge ─────────────────────────────────────────────────────
 
     def base(self):
         try:
@@ -196,7 +187,6 @@ class Lab:
         t0 = now()
         p = subprocess.run([str(self.cli)] + args, env=self.env(hold, extra=extra), capture_output=True,
                            text=True, timeout=timeout, cwd=str(self.dir))
-        # A CLI that started the app: remember the app's pid (the breadcrumb).
         b = self.breadcrumb()
         if b and self.is_our_app(b.get("pid")):
             self.started_pids.add(b["pid"])
@@ -220,7 +210,6 @@ class Lab:
                 os.kill(pid, signal.SIGKILL)
             except ProcessLookupError:
                 pass
-        # Fakes still sleeping (their pid files in the live dir), ours only.
         for f in (self.live.iterdir() if self.live.exists() else []):
             try:
                 os.kill(int(f.name), signal.SIGKILL)
@@ -229,9 +218,6 @@ class Lab:
         for pid in self.started_pids:
             if self.is_our_app(pid):
                 os.kill(pid, signal.SIGKILL)
-        # Anything else running from our temporary folder (the app fetches
-        # yt-dlp into the profile and probes it): ours by construction, the
-        # folder name is unique to this run.
         ps = subprocess.run(["ps", "-axo", "pid=,command="], capture_output=True, text=True).stdout
         for line in ps.splitlines():
             pid, _, command = line.strip().partition(" ")
@@ -243,14 +229,12 @@ class Lab:
         if not self.keep:
             shutil.rmtree(self.dir, ignore_errors=True)
 
-
 def alive(pid):
     try:
         os.kill(pid, 0)
         return True
     except (ProcessLookupError, PermissionError):
         return False
-
 
 def prepare(lab):
     """First start (through the CLI, with OMNIGET_APP), the fake agent, then
@@ -263,10 +247,8 @@ def prepare(lab):
     lab.kill_app()
     return {"first_start_s": round(took, 2), "cli_stderr": p.stderr.strip()[-300:]}
 
-
 def scenario_app_dead(lab, reps):
     runs, goals = [], []
-    # Without the app and with the start turned off: the structured error.
     lab.kill_app()
     p, _ = lab.cli_run(["--json", "agent", "status"], hold=1, extra={"OMNIGET_NO_LAUNCH": "1"})
     structured = p.returncode == 69 and "ERR_APP_NOT_RUNNING" in p.stdout and "ERR_APP_NOT_RUNNING" in p.stderr
@@ -278,7 +260,6 @@ def scenario_app_dead(lab, reps):
             if "bridge answered in" in line:
                 ready_ms = int(line.rsplit("in", 1)[1].split("ms")[0].strip())
         visible = lab.window_visible()
-        # The CLI prints each state it follows as `[state]` on stderr.
         states = [ln.strip()[1:-1] for ln in p.stderr.splitlines()
                   if ln.strip().startswith("[") and ln.strip().endswith("]") and " " not in ln.strip()]
         state = states[-1] if states else None
@@ -296,11 +277,7 @@ def scenario_app_dead(lab, reps):
                   "value": {"exit": p.returncode, "stdout": p.stdout.strip()[-200:]}, "pass": structured})
     return runs, goals
 
-
 def scenario_cron(lab, minutes=3):
-    # The routine is saved while the app is down, then the app starts hidden,
-    # as after a reboot with the login item: its boot pass starts the ticker
-    # (a row written behind a running app's back would wait for a restart).
     lab.kill_app()
     db = sqlite3.connect(str(lab.profile / "llm" / "jobs.db"), timeout=10)
     t_insert = now()
@@ -341,7 +318,6 @@ def scenario_cron(lab, minutes=3):
     ]
     return runs, goals
 
-
 def scenario_kill9(lab, reps, hold=12):
     lab.kill_app()
     lab.open_app(hold=hold, tag="kill9-0")
@@ -351,7 +327,6 @@ def scenario_kill9(lab, reps, hold=12):
                                               "max_rounds": 500, "auto_resume": True})
     runs = []
     for i in range(reps):
-        # A round in flight: the newest start whose fake is alive, 1 s in.
         t0 = now()
         cur = None
         while now() - t0 < 60:
@@ -386,7 +361,6 @@ def scenario_kill9(lab, reps, hold=12):
             rec.update({"new_pid": nxt["pid"], "new_round": nxt["round"], "resumed_session": nxt["resume"],
                         "old_session": cur["session"], "concurrent": nxt["concurrent"],
                         "restart_note": nxt["restart_note"]})
-            # Let the resumed round finish before the next rep kills again.
             t1 = now()
             while now() - t1 < hold + 20:
                 if any(e["event"] == "end" and e["pid"] == nxt["pid"] for e in lab.events("bn6-loop")):
@@ -424,14 +398,11 @@ def scenario_kill9(lab, reps, hold=12):
     ]
     return runs, goals
 
-
 SCENARIOS = {"app_dead": scenario_app_dead, "cron": scenario_cron, "kill9": scenario_kill9}
-
 
 def build():
     env = dict(os.environ, CARGO_TARGET_DIR=str(TARGET))
     subprocess.run(["cargo", "build", "-p", "omniget", "-p", "omniget-cli"], cwd=ROOT / "src-tauri", env=env, check=True)
-
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -478,7 +449,6 @@ def main():
     pathlib.Path(args.out).write_text(json.dumps(report, indent=2, ensure_ascii=False, default=str))
     print("all_pass:", report["all_pass"], "->", args.out)
     return 0 if report["all_pass"] else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

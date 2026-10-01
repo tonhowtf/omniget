@@ -1,8 +1,3 @@
-// Sidebar indicators that live outside the engine: which threads have a
-// terminal with a running process (from the TerminalPanel layout saved per
-// thread + `pty_list` / `pty://activity`), and the PR of each thread's branch
-// (looked up only when a thread is opened or its PR tab loads).
-
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { ptyList, type PtySessionInfo } from "$lib/central/pty";
 import type { PrInfo } from "$lib/central/vcs";
@@ -21,7 +16,6 @@ function terminalIdsOf(threadId: string): string[] {
 }
 
 class Indicators {
-  /** threadId → "running" (foreground process) | "idle" (shell alive). */
   terminals = $state<Record<string, "running" | "idle">>({});
   prs = $state<Record<string, PrInfo | null>>({});
   #sessions = new Map<string, PtySessionInfo>();
@@ -33,7 +27,6 @@ class Indicators {
     try {
       for (const s of await ptyList()) this.#sessions.set(s.id, s);
     } catch {
-      /* pty host missing */
     }
     this.#recompute();
     if (!this.#unlisten) {

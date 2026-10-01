@@ -25,7 +25,6 @@
   let budgetCredits = $state("");
   let mediaBusy = $state(false);
   let mediaMessage = $state("");
-  // Parse decimal text into exact integers; do not multiply a floating-point credit value.
   function toMicrocredits(value: string): number | null {
     const text = value.trim();
     if (!/^\d{1,7}(?:[.,]\d{1,6})?$/.test(text)) return null;
@@ -108,7 +107,6 @@
     catch (e) { message = String(e); }
     finally { busy = false; }
   }
-  /** Bots a client derived through MCP (`agents_prepare`), shown under its grant; revoking one keeps the grant. */
   function derivedOf(grantId: string): DerivedBot[] {
     return derivedBots.filter((d) => d.grant_id === grantId);
   }
@@ -175,8 +173,6 @@
     try { await navigator.clipboard.writeText(config()); message = $t("mcp_connections.copied"); }
     catch (e) { message = String(e); }
   }
-  // The Claude Code command reads the token from a hidden prompt, never from
-  // its own text: the token is copied on its own.
   const tokenOutsideSnippet = $derived(snippets[client]?.[0] === "Claude Code");
   async function copyToken() {
     try { await navigator.clipboard.writeText(grant?.token ?? ""); message = $t("mcp_connections.copied"); }
@@ -184,7 +180,6 @@
   }
 </script>
 
-<!-- Deep-link targets (`/llm/mcp?mode=server&section=permissions|media`): focus only, no action. -->
 <section id={MCP_SECTION_IDS.permissions} tabindex="-1" aria-label={$t("mcp_connections.title")}>
   <h3>{$t("mcp_connections.title")}</h3>
   <p>{$t("mcp_connections.intro")}</p>
@@ -238,7 +233,6 @@
     </fieldset>
     <button class="btn btn-secondary btn-sm" disabled={busy || !name.trim() || !url}>{$t("mcp_connections.create")}</button>
   </form>
-  <!-- Validation, create and revoke results sit next to the form and the client list, not below the media controls. -->
   {#if message}<p role="status">{message}</p>{/if}
   {#if grant}
     <div class="grant">
@@ -348,7 +342,6 @@
   .path-row { display: flex; gap: var(--space-2); align-items: center; min-width: 0; }
   .path-row input { flex: 1 1 auto; min-width: 0; font-family: var(--font-mono); font-size: var(--text-xs); text-overflow: ellipsis; }
   .path-btn { flex-shrink: 0; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  /* shortPath cuts the middle so the folder name stays visible; never cut the end. */
   .path { display: inline-block; max-width: 100%; overflow-wrap: anywhere; vertical-align: bottom; font-family: var(--font-mono); }
   .derived { padding-left: var(--space-4); }
   .ext-tag { margin-left: var(--space-1); padding: 0 6px; border-radius: 999px; font-size: var(--text-xs); font-weight: 400; color: var(--accent-text); background: var(--accent-soft); }

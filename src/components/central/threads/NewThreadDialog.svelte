@@ -1,8 +1,4 @@
 <script lang="ts">
-  // New thread: project, driver instance, model, access mode, worktree yes/no
-  // and an optional first message. A worktree is created before the thread
-  // (setup stages stream in via `central://vcs/worktree-setup`); cancelling
-  // the setup removes it.
   import { untrack } from "svelte";
   import { t } from "$lib/i18n";
   import { threadsStore } from "$lib/central/threads/threads-store.svelte";
@@ -124,7 +120,6 @@
       try {
         localStorage.setItem(LAST_KEY, JSON.stringify({ projectId: project, instanceId, model, access, worktree }));
       } catch {
-        /* optional */
       }
       pendingThread = null;
       oncreated(threadId, message.trim());

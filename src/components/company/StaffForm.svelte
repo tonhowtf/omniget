@@ -1,9 +1,4 @@
 <script lang="ts">
-  /**
-   * Hire or edit one agent of a company. A hire runs on a roster agent copied
-   * from a template (`company_hire`), or on an external adapter (a command
-   * or an HTTP endpoint, `staff.hire`). An edit sends only what changed.
-   */
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "$lib/i18n";
   import { errorText, rpc, type Adapter, type RuntimeTemplate, type Staff } from "$lib/company/rpc";
@@ -18,7 +13,6 @@
     oncancel,
   }: {
     company: string;
-    /** The agent being edited; null hires a new one. */
     staff?: Staff | null;
     all: Staff[];
     templates: RuntimeTemplate[];
@@ -49,7 +43,6 @@
     if (!templateId && templates.length) templateId = templates[0].id;
   });
 
-  /** Managers: anyone alive who is not this agent nor below it. */
   let managers = $derived.by(() => {
     if (!src) return all.filter((s) => s.status !== "terminated");
     const below = new Set<string>([src.id]);

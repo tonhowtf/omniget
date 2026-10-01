@@ -1,6 +1,3 @@
-/// Types and pure helpers of the Overview module (health score, live
-/// monitor, processes). The Rust side is `core/washmybelly/monitor/`.
-
 export type Severity = "ok" | "warn" | "bad";
 
 type Factor = {
@@ -13,7 +10,6 @@ type Factor = {
 
 export type Gain = {
   id: "junk" | "free_space" | "login_items" | "battery";
-  /// Module that acts on it (`clean`, `disk`, `startup`, `power`).
   module: string;
   bytes?: number;
   count?: number;
@@ -84,10 +80,8 @@ export type ProcessList = { processes: ProcessRow[]; total: number; sort: string
 export type SortKey = "name" | "cpu" | "memory" | "disk" | "pid" | "user";
 export type SortDir = "asc" | "desc";
 
-/// Samples kept per chart: one a second, two minutes.
 export const HISTORY = 120;
 
-/// Append a sample, keeping the last `max` (a new array, for Svelte).
 function pushSample(buf: number[], v: number | null | undefined, max = HISTORY): number[] {
   if (v === null || v === undefined || !Number.isFinite(v)) return buf;
   const next = buf.length >= max ? buf.slice(buf.length - max + 1) : buf.slice();
@@ -95,7 +89,6 @@ function pushSample(buf: number[], v: number | null | undefined, max = HISTORY):
   return next;
 }
 
-/// Everything the live charts keep between ticks.
 export type Series = { cpu: number[]; memory: number[]; gpu: number[]; temp: number[]; rx: number[]; tx: number[]; read: number[]; write: number[] };
 
 export function emptySeries(): Series {
@@ -119,8 +112,6 @@ export function addTick(s: Series, t: LiveTick): Series {
   };
 }
 
-/// A chart ceiling that does not jump on every tick: the next "nice" step
-/// above the largest sample (1, 2, 5 × 10^n), at least `floor`.
 export function niceMax(values: number[], floor = 1): number {
   const m = Math.max(floor, ...values.filter((v) => Number.isFinite(v)));
   const p = 10 ** Math.floor(Math.log10(m));
@@ -128,7 +119,6 @@ export function niceMax(values: number[], floor = 1): number {
   return 10 * p;
 }
 
-/// SVG path of a line (and of the area under it) for `values` in a box.
 export function linePath(values: number[], max: number, width: number, height: number, slots = HISTORY): { line: string; area: string } {
   if (values.length === 0 || max <= 0) return { line: "", area: "" };
   const step = width / Math.max(1, slots - 1);
@@ -145,7 +135,6 @@ export function linePath(values: number[], max: number, width: number, height: n
 
 const RATE_UNITS = ["B/s", "KB/s", "MB/s", "GB/s"];
 
-/// Decimal rate, like `formatBytes`.
 export function formatRate(n: number | null | undefined): string {
   if (!n || n < 0) return "0 B/s";
   let v = n;
@@ -165,7 +154,6 @@ export function formatTemp(n: number | null | undefined): string {
   return n === null || n === undefined || !Number.isFinite(n) ? "—" : `${Math.round(n)} °C`;
 }
 
-/// CPU of one process as a share of the whole machine (sysinfo gives 100 per core).
 export function machineCpu(cpuPercent: number, cpuCount: number): number {
   return cpuCount > 0 ? cpuPercent / cpuCount : cpuPercent;
 }
@@ -193,7 +181,6 @@ function keyOf(r: ProcessRow, k: SortKey): number | string {
   }
 }
 
-/// Stable sort; ties keep the pid order so rows do not dance between ticks.
 export function sortProcesses(rows: ProcessRow[], key: SortKey, dir: SortDir): ProcessRow[] {
   const s = dir === "asc" ? 1 : -1;
   return rows
@@ -207,21 +194,17 @@ export function sortProcesses(rows: ProcessRow[], key: SortKey, dir: SortDir): P
     .map((x) => x.r);
 }
 
-/// Next sort state when a column header is clicked: a new column starts at
-/// its natural order (text ascending, numbers descending), the same column flips.
 export function toggleSort(cur: { key: SortKey; dir: SortDir }, key: SortKey): { key: SortKey; dir: SortDir } {
   if (cur.key !== key) return { key, dir: key === "name" || key === "user" || key === "pid" ? "asc" : "desc" };
   return { key, dir: cur.dir === "asc" ? "desc" : "asc" };
 }
 
-/// Error codes the core puts at the start of a refusal (`REFUSED: ...`).
 export function errorCode(e: unknown): "REFUSED" | "NOT_FOUND" | "CHANGED" | "NEEDS_ADMIN" | "OTHER" {
   const s = String(e);
   for (const c of ["REFUSED", "NOT_FOUND", "CHANGED", "NEEDS_ADMIN"] as const) if (s.includes(`${c}:`)) return c;
   return "OTHER";
 }
 
-/// The reading behind a factor, formatted for its row.
 export function factorValue(f: Factor, format: (n: number) => string): string {
   switch (f.id) {
     case "disk_space":

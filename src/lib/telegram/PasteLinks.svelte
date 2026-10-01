@@ -41,7 +41,6 @@
       const clip = await navigator.clipboard.readText();
       if (clip) text = text ? `${text}\n${clip}` : clip;
     } catch {
-      /* clipboard read not allowed; the person can paste by hand */
     }
   }
 </script>

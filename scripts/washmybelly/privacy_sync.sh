@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# Copy the privacy.sexy collections byte for byte into the core data folder.
-#
-#   scripts/washmybelly/privacy_sync.sh <privacy.sexy checkout>
-#
-# Then update the commit in data/washmybelly/privacy-sexy/SOURCE.md and run
-# privacy_golden.sh so the golden tests follow the new data.
 set -euo pipefail
 src="${1:?path to a privacy.sexy checkout}"
 here="$(cd "$(dirname "$0")" && pwd)"

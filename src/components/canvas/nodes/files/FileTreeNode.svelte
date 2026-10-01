@@ -1,13 +1,4 @@
 <script lang="ts">
-  // File Tree node (study 95 §K 115–122): a lazy tree rooted at the
-  // workspace folder (or a dropped folder), with Pinned paths, git status
-  // badges, name search (`>` searches inside files), file operations (new,
-  // rename, delete to trash, pin, copy path, reload, sort), and three views:
-  // Files, Changes (working-tree diff with stage/unstage/discard per file and
-  // Current/Incoming of conflicts) and History. The git button adds pull,
-  // fetch, sync, branches, merge and stash through `canvas_files_git_op`. Opening a file puts an editor
-  // node beside the tree; dragging a row onto the canvas makes a file node.
-  // Several trees per canvas, each with its own state in `data`.
   import { onMount, tick, untrack } from "svelte";
   import { t } from "$lib/i18n";
   import { useEngine } from "$lib/canvas/engine.svelte";
@@ -79,7 +70,6 @@
 
   const data = $derived((node.data ?? {}) as Partial<FileTreeData>);
   const wsDir = $derived(workspaces.byId(engine.store.workspaceId)?.workingDirectory ?? "");
-  /** Maestri §K9: a tree on the SSH host / container of `data.environment`. */
   const envData = $derived(data.environment);
   const remote = $derived(isRemoteEnv(envData));
   const root = $derived(remote ? String(data.rootPath ?? "") : String(data.rootPath ?? "") || wsDir);
@@ -96,17 +86,14 @@
   const ws = $derived(engine.store.workspaceId);
   const src = $derived(fileSource(ws, root, envData));
 
-  /** UI state lives in the node but is not an undo step. */
   function setData(changes: Record<string, unknown>) {
     const n = engine.store.node(node.id);
     if (!n) return;
     engine.commit([{ op: "update_node", id: n.id, patch: { data: { ...n.data, ...changes } } }], { history: false });
   }
 
-  // A tree spawned without a root adopts the workspace folder.
   $effect(() => {
     if (remote || data.environment !== undefined) return;
-    // A workspace on SSH/Docker gets remote trees (its folder over there).
     const wenv = workspaces.byId(engine.store.workspaceId)?.environment;
     if (!data.rootPath && wenv && isRemoteEnv(wenv.kind)) {
       untrack(() => setData({ environment: "workspace" }));
@@ -115,7 +102,6 @@
     if (!data.rootPath && wsDir) untrack(() => setData({ rootPath: wsDir }));
   });
 
-  // A remote tree without a folder shows the environment's (or its home).
   $effect(() => {
     if (!remote || data.rootPath) return;
     const env = envData;
@@ -127,8 +113,6 @@
         .catch((e) => (error = e instanceof Error ? e.message : String(e)));
     });
   });
-
-  // ---- listing ---------------------------------------------------------
 
   async function loadDir(dir: string) {
     if (!root) return;
@@ -158,10 +142,7 @@
   async function refreshStatus() {
     if (!root || remote) return;
     status = await filesGitStatus(ws, root).catch(() => null);
-    // Maestri §K8: an unselected tree in Changes follows the agent's edits.
     const sig = status?.files.map((f) => `${f.path}:${f.kind}:${f.worktree}`).join("|") ?? "";
-    // The signature misses a second edit of an already-modified file, so an
-    // unselected Changes view re-reads the diff each poll (kept when equal).
     if (view === "diff" && !selected && lastSig !== null) void loadDiff(sig !== lastSig);
     lastSig = sig;
   }
@@ -170,7 +151,6 @@
   let followPath = $state<string | null>(null);
   let prevDiff = new Map<string, string>();
 
-  // Root, workspace or hidden-files change → reload everything.
   $effect(() => {
     void root;
     void ws;
@@ -178,7 +158,6 @@
     untrack(() => void refresh());
   });
 
-  // Expanding a folder loads it once.
   $effect(() => {
     for (const d of expanded) {
       if (!untrack(() => children[d]) && !untrack(() => loadingDirs[d])) untrack(() => void loadDir(d));
@@ -224,8 +203,6 @@
     return out;
   });
 
-  // ---- git badges ------------------------------------------------------
-
   const badges = $derived.by(() => {
     const map = new Map<string, string>();
     const dirs = new Set<string>();
@@ -249,8 +226,6 @@
     }
     return { map, dirs };
   });
-
-  // ---- actions ---------------------------------------------------------
 
   function toggle(entry: FileEntry) {
     const next = new Set(expanded);
@@ -277,16 +252,12 @@
     try {
       const d = await filesGitDiff(ws, root);
       if ((follow || prevDiff.size > 0) && !selected) {
-        // The file whose patch changed since the last load gets revealed
-        // (also a file that was already modified: the status signature
-        // does not change then, only the patch does).
         const changed = d.files.filter((f) => prevDiff.get(f.path) !== `${f.additions}:${f.deletions}:${f.patch.length}:${f.patch}`);
         followPath = changed.length ? changed[changed.length - 1].path : null;
       }
       const next = new Map(d.files.map((f) => [f.path, `${f.additions}:${f.deletions}:${f.patch.length}:${f.patch}`]));
       const same = next.size === prevDiff.size && [...next].every(([k, v]) => prevDiff.get(k) === v);
       prevDiff = next;
-      // Same patches: keep the list (and the viewer's scroll and folds).
       if (!same || !diffFiles.length) diffFiles = d.files;
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
@@ -308,9 +279,6 @@
     setData({ pinnedPaths: next.length ? next : null });
   }
 
-  // ---- git per file (Changes view) ---------------------------------------
-
-  /** Changed files of the repo that fall under this tree, relative to its root. */
   const changes = $derived.by(() => {
     if (!status?.is_repo || !status.root || !root) return [];
     const prefix = relativeTo(status.root, root);
@@ -371,11 +339,8 @@
         engine.updateNode(node.id, { title: baseName(picked), data: { ...node.data, rootPath: picked, expanded: [] } });
       }
     } catch {
-      // No dialog.
     }
   }
-
-  // ---- search ----------------------------------------------------------
 
   $effect(() => {
     const q = query;
@@ -406,20 +371,14 @@
     }
   }
 
-  // ---- file operations -------------------------------------------------
-
   function openMenu(e: MouseEvent, entry: FileEntry | null) {
     e.preventDefault();
     e.stopPropagation();
-    // Screen coordinates: the menu is portaled to <body> (the node is
-    // transformed and clips its content).
     const x = Math.min(e.clientX, window.innerWidth - 200);
     const y = Math.min(e.clientY, window.innerHeight - 380);
     menu = { entry, x: Math.max(4, x), y: Math.max(4, y) };
   }
 
-  // Keeps the portaled menu inside the window once its real size is known
-  // (the row menu is taller than the guess above near the bottom edge).
   let menuEl = $state<HTMLDivElement | undefined>();
   $effect(() => {
     const el = menuEl;
@@ -498,8 +457,6 @@
     await navigator.clipboard?.writeText(joinPath(root, entry.path)).catch(() => {});
   }
 
-  // ---- drag a row onto the canvas ---------------------------------------
-
   function rowDown(e: PointerEvent, entry: FileEntry) {
     if (e.button !== 0) return;
     e.stopPropagation();
@@ -537,7 +494,6 @@
     return known ?? { name: baseName(path), path, isDir: expanded.has(path), isSymlink: false, hidden: false, size: 0 };
   }
 
-  /** Moves the drag ghost to <body> (the world layer is transformed). */
   function portal(el: HTMLElement) {
     document.body.appendChild(el);
     return { destroy: () => el.remove() };

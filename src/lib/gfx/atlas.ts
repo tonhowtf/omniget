@@ -1,6 +1,3 @@
-// Atlas parsing and lookup. Pure: no GL, no image decoding.
-// Format: static/world/atlas.schema.json (owned by f6-atlas-tools).
-
 import { ERR, RenderError } from './types';
 
 export interface AtlasFrame {
@@ -9,22 +6,18 @@ export interface AtlasFrame {
   y: number;
   w: number;
   h: number;
-  /** Ground contact point, pixels from the frame's top-left. */
   pivotX: number;
   pivotY: number;
-  /** Added to the world z when sorting. */
   zBase: number;
 }
 
 export type Dir8 = 'S' | 'SW' | 'W' | 'NW' | 'N' | 'SE' | 'E' | 'NE';
 
-/** The three directions that exist only as a horizontal mirror of another. */
 const MIRRORED: Record<string, 'SW' | 'W' | 'NW'> = { SE: 'SW', E: 'W', NE: 'NW' };
 
 interface AtlasClip {
   fps: number;
   loop: boolean;
-  /** Unique directions only; the mirrored ones resolve through `mirrorOf`. */
   dirs: Record<string, string[]>;
   mirrorOf: Record<string, string>;
 }
@@ -154,10 +147,6 @@ export function getFrame(atlas: AtlasData, id: string): AtlasFrame {
   return f;
 }
 
-/**
- * Frame list for a direction. The three mirrored directions come back with
- * `flip: true` over the source direction — mirroring lives in the batcher.
- */
 export function resolveDir(
   atlas: AtlasData,
   animId: string,

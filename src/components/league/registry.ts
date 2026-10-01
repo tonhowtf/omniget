@@ -1,26 +1,17 @@
-/// What the user can expect from a feature. `experimental` and `beta` are marked
-/// in the UI with a discreet badge; `unavailable` renders an explanation of why
-/// instead of a broken control.
 type FeatureState = "stable" | "beta" | "experimental" | "unavailable";
 
 export type Platform = "windows" | "macos" | "linux";
 
 type Feature = {
   id: string;
-  /// i18n key for the human-readable name.
   labelKey: string;
   state: FeatureState;
   platforms: Platform[];
-  /// Key under `settings.league` that switches it off, when there is one.
   flag?: string;
-  /// Reason the feature cannot run, as an i18n key. Only meaningful together
-  /// with the checks below.
   requiresClient?: boolean;
   requiresGame?: boolean;
 };
 
-/// Single place that records what each league surface needs to work, so a
-/// disabled control can always explain itself instead of silently failing.
 const LEAGUE_FEATURES: readonly Feature[] = [
   { id: "scouting", labelKey: "league.scout_title", state: "stable", platforms: ["windows", "macos"], requiresClient: true },
   { id: "analysis", labelKey: "league.win_title", state: "stable", platforms: ["windows", "macos"], requiresClient: true },
@@ -53,8 +44,6 @@ export type Context = {
   inGame: boolean;
 };
 
-/// Why a feature cannot be used right now, in the order the user can act on:
-/// platform first (nothing to do about it), then the client, then the game.
 export function availability(feature: Feature, context: Context): Availability {
   if (!feature.platforms.includes(context.platform)) {
     return { available: false, reasonKey: "league.unavailable_platform" };
@@ -72,7 +61,6 @@ export function featureById(id: string): Feature | undefined {
   return LEAGUE_FEATURES.find((feature) => feature.id === id);
 }
 
-/// Features worth marking in the UI, so a badge is never guesswork.
 export function needsBadge(feature: Feature): boolean {
   return feature.state === "beta" || feature.state === "experimental";
 }

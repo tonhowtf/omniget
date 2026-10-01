@@ -9,8 +9,6 @@ export type ErrorKind =
   | "ffmpeg"
   | "generic";
 
-// First match wins, so the specific causes come before the broad ones
-// ("Private video" also says "unavailable" on some extractors).
 const RULES: [ErrorKind, RegExp][] = [
   ["age", /age[- ]restricted|confirm your age|inappropriate for some users/i],
   ["login", /private video|sign in|log ?in required|login required|members[- ]only|cookies/i],

@@ -1,6 +1,3 @@
-// Form state for the media filters shared by auto-save rules and the
-// whole-chat download, and its conversion to the backend `MediaFilter`.
-
 import { parseExts, type MediaFilter } from "./api";
 
 export interface FilterForm {
@@ -42,7 +39,6 @@ export function filterFromForm(f: FilterForm): MediaFilter {
   return out;
 }
 
-/** "2026-09-29" in local time → unix seconds; `end` moves to 23:59:59. */
 export function dateToUnix(v: string, end = false): number | undefined {
   if (!v) return undefined;
   const [y, m, d] = v.split("-").map(Number);

@@ -1,5 +1,4 @@
 <script lang="ts">
-  // File name template with variable chips and a live preview of the name.
   import { t } from "$lib/i18n";
   import { TEMPLATE_VARS, renderTemplate, type ChatRef, type TelegramMediaItem } from "./api";
 

@@ -3,8 +3,6 @@
   import { getSettings } from "$lib/stores/settings-store.svelte";
   import NavIcon from "$components/shell/NavIcon.svelte";
 
-  // Hub for the optional abilities that used to sit loose in the sidebar.
-  // Each card keeps its own on/off switch in Settings; the card only reflects it.
   type Power = {
     id: string;
     icon: string;

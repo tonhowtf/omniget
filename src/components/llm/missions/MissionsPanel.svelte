@@ -1,10 +1,4 @@
 <script lang="ts">
-  /**
-   * Activity → missions: every objective given to a bot or a group, with a
-   * plain state, the task count, where the verdict stands and whether the
-   * conclusion is automatic or depends on your judgement. Click a row to
-   * follow it. Live through `assist://mission`.
-   */
   import { onMount } from "svelte";
   import { t } from "$lib/i18n";
   import { getAgents, getRooms, loadRooms, loadRoster } from "$lib/stores/llm-store.svelte";
@@ -55,8 +49,6 @@
     initJobsStore();
     void loadRoster();
     void loadRooms();
-    // Tool approvals of mission turns: the chat does not drive them, so this
-    // page asks for them (every few seconds and on each new question).
     void pollAsks();
     const timer = setInterval(() => void pollAsks(), 2500);
     let unlisten: (() => void) | null = null;

@@ -91,8 +91,6 @@
     }
   }
 
-  // Raffles: a lane, a champion, a skin. Small, honest randomness for the
-  // player who wants the queue itself to decide.
   let drawnLane = $state<Lane | null>(null);
   let drawnSecond = $state<Lane | "FILL" | null>(null);
   let raffleError = $state("");

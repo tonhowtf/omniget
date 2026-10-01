@@ -3,9 +3,6 @@
   import { classKey, toneOf, type SecurityClass } from "$lib/washmybelly/security";
 
   /// The signature seal of one item. Ported from the "dot indicator" badge
-  /// of "Styled Badges" (ai2, 21st.dev): a pill with a leading dot, here
-  /// coloured by tone only (green = Apple's checks pass, amber = look at
-  /// it yourself, grey = unknown) and without the pulse animation.
   let { cls, title }: { cls: SecurityClass | null | undefined; title?: string } = $props();
 
   let tone = $derived(toneOf(cls));

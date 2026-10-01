@@ -51,7 +51,6 @@
     });
     if (!selected) return;
     const picked = Array.isArray(selected) ? selected : [selected];
-    // Files come in name order, which matches numbered parts; reorder below.
     const fresh = picked.filter((p) => !files.includes(p)).sort((a, b) => base(a).localeCompare(base(b), undefined, { numeric: true }));
     files = [...files, ...fresh];
     await recheck();

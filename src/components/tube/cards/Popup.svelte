@@ -1,6 +1,4 @@
 <script lang="ts">
-  // Floating surface for menus and small dialogs. Closes on Escape, outside
-  // click and scroll of the page behind it; arrow keys move between items.
   import type { Snippet } from "svelte";
   import { onMount } from "svelte";
   import { floating } from "./actions";
@@ -21,7 +19,6 @@
     point?: { x: number; y: number } | null;
     align?: "start" | "end";
     above?: boolean;
-    /** Dialog with a scrim (centered when there is no anchor). */
     modal?: boolean;
     onclose: () => void;
     children: Snippet;

@@ -43,12 +43,9 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 DEFAULT_OUT = ROOT / "estudos" / "91-onda3" / "bn10-codex-3.6.json"
 
-
 def question(i):
-    # The same text as the Rust bn10 test.
     return (f"Question {i}: summarise in two sentences why incremental builds matter for a Rust "
             f"workspace with {i} crates.")
-
 
 def run_tests(filter_, out_file):
     env = dict(os.environ, OMNIGET_BENCH_OUT=str(out_file))
@@ -56,7 +53,6 @@ def run_tests(filter_, out_file):
     summary = [l for l in p.stdout.splitlines() if l.startswith("test result")]
     return {"cmd": " ".join(str(c) for c in cmd), "exit": p.returncode, "summary": summary,
             "stderr_tail": p.stderr[-1500:] if p.returncode else ""}
-
 
 def goals_of(turns, cancels, series=("app_server", "exec")):
     """The same goals for fake and real rows."""
@@ -87,7 +83,6 @@ def goals_of(turns, cancels, series=("app_server", "exec")):
         "pass": bool(cancels) and all(c["ms"] < 2000 for c in cancels)})
     return goals
 
-
 def fake(args):
     with tempfile.TemporaryDirectory() as d:
         out = pathlib.Path(d) / "bn10.jsonl"
@@ -106,7 +101,6 @@ def fake(args):
         "all_pass": all(g["pass"] for g in goals) and all(r["exit"] == 0 for r in runs),
     }
 
-
 def real(args):
     import missions_eval as me
     binary = me.codex_binary()
@@ -118,10 +112,8 @@ def real(args):
     thread = None
     for i in range(1, args.turns + 1):
         q = question(i)
-        # The app-server series: one process per turn, resumed thread, only the new message.
         a = me.codex_app_server_turn(q, work, "auto_edits", args.model, args.effort, resume=thread,
                                      timeout=args.timeout, binary=binary)
-        # The exec series: the flattened transcript on stdin, as the fallback does.
         history.append(("User", q))
         e = me.codex_exec_turn(me.render_prompt(history), work, "auto_edits", args.model, args.timeout, binary)
         history.append(("Assistant", e["text"]))
@@ -141,8 +133,6 @@ def real(args):
                      "app_server": side(a, q), "exec": side(e, me.render_prompt(history[:-1]))})
         print(f"turn {i}: app-server uncached={rows[-1]['app_server']['uncached_tokens']} "
               f"exec uncached={rows[-1]['exec']['uncached_tokens']}", flush=True)
-    # Cancel on the real app-server: 1 s after the turn started (before any
-    # answer), mirrored from session.rs (turn/interrupt, <= 0.8 s grace, kill).
     c = me.codex_app_server_turn("Count slowly from 1 to 500, one number per line.", work, "auto_edits",
                                  args.model, args.effort, cancel_after=1.0, timeout=60, binary=binary)
     cancels = [{"kind": "cancel", "server": "real", "ms": c["cancel_ms"], "status": c["status"],
@@ -161,7 +151,6 @@ def real(args):
     else:
         report["all_pass"] = all(g["pass"] for g in goals)
     return report
-
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -182,7 +171,6 @@ def main():
         print(("PASS " if g["pass"] else "FAIL ") + g["goal"] + f"  ({g['value']})")
     print("all_pass:", report["all_pass"], "->", args.out)
     return 0 if report["all_pass"] in (True, None) else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

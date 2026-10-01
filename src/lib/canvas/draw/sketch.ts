@@ -1,8 +1,3 @@
-// Own minimal rough.js (MIT idea, 02-motor-do-canvas §6.3): double outline with
-// seeded jitter and a slight bow on straight lines. The seed lives in the
-// drawing, so a shape never "boils" between frames or sessions.
-
-/** Mulberry32: tiny seeded PRNG, returns 0..1. */
 function prng(seed: number): () => number {
   let s = seed >>> 0 || 1;
   return () => {
@@ -18,7 +13,6 @@ export function randomSeed(): number {
   return Math.floor(Math.random() * 2 ** 31);
 }
 
-/** One wobbly line from a to b as a polyline (flat). */
 function roughLine(
   x0: number,
   y0: number,
@@ -30,7 +24,6 @@ function roughLine(
   const len = Math.hypot(x1 - x0, y1 - y0);
   const jit = Math.min(len * 0.04, 3) * roughness;
   const j = () => (rnd() - 0.5) * 2 * jit;
-  // Bow: the midpoint drifts sideways a little, like a hand-drawn stroke.
   const nx = -(y1 - y0) / (len || 1);
   const ny = (x1 - x0) / (len || 1);
   const bow = (rnd() - 0.5) * Math.min(len * 0.03, 4) * roughness;
@@ -48,15 +41,10 @@ function roughLine(
   return out;
 }
 
-/**
- * Sketchy outline of a closed polygon: every edge drawn twice with different
- * jitter. Returns a list of polylines.
- */
 export function roughPolygon(poly: ArrayLike<number>, seed: number, roughness = 1, passes = 2): number[][] {
   const rnd = prng(seed);
   const n = Math.floor(poly.length / 2);
   const out: number[][] = [];
-  // Smooth shapes (many points, e.g. ellipses) are drawn as whole jittered loops.
   if (n > 12) {
     for (let p = 0; p < passes; p++) {
       const loop: number[] = [];
@@ -86,7 +74,6 @@ export function roughPolygon(poly: ArrayLike<number>, seed: number, roughness = 
   return out;
 }
 
-/** Sketchy open polyline (arrows, lines): each segment wobbled, drawn twice. */
 export function roughPolyline(pts: ArrayLike<number>, seed: number, roughness = 1): number[][] {
   const rnd = prng(seed);
   const out: number[][] = [];

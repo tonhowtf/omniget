@@ -1,12 +1,4 @@
 <script lang="ts">
-  /**
-   * Procedural learning of one bot: how it does its job, kept apart from
-   * memory (what it knows about you). Feedback becomes observations; a
-   * candidate is a text overlay on a skill, evaluated on dev and holdout
-   * cases against the current behaviour before it can be promoted. Nothing
-   * is promoted on a model's word; shared procedures are never promoted
-   * automatically. Collapsed by default and loaded on first open.
-   */
   import { t } from "$lib/i18n";
   import {
     candidateTone, errorText, observationLabelKeys, promotableRun, shortTime, isAbsolutePath,
@@ -16,7 +8,6 @@
   import { invoke } from "@tauri-apps/api/core";
   import { onDestroy } from "svelte";
 
-  // `reveal`: a deep link (`section=learning`) opens the block; it only reads.
   let { botId, reveal = false }: { botId: string; reveal?: boolean } = $props();
 
   interface Policy { min_dev_cases: number; min_holdout_cases: number; min_dev_gain: number; no_holdout_regression: boolean; unknown_blocks: boolean }
@@ -51,7 +42,6 @@
   let openCandidate = $state<string | null>(null);
   let candidateView = $state<CandidateView | null>(null);
 
-  // Feedback form
   let obSkill = $state("");
   let obTask = $state("");
   let obText = $state("");
@@ -59,14 +49,12 @@
   let obKind = $state<"procedure" | "preference">("procedure");
   let revokeReason = $state<Record<string, string>>({});
 
-  // Proposal form
   let prSkill = $state("");
   let prTitle = $state("");
   let prOverlay = $state("");
   let prReason = $state("");
   let prObs = $state<Record<string, boolean>>({});
 
-  // Case form
   let caSkill = $state("");
   let caSplit = $state<"dev" | "holdout">("dev");
   let caName = $state("");
@@ -216,8 +204,6 @@
     }
   }
 
-  // A live evaluation runs in the background (it can take many minutes, more
-  // than an IPC request stays open); the screen follows it by polling.
   const watching = new Set<string>();
   let gone = false;
   onDestroy(() => (gone = true));
@@ -274,7 +260,6 @@
     void act(() => invoke("assist_learning_export", { botId, path: p }), $t("assist.learning.exported", { path: p }));
   }
 
-  /** The same export to a path typed by hand (no native dialog): a `.json` file or a folder. */
   function exportTyped() {
     const typed = exportPath.trim();
     if (!isAbsolutePath(typed)) {

@@ -1,21 +1,3 @@
-/**
- * "Work" as one unit (roadmap 3.9, S24, 82#P8): jobs, loops, missions, the
- * Central's threads and the chat's durable runs folded into one list of
- * items, each with one derived pill and one section.
- *
- * Pure on purpose: the store (`llm-work-store.svelte.ts`) feeds it what the
- * other stores already keep live from their events (`llm://job` with
- * `state_seq`, `llm://tool-ask`, `threads://event`, `assist://mission`,
- * `assist://run`), so the "needs you" badge follows an event as soon as the
- * source store applies it, with no timer of its own.
- *
- * Pill priority (82#P8, t3code `resolveSidebarThreadStatus`): approval >
- * input > decision > working > failed > queued > review > ready/stopped.
- * When two sources describe the same work (a loop and its round job, a
- * mission and its turns, a job and the durable run of the same
- * conversation, a thread and the broker's copy of its ask) the item keeps
- * the stronger pill and the work is counted once.
- */
 import type { Job, LoopDef, PendingAsk, PermissionRequest, RunView } from "$lib/stores/llm-jobs-store.svelte";
 import type { MissionRow } from "$lib/stores/assist-missions-store.svelte";
 import type { ApprovalRow, ThreadRow, UserInputRow } from "$lib/central/threads/types";
@@ -28,30 +10,16 @@ type WorkSection = "needs_you" | "running" | "queued" | "review" | "done";
 const WORK_SECTIONS: WorkSection[] = ["needs_you", "running", "queued", "review", "done"];
 
 export type WorkItem = {
-  /** `source:id`, unique in the list. */
   key: string;
   source: WorkSource;
   id: string;
   title: string;
   pill: WorkPill;
   section: WorkSection;
-  /** Where the detail lives (every item links to the page that owns it). */
   href: string;
-  /** Last activity (epoch ms): the order inside a section. */
   at: number;
-  /**
-   * What makes this state of the item new: the pending request, the job's
-   * `state_seq`, the thread's turn. Part of the notification key, so the
-   * same (item, turn, status) is announced once.
-   */
   turn: string;
-  /** The tool waiting for an answer, a failure reason. */
   detail: string | null;
-  /**
-   * Times the host started this job again by itself after the app closed or
-   * the watchdog stopped it (3.1). Such a job runs with its old
-   * `failure_reason` still set: the count says why, the pill says where.
-   */
   resumed?: number;
 };
 
@@ -60,25 +28,14 @@ type WorkInput = {
   loops: LoopDef[];
   asks: PendingAsk[];
   runs: RunView[];
-  /**
-   * Pending asks of the durable runs. Since 2.2 every broker ask is a row of
-   * `runs_permissions` and `llm_tool_asks_pending` returns them all, so the
-   * store derives these from the asks (`permissionsOfAsks`).
-   */
   permissions: Pick<PermissionRequest, "run_id" | "tool_call_id" | "action" | "state">[];
   missions: MissionRow[];
   threads: ThreadRow[];
   threadApprovals: ApprovalRow[];
   threadInputs: UserInputRow[];
-  /**
-   * Budget incidents (3.3): an `open` one pauses a scope until someone
-   * raises the ceiling or keeps it paused, so it is "needs you".
-   */
   incidents?: Pick<BudgetIncident, "id" | "scope" | "state" | "metric" | "opened_ms">[];
   now: number;
-  /** How long a finished item stays under "done recently". */
   doneWindowMs?: number;
-  /** At most this many items under "done recently". */
   doneLimit?: number;
 };
 
@@ -114,7 +71,6 @@ function sectionOf(pill: WorkPill): WorkSection {
   }
 }
 
-/** The pill of one job by itself. */
 function jobPill(state: Job["state"]): WorkPill {
   switch (state) {
     case "waiting_approval":
@@ -141,7 +97,6 @@ function isActiveJob(state: Job["state"]): boolean {
   return state === "queued" || state === "waiting_workspace" || state === "running" || state === "waiting_approval";
 }
 
-/** First meaningful line, without the mission header a mission turn carries. */
 export function titleOf(text: string | null | undefined, max = 90): string {
   const lines = (text ?? "").split("\n").map((l) => l.trim()).filter(Boolean);
   const head = /^\[Mission [A-Za-z0-9-]+ — objective\]$/.test(lines[0] ?? "");
@@ -149,7 +104,6 @@ export function titleOf(text: string | null | undefined, max = 90): string {
   return line.length > max ? `${line.slice(0, max - 1)}…` : line;
 }
 
-/** Same rule as `jobOfMission` in the missions store (kept here so this file stays pure). */
 function jobInMission(job: Pick<Job, "conversation_id">, mission: Pick<MissionRow, "conversation_id">): boolean {
   const conv = mission.conversation_id;
   if (!conv) return false;
@@ -175,7 +129,6 @@ function make(
   return { key: `${source}:${id}`, source, id, title, pill, section: sectionOf(pill), href, at, turn, detail };
 }
 
-/** Raises an item to a stronger pill (never lowers it). */
 function raise(item: WorkItem, pill: WorkPill, turn: string, detail: string | null, at: number): void {
   if (RANK[pill] < RANK[item.pill]) {
     item.pill = pill;
@@ -190,24 +143,17 @@ function jobAt(j: Job): number {
   return j.finished_ms ?? j.started_ms ?? j.created_ms;
 }
 
-/**
- * Every source folded into one list, ordered by section, then pill, then
- * the most recent first. Done items older than the window are left out, and
- * at most `doneLimit` of them stay.
- */
 export function deriveWork(input: WorkInput): WorkItem[] {
   const window = input.doneWindowMs ?? DONE_WINDOW_MS;
   const doneLimit = input.doneLimit ?? DONE_LIMIT;
   const items = new Map<string, WorkItem>();
   const asksByRequest = new Map<string, PendingAsk>();
   for (const a of input.asks) if (!asksByRequest.has(a.request_id)) asksByRequest.set(a.request_id, a);
-  /** Asks some item already accounts for (by tool call id). */
   const claimedAsks = new Set<string>();
 
   const missions = input.missions.filter((m) => m.state !== "draft");
   const missionOf = (j: Job) => missions.find((m) => jobInMission(j, m));
 
-  // Missions first, so their turns fold into them.
   for (const m of missions) {
     let pill: WorkPill;
     switch (m.state) {
@@ -248,13 +194,10 @@ export function deriveWork(input: WorkInput): WorkItem[] {
         pill = "working";
         break;
       case "interrupted":
-      // The auditor stopped it (blocked 3 times, no verdict, 20 rounds) or
-      // the token budget ran out: a person decides what next (3.7).
       case "blocked":
       case "budget_limited":
         pill = "decision";
         break;
-      // Held by a budget incident: the incident is the "needs you" item.
       case "paused":
         pill = "queued";
         break;
@@ -278,36 +221,26 @@ export function deriveWork(input: WorkInput): WorkItem[] {
     const ask = j.state === "waiting_approval" && j.request_id ? asksByRequest.get(j.request_id) : undefined;
     if (ask) claimedAsks.add(ask.tool_call_id);
     const turn = pill === "approval" ? (ask?.tool_call_id ?? j.request_id ?? String(j.state_seq ?? 0)) : String(j.state_seq ?? 0);
-    // A failure reason only while it is the job's state: an auto-resumed
-    // job (3.1) runs with its `app_restart`/`stalled` still on the row.
     const ended = j.state === "failed" || j.state === "interrupted";
     const detail = ask?.tool ?? (ended ? (j.failure_reason ?? null) : null);
     const at = jobAt(j);
 
-    // A loop round: the loop is the unit, its round can only raise it.
     const loop = j.loop_id ? items.get(`loop:${j.loop_id}`) : undefined;
     if (loop) {
       if (isActiveJob(j.state)) raise(loop, pill, turn, detail, at);
       continue;
     }
-    // A mission turn: the same, the mission is the unit.
     const mission = missionOf(j);
     if (mission) {
       const item = items.get(`mission:${mission.id}`);
       if (item && isActiveJob(j.state)) raise(item, pill, turn, detail, at);
       continue;
     }
-    // A chat turn mirrored as a job lives in its conversation: it is work
-    // while it runs or waits, and history once it ended.
     if (j.kind === "chat") {
       if (!isActiveJob(j.state)) continue;
       items.set(`job:${j.id}`, make("job", j.id, titleOf(j.prompt), pill, `/llm?conversation=${encodeURIComponent(j.conversation_id)}`, at, turn, detail));
       continue;
     }
-    // A company's heartbeat run is a job (`kind = "company"`, conversation
-    // `company:<company>:<staff>:<generation>`): listed like any job, but
-    // linked to the company's runs, unless a tool question waits (answered
-    // on the job's row).
     const company = j.kind === "company" && pill !== "approval" ? /^company:([^:]+):/.exec(j.conversation_id)?.[1] : undefined;
     const href = company ? `/llm/company/${encodeURIComponent(company)}/activity` : `/llm/jobs?job=${encodeURIComponent(j.id)}`;
     const item = make("job", j.id, titleOf(j.prompt), pill, href, at, turn, detail);
@@ -315,7 +248,6 @@ export function deriveWork(input: WorkInput): WorkItem[] {
     items.set(`job:${j.id}`, item);
   }
 
-  // Threads of the Central. Their pending requests are the thread's own.
   const threadRequests = new Set<string>();
   for (const a of input.threadApprovals) if (a.status === "pending") threadRequests.add(a.requestId);
   for (const u of input.threadInputs) if (u.status === "pending") threadRequests.add(u.requestId);
@@ -342,8 +274,6 @@ export function deriveWork(input: WorkInput): WorkItem[] {
     }
   }
 
-  // The chat's durable runs: only what waits for a person. A run whose
-  // conversation already has a live job item raises that item instead.
   const pendingByRun = new Map<string, WorkInput["permissions"]>();
   for (const p of input.permissions) {
     if (p.state !== "pending") continue;
@@ -370,16 +300,12 @@ export function deriveWork(input: WorkInput): WorkItem[] {
     items.set(`run:${r.id}`, make("run", r.id, titleOf(r.input_preview), pill, href, r.updated_ms, turn, first?.action ?? null));
   }
 
-  // A question nobody above owns (the pet, an old chat turn): still counted,
-  // unless it is the broker's copy of a thread's request.
   for (const a of input.asks) {
     if (claimedAsks.has(a.tool_call_id) || threadRequests.has(a.tool_call_id)) continue;
     claimedAsks.add(a.tool_call_id);
     items.set(`ask:${a.tool_call_id}`, make("ask", a.tool_call_id, a.preview ? titleOf(a.preview) : a.tool, "approval", "/llm", input.now, a.tool_call_id, a.tool));
   }
 
-  // A budget ceiling crossed: the scope starts nothing until someone
-  // raises it or keeps it paused (kept-paused ones no longer ask).
   for (const inc of input.incidents ?? []) {
     if (inc.state !== "open") continue;
     items.set(
@@ -404,7 +330,6 @@ export type WorkSummary = {
   running: number;
   queued: number;
   review: number;
-  /** The strongest pill across the list: what the header shows. */
   top: WorkPill | null;
 };
 
@@ -422,18 +347,10 @@ export function groupBySection(items: WorkItem[]): { section: WorkSection; items
   return WORK_SECTIONS.map((section) => ({ section, items: items.filter((i) => i.section === section) }));
 }
 
-// ── Notifications: once per (item, turn, status) (82#P8) ────────────────
-
 export function notificationKey(item: Pick<WorkItem, "key" | "turn" | "pill">): string {
   return `${item.key}|${item.turn}|${item.pill}`;
 }
 
-/**
- * Whether this state of an item is worth telling the person about: every
- * "needs you"; a failure, a finish or a finish waiting for review of
- * background work (a job, a loop, a mission) that happened after `sinceMs`. A chat thread going idle is not
- * news, and what ended before this session is history, not a notification.
- */
 function notifiable(item: WorkItem, sinceMs: number): boolean {
   if (item.section === "needs_you") return true;
   if (item.pill !== "failed" && item.pill !== "ready" && item.pill !== "review") return false;
@@ -441,21 +358,15 @@ function notifiable(item: WorkItem, sinceMs: number): boolean {
   return item.at >= sinceMs;
 }
 
-/**
- * The items to announce now: notifiable and not announced before. `seen`
- * is the persisted set of keys, so reopening the app does not repeat any.
- */
 export function freshNotifications(items: WorkItem[], seen: ReadonlySet<string>, sinceMs: number): WorkItem[] {
   return items.filter((i) => notifiable(i, sinceMs) && !seen.has(notificationKey(i)));
 }
 
-/** The seen keys with `added`, keeping only the newest `cap`. */
 export function rememberSeen(seen: readonly string[], added: readonly string[], cap = 500): string[] {
   const next = seen.filter((k) => !added.includes(k)).concat(added);
   return next.length > cap ? next.slice(next.length - cap) : next;
 }
 
-/** The color family of a pill, the same names the job and mission lists use. */
 export function pillTone(pill: WorkPill): "blue" | "orange" | "green" | "red" | "grey" {
   switch (pill) {
     case "approval":
@@ -474,11 +385,6 @@ export function pillTone(pill: WorkPill): "blue" | "orange" | "green" | "red" | 
   }
 }
 
-/**
- * The asks as the durable runs' pending rows (2.2): the broker writes each ask
- * with `run_id` = the turn's request id and the same `tool_call_id`, which is
- * also a thread's `requestId`, so the dedupe above holds.
- */
 export function permissionsOfAsks(asks: PendingAsk[]): WorkInput["permissions"] {
   return asks.map((a) => ({ run_id: a.request_id, tool_call_id: a.tool_call_id, action: a.tool, state: "pending" as const }));
 }

@@ -1,9 +1,4 @@
 <script lang="ts">
-  /**
-   * Uma linha de filtros acima de tudo o que eles escopam: período primeiro
-   * (7D/30D/90D/ano/tudo), depois ferramenta, conta, projeto e modelo.
-   * Seletores nativos: teclado e leitor de tela de graça.
-   */
   import { t } from "$lib/i18n";
   import { RANGE_KEYS, type RangeKey } from "$lib/central/sessions";
 

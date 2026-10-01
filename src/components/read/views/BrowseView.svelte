@@ -41,7 +41,6 @@
     try {
       localStorage.setItem(LKEY, JSON.stringify({ source: current, langs, nsfw }));
     } catch {
-      /* ignore */
     }
   });
 

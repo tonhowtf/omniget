@@ -10,10 +10,6 @@
   import PlanReview from "./ui/PlanReview.svelte";
   import MaintenanceCard from "./MaintenanceCard.svelte";
 
-  /// Maintenance: repairs with a real effect for this system (DNS cache,
-  /// "Open With" list, Spotlight, Quick Look, disk check; sfc and DISM on
-  /// Windows; fstrim on Linux). Each "Run" goes through a one-item plan of
-  /// kind `maintenance`; the tool's last lines land in the receipt.
   let { caps }: { caps: Caps } = $props();
 
   const mod = moduleById("maintenance");
@@ -53,7 +49,6 @@
   async function run(task: MaintenanceTask) {
     error = null;
     try {
-      // Registers the task as a plan candidate; PlanReview builds the plan from its id.
       await api.ui("maintenance.plan", { ids: [task.id] });
       reviewIds = [planItemId(task.id)];
       reviewTitle = $t("washmybelly.maintenance.review", { name: title(task) }) as string;

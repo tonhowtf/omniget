@@ -1,13 +1,4 @@
 <script lang="ts">
-  /**
-   * Full guard report: the commands the component will execute (always shown
-   * first, highlighted), then findings grouped by validator with file:line
-   * and the offending snippet (secrets already redacted by the backend).
-   *
-   * When `onproceed` is given and the level is `block`, the proceed button
-   * needs two presses ("install anyway" → "confirm"), like the skill scan
-   * dialog. Nothing here ever calls a component safe.
-   */
   import { onMount } from "svelte";
   import { t, locale } from "$lib/i18n";
   import GuardBadge from "./GuardBadge.svelte";

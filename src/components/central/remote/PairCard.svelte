@@ -1,8 +1,4 @@
 <script lang="ts">
-  /**
-   * Pair a device: one-time link (10 min) with the secret after the `#`,
-   * shown as a QR code and as text. The scope is kept on the server side.
-   */
   import { onDestroy } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "$lib/i18n";
@@ -57,7 +53,6 @@
     try {
       await invoke("remote_pair_cancel");
     } catch {
-      // Nothing pending.
     }
     link = null;
     stopClock();

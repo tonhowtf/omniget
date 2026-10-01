@@ -1,9 +1,3 @@
-// YT Music playback engine (W5): an <audio> element owned by TubeHost, so
-// music keeps playing across the whole app. Streams come from the local proxy
-// (`api.streams(id, true)`); the next track is resolved ahead of time and
-// warmed ~5 s before the end so tracks change without a gap you can hear.
-// Endless radio keeps the queue topped up; loudness normalization only
-// attenuates, so it rides on the element volume (no Web Audio, no CORS).
 import * as api from "./api";
 import { isWebKit, loudnessGain, mediaUrl, pickAudio } from "./dash";
 import { thumbUrl } from "./format";
@@ -24,29 +18,21 @@ export const mplayer = $state({
   muted: false,
   shuffle: false,
   repeat: "off" as RepeatMode,
-  /** Endless radio: keep appending related songs when the queue ends. */
   radio: false,
-  /** Queue source ("album:MPRE..", "playlist:PL..", "radio:<id>"...). */
   context: "" as string,
   continuation: null as string | null,
   error: null as string | null,
 
-  /** Playlist id the queue came from (for `next` continuations). */
   playlistId: null as string | null,
-  /** Browse ids of the Lyrics / Related tabs for the current song. */
   lyricsId: null as string | null,
   relatedId: null as string | null,
-  /** Last OmniTube engine that played (music bar vs mini player). */
   active: false,
-  /** Loading more songs into the queue. */
   extending: false,
 });
 
 export function currentSong(): SongItem | null {
   return mplayer.index >= 0 ? mplayer.queue[mplayer.index] ?? null : null;
 }
-
-// ------------------------------------------------------------ persistence
 
 const LS = "omnitube.music";
 type Saved = {
@@ -80,7 +66,6 @@ function restore() {
     mplayer.continuation = s.continuation ?? null;
     mplayer.playlistId = s.playlistId ?? null;
   } catch {
-    /* corrupt: start empty */
   }
 }
 restore();
@@ -106,20 +91,15 @@ function persist() {
       };
       localStorage.setItem(LS, JSON.stringify(s));
     } catch {
-      /* quota */
     }
   }, 800);
 }
 
-// ------------------------------------------------------------ element
-
 let audio: HTMLAudioElement | null = null;
 let gain = 1;
-/** Song the element currently has loaded (to resume a restored queue). */
 let loadedId: string | null = null;
 let fallbackFor: string | null = null;
 
-/** TubeHost hands over its <audio>. */
 export function attachAudio(el: HTMLAudioElement) {
   if (audio === el) return;
   audio = el;
@@ -156,8 +136,6 @@ function applyVolume() {
   audio.muted = mplayer.muted;
 }
 
-// ------------------------------------------------------------ stream cache
-
 type Resolved = { set: StreamSet; url: string };
 const cache = new Map<string, Resolved>();
 const inflight = new Map<string, Promise<Resolved>>();
@@ -187,8 +165,6 @@ async function resolve(id: string, fallback = false): Promise<Resolved> {
     inflight.delete(id);
   }
 }
-
-// ------------------------------------------------------------ playing
 
 let loadSeq = 0;
 
@@ -234,7 +210,6 @@ async function start(i: number, at = 0, autoplay = true): Promise<void> {
       mplayer.buffering = false;
     }
   } else mplayer.buffering = false;
-  // up-next info (lyrics/related tabs), and radio top-up
   void refreshNext(song, seq);
   void prefetchNext();
   void extendIfLow();
@@ -248,7 +223,6 @@ function errText(e: unknown): string {
 
 let errorStreak = 0;
 function skipAfterError() {
-  // two broken tracks in a row: stop instead of burning through the queue
   if (++errorStreak > 2) {
     errorStreak = 0;
     return;
@@ -313,14 +287,12 @@ function onEnded() {
     void start(0);
     return;
   }
-  // queue ran out: radio keeps going if we could extend it
   void extendIfLow(true).then((added) => {
     if (added) void start(mplayer.index + 1);
     else mplayer.playing = false;
   });
 }
 
-// the next track: resolve early, warm the proxy connection near the end
 let warmed: string | null = null;
 let warmer: HTMLAudioElement | null = null;
 
@@ -337,7 +309,6 @@ async function prefetchNext() {
   try {
     await resolve(s.id);
   } catch {
-    /* resolved again when it plays */
   }
 }
 
@@ -358,8 +329,6 @@ function warmNext() {
   warmer.load();
 }
 
-// ------------------------------------------------------------ queue sources
-
 function merge(first: SongItem, page: QueuePage): SongItem[] {
   const tracks = page.tracks.filter((t) => t.id !== first.id);
   return [first, ...tracks];
@@ -367,7 +336,6 @@ function merge(first: SongItem, page: QueuePage): SongItem[] {
 
 let nextInfoFor: string | null = null;
 
-/** Lyrics/Related tab ids come from the song's own `next` page. */
 async function refreshNext(song: SongItem, seq: number) {
   if (nextInfoFor === song.id) return;
   nextInfoFor = song.id;
@@ -383,7 +351,6 @@ async function refreshNext(song: SongItem, seq: number) {
   }
 }
 
-/** Keep ≥ 3 songs ahead when the radio is on (or when `force`, e.g. the queue ended). */
 async function extendIfLow(force = false): Promise<boolean> {
   if (mplayer.extending) return false;
   const left = mplayer.queue.length - 1 - mplayer.index;
@@ -392,7 +359,6 @@ async function extendIfLow(force = false): Promise<boolean> {
     if (!force && left > 2) return false;
     if (!endless && !mplayer.continuation) return false;
   } else if (!force || !endless) {
-    // an album/playlist only turns into a radio once it has ended
     return false;
   }
   const seed = mplayer.queue[mplayer.queue.length - 1];
@@ -416,7 +382,6 @@ async function extendIfLow(force = false): Promise<boolean> {
   }
 }
 
-/** Replace the queue and play `startIndex`. */
 export async function playSongs(songs: SongItem[], startIndex = 0, context = ""): Promise<void> {
   if (!songs.length) return;
   mplayer.queue = [...songs];
@@ -429,7 +394,6 @@ export async function playSongs(songs: SongItem[], startIndex = 0, context = "")
   await start(mplayer.shuffle ? 0 : Math.min(startIndex, songs.length - 1));
 }
 
-/** Play one song and fill the queue with its up-next/radio. */
 export async function playSong(song: SongItem, opts: { playlistId?: string | null; radio?: boolean } = {}): Promise<void> {
   mplayer.queue = [song];
   mplayer.context = opts.playlistId ? `playlist:${opts.playlistId}` : `radio:${song.id}`;
@@ -437,7 +401,6 @@ export async function playSong(song: SongItem, opts: { playlistId?: string | nul
   mplayer.continuation = null;
   mplayer.radio = opts.radio ?? !opts.playlistId;
   original = null;
-  // the up-next request below also brings the lyrics/related ids
   nextInfoFor = song.id;
   mplayer.lyricsId = null;
   mplayer.relatedId = null;
@@ -454,12 +417,10 @@ export async function playSong(song: SongItem, opts: { playlistId?: string | nul
     persist();
     void prefetchNext();
   } catch {
-    /* the song itself still plays */
   }
   await started;
 }
 
-/** Start a radio from a song, an artist radio playlist or a mix. */
 export async function playRadio(videoId: string, playlistId?: string | null): Promise<void> {
   mplayer.context = `radio:${playlistId ?? videoId}`;
   mplayer.radio = true;
@@ -482,7 +443,6 @@ export async function playRadio(videoId: string, playlistId?: string | null): Pr
   }
 }
 
-/** Play a whole playlist/album by id (fetches it). `shuffle` shuffles first. */
 export async function playPlaylist(playlistId: string, shuffle = false): Promise<void> {
   try {
     const pl = await api.musicPlaylist(playlistId);
@@ -571,7 +531,6 @@ export function toggleMute(): void {
   persist();
 }
 
-/** Order before shuffling, to restore when shuffle goes off. */
 let original: SongItem[] | null = null;
 
 function shuffleAhead(from: number) {
@@ -591,7 +550,6 @@ export function toggleShuffle(): void {
   const cur = currentSong();
   if (mplayer.shuffle) {
     if (mplayer.index >= 0) {
-      // only the part after the current song moves
       const head = mplayer.queue.slice(0, mplayer.index + 1);
       const tail = mplayer.queue.slice(mplayer.index + 1);
       original = [...mplayer.queue];
@@ -649,7 +607,6 @@ export function playAt(i: number): void {
   if (i >= 0 && i < mplayer.queue.length) void start(i);
 }
 
-/** Clear everything (bar's close). */
 export function stopMusic(): void {
   report();
   loadSeq++;
@@ -672,7 +629,6 @@ export function stopMusic(): void {
   setMeta("music", null, null);
 }
 
-/** Like state change from the bar or Now playing (optimistic). */
 export async function rateSong(song: SongItem, like: boolean | null): Promise<void> {
   const before = song.liked ?? null;
   song.liked = like;
@@ -688,8 +644,6 @@ export async function rateSong(song: SongItem, like: boolean | null): Promise<vo
   }
 }
 
-// ------------------------------------------------------------ lyrics
-
 const lyricsCache = new Map<string, Lyrics | null>();
 
 export async function lyricsFor(song: SongItem): Promise<Lyrics | null> {
@@ -699,8 +653,6 @@ export async function lyricsFor(song: SongItem): Promise<Lyrics | null> {
   if (lyricsCache.size > 50) lyricsCache.delete(lyricsCache.keys().next().value as string);
   return l;
 }
-
-// ------------------------------------------------------------ session / history
 
 function artistsOf(s: SongItem): string {
   return s.artists.map((a) => a.name).join(", ");

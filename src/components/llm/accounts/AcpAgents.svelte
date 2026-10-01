@@ -1,6 +1,4 @@
 <script lang="ts">
-  // Any CLI that speaks the Agent Client Protocol becomes an agent of the
-  // roster. One read on mount (a PATH lookup), nothing polls.
   import { parseCommand } from "$lib/llm/connection-setup";
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";

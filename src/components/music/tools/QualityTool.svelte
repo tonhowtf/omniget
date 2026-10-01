@@ -1,6 +1,4 @@
 <script lang="ts">
-  // Spectrogram of a track, like Spek: a lossless file whose highs stop in a
-  // hard wall at 16-20 kHz was made from an MP3/AAC.
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { registerSemantic } from "$lib/native-agent/semantic";
@@ -42,7 +40,6 @@
       .finally(() => (loading = false));
   });
 
-  // magma-like palette: black -> purple -> orange -> yellow
   function color(v: number): [number, number, number] {
     const x = v / 255;
     const r = Math.min(255, Math.max(0, 255 * (1.5 * x - 0.1)));

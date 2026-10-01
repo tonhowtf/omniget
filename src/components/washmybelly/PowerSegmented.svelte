@@ -1,8 +1,5 @@
 <script lang="ts">
-  /// Segmented control (radio group) with a sliding thumb and arrow-key
   /// navigation. Ported from ddoemonn's "Segmented Control" on 21st.dev:
-  /// motion springs became a CSS transform transition, colours the app's
-  /// tokens, and the masked label copy became a plain label on the thumb.
   type Option = { value: string; label: string; disabled?: boolean };
   let {
     options,

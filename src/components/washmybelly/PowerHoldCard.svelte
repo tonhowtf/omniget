@@ -3,9 +3,6 @@
   import { t } from "$lib/i18n";
   import { HOLD_CHOICES, formatCountdown, holdProgress, remainingSecs, type HoldState } from "$lib/washmybelly/power";
 
-  /// "Keep performance for 30/60/120 min", then a pill that counts down
-  /// (after anubra266's compact "Countdown Timer" on 21st.dev: the digits
-  /// stayed, the flip animation became a progress ring around a clock).
   let {
     hold,
     os,

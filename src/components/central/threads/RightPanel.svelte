@@ -1,8 +1,4 @@
 <script lang="ts">
-  // Right panel of a thread: Diff, Terminal, Files, Plan, Tasks, PR. With no
-  // surface chosen it shows the launcher; letters D T F P A R open a surface
-  // (outside text fields). Every choice here is a user action, so proactive
-  // opens (big-turn diff) stop once the user touched the panel.
   import type { Snippet } from "svelte";
   import { t } from "$lib/i18n";
   import type { PanelTab } from "$lib/central/threads-ui/ui-state.svelte";
@@ -29,7 +25,6 @@
   }: {
     tab: PanelTab | null;
     counts?: Partial<Record<PanelTab, number>>;
-    /** Unavailable surfaces stay listed with a reason. */
     available?: Partial<Record<PanelTab, string | null>>;
     letters?: boolean;
     onselect: (tab: PanelTab | null) => void;
@@ -53,9 +48,6 @@
 
   let launcherEl = $state<HTMLElement | null>(null);
 
-  // Browser surface (preview module): kept outside PanelTab, remembered per
-  // thread in memory. Any other surface chosen (by the user or proactively)
-  // takes over.
   let browserThread = $derived(threadsUi.selected);
   let browserCwd = $derived.by(() => {
     const th = threadsStore.threads.find((x) => x.threadId === browserThread);
@@ -80,8 +72,6 @@
     setBrowser(false);
     onselect(id);
   }
-  // The terminal mounts on first use only (it opens a shell), then stays
-  // mounted while hidden so switching tabs never kills the session view.
   let terminalUsed = $state(false);
   $effect(() => {
     if (tab === "terminal") terminalUsed = true;
@@ -171,7 +161,6 @@
         </button>
       </div>
     {:else}
-      <!-- Tabs stay mounted once opened (terminal keeps its session, diff its scroll). -->
       <div class="surface-body" hidden={browserOn || tab !== "diff"}>{#if tab === "diff"}{@render diff()}{/if}</div>
       <div class="surface-body" hidden={browserOn || tab !== "terminal"}>{#if terminalUsed}{@render terminal()}{/if}</div>
       <div class="surface-body" hidden={browserOn || tab !== "files"}>{#if tab === "files"}{@render files()}{/if}</div>

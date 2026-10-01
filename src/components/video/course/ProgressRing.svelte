@@ -1,5 +1,4 @@
 <script lang="ts">
-  // Circular progress (after the 21st "Circle Progress" / Activity Ring).
   let { value, size = 44, stroke = 4, label = "" }: { value: number; size?: number; stroke?: number; label?: string } = $props();
 
   let r = $derived((size - stroke) / 2);

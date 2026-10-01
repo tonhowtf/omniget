@@ -1,5 +1,4 @@
 <script lang="ts">
-  // End-of-video card: next lesson/episode with a countdown ring.
   import { t } from "$lib/i18n";
   import { cancelNext, player, playNext } from "$lib/video/player.svelte";
   import VIcon from "./VIcon.svelte";

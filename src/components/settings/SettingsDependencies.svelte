@@ -10,9 +10,6 @@
   import SettingsEmptyState from "./rebrand/SettingsEmptyState.svelte";
   import { refreshYtdlpStatus } from "$lib/stores/dependency-store.svelte";
 
-  // Two parts, mounted by the settings route in different categories:
-  // "extension" (browser extension install, Integrations) and "binaries"
-  // (yt-dlp, FFmpeg and friends, Advanced). Each part reads only what it shows.
   let { part }: { part: "extension" | "binaries" } = $props();
 
   let deps = $state<DependencyStatus[]>([]);

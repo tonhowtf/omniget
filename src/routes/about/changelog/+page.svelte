@@ -81,7 +81,6 @@
   }
 </script>
 
-<!-- Native readiness: data is ready only once the fetch settles (an empty result is ready). -->
 <div class="changelog-page" data-agent-readiness={loading ? "loading" : failed ? "error" : "ready"}>
   {#if version}
     <div class="version-row">

@@ -1,6 +1,4 @@
 <script lang="ts">
-  // Diagnóstico de uma ferramenta. Login: comando de status da própria
-  // ferramenta ou só a presença de um arquivo; nenhuma credencial é lida.
   import { t } from "$lib/i18n";
   import type { DoctorReport, PathCheck } from "$lib/central/clitools";
 

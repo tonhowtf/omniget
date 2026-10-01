@@ -1,14 +1,3 @@
-/**
- * Markdown for assistant messages.
- *
- * Dynamic `marked` with gfm + breaks, nothing bundled into the route chunk,
- * plus a sanitising pass:
- * model output is untrusted text, so the HTML that comes out of `marked` goes
- * through an element/attribute allowlist before it reaches `{@html}`.
- *
- * The sanitiser needs a DOM. Without one (vitest's node environment, SSR) it
- * falls back to escaping the whole string, which is safe and merely ugly.
- */
 let loadPromise: Promise<typeof import("marked").marked> | null = null;
 
 function getMarked(): Promise<typeof import("marked").marked> {
@@ -45,11 +34,9 @@ const ALLOWED_ATTRS: Record<string, Set<string>> = {
   code: new Set(["class"]),
 };
 
-/** Only http(s) and mailto survive; `javascript:`, `data:` and friends do not. */
 function isSafeUrl(url: string): boolean {
   const trimmed = (url ?? "").trim();
   if (!trimmed) return false;
-  // Relative links inside the app are fine; a scheme must be one of three.
   if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(trimmed)) {
     const scheme = trimmed.slice(0, trimmed.indexOf(":")).toLowerCase();
     return scheme === "http" || scheme === "https" || scheme === "mailto";
@@ -70,18 +57,11 @@ function hasDom(): boolean {
 }
 
 interface SanitizeOptions {
-  /**
-   * Keep `<img>` (canvas notes). Remote http(s) and inline raster `data:`
-   * images keep `src`; a local path moves to `data-local-src` so the webview
-   * never fetches it and the caller resolves it (see canvas/notes/rich).
-   * Off by default: chat bubbles elsewhere never load images.
-   */
   images?: boolean;
 }
 
 const SAFE_DATA_IMAGE = /^data:image\/(png|jpe?g|gif|webp|avif|bmp);base64,[a-z0-9+/=\s]+$/i;
 
-/** Where an `<img src>` may point: remote, inline raster, or a local path. */
 function imageSource(src: string): { kind: "remote" | "data" | "local"; value: string } | null {
   const v = (src ?? "").trim();
   if (!v || v.startsWith("//")) return null;
@@ -102,7 +82,6 @@ function imageSource(src: string): { kind: "remote" | "data" | "local"; value: s
   }
 }
 
-/** Allowlist pass over already-parsed HTML. Returns escaped text without a DOM. */
 function sanitizeHtml(html: string, opts: SanitizeOptions = {}): string {
   if (!hasDom()) return escapeHtml(html);
   const template = document.createElement("template");
@@ -127,7 +106,6 @@ function sanitizeHtml(html: string, opts: SanitizeOptions = {}): string {
         continue;
       }
       if (!ALLOWED_TAGS.has(tag)) {
-        // Keep the text, drop the element (a stray <script> loses its body too).
         const text = tag === "script" || tag === "style" ? "" : child.textContent || "";
         child.replaceWith(document.createTextNode(text));
         continue;
@@ -157,11 +135,6 @@ export async function renderSafeMarkdown(text: string, opts: SanitizeOptions = {
   return sanitizeHtml(await renderMarkdown(text), opts);
 }
 
-/**
- * Synchronous face for Svelte: returns escaped text on the first call, then the
- * rendered HTML once `marked` has loaded and `onReady` re-runs the render.
- * `cache` is owned by the caller so a component can drop it on destroy.
- */
 export function renderSafeMarkdownSync(
   text: string,
   cache: Map<string, string>,

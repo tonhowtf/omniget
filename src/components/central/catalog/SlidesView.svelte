@@ -1,9 +1,4 @@
 <script lang="ts">
-  /**
-   * SKILL.md as slides: a title slide plus one per top section, arrow keys /
-   * Home / End, fullscreen, token count per slide and in total (~4 chars per
-   * token), so the weight of each part of the skill in the context is visible.
-   */
   import { t } from "$lib/i18n";
   import { renderSafeMarkdown } from "$lib/llm/markdown";
   import { slidesOf } from "$lib/central/catalog";

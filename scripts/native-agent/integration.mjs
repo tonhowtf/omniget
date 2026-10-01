@@ -1,6 +1,4 @@
 #!/usr/bin/env node
-// Native integration harness: the debug route provisions isolated test credentials only.
-// All observed UI operations and media use the authenticated public MCP contract.
 import {readFile,writeFile,mkdir} from 'node:fs/promises';
 import path from 'node:path';
 import assert from 'node:assert/strict';

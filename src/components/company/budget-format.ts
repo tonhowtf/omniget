@@ -1,4 +1,3 @@
-// Formatting of budget policies (scope names and metric values).
 import type { BudgetPolicy, Project, Staff } from "$lib/company/rpc";
 import { usd } from "./company-ui";
 import { tokens } from "./company-format";

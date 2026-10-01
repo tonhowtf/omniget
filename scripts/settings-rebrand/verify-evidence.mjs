@@ -1,10 +1,4 @@
 #!/usr/bin/env node
-/**
- * Integrity of the execution evidence: PNG signature, SHA-256 and dimensions of every
- * authoritative screenshot, planned case counts per mode, and locale/direction of each case.
- * File integrity only; it is not a visual approval.
- *   node scripts/settings-rebrand/verify-evidence.mjs [--dir=docs/settings-rebrand/execution/evidence]
- */
 import { readFileSync, writeFileSync, readdirSync, statSync } from "node:fs";
 import { createHash } from "node:crypto";
 import path from "node:path";
@@ -31,7 +25,6 @@ const images = rows.filter(row => row.screenshot).map(row => {
   } catch (error) { return { id: row.id, path: row.screenshot, valid: false, error: String(error) }; }
 });
 
-// Planned sizes of the default runs (see visual-audit.mjs and the handoff).
 const SECTION_COUNT = 6 + 3 + 12 + 3 + 11 + 8;
 const STATE_CASES = 6 + 6 + 6 + 1 + 5 + 5 + 5 + 5 + 3 + 1 + 5;
 const navigationMap = JSON.parse(readFileSync(path.join(root, "docs/settings-rebrand/navigation-map.json"), "utf8"));

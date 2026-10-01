@@ -1,8 +1,4 @@
 <script lang="ts">
-  /**
-   * What a mission task changed (2.4, R6): the files and diff of each job
-   * the task ran, read from the job's recorded diff (`llm_job_diff`).
-   */
   import { t } from "$lib/i18n";
   import DiffView from "$components/llm/activity/DiffView.svelte";
   import { diffReasonKey, fetchJobDiff, type JobDiffView } from "$lib/stores/llm-jobs-store.svelte";

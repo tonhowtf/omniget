@@ -1,6 +1,3 @@
-// Small shared UI state between the Batuta palette and the workspace sidebar
-// (both mounted inside Canvas.svelte), so each can ask the other for things.
-
 const SIDEBAR_KEY = 'omniget.canvas.sidebarOpen';
 
 function readSidebar(): boolean {
@@ -13,9 +10,7 @@ function readSidebar(): boolean {
 
 class CanvasUi {
   sidebarOpen = $state(readSidebar());
-  /** Bumped to ask the sidebar to open its "new workspace" form. */
   newWorkspaceAsk = $state(0);
-  /** Bumped to ask the sidebar to add a floor to the current workspace. */
   newFloorAsk = $state(0);
 
   toggleSidebar(): void {
@@ -23,7 +18,6 @@ class CanvasUi {
     try {
       localStorage.setItem(SIDEBAR_KEY, this.sidebarOpen ? '1' : '0');
     } catch {
-      // Private mode.
     }
   }
 

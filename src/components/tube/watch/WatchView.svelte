@@ -1,11 +1,4 @@
 <script lang="ts">
-  // Watch page (spec §2.6). One CSS grid so the player never remounts when
-  // switching layouts:
-  //   default  player | side      theater  player player     narrow  player
-  //            info   | side               info   | side             info
-  //            comm.  | side               comm.  | side             side
-  //                                                                  comm.
-  // Side column is 402px: the playlist being played, then "Up next".
   import { untrack } from "svelte";
   import { t } from "$lib/i18n";
   import * as api from "$lib/tube/api";

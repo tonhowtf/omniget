@@ -1,7 +1,4 @@
 <script lang="ts">
-  // Home: only the user's own things. Continue watching (remove in one click),
-  // courses in progress and recently added. Sections can be hidden and
-  // reordered; the layout lives in localStorage.
   import { onMount } from "svelte";
   import { listen } from "@tauri-apps/api/event";
   import { t } from "$lib/i18n";

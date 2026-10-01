@@ -1,13 +1,4 @@
-/**
- * Public types of the settings v3 IPC contract
- * (docs/settings-rebrand/06-api-contract.md). The envelope is camelCase; the
- * `settings` document and patches keep the snake_case names of the Rust model.
- * Secrets never travel in the snapshot: they are write-only operations.
- */
-
-/** Canonical decimal u64 ("0" or digits without a leading zero). Compare with BigInt. */
 export type Revision = string;
-/** Opaque UUID; never an absolute path. */
 type RecoveryId = string;
 
 export type SettingsSection =
@@ -57,7 +48,6 @@ export type ReadySnapshot = {
   settings: SettingsPublicV3;
   revision: Revision;
   loadStatus: Exclude<LoadStatus, { kind: "failed" }>;
-  /** Only backend effects, for the informed revision. */
   applied: boolean;
   pendingEffects: PendingEffect[];
   fieldErrors: [];
@@ -119,23 +109,15 @@ export type TypographySettings = {
   preset_name: string | null;
 };
 
-/**
- * Redacted public document (`SettingsPublicV3`). Differences from the private
- * Rust model: `proxy.password`, `advanced.twitter_manual_cookie` and
- * `bridge.token` do not exist; `has_*` booleans say whether they are set.
- */
 export type SettingsPublicV3 = {
   schema_version: number;
   appearance: {
-    /** Kept coherent by the backend for downgrade: the named theme id, or `mode`. */
     theme: string;
     language: string;
     sidebar_collapsed?: boolean;
     mode: AppearanceMode;
-    /** "omniget-desktop", a workspace preset id, or a named theme id. */
     preset: string;
     legacy_theme: string | null;
-    /** 0 = legacy workspace appearance not imported yet; 1 = imported. */
     migration_version: number;
   };
   download: {
@@ -216,7 +198,6 @@ export type SettingsPublicV3 = {
   telegram: {
     concurrent_downloads: number;
     fix_file_extensions: boolean;
-    /** `/telegram` superpower switch. */
     enabled?: boolean;
   };
   rpc: {
@@ -226,7 +207,6 @@ export type SettingsPublicV3 = {
   };
   bridge?: {
     enabled?: boolean;
-    /** 0 = automatic. */
     port?: number;
     has_token: boolean;
   };
@@ -247,7 +227,6 @@ export type SettingsPublicV3 = {
   world?: {
     enabled?: boolean;
   };
-  /** Agent canvas (Rust `CanvasSettings`); typed in `$lib/canvas/prefs.svelte`. */
   canvas?: Record<string, unknown>;
   music?: {
     enabled?: boolean;
@@ -297,7 +276,6 @@ export type SettingsPublicV3 = {
   start_with_system: boolean;
   start_minimized: boolean;
   exit_on_close: boolean;
-  /** Agents in the background (3.2): hidden start at login, closing keeps the tray. */
   run_in_background: boolean;
   portable_mode?: boolean;
   legal_acknowledged?: boolean;
@@ -316,12 +294,10 @@ export type SettingsPublicV3 = {
 const REVISION_PATTERN = /^(0|[1-9]\d{0,19})$/;
 const U64_MAX = 18446744073709551615n;
 
-/** True for a canonical decimal u64 revision. */
 export function isRevision(value: unknown): value is Revision {
   return typeof value === "string" && REVISION_PATTERN.test(value) && BigInt(value) <= U64_MAX;
 }
 
-/** Negative when a < b, zero when equal, positive when a > b. Never goes through Number. */
 export function compareRevision(a: Revision, b: Revision): number {
   const left = BigInt(a);
   const right = BigInt(b);

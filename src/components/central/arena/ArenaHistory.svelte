@@ -1,5 +1,4 @@
 <script lang="ts">
-  // Lista lateral das arenas (mais novas primeiro) com o estado e o vencedor.
   import { t } from "$lib/i18n";
   import { driverTint } from "$lib/central/threads-ui/drivers";
   import { isActive, type ArenaView } from "$lib/central/arena";

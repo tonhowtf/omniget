@@ -1,5 +1,4 @@
 <script lang="ts">
-  // Image with a seeded gradient placeholder, for thumbnails, posters and logos.
   import { hue, img } from "./util";
   import VIcon from "./VIcon.svelte";
 
@@ -11,7 +10,6 @@
     radius = "var(--radius-md)",
     fit = "cover",
   }: {
-    /** server path ("/thumb/12") or absolute URL */
     src: string | null | undefined;
     seed?: string;
     ratio?: string;

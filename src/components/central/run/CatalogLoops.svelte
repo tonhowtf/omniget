@@ -1,5 +1,4 @@
 <script lang="ts">
-  /** The catalog's loops (goal + interval + stop check + budget), each runnable as an OmniGet Loop. */
   import { onMount } from "svelte";
   import { t } from "$lib/i18n";
   import { catalogSearch, itemHref, type SearchHit } from "$lib/central/catalog";

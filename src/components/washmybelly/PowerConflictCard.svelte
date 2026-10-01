@@ -3,8 +3,6 @@
   import type { Conflict, PowerAction } from "$lib/washmybelly/power";
   import Icon from "./ui/Icon.svelte";
 
-  /// Two power managers fighting over the same knobs, and the one action
-  /// we offer: keep one, turn the others off (undoable from the receipt).
   let { conflicts, action, onResolve }: { conflicts: Conflict[]; action: PowerAction | undefined; onResolve: (id: string) => void } = $props();
 
   let keep = $derived(conflicts[0]?.keep ?? "");

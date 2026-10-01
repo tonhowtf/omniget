@@ -1,7 +1,4 @@
 <script lang="ts">
-  // SponsorBlock on the player: the "Sponsor skipped · Undo" pill with a 5 s
-  // countdown that pauses on hover (Undo Pill, 21st 29941), "Skip again"
-  // after an undo, and the "Skip sponsor ⏎" prompt for categories set to ask.
   import { fly } from "svelte/transition";
   import { cubicOut } from "svelte/easing";
   import { t } from "$lib/i18n";

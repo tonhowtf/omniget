@@ -45,7 +45,6 @@
   let updateInfo = $derived(getUpdateInfo());
   let updating = $state(false);
 
-  // ---- Location: aliases and legacy URLs normalize in place (no new history entry).
   let location = $derived(resolveSettingsLocation(page.url));
   let activeCategory = $derived<SettingsCategory>(location.tab);
 
@@ -55,7 +54,6 @@
     void goto(canonicalHref, { replaceState: true, noScroll: true, keepFocus: true });
   });
 
-  // ---- Local search: labels and help only, never values, paths or secrets.
   let searchQuery = $state("");
   let lastSearch = $state("");
   let searchInput = $state<HTMLInputElement | null>(null);
@@ -83,7 +81,6 @@
     return el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName);
   }
 
-  // Cmd/Ctrl+F focuses the local search, but never steals a field being edited.
   function onKeydown(e: KeyboardEvent) {
     if (e.key.toLowerCase() !== "f" || !(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey) return;
     if (isEditable(document.activeElement)) return;
@@ -93,15 +90,12 @@
     searchInput?.select();
   }
 
-  // ---- Focus the destination after it mounts: exact enabled control, else its
-  // section, else the page title. Plain category clicks keep focus on the nav.
   let ready = $derived(settings !== null);
   let focusedHref = "";
   $effect(() => {
     const { setting, section, canonicalHref } = location;
     if (isSearching || location.changed || !ready) return;
     if (!setting && !section) return;
-    // Once per destination: later saves re-render the panel but must not move focus.
     if (focusedHref === canonicalHref) return;
     focusedHref = canonicalHref;
     let cleanup = () => {};
@@ -127,7 +121,6 @@
     return () => { cancelled = true; cleanup(); };
   });
 
-  // ---- Reset.
   let resetOpen = $state(false);
   let resetScope = $state<ResetScope>({ kind: "app" });
   function askReset(scope: ResetScope) {
@@ -147,11 +140,10 @@
     if (retryingEffects) return;
     retryingEffects = true;
     try { for (const effect of pendingEffects) await retrySettingsEffect(effect.id); }
-    catch { /* The store keeps the effect pending; the banner stays. */ }
+    catch { }
     finally { retryingEffects = false; }
   }
 
-  // Recovered-profile banner: rendered only once its catalog key exists.
   const RECOVERED_KEY = "settings.rebrand.state.recovered";
   let recoveredFields = $derived(loadState.kind === "ready" && loadState.loadStatus.kind === "recovered" ? loadState.loadStatus.fields : []);
   let recoveredText = $derived($t(RECOVERED_KEY));
@@ -191,8 +183,6 @@
 {/snippet}
 
 {#snippet nav()}
-  <!-- The hint replaces the native placeholder, which cannot wrap and was clipped
-       in the 196 px column; it sits under the input and grows the field instead. -->
   <div class="settings-search-field">
     <span class="search-icon"><SettingsIcon name="search" size={18} /></span>
     <input
@@ -249,7 +239,6 @@
       {/if}
 
       {#if loadState.kind === "failed"}
-        <!-- Never show a form over defaults when the profile could not be read. -->
         <SettingsEmptyState error title={$t("settings.rebrand.state.unavailable")} onRetry={() => { void loadSettings().catch(() => {}); }} />
       {:else if !settings}
         <div class="settings-skeleton" role="status" aria-busy="true">
@@ -266,7 +255,6 @@
         </SettingGroup>
         {@render sectionReset("appearance")}
       {:else if activeCategory === "downloads"}
-        <!-- Cookies, channels and rules are groups inside SettingsDownloads. -->
         <SettingsDownloads />
         <SettingGroup id="templates" title={$t("omnibox.adv.templates_title")} description={$t("omnibox.adv.templates_empty")} advanced>
           <div data-setting-key="omnibox.adv.templates_title">

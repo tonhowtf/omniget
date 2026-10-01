@@ -1,6 +1,4 @@
 <script lang="ts">
-  // Transcript of a video, audio or voice message: timestamps that seek
-  // (or open the player there) and copy buttons. Runs only when asked.
   import { onMount } from "svelte";
   import { listen } from "@tauri-apps/api/event";
   import { writeText } from "@tauri-apps/plugin-clipboard-manager";
@@ -20,10 +18,8 @@
   }: {
     chat: ChatRef;
     messageId: number;
-    /** Playback position, to highlight the segment being spoken. */
     current?: number;
     dark?: boolean;
-    /** Start right away instead of waiting for the button. */
     auto?: boolean;
     onseek?: (sec: number) => void;
   } = $props();
@@ -48,7 +44,6 @@
     list.children[activeIdx]?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   });
 
-  // New item in the player: show its cached transcript or the button again.
   let lastKey = "";
   $effect(() => {
     const key = `${chat.chat_type}:${chat.id}:${messageId}`;
@@ -58,7 +53,6 @@
     error = null;
     busy = false;
     progress = null;
-    // One made earlier (here or by an agent) shows without asking again.
     if (!result) {
       const c = chat;
       const m = messageId;
@@ -76,7 +70,6 @@
 
   onMount(() => {
     if (auto && !result) {
-      // Give the cached lookup a moment before starting real work.
       setTimeout(() => {
         if (!result && !busy) void run(false);
       }, 300);
@@ -108,7 +101,6 @@
     try {
       let r: Transcript;
       if (native) {
-        // Telegram may still be working on it; ask again a few times.
         let n = await tg3.transcribeNative(chat, messageId);
         for (let i = 0; n.pending && i < 8 && key === lastKey; i++) {
           await wait(4000);
@@ -140,14 +132,12 @@
       await writeText(text);
       showToast("success", $t("telegram.common.copied") as string);
     } catch {
-      /* clipboard unavailable */
     }
   }
 </script>
 
 <script module lang="ts">
   import type { Transcript as T } from "./api";
-  // Transcripts already fetched in this session (the backend caches on disk too).
   const store = new Map<string, T>();
   function cached(chat: { id: number; chat_type: string }, messageId: number): T | null {
     return store.get(`${chat.chat_type}:${chat.id}:${messageId}`) ?? null;

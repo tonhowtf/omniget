@@ -79,7 +79,6 @@
       showToast("error", $t("downloads.tools.stream_links.no_folder"));
       return;
     }
-    // A video-only stream gets the best audio merged in, like lux does with DASH.
     const formatId = s.kind === "video" ? `${s.format_id}+bestaudio/${s.format_id}` : s.format_id;
     try {
       await invoke("download_from_url", {

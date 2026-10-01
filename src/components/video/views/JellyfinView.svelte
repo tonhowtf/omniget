@@ -1,6 +1,4 @@
 <script lang="ts">
-  // Jellyfin / Emby browser: libraries, then paged items, then series with
-  // seasons and episodes. The server's own Continue and Next up come first.
   import { t } from "$lib/i18n";
   import { showToast } from "$lib/stores/toast-store.svelte";
   import * as api from "$lib/video/api";
@@ -33,12 +31,10 @@
   let sources = $state<SourceInfo[] | null>(null);
   let error = $state<string | null>(null);
 
-  // root
   let views = $state<JfView[] | null>(null);
   let resume = $state<JfItem[]>([]);
   let nextUp = $state<JfItem[]>([]);
 
-  // folder / library
   let item = $state<JfItem | null>(null);
   let items = $state<JfItem[] | null>(null);
   let total = $state(0);
@@ -46,7 +42,6 @@
   let qLive = $state("");
   let loadingMore = $state(false);
 
-  // series
   let seasons = $state<JfItem[] | null>(null);
   let season = $state<string | null>(null);
   let episodes = $state<JfItem[] | null>(null);
@@ -71,7 +66,6 @@
     return () => clearTimeout(h);
   });
 
-  // root: libraries + continue + next up
   $effect(() => {
     if (!src || parent) return;
     const id = src.id;
@@ -89,7 +83,6 @@
       });
   });
 
-  // a parent: find out what it is
   $effect(() => {
     if (!src || !parent) return;
     const id = src.id;
@@ -120,7 +113,6 @@
       .catch((e) => (error = errText(e)));
   });
 
-  // episodes of the chosen season
   $effect(() => {
     if (!src || !season) return;
     const id = src.id;
@@ -134,7 +126,6 @@
       .catch((e) => (error = errText(e)));
   });
 
-  // plain folders / libraries: paged items with search
   $effect(() => {
     if (!src || !parent || !item || item.type === "Series" || item.type === "Season") return;
     const id = src.id;

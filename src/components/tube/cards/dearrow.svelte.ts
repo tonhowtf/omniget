@@ -1,12 +1,8 @@
-// DeArrow titles/thumbnails for the cards. Cards ask for their id when they
-// scroll into view; ids are batched into one `tube_dearrow` call.
 import * as api from "$lib/tube/api";
 import type { DeArrow } from "$lib/tube/types";
 
 export const dearrow = $state({
-  /** id -> branding (null = asked, nothing better than the original). */
   map: {} as Record<string, DeArrow | null>,
-  /** Cards where the person flipped back to the original title/thumbnail. */
   original: {} as Record<string, boolean>,
 });
 
@@ -24,7 +20,6 @@ async function flush() {
       const res = await api.dearrow(chunk);
       for (const id of chunk) dearrow.map[id] = res[id] ?? null;
     } catch {
-      // Off or unreachable: keep the originals, retry on a later scroll.
       for (const id of chunk) asked.delete(id);
     }
   }

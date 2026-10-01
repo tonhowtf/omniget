@@ -1,28 +1,4 @@
 #!/usr/bin/env node
-// IPC contract check between the Rust side and the frontend.
-//
-// Fails when:
-//   - the frontend invokes a command that `generate_handler!` in
-//     src-tauri/src/lib.rs does not register (the call would reject at run
-//     time with "command not found");
-//   - the frontend listens for an event that nothing emits, neither Rust
-//     (emit / emit_to / emit_all / emit_filter / any emit helper) nor the
-//     frontend itself (emit / emitTo from @tauri-apps/api/event);
-//   - an invoke or listen target cannot be resolved to a name and is not in
-//     scripts/ipc-allowlist.json.
-//
-// Commands registered but never invoked are printed as info only: the
-// CLI, MCP and tests reach some of them, and removing one is a judgement call.
-//
-// Resolution is lexical, not a type checker. It understands string literals,
-// ternaries of literals, `const X = "..."` (also imported from another
-// module), `OBJ.key` over object literals, template literals (as a prefix
-// pattern), and wrapper functions that forward a parameter to invoke/listen
-// (their call sites are resolved in the same file and in files importing them).
-//
-//   node scripts/check-ipc.mjs            # report, exit 1 on violations
-//   node scripts/check-ipc.mjs --json     # machine-readable
-//   node scripts/check-ipc.mjs --verbose  # also list every resolved target
 
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { join, relative, dirname, extname, resolve } from "node:path";
@@ -47,19 +23,9 @@ function walk(dir, exts, out = []) {
   return out;
 }
 
-// ---------------------------------------------------------------------------
-// Lexers. Each returns two strings of the same length as the source:
-//   code: comments blanked, strings intact (to read literal values)
-//   mask: comments and string contents blanked (to search and balance brackets)
-// Newlines are kept so offsets map to the same line numbers.
-// ---------------------------------------------------------------------------
-
 const REGEX_PREV = new Set(["", "(", ",", "=", ":", "[", "!", "&", "|", "?", "{", "}", ";", "+", "-", "*", "%", "<", ">", "~", "^"]);
 const REGEX_WORDS = new Set(["return", "typeof", "case", "do", "else", "in", "of", "new", "delete", "void", "throw", "yield", "await"]);
 
-// Lexes JS/TS in src[from, to). With `stopAtClose`, stops at the first `}`
-// that closes a brace not opened inside the range (a Svelte `{...}` tag) and
-// returns its index.
 function lexJs(src, from, to, code, mask, stopAtClose = false) {
   const blank = (a, b, keepCode = false) => {
     for (let k = a; k < b; k++) {
@@ -70,11 +36,10 @@ function lexJs(src, from, to, code, mask, stopAtClose = false) {
   };
   let i = from;
   let depth = 0;
-  const tpl = []; // brace depth at each open `${`
+  const tpl = [];
   let prev = "";
   let prevWord = "";
   const scanTemplate = () => {
-    // i points just past a backtick or a closing `}` of `${}`.
     while (i < to) {
       const c = src[i];
       if (c === "\\") {
@@ -184,8 +149,6 @@ function lexScript(src) {
   return { code: code.join(""), mask: mask.join("") };
 }
 
-// Svelte: script blocks are lexed whole; in the markup only `{...}` tags are
-// code, everything else (text, attribute strings, style) is blanked.
 function lexSvelte(src) {
   const code = src.split("").map((ch) => (ch === "\n" ? "\n" : " "));
   const mask = code.slice();
@@ -285,7 +248,6 @@ function lexRust(src) {
       continue;
     }
     if (c === "'") {
-      // Char literal ('a', '\n', '\u{1F600}') or a lifetime ('a).
       const ch = /^'(\\u\{[0-9a-fA-F]+\}|\\.|[^\\'])'/u.exec(src.slice(i, i + 12));
       if (ch) {
         blank(i + 1, i + ch[0].length - 1, true);
@@ -298,18 +260,12 @@ function lexRust(src) {
   return { code: code.join(""), mask: mask.join("") };
 }
 
-// ---------------------------------------------------------------------------
-// Bracket helpers over a masked string.
-// ---------------------------------------------------------------------------
-
 const OPEN = { "(": ")", "[": "]", "{": "}" };
 const CLOSE = new Set([")", "]", "}"]);
 
-// Skips a TS generic `<...>` starting at `i` (src[i] === "<"). `=>` inside
-// does not close it.
 function skipGeneric(mask, i) {
   let d = 0;
-  let inner = 0; // (), [] and {} of type literals inside the generic
+  let inner = 0;
   for (let j = i; j < mask.length && j < i + 4000; j++) {
     const c = mask[j];
     if (OPEN[c]) inner++;
@@ -325,7 +281,6 @@ function skipGeneric(mask, i) {
   return -1;
 }
 
-// Given the index of an opening paren, returns { args: [[a,b]...], end }.
 function splitArgs(mask, open) {
   const args = [];
   let d = 0;
@@ -365,15 +320,11 @@ const lineOf = (text, index) => {
   return n;
 };
 
-// ---------------------------------------------------------------------------
-// Frontend model.
-// ---------------------------------------------------------------------------
-
 const frontFiles = walk(join(ROOT, "src"), [".ts", ".js", ".mjs", ".svelte"]).filter(
   (f) => !/\.(test|spec)\.(ts|js|mjs)$/.test(f) && !f.endsWith(".d.ts"),
 );
 
-const files = new Map(); // abs path -> { path, src, code, mask, imports, consts, objects, functions }
+const files = new Map();
 for (const abs of frontFiles) {
   const src = readFileSync(abs, "utf8");
   const { code, mask } = abs.endsWith(".svelte") ? lexSvelte(src) : lexScript(src);
@@ -392,7 +343,6 @@ function resolveModule(fromAbs, spec) {
   return cands.find((c) => files.has(c)) ?? null;
 }
 
-// import { a, b as c } from "x"  ->  local name -> { file, name }
 function parseImports(f) {
   const out = new Map();
   const re = /\bimport\s+(?:type\s+)?\{([^}]*)\}\s*from\s*(["'])([^"']+)\2/g;
@@ -422,7 +372,6 @@ function stringValue(text) {
   return null;
 }
 
-// Top-level `const NAME = <literal>` (optionally typed / `as const`).
 function findConst(f, name) {
   const re = new RegExp(`(?<![\\w$.])(?:const|let|var)\\s+${name}\\s*(?::[^=]+)?=\\s*`, "g");
   let m;
@@ -437,7 +386,6 @@ function findConst(f, name) {
   return null;
 }
 
-// `OBJ = { key: "value", ... }` -> value of key.
 function findObjectKey(f, obj, key) {
   const re = new RegExp(`(?<![\\w$.])(?:const|let|var)\\s+${obj}\\s*(?::[^=]+)?=\\s*\\{`, "g");
   const m = re.exec(f.mask);
@@ -459,17 +407,13 @@ function findObjectKey(f, obj, key) {
   return stringValue(f.code.slice(start, end).replace(/\s+as\s+const\s*$/, ""));
 }
 
-// Function-like definitions with their parameter names and body range.
 function parseFunctions(f) {
   if (f.functions) return f.functions;
   const out = [];
   const mask = f.mask;
   const heads = [
-    // function name<T>(
     /\bfunction\s*\*?\s*([A-Za-z_$][\w$]*)?\s*(?=[<(])/g,
-    // name = async <T>(  |  name: (   |  name = function
     /([A-Za-z_$][\w$]*)\s*[:=]\s*(?:async\s*)?(?=[<(])/g,
-    // method: async name<T>( ... ) {
     /(?:^|[\s,{;])(?:async\s+|static\s+|public\s+|private\s+)*([A-Za-z_$][\w$]*)\s*(?=[<(])/g,
   ];
   const KEYWORDS = new Set(["if", "for", "while", "switch", "catch", "function", "return", "await", "typeof", "new", "import", "super", "with"]);
@@ -490,7 +434,6 @@ function parseFunctions(f) {
       const { args } = splitArgs(mask, j);
       let k = close + 1;
       while (/\s/.test(mask[k] ?? "")) k++;
-      // Optional return type: skip to `=>` or `{` at depth 0.
       if (mask[k] === ":") {
         let d = 0;
         for (k = k + 1; k < mask.length; k++) {
@@ -498,8 +441,6 @@ function parseFunctions(f) {
           if (c === "<" || c === "(" || c === "[") d++;
           else if ((c === ">" && mask[k - 1] !== "=") || c === ")" || c === "]") d--;
           else if (c === "{" && d === 0 && /[\s)>\]]/.test(mask[k - 1])) {
-            // `{` right after a type token is a type literal only when it
-            // follows `:`/`|`/`&`/`<`; after whitespace it is the body.
             const before = mask.slice(0, k).trimEnd().slice(-1);
             if (!"|&<,:".includes(before)) break;
             k = matchBrace(mask, k);
@@ -553,14 +494,11 @@ function enclosingWithParam(f, pos, ident) {
   return best;
 }
 
-// Resolves an argument expression to names.
-// Returns { names: [{exact}|{prefix}], dynamic: string|null }.
 function resolveExpr(f, a, b, depth = 0) {
   const text = f.code.slice(a, b).trim();
   const maskText = f.mask.slice(a, b);
   const lit = stringValue(text.replace(/\s+as\s+[\w$.<>[\]| ]+$/, ""));
   if (lit) return { names: [lit], dynamic: null };
-  // Ternary at top level.
   let d = 0;
   let q = -1;
   let colon = -1;
@@ -582,8 +520,6 @@ function resolveExpr(f, a, b, depth = 0) {
   if (member) {
     const v = lookup(f, member[1], (file, name) => findObjectKey(file, name, member[2]));
     if (v) return { names: [v], dynamic: null };
-    // `plan.command` where plans are built in this file as `{ command: "x" }`:
-    // every such literal is a possible target.
     const swept = propertyLiterals(f, member[2]);
     if (swept.length) return { names: swept, dynamic: null };
     return { names: [], dynamic: bare };
@@ -600,7 +536,6 @@ function resolveExpr(f, a, b, depth = 0) {
   return { names: [], dynamic: bare.replace(/\s+/g, " ") };
 }
 
-// Every `key: "literal"` in the file whose value looks like a command name.
 function propertyLiterals(f, key) {
   const out = [];
   const re = new RegExp(`(?<![\\w$.])${key}\\s*:\\s*(?=["'\`])`, "g");
@@ -615,8 +550,6 @@ function propertyLiterals(f, key) {
   return out;
 }
 
-// `for (const [name, fn] of [["a", ...], ["b", ...]])` or
-// `for (const name of ["a", "b"])`: the literals the binding takes.
 function forOfBinding(f, pos, ident) {
   const mask = f.mask;
   const re = /\bfor\s*\(\s*(?:const|let|var)\s+/g;
@@ -626,7 +559,7 @@ function forOfBinding(f, pos, ident) {
     const open = mask.indexOf("(", m.index);
     const close = matchBrace(mask, open);
     let k = m.index + m[0].length;
-    let slot = -1; // -1: plain binding; n: n-th element of an array pattern
+    let slot = -1;
     let afterBinding;
     if (mask[k] === "[") {
       const pat = splitArgs(mask.slice(0, k) + "(" + mask.slice(k + 1), k);
@@ -684,15 +617,12 @@ function importers(target, name) {
   return out;
 }
 
-// `import Name from "spec"` -> resolved file.
 function defaultImport(f, name) {
   const re = new RegExp(`\\bimport\\s+${name}\\s+from\\s*(["'])([^"']+)\\1`);
   const m = re.exec(f.code);
   return m ? resolveModule(f.abs, m[2]) : null;
 }
 
-// A wrapper handed to a child component as a prop (`<Tab onAction={action} />`
-// or `<Tab {action} />`): the child calls it under the prop name.
 function propForwards(f, fnName) {
   if (!f.abs.endsWith(".svelte")) return [];
   const out = [];
@@ -708,7 +638,6 @@ function propForwards(f, fnName) {
   return out;
 }
 
-// Finds `callee(` call sites (not definitions) in the masked text.
 function* callSites(f, callee, { member = "none" } = {}) {
   const lead = member === "only" ? "(?<=\\.)" : member === "also" ? "(?<![\\w$])" : "(?<![\\w$.])";
   const re = new RegExp(`${lead}${callee.replace(/\$/g, "\\$")}\\s*(?=[<(])`, "g");
@@ -724,17 +653,15 @@ function* callSites(f, callee, { member = "none" } = {}) {
     }
     if (f.mask[j] !== "(") continue;
     const { args, end } = splitArgs(f.mask, j);
-    // A method definition `name(a, b) {` is not a call.
     const after = f.mask.slice(end + 1, end + 40);
     if (/^\s*(:[^=;]*)?\{/.test(after) && member !== "only" && !/[=(,:?!&|]\s*$/.test(before) && /(^|[\s;{}])$/.test(before) && !/\breturn\s*$|\bawait\s*$/.test(before)) continue;
     yield { index: m.index, args };
   }
 }
 
-// Collects targets of `callee(...)` calls, following wrappers.
 function collectTargets(roots, argIndex, kind) {
-  const found = []; // { name, file, line }
-  const dynamics = []; // { file, line, expr }
+  const found = [];
+  const dynamics = [];
   const seenWrappers = new Set();
   const queue = [];
   for (const r of roots) queue.push({ ...r, argIndex, depth: 0 });
@@ -775,7 +702,6 @@ for (const f of files.values()) {
     listenRoots.push({ f, callee: "listen", member: "none" }, { f, callee: "once", member: "none" });
     emitRoots.push({ f, callee: "emit", member: "none" }, { f, callee: "emitTo", member: "none" });
   }
-  // getCurrentWindow().listen("tauri://...") and friends: literal names only.
   listenRoots.push({ f, callee: "listen", member: "only", literalOnly: true }, { f, callee: "once", member: "only", literalOnly: true });
 }
 
@@ -785,7 +711,6 @@ const listens = collectTargets(
   0,
   "listen",
 );
-// Member-call listens (window.listen / webview.once): keep only resolved names.
 const memberListens = collectTargets(
   listenRoots.filter((r) => r.literalOnly),
   0,
@@ -793,17 +718,12 @@ const memberListens = collectTargets(
 );
 listens.found.push(...memberListens.found);
 const frontEmits = collectTargets(emitRoots, 0, "emit");
-// emitTo(target, event)
 const frontEmitTo = collectTargets(
   emitRoots.filter((r) => r.callee === "emitTo"),
   1,
   "emit",
 );
 frontEmits.found.push(...frontEmitTo.found);
-
-// ---------------------------------------------------------------------------
-// Rust model.
-// ---------------------------------------------------------------------------
 
 const libPath = join(ROOT, "src-tauri", "src", "lib.rs");
 const libLexed = lexRust(readFileSync(libPath, "utf8"));
@@ -824,13 +744,10 @@ const registered = new Set();
   }
 }
 
-// Integration tests and benches never talk to a real frontend.
 const rustFiles = walk(join(ROOT, "src-tauri"), [".rs"]).filter((f) => !/[\\/](tests|benches)[\\/]/.test(rel(f)));
 const rust = rustFiles.map((abs) => {
   const src = readFileSync(abs, "utf8");
   const lexed = lexRust(src);
-  // `#[cfg(test)] mod x { ... }` ranges: an emit or a const use inside a unit
-  // test proves nothing about the running app.
   const tests = [];
   const re = /#\[cfg\(test\)\]\s*(?:#\[[^\]]*\]\s*)*(?:pub(?:\([^)]*\))?\s+)?mod\s+\w+\s*\{/g;
   let m;
@@ -841,9 +758,8 @@ const rust = rustFiles.map((abs) => {
   return { abs, path: rel(abs), src, ...lexed, inTest: (i) => tests.some(([a, b]) => i >= a && i <= b) };
 });
 
-// const/static NAME: &str = "..."
-const rustConsts = new Map(); // NAME -> Set(values)
-const constDecls = []; // { name, value, file, index }
+const rustConsts = new Map();
+const constDecls = [];
 for (const r of rust) {
   const re = /\b(?:const|static)\s+([A-Z_][A-Z0-9_]*)\s*:\s*&(?:'static\s+)?str\s*=\s*"([^"\\]*)"/g;
   let m;
@@ -855,9 +771,7 @@ for (const r of rust) {
   }
 }
 
-// Every call whose callee name contains `emit`: its string-literal, const
-// and format!() arguments among the first three count as emitted names.
-const rustEmits = []; // { exact|prefix, file, line }
+const rustEmits = [];
 function rustArgNames(r, a, b) {
   let text = r.code.slice(a, b).trim();
   text = text.replace(/^&\*?/, "").replace(/\.(to_string|to_owned|into|as_str|as_ref)\(\)$/, "").trim();
@@ -887,10 +801,6 @@ for (const r of rust) {
   }
 }
 
-// Event-name consts that reach `emit` indirectly, e.g. a pure mapper returning
-// `(EVENT_TOOL_ASK, payload)` that a generic loop emits: the const counts when
-// it is used outside its declaration, outside unit tests and not as the
-// argument of a Rust-side `listen`.
 {
   const byName = new Map();
   for (const d of constDecls) byName.set(d.name, [...(byName.get(d.name) ?? []), d]);
@@ -910,10 +820,6 @@ for (const r of rust) {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Allowlist.
-// ---------------------------------------------------------------------------
-
 const allowPath = join(ROOT, "scripts", "ipc-allowlist.json");
 const allow = existsSync(allowPath) ? JSON.parse(readFileSync(allowPath, "utf8")) : {};
 const allowErrors = [];
@@ -930,10 +836,6 @@ const isAllowedDynamic = (d) => {
   return !!hit;
 };
 
-// ---------------------------------------------------------------------------
-// Verdict.
-// ---------------------------------------------------------------------------
-
 const BUILTIN_EVENT = /^tauri:\/\//;
 const errors = [];
 
@@ -946,7 +848,7 @@ for (const t of invokes.found) {
     continue;
   }
   invokedNames.add(t.exact);
-  if (t.exact.startsWith("plugin:")) continue; // served by a Tauri plugin
+  if (t.exact.startsWith("plugin:")) continue;
   if (!registered.has(t.exact) && !allowedCommands.has(t.exact)) {
     errors.push(`${t.file}:${t.line}: invoke("${t.exact}") is not registered in generate_handler! (src-tauri/src/lib.rs)`);
   }
@@ -956,7 +858,6 @@ const emitted = [...rustEmits, ...frontEmits.found];
 const emitsMatch = (t) =>
   emitted.some((e) => {
     if (t.exact !== undefined) return e.exact === t.exact || (e.prefix !== undefined && t.exact.startsWith(e.prefix));
-    // Listener built from a template: some emitter must share the prefix.
     return (e.exact !== undefined && e.exact.startsWith(t.prefix)) || (e.prefix !== undefined && (e.prefix.startsWith(t.prefix) || t.prefix.startsWith(e.prefix)));
   });
 for (const t of listens.found) {

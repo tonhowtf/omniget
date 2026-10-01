@@ -1,10 +1,5 @@
-// Which settings fields currently show their own inline SettingStatus. A failed save
-// is announced once: inline (role=alert, next to the control) when a status is mounted
-// for every changed field, and by toast only when some field has no inline status.
-
 const surfaces = new Map<string, number>();
 
-/** Called by SettingStatus while mounted with a `path`; returns the unregister. */
 export function registerStatusSurface(path: string): () => void {
   surfaces.set(path, (surfaces.get(path) ?? 0) + 1);
   let active = true;
@@ -17,7 +12,6 @@ export function registerStatusSurface(path: string): () => void {
   };
 }
 
-/** A status for `path` itself or for one of its prefixes (e.g. "proxy" covers "proxy.host"). */
 function hasStatusSurface(path: string): boolean {
   for (const surface of surfaces.keys()) {
     if (path === surface || path.startsWith(`${surface}.`)) return true;
@@ -39,7 +33,6 @@ function leafPaths(patch: Record<string, unknown>, prefix = ""): string[] {
   return paths;
 }
 
-/** True when every field of `patch` already reports its failure inline. */
 export function failureShownInline(patch: Record<string, unknown>): boolean {
   const paths = leafPaths(patch);
   return paths.length > 0 && paths.every(hasStatusSurface);

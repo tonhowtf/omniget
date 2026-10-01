@@ -1,7 +1,3 @@
-// Per-terminal mirror of the visible screen in typed arrays. The wire decoder
-// hands sections over; the grid copies cells in and remembers which rows are
-// dirty so the GL pass re-uploads only those.
-
 import {
   GRAPHEME_BASE,
   KIND_AGENT,
@@ -46,10 +42,8 @@ interface CellStyle {
 
 const DEFAULT_STYLE: CellStyle = { fg: 0, bg: 0, ul: 0, flags: 0, link: 0 };
 
-/** Style table of one subscription (STYLES is global, slot 0xFFFF). */
 export class StyleTable {
   private map = new Map<number, CellStyle>();
-  /** Bumped when an existing id changed or the table was reset: every texel is stale. */
   epoch = 0;
 
   get(id: number): CellStyle {
@@ -76,7 +70,6 @@ export class StyleTable {
   }
 }
 
-/** Upper bound so a corrupt frame cannot allocate gigabytes. */
 const MAX_COLS = 1000;
 const MAX_ROWS = 500;
 
@@ -84,13 +77,10 @@ export class TermGrid {
   cols = 0;
   rows = 0;
   generation = -1;
-  /** Codepoint per cell; >= GRAPHEME_BASE indexes `clusters`. 0 = empty/spacer. */
   cp = new Uint32Array(0);
   styleId = new Uint16Array(0);
-  /** Persistent grapheme intern table (frame tables are remapped into it). */
   clusters: string[] = [];
   private clusterIds = new Map<string, number>();
-  /** Frame-local grapheme table, valid while one frame is being applied. */
   private frameClusters = new Map<number, string>();
 
   cursor: CursorInfo = { x: 0, y: 0, shape: 0, flags: CF_VISIBLE };
@@ -101,14 +91,10 @@ export class TermGrid {
   mini = new Uint8Array(0);
   miniDirty = false;
 
-  /** Rows whose texels must be rebuilt. */
   dirty = new Uint8Array(0);
   anyDirty = false;
-  /** Size changed: the texture must be reallocated. */
   resized = false;
-  /** Bumped on every applied change; the pass compares to know when to redraw. */
   version = 0;
-  /** Last META/AGENT seen; `liveDirty` tells the hub to publish them to the chrome. */
   meta: MetaInfo | null = null;
   agent: AgentInfo | null = null;
   liveDirty = false;
@@ -194,7 +180,6 @@ export class TermGrid {
         x++;
       }
     }
-    // A row message describes the whole row: blank the tail.
     if (x < this.cols) {
       this.cp.fill(0, base + x, base + this.cols);
       this.styleId.fill(0, base + x, base + this.cols);
@@ -202,7 +187,6 @@ export class TermGrid {
     this.markRow(y);
   }
 
-  /** `bottom` exclusive. */
   private scroll(top: number, bottomEx: number, delta: number): void {
     const c = this.cols;
     const bottom = Math.min(bottomEx, this.rows) - 1;
@@ -210,7 +194,6 @@ export class TermGrid {
     const height = bottom - top + 1;
     const d = Math.max(-height, Math.min(height, delta));
     if (d > 0) {
-      // Content moves up; `d` new blank rows at the bottom of the region.
       this.cp.copyWithin(top * c, (top + d) * c, (bottom + 1) * c);
       this.styleId.copyWithin(top * c, (top + d) * c, (bottom + 1) * c);
       this.cp.fill(0, (bottom + 1 - d) * c, (bottom + 1) * c);
@@ -225,7 +208,6 @@ export class TermGrid {
     for (let y = top; y <= bottom; y++) this.markRow(y);
   }
 
-  /** Grapheme tables go first so ROWS in the same frame can resolve them. */
   preApply(frame: WireFrame, s: WireSection): void {
     if (s.kind === KIND_GRAPHEMES) readGraphemes(frame, s, this.frameClusters);
   }
@@ -292,7 +274,6 @@ export class TermGrid {
     this.frameClusters.clear();
   }
 
-  /** Selection/match kind for a cell: -1 none, else SEL_* (selection wins over a match). */
   selKind(x: number, y: number): number {
     let best = -1;
     for (const r of this.sel) {
@@ -308,7 +289,6 @@ export class TermGrid {
     return best;
   }
 
-  /** Plain text of one row (used for the aria-live region and tests). */
   rowText(y: number): string {
     if (y >= this.rows) return '';
     let s = '';
@@ -321,11 +301,6 @@ export class TermGrid {
   }
 }
 
-/**
- * Applies sections of one decoded frame in order. `gridOf` resolves a slot to
- * its grid (null = unknown slot). Returns the sections it could not route, so
- * the caller can replay them once the slot's id is known.
- */
 export function applySections(
   frame: WireFrame,
   sections: readonly WireSection[],

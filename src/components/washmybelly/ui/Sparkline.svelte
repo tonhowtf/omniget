@@ -1,8 +1,6 @@
 <script lang="ts">
   import { areaPath, linePath } from "$lib/washmybelly/ui";
 
-  /// Tiny trend line with a soft area. `capacity` fixes how many points fill
-  /// the width, so a series that is still filling grows from the right.
   let {
     values,
     max = 100,

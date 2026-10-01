@@ -1,6 +1,4 @@
 <script lang="ts">
-  // Gear menu (spec §2.7): glass popup with 40px rows; submenus slide in
-  // sideways while the box animates to the new height.
   import { cubicOut } from "svelte/easing";
   import { fly } from "svelte/transition";
   import { locale, t } from "$lib/i18n";

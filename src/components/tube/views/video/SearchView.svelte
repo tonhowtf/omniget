@@ -1,6 +1,4 @@
 <script lang="ts">
-  // Search results (spec §2.9): filter chips, "Showing results for", big
-  // result rows (thumb 360), channels and playlists inline, Shorts as a row.
   import { t } from "$lib/i18n";
   import * as api from "$lib/tube/api";
   import type { SearchFilter } from "$lib/tube/api";

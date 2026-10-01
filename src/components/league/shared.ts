@@ -1,8 +1,6 @@
 export const CDRAGON = "https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1";
 const RAW_CDRAGON = "https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default";
 
-// The client returns icon paths rooted at /lol-game-data/assets; the public
-// mirror serves the same files lowercased under its own prefix.
 export function assetUrl(path: string | null | undefined): string {
   if (!path) return "";
   const clean = path.replace(/^\/lol-game-data\/assets/i, "").toLowerCase();

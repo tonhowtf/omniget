@@ -88,7 +88,6 @@
     }
     sending = true;
     let queued = 0;
-    // One at a time: the queue decides how many run together.
     for (const row of pending) {
       try {
         await invoke("download_from_url", {

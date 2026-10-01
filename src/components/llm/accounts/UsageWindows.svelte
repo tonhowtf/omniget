@@ -1,14 +1,4 @@
 <script lang="ts">
-  /**
-   * The 5 h and 7 d windows of one account, as two `QuotaMeter` bars.
-   *
-   * The bar alone would hide the most important fact about these numbers: some
-   * come from an official channel (`rate_limit_event` / the status line) and
-   * some are summed from the JSONL. So every meter carries its provenance as a
-   * word next to it — `reported` or `estimated` — and when no source answered
-   * at all the component says that instead of drawing a zero that looks like a
-   * measurement.
-   */
   import { t } from "$lib/i18n";
   import QuotaMeter from "$components/llm/QuotaMeter.svelte";
   import {
@@ -19,12 +9,9 @@
 
   interface Props {
     windows: UsageWindow[];
-    /** False while no quota source answered. */
     available: boolean;
-    /** True for the head of the chain. */
     active?: boolean;
     compact?: boolean;
-    /** Clock of the data, passed in so the component owns no timer. */
     nowMs?: number;
   }
 
@@ -51,8 +38,6 @@
     {#each windows as w (w.window)}
       <div class="window">
         {#if w.used === null}
-          <!-- No ceiling published for the plan, so there is no percentage to
-               draw: the tokens counted are the whole truth here. -->
           <div class="tokens">
             <span class="tokens-label">{$t(`llm.accounts.window_${w.window}`)}</span>
             <span class="tokens-value">{formatTokens(w.used_tokens)}</span>

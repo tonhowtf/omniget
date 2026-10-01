@@ -1,9 +1,5 @@
-// Sidebar model of the threads UI (T3 `Sidebar.logic.ts`): status in priority
-// order, lifecycle sections, pills, unseen completion and the recede rule.
-
 import type { ProjectRow, ThreadRow } from "$lib/central/threads/types";
 
-/** Priority order: approval, input, working, failed, ready (unseen), idle. */
 export type SidebarStatus = "approval" | "input" | "working" | "failed" | "done" | "idle";
 
 const STATUS_RANK: Record<SidebarStatus, number> = {
@@ -15,7 +11,6 @@ const STATUS_RANK: Record<SidebarStatus, number> = {
   idle: 5,
 };
 
-/** Completed since the user last opened it. A never visited thread reads as seen. */
 function hasUnseenCompletion(t: ThreadRow): boolean {
   if (t.activeTurnId) return false;
   if (!t.lastVisitedAt || !t.latestTurnId) return false;
@@ -26,8 +21,6 @@ export function sidebarStatus(t: ThreadRow): SidebarStatus {
   if (t.pendingApprovalCount > 0) return "approval";
   if (t.pendingUserInputCount > 0) return "input";
   if (t.activeTurnId || t.sessionStatus === "starting" || t.sessionStatus === "running") {
-    // A session can be "running" between turns for CLI drivers; only an
-    // active turn counts as work.
     if (t.activeTurnId) return "working";
   }
   if (t.sessionStatus === "error" || t.lastError) return "failed";
@@ -35,7 +28,6 @@ export function sidebarStatus(t: ThreadRow): SidebarStatus {
   return "idle";
 }
 
-/** Working/idle rows that are not selected recede; input never recedes. */
 export function recedes(t: ThreadRow, status: SidebarStatus, selected: boolean): boolean {
   if (selected) return false;
   if (status === "input" || status === "done" || status === "failed") return false;
@@ -47,12 +39,10 @@ function isSnoozed(t: ThreadRow, now = Date.now()): boolean {
   return !!t.snoozedUntil && Date.parse(t.snoozedUntil) > now;
 }
 
-/** Imported conversations (old chat migration, external tools). */
 export function isImported(t: ThreadRow): boolean {
   return t.projectId === "prj_imported" || t.threadId.startsWith("imp_");
 }
 
-/** A thread driven by an external CLI harness (Claude Code, Codex, ACP…). */
 export function isExternalHarness(t: ThreadRow): boolean {
   return t.driver !== "native";
 }
@@ -64,7 +54,6 @@ type ProjectGroup = { project: ProjectRow | null; projectId: string; sections: S
 function byPriorityThenRecent(a: ThreadRow, b: ThreadRow): number {
   const ra = STATUS_RANK[sidebarStatus(a)];
   const rb = STATUS_RANK[sidebarStatus(b)];
-  // Only act-now states jump the queue; the rest stays in recency order.
   const ua = ra <= 3 ? ra : 9;
   const ub = rb <= 3 ? rb : 9;
   if (ua !== ub) return ua - ub;
@@ -83,7 +72,6 @@ function matchesQuery(t: ThreadRow, project: ProjectRow | undefined, q: string):
   );
 }
 
-/** Groups threads by project, each with pinned / active / snoozed / archived sections. */
 export function groupThreads(
   projects: ProjectRow[],
   threads: ThreadRow[],
@@ -124,7 +112,6 @@ export function groupThreads(
     if (opts.query && count === 0) continue;
     out.push({ project: byId.get(projectId) ?? null, projectId, sections, count });
   }
-  // Projects with something that needs the user first, then by recent activity.
   const rankOf = (g: ProjectGroup) =>
     Math.min(9, ...g.sections.flatMap((s) => s.threads.map((t) => STATUS_RANK[sidebarStatus(t)])));
   const recentOf = (g: ProjectGroup) =>
@@ -138,7 +125,6 @@ export function groupThreads(
   return out;
 }
 
-/** Snooze presets computed when the menu opens (T3 §1.4.6). */
 export function snoozePresets(now = new Date()): { key: string; until: Date }[] {
   const out: { key: string; until: Date }[] = [];
   out.push({ key: "1h", until: new Date(now.getTime() + 3600_000) });

@@ -24,7 +24,6 @@
     loaded = true;
   });
 
-  // completed_at may be seconds or milliseconds depending on the writer.
   const ms = (ts: number) => (ts < 1e12 ? ts * 1000 : ts);
 
   const chosen = $derived.by(() => {

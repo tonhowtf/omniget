@@ -10,7 +10,6 @@
       const dir = await open({ directory: true, multiple: false, defaultPath: value || undefined });
       if (typeof dir === "string" && dir) value = dir;
     } catch {
-      /* dialog closed or unavailable */
     }
   }
 </script>

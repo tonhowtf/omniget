@@ -1,7 +1,4 @@
 <script lang="ts">
-  // Description box (spec §2.6, 21st "Show more"): tonal, radius 12, views ·
-  // date · hashtags on top, three lines + "...more" collapsed; expanded shows
-  // everything and "Show less". Clicking the collapsed box expands it.
   import { t } from "$lib/i18n";
   import { fmtCount } from "$lib/tube/format";
   import { tubePrefs } from "$lib/tube/prefs.svelte";

@@ -1,6 +1,4 @@
 <script lang="ts">
-  // Fetches missing lyrics for many tracks from LRCLIB, one request at a
-  // time with a pause between them (the service asks clients to go easy).
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "$lib/i18n";
   import { library, patchTracksLocal } from "$lib/music/library-store.svelte";

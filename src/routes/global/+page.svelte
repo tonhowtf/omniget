@@ -6,9 +6,6 @@
   import { t } from "$lib/i18n";
   import NavIcon from "$components/shell/NavIcon.svelte";
 
-  // Global Downloader: a Chromium the app drives, a sniffer on every tab,
-  // connectors that turn a page into a tree, and a job runner for the tree.
-
   type Tab = { id: string; url: string; title: string };
   type Sniffed = {
     id: number; tab_id: string; page_title: string; url: string;
@@ -262,7 +259,6 @@
         browserOpen = true;
       } else if (ev.kind === "sniffed") {
         sniffed = [...sniffed, ev.item].slice(-600);
-        // A manifest drops the stream fragments the sniffer listed before it.
         if (ev.item.kind === "hls" || ev.item.kind === "dash") {
           invoke<Sniffed[]>("gd_sniffed", { tabId: null }).then((list) => (sniffed = list));
         }

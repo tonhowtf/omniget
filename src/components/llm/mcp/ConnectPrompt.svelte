@@ -1,7 +1,4 @@
 <script lang="ts" module>
-  // Outside the instance: connecting may add agents to the roster, and the
-  // shell can remount this component while it does; the "connected" card
-  // must survive that.
   let done = $state<{ name: string; message: string } | null>(null);
 </script>
 
@@ -13,9 +10,6 @@
   import { shortPath } from "$lib/stores/assist-missions-store.svelte";
   import { showToast } from "$lib/stores/toast-store.svelte";
 
-  // An AI tool (Claude Code, Codex, Gemini CLI...) asked to connect from its
-  // terminal (`POST /v1/connect`). Nothing is created until the person answers
-  // here; on Allow the app writes the connection into that tool's config.
   type Request = {
     id: string;
     client: string;
@@ -40,7 +34,6 @@
   }
 
   $effect(() => {
-    // Each request starts from the safe defaults.
     void current?.id;
     agents = true;
     approvals = false;

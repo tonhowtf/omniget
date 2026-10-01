@@ -1,5 +1,4 @@
 <script lang="ts">
-  /** One book: status, progress per edition, today's wish, rounds and films. */
   import { t } from "$lib/i18n";
   import RoundItemCard from "./RoundItemCard.svelte";
   import {

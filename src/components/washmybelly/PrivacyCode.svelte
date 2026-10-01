@@ -2,11 +2,6 @@
   import { t } from "$lib/i18n";
   import Icon from "./ui/Icon.svelte";
 
-  /// Read-only code with a Copy button, for items OmniGet shows but does
-  /// not run and for the terminal form of an administrator step. Ported
-  /// from the "Code Block" pattern (kvnkld, 21st.dev): a small header with
-  /// a label and the copy action over a monospaced body; here without line
-  /// numbers or highlighting, wrapping long lines, in the app's tokens.
   let { code, label = "", maxHeight = 220 }: { code: string; label?: string; maxHeight?: number } = $props();
 
   let copied = $state(false);

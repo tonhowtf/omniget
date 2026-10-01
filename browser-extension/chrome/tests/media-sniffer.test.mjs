@@ -57,8 +57,6 @@ test("mergeStoredMedia fills an empty page from storage", () => {
 });
 
 test("mergeStoredMedia never drops a detection that arrived first", () => {
-  // The exact shape of a service-worker wake-up: the request that woke the
-  // worker is recorded while the storage read is still in flight.
   const live = { url: "https://cdn.example.com/a.m3u8", detectedAt: 2000, live: true };
   const stored = { url: "https://cdn.example.com/a.m3u8", detectedAt: 1000, live: false };
   const target = new Map([["https://example.com/watch", new Map([[live.url, live]])]]);
@@ -71,7 +69,6 @@ test("mergeStoredMedia never drops a detection that arrived first", () => {
   const page = target.get("https://example.com/watch");
   assert.equal(added, 1);
   assert.equal(page.size, 2);
-  // The live entry is the fresher one and must survive the restore.
   assert.equal(page.get(live.url), live);
   assert.equal(page.get(live.url).live, true);
 });

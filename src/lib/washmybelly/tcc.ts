@@ -1,5 +1,3 @@
-/// macOS privacy permissions (TCC), as `privacy.tcc_list` returns them.
-
 type TccAuth = "allowed" | "denied" | "limited" | "unknown";
 
 export type TccApp = {
@@ -24,8 +22,6 @@ export type TccList =
   | { available: true; system_db: boolean; count: number; services: TccService[] }
   | { available: false; reason: "full_disk_access" | "not_found" | "unreadable" | "not_macos"; services: TccService[] };
 
-/// A readable name for a bundle id or a path: `us.zoom.xos` → "Zoom",
-/// `com.googlecode.iterm2` → "iTerm2", `/usr/local/bin/ffmpeg` → "ffmpeg".
 export function appName(client: string): string {
   if (client.includes("/")) {
     const last = client.split("/").filter(Boolean).pop() ?? client;
@@ -44,12 +40,10 @@ export function appName(client: string): string {
   return pick.charAt(0).toUpperCase() + pick.slice(1);
 }
 
-/// i18n key of a service heading; unknown services show their raw name.
 export function serviceKey(s: Pick<TccService, "key">): string {
   return `washmybelly.privacy.tcc.service.${s.key}`;
 }
 
-/// Services with apps allowed first, then by how many; empty filters out.
 export function orderServices(list: readonly TccService[], allowedOnly = false): TccService[] {
   return list
     .map((s) => (allowedOnly ? { ...s, apps: s.apps.filter((a) => a.auth === "allowed" || a.auth === "limited") } : s))
@@ -57,8 +51,6 @@ export function orderServices(list: readonly TccService[], allowedOnly = false):
     .sort((a, b) => Number(b.allowed > 0) - Number(a.allowed > 0));
 }
 
-/// One row per app in a service: Automation lists the same app once per
-/// app it controls; the row shows the targets together.
 export function mergeTargets(apps: readonly TccApp[]): (TccApp & { targets: string[] })[] {
   const out = new Map<string, TccApp & { targets: string[] }>();
   for (const a of apps) {

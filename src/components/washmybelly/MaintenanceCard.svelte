@@ -4,10 +4,6 @@
   import Icon from "./ui/Icon.svelte";
 
   /// One maintenance task. Ported from "Project Item Card" (sean0205,
-  /// 21st.dev): header label with a status tag, title and description, one
-  /// action button, a footer line. Here the tags say how long it takes and
-  /// whether it asks for the administrator password; the footer copies the
-  /// exact command for people who prefer the terminal.
   let {
     task,
     busy = false,

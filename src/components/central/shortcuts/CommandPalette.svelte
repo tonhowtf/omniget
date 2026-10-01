@@ -1,10 +1,4 @@
 <script lang="ts">
-  /**
-   * Paleta de comandos da Central (⌘K): ações (com o atalho ao lado),
-   * threads e itens do catálogo (`catalog_search`, só com consulta). `>` no
-   * começo filtra só ações. ↑↓ navega, Enter executa, Esc fecha; ao fechar o
-   * foco volta para onde estava.
-   */
   import { onMount, tick } from "svelte";
   import { t } from "$lib/i18n";
   import { catalogSearch, itemHref, kindStyle } from "$lib/central/catalog";
@@ -30,7 +24,6 @@
     const base = actionsOnly ? items.filter((i) => i.group === "actions") : items;
     let list = filterItems(base, text, GROUPS);
     if (!text.trim() && !actionsOnly) {
-      // Sem consulta: ações + 12 threads mais recentes (a ordem já vem do chamador).
       const threads = list.filter((i) => i.group === "threads").slice(0, 12);
       list = [...list.filter((i) => i.group !== "threads"), ...threads];
       list = filterItems(list, "", GROUPS);
@@ -43,7 +36,6 @@
     active = 0;
   });
 
-  // Catálogo: só com consulta de 2+ letras, com espera curta.
   $effect(() => {
     const q = text.trim();
     const mine = ++seq;

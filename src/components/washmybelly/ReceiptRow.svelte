@@ -7,8 +7,6 @@
   import { moduleById } from "./registry";
   import Icon from "./ui/Icon.svelte";
 
-  /// One receipt in the history: summary line, and on expand what happened
-  /// to each item plus the Restore button.
   let {
     receipt,
     expanded = false,
@@ -20,7 +18,6 @@
     expanded?: boolean;
     onToggle: () => void;
     onRestore: (r: ReceiptSummary) => void;
-    /// Result of a restore just done from this row.
     restoreLines?: { label: string; ok: boolean; detail: string }[] | null;
   } = $props();
 
@@ -37,7 +34,6 @@
   let restored = $derived(!!receipt.restored_at);
   let frees = $derived(freesSpace(receipt.kind));
 
-  // Items are fetched the first time the row opens.
   $effect(() => {
     if (!expanded || fetched || receipt.items) return;
     fetched = true;

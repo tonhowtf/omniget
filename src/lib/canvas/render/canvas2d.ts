@@ -1,7 +1,3 @@
-// Tier-0 fallback (no WebGL2, or the context would not come back): the same
-// picture through Canvas 2D, drawn from the same frame info. Passes of other
-// territories are GL-only and are skipped here.
-
 import type { CanvasEngine } from '../engine.svelte';
 import { buildDrawing } from '../draw/build';
 import { cordPath } from '../cords/route';
@@ -29,7 +25,6 @@ export function createCanvas2dDrawer(
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, w, h);
 
-    // Grid.
     const { spacing } = gridLevel(z);
     const major = spacing * 5;
     ctx.fillStyle = rgbaCss(c.grid);
@@ -45,7 +40,6 @@ export function createCanvas2dDrawer(
 
     ctx.save();
     ctx.setTransform(dpr * z, 0, 0, dpr * z, -cam.x * z * dpr, -cam.y * z * dpr);
-    // Groups.
     for (const g of engine.store.groups) {
       const b = engine.groupBounds(g.id);
       if (!b) continue;
@@ -55,7 +49,6 @@ export function createCanvas2dDrawer(
       ctx.strokeRect(b.x, b.y, b.w, b.h);
       ctx.setLineDash([]);
     }
-    // Drawings.
     for (const d of engine.store.drawings) {
       let runs = cache.get(d.id);
       if (!runs || runs[0]?.ref !== d) {
@@ -76,7 +69,6 @@ export function createCanvas2dDrawer(
         ctx.fill(r.path);
       }
     }
-    // Cords.
     ctx.lineWidth = 2 / z;
     for (const cn of engine.store.connections) {
       const a = engine.store.node(cn.from);
@@ -91,7 +83,6 @@ export function createCanvas2dDrawer(
     }
     ctx.restore();
 
-    // Far plates and names.
     ctx.font = '12px system-ui, sans-serif';
     ctx.textAlign = 'center';
     for (const v of frame.visibleNodes) {
@@ -112,7 +103,6 @@ export function createCanvas2dDrawer(
         ctx.fillText(v.title, sx + (v.w * z) / 2, sy + v.h * z + 14);
       }
     }
-    // Envelopes.
     for (const env of engine.traffic.frame(frame.time)) {
       const sx = (env.x - cam.x) * z;
       const sy = (env.y - cam.y) * z;

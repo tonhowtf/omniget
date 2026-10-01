@@ -4,9 +4,6 @@
   import { errorText, formatTime } from "$lib/washmybelly/format";
   import { comparable, formatDelta, formatMetric, METRIC_KEYS, type Compare, type SessionSummary } from "$lib/washmybelly/perf";
 
-  /// Before and after, metric by metric. A change smaller than how much the
-  /// metric moves inside one capture is shown as "within noise". Delta chip
-  /// colouring ported from the "Stats Card" of ravikatiyar162 (21st.dev).
   let { sessions }: { sessions: SessionSummary[] } = $props();
 
   let list = $derived(comparable(sessions));

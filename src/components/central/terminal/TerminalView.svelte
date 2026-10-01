@@ -1,7 +1,4 @@
 <script lang="ts">
-  // One xterm bound to one PTY session. The session outlives this component:
-  // on mount it attaches (sanitized history + cursor) and follows the live
-  // stream from there, so remounting never duplicates or loses output.
   import { onMount } from "svelte";
   import type { Terminal as XTerm } from "@xterm/xterm";
   import type { FitAddon as XFitAddon } from "@xterm/addon-fit";
@@ -51,7 +48,6 @@
     onForeground?: (fg: PtyForeground) => void;
     onExit?: (code: number | null, signal: string | null) => void;
     onInfo?: (info: PtySessionInfo) => void;
-    /** Imperative handle for the panel (selection, focus, clear). */
     api?: {
       selection: () => TerminalSelection | null;
       focus: () => void;
@@ -65,7 +61,6 @@
   let status = $state<"connecting" | "live" | "ended" | "error">("connecting");
   let errorText = $state("");
 
-  // Stream cursor.
   let generation = 0;
   let expected = 0;
   let attached = false;
@@ -109,7 +104,6 @@
       return;
     }
     if (ev.start > expected) {
-      // Bytes were dropped (we were detached for a stall): start over.
       void reattach();
       return;
     }
@@ -132,7 +126,6 @@
     }
     if (disposed) return false;
     if (res && !res.alive) {
-      // A transcript from a previous run of the app: show it, then start fresh.
       term?.reset();
       term?.write(decodeBase64(res.history));
       term?.write(`\r\n\x1b[2m${$t("llm.central.terminal.previous_session")}\x1b[0m\r\n`);
@@ -235,7 +228,6 @@
       fit = new FitAddon();
       term.loadAddon(fit);
       term.open(host);
-      // WebGL when available; the DOM renderer otherwise or after a context loss.
       try {
         const { WebglAddon } = await import("@xterm/addon-webgl");
         if (!disposed && term) {
@@ -244,7 +236,6 @@
           term.loadAddon(gl);
         }
       } catch {
-        // DOM renderer stays.
       }
       term.onData((d) => {
         void ptyWrite(id, d).catch(() => {});
@@ -273,7 +264,6 @@
       try {
         fit.fit();
       } catch {
-        // Hidden host: sized on the first ResizeObserver tick.
       }
 
       unsub = await subscribePty(id, {

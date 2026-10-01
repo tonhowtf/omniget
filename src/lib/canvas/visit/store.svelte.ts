@@ -1,7 +1,3 @@
-// Visit session as the UI sees it: the state (host, visitor or none), the
-// latest scene when visiting, the room chat and the visitors' reactions.
-// One listener set, reference counted.
-
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import {
   EVENT_VISIT_CHAT,
@@ -23,7 +19,6 @@ class VisitSession {
   state = $state.raw<VisitState>({ role: 'none', shared: [], visitors: [] });
   scene = $state.raw<Scene | null>(null);
   chat = $state.raw<ChatLine[]>([]);
-  /** Reactions received as host (visitors waving or pointing). */
   reactions = $state.raw<Reaction[]>([]);
   closedReason = $state<string | null>(null);
   private unlisten: UnlistenFn[] = [];
@@ -57,11 +52,9 @@ class VisitSession {
       );
       this.takeState(await visitStatus());
     } catch {
-      // Outside Tauri.
     }
   }
 
-  /** A state (visit_join from MCP or the CLI included) carries the last scene: the visitor sees it right away. */
   takeState(st: VisitState): void {
     this.state = st;
     const scene = (st as VisitState & { scene?: unknown }).scene;

@@ -1,9 +1,4 @@
 <script lang="ts">
-  /**
-   * Lista ranqueada com barra horizontal de um tom só (magnitude): nome,
-   * trilho, valor. Um item pode ter `sub` (linha secundária), `tag` (ex.:
-   * "beta") e virar botão quando `onpick` existe.
-   */
   type Item = { key: string; label: string; value: number; sub?: string; tag?: string; title?: string };
 
   interface Props {

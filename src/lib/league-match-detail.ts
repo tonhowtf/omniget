@@ -17,8 +17,6 @@ type TeamObjectives = {
   heralds: number;
 };
 
-/// Objective counts as the match detail reports them. A team with no objective at
-/// all is still returned, because "zero towers" is information.
 export function teamObjectives(team: MatchTeam | undefined): TeamObjectives | null {
   if (!team || typeof team.teamId !== "number") return null;
   return {
@@ -31,8 +29,6 @@ export function teamObjectives(team: MatchTeam | undefined): TeamObjectives | nu
   };
 }
 
-/// Bans in the order they were made. Entries with no champion are the empty bans
-/// the client reports as -1 when a player let the timer run out.
 export function teamBans(team: MatchTeam | undefined): number[] {
   return (team?.bans ?? [])
     .slice()

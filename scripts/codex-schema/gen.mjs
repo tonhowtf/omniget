@@ -1,23 +1,4 @@
 #!/usr/bin/env node
-// Generates the Rust types of the Codex `app-server` JSON-RPC protocol from
-// the JSON Schema bundle the CLI itself exports, so the driver follows the
-// version the user has instead of a hand-written copy.
-//
-//   node scripts/codex-schema/gen.mjs                      # npx @openai/codex@latest
-//   node scripts/codex-schema/gen.mjs --codex /path/codex  # a local binary
-//   node scripts/codex-schema/gen.mjs --schema DIR --version 0.156.0
-//   node scripts/codex-schema/gen.mjs --check              # fail if the output would change
-//
-// The schema bundle comes from `codex app-server generate-json-schema --out DIR`
-// (stable surface; `--experimental` is not used on purpose: the driver only
-// relies on methods the CLI promises to keep). Output:
-// `src-tauri/omniget-core/src/core/llm/drivers/codex/protocol.rs`.
-//
-// Only node builtins. The generator emits the closure of the types reachable
-// from ROOTS (the requests the driver sends, every server request and the
-// notifications the translator reads) plus the full method tables. Every
-// string enum gets an `Unknown` catch-all and every externally tagged union is
-// wrapped so a newer CLI can add a variant without breaking the decode.
 
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -29,8 +10,6 @@ import { fileURLToPath } from 'node:url';
 const here = dirname(fileURLToPath(import.meta.url));
 const repo = resolve(here, '..', '..');
 const OUT = join(repo, 'src-tauri', 'omniget-core', 'src', 'core', 'llm', 'drivers', 'codex', 'protocol.rs');
-
-// ── CLI args ───────────────────────────────────────────────────────────────
 
 const args = process.argv.slice(2);
 const opt = (name) => {
@@ -59,8 +38,6 @@ if (!schemaDir) {
   }
 }
 if (!version) version = 'unknown';
-
-// ── Load the bundle ────────────────────────────────────────────────────────
 
 const bundlePath = join(schemaDir, 'codex_app_server_protocol.schemas.json');
 if (!existsSync(bundlePath)) {
@@ -93,8 +70,6 @@ const serverRequests = table('ServerRequest.json');
 const serverNotifications = table('ServerNotification.json');
 
 const responseOf = (params) => (params ? params.replace(/Params$/, 'Response') : null);
-
-// ── Roots ──────────────────────────────────────────────────────────────────
 
 const CLIENT_METHODS_USED = [
   'initialize',
@@ -167,8 +142,6 @@ for (const m of [...CLIENT_METHODS_USED, ...NOTIFICATIONS_USED]) {
   if (!known) console.warn(`warning: method ${m} is not in this schema`);
 }
 
-// ── Rust naming ────────────────────────────────────────────────────────────
-
 const KEYWORDS = new Set(
   'as async await break const continue dyn else enum extern false fn for if impl in let loop match mod move mut pub ref return static struct trait true type unsafe use where while abstract become box do final macro override priv typeof unsized virtual yield try gen'.split(' '),
 );
@@ -202,14 +175,9 @@ function pascal(name) {
 }
 
 function typeName(name) {
-  // `Item/commandExecution/...`-style titles never reach here; definitions are
-  // already PascalCase. Keep them, only make them legal.
   return pascal(name);
 }
 
-// ── Model ──────────────────────────────────────────────────────────────────
-
-/** name -> { kind, doc, ... } */
 const items = new Map();
 const queue = [];
 function want(name) {
@@ -220,7 +188,6 @@ function want(name) {
 const isNull = (s) => s && (s.type === 'null' || (Array.isArray(s.enum) && s.enum.length === 1 && s.enum[0] === null));
 
 function stripNull(schema) {
-  // Returns [inner, nullable].
   if (!schema || schema === true) return [schema, false];
   if (Array.isArray(schema.type) && schema.type.includes('null')) {
     const rest = schema.type.filter((t) => t !== 'null');
@@ -243,11 +210,6 @@ function stripNull(schema) {
 
 const DEFAULTABLE = /^(String|bool|i8|i16|i32|i64|u8|u16|u32|u64|f64|serde_json::Value|Vec<.*>|BTreeMap<.*>|Option<.*>)$/;
 
-/**
- * Rust type for a schema in field position. `ctx` names inline types.
- * Returns { ty, named } where `named` is a generated type referenced directly
- * (used for recursion boxing).
- */
 function fieldType(schema, ctx) {
   if (schema === true || schema === undefined || schema === null) return { ty: 'serde_json::Value' };
   if (typeof schema !== 'object' || Object.keys(schema).filter((k) => !['description', 'default', 'title'].includes(k)).length === 0) {
@@ -315,7 +277,6 @@ function fieldsOf(schema, ctx, skip = []) {
 }
 
 function stringEnumValues(schema) {
-  // A plain enum, or a oneOf/anyOf of single-string enums (with descriptions).
   if (Array.isArray(schema.enum) && schema.enum.every((v) => typeof v === 'string')) return schema.enum;
   const branches = schema.oneOf || schema.anyOf;
   if (!branches) return null;
@@ -383,8 +344,6 @@ function define(name, schema, inline = false) {
         const value = b.properties[tag].enum[0];
         const vn = pascal(value);
         const fields = fieldsOf(b, `${name}${vn}`, [tag]);
-        // A branch with its own `anyOf` (image input: `url` or `fileId`):
-        // every alternative's properties become optional fields.
         for (const alt of b.anyOf || []) {
           for (const f of fieldsOf({ ...alt, required: [] }, `${name}${vn}`, [tag])) {
             if (!fields.some((g) => g.key === f.key)) fields.push(f);
@@ -395,8 +354,6 @@ function define(name, schema, inline = false) {
       items.set(name, { kind: 'tagged', tn, tag, variants, doc });
       return;
     }
-    // Externally tagged: bare strings are unit variants, objects with exactly
-    // one required key are data variants.
     const ext = [];
     let ok = true;
     for (const b of branches) {
@@ -435,8 +392,6 @@ function define(name, schema, inline = false) {
       return;
     }
     const fields = fieldsOf(schema, name);
-    // A struct with a union on top (McpServerElicitationRequestParams): keep
-    // the common fields typed and the variant part in `rest`.
     const rest = !!(schema.oneOf || schema.anyOf);
     items.set(name, { kind: 'struct', tn, fields, rest, doc });
     return;
@@ -455,8 +410,6 @@ while (queue.length) {
   }
   define(n, defs[n]);
 }
-
-// ── Recursion: box direct self-references ──────────────────────────────────
 
 const byTn = new Map([...items.values()].map((it) => [it.tn, it]));
 function directEdges(it) {
@@ -483,11 +436,6 @@ for (const it of items.values()) {
     }
   }
 }
-
-// ── Default-ability ────────────────────────────────────────────────────────
-// A required field gets `#[serde(default)]` when its type has a `Default`, so
-// a CLI that drops a field does not break the whole message. Enums default to
-// their catch-all, structs derive `Default` when every field can.
 
 const defaultMemo = new Map();
 function defaultable(ty, guard = new Set()) {
@@ -519,8 +467,6 @@ function defaultable(ty, guard = new Set()) {
   defaultMemo.set(ty, ok);
   return ok;
 }
-
-// ── Render ─────────────────────────────────────────────────────────────────
 
 const lines = [];
 const w = (s = '') => lines.push(s);
@@ -643,8 +589,6 @@ for (const it of sorted) {
       break;
     }
     case 'external': {
-      // Wrapped: `Known` decodes the variants of this schema, anything newer
-      // lands in `Other` instead of failing the whole message.
       const kn = `${it.tn}Known`;
       w(DERIVE);
       w('#[serde(untagged)]');

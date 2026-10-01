@@ -1,6 +1,4 @@
 <script lang="ts">
-  // Bottom-of-list trigger for infinite scroll. With infinite scroll off (or
-  // after an error) it becomes a "Load more" button.
   import { t } from "$lib/i18n";
   import { tubePrefs } from "$lib/tube/prefs.svelte";
   import TIcon from "../TIcon.svelte";

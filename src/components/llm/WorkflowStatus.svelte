@@ -1,12 +1,4 @@
 <script lang="ts">
-  /**
-   * The `.omniget/workflow.md` of the chosen folder's repository (3.10):
-   * whether a contract is in effect, invalid (with the last good version
-   * still used) or trusted. Its hooks and checks run only while the person
-   * trusts the exact version shown (its SHA-256); any edit asks again.
-   * `ondefaults` hands the page the workflow's agent, isolation and run
-   * mode, so the form starts from what the repository asks for.
-   */
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "$lib/i18n";
   import { showToast } from "$lib/stores/toast-store.svelte";

@@ -1,7 +1,3 @@
-/// FPS and frametime measurement: types of the `wmb_perf_*` answers and the
-/// pure helpers the screen draws with (the numbers themselves are always
-/// computed in Rust, `core/washmybelly/perf/stats.rs`).
-
 export type PerfCaps = {
   available: boolean;
   method: "presentmon" | "mangohud" | "metal_hud";
@@ -88,7 +84,6 @@ type SensorRow = { t_ms: number; cpu_load?: number | null; cpu_temp?: number | n
 export type Chart = {
   session_id: string;
   source: "present" | "display";
-  /// [t_ms, min frametime, max frametime] per bucket.
   series: [number, number, number][];
   histogram: Histogram;
   sensors: SensorRow[];
@@ -130,7 +125,6 @@ export type LiveStatus =
       recent: number[];
     };
 
-/// "142" / "59.9" / "—": FPS read at a glance, one decimal under 100.
 export function formatFps(v: number | null | undefined): string {
   if (v == null || !Number.isFinite(v)) return "—";
   return v >= 100 ? String(Math.round(v)) : v.toFixed(1);
@@ -141,7 +135,6 @@ export function formatMs(v: number | null | undefined, digits = 1): string {
   return `${v.toFixed(digits)} ms`;
 }
 
-/// "1:05" for seconds, "1:02:03" past an hour.
 export function formatClock(totalSeconds: number): string {
   const s = Math.max(0, Math.floor(totalSeconds));
   const h = Math.floor(s / 3600);
@@ -150,8 +143,6 @@ export function formatClock(totalSeconds: number): string {
   return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${sec}` : `${m}:${sec}`;
 }
 
-/// Signed percent for a compare line: "+10.2%", "−3.0%", "0%". Time
-/// percentages move in points ("+1.2 pt").
 export function formatDelta(d: Delta): string {
   const v = d.delta_pct;
   if (v == null || !Number.isFinite(v)) return "—";
@@ -161,8 +152,6 @@ export function formatDelta(d: Delta): string {
   return `${sign}${Math.abs(v).toFixed(1)}${unit}`;
 }
 
-/// How smooth the lows are next to the average: the 1% low as a share of
-/// the average FPS. Above 0.7 feels even, under 0.5 feels choppy.
 export function smoothness(avg: number | null | undefined, low: number | null | undefined): "good" | "warn" | "bad" | "default" {
   if (!avg || !low) return "default";
   const r = low / avg;
@@ -171,7 +160,6 @@ export function smoothness(avg: number | null | undefined, low: number | null | 
   return "bad";
 }
 
-/// A round axis maximum at or above `v` (1, 2, 2.5, 5 × 10ⁿ).
 export function niceMax(v: number): number {
   if (!(v > 0) || !Number.isFinite(v)) return 1;
   const p = 10 ** Math.floor(Math.log10(v));
@@ -181,8 +169,6 @@ export function niceMax(v: number): number {
 
 export type Bar = { x: number; y: number; w: number; h: number; from: number; to: number; count: number; overflow?: boolean };
 
-/// Histogram bars in a `width × height` box, plus an overflow bar when some
-/// frames were slower than the last bucket.
 export function histogramBars(h: Histogram, width: number, height: number, gap = 1): Bar[] {
   const n = h.counts.length + (h.overflow > 0 ? 1 : 0);
   if (n === 0 || width <= 0 || height <= 0) return [];
@@ -200,8 +186,6 @@ export function histogramBars(h: Histogram, width: number, height: number, gap =
   return bars;
 }
 
-/// Paths for the frametime-over-time chart: the min–max band and the line
-/// through the slowest frame of each bucket (spikes are what matter).
 export function seriesPaths(series: [number, number, number][], width: number, height: number, yMax: number): { band: string; line: string; area: string } {
   if (series.length === 0 || width <= 0 || height <= 0) return { band: "", line: "", area: "" };
   const t0 = series[0][0];
@@ -220,7 +204,6 @@ export function seriesPaths(series: [number, number, number][], width: number, h
   };
 }
 
-/// X position of an event on the same time axis as `seriesPaths`.
 export function timeX(t: number, series: [number, number, number][], width: number): number {
   if (series.length === 0) return 0;
   const t0 = series[0][0];
@@ -228,16 +211,12 @@ export function timeX(t: number, series: [number, number, number][], width: numb
   return Math.min(width, Math.max(0, ((t - t0) / span) * width));
 }
 
-/// The point of the series nearest to `x` (hover readout).
 export function nearest(series: [number, number, number][], x: number, width: number): [number, number, number] | null {
   if (series.length === 0 || width <= 0) return null;
   const i = Math.round((Math.min(Math.max(x, 0), width) / width) * (series.length - 1));
   return series[i] ?? null;
 }
 
-/// Y axis top for frametimes: a round number above the 99th-percentile-ish
-/// max of the buckets, so one giant freeze does not flatten the chart
-/// (it is clipped and marked instead).
 export function frametimeAxis(series: [number, number, number][]): number {
   if (series.length === 0) return 50;
   const maxes = series.map((s) => s[2]).sort((a, b) => a - b);
@@ -245,7 +224,6 @@ export function frametimeAxis(series: [number, number, number][]): number {
   return niceMax(Math.max(p * 1.15, 8));
 }
 
-/// i18n key suffix for a compared metric.
 export const METRIC_KEYS: Record<string, string> = {
   fps_avg: "metric_fps_avg",
   fps_median: "metric_fps_median",
@@ -259,7 +237,6 @@ export const METRIC_KEYS: Record<string, string> = {
   low_fps_time_pct: "metric_low_fps_time",
 };
 
-/// Value of a compared metric with its unit.
 export function formatMetric(metric: string, v: number | null | undefined): string {
   if (v == null || !Number.isFinite(v)) return "—";
   if (metric.endsWith("_ms")) return formatMs(v);
@@ -267,7 +244,6 @@ export function formatMetric(metric: string, v: number | null | undefined): stri
   return formatFps(v);
 }
 
-/// Sessions that finished with frames can be compared.
 export function comparable(list: SessionSummary[]): SessionSummary[] {
   return list.filter((s) => s.status === "done" && s.frames > 0);
 }

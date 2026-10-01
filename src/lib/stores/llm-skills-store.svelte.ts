@@ -1,32 +1,5 @@
-/**
- * State of `/llm/skills`: the installed Agent Skills, the OpenRouterTeam
- * showcase and the three install sources (folder, zip, git).
- *
- * Three rules shape this file:
- *
- * 1. **Nothing runs at rest.** No timer, no listener, no polling: every read is
- *    one `invoke` fired by a mount or by a click, and the result is cached for
- *    the session unless the caller passes `force`.
- * 2. **Nothing reaches the network without a click.** `installFromGit` is the
- *    only path that clones, and it only runs from the install dialog.
- * 3. **A failure is shown, never dressed as data.** A list the backend cannot
- *    give stays empty and the page says it is unavailable (U4: the demo lists
- *    are gone; the screenshot harness answers with its own fixture).
- *
- * The wire shapes mirror `SkillManifest` from `core/skills/manifest.rs`
- * (f3-skills-core). Because that module is being written in parallel, every
- * field this file reads is optional and every unknown shape degrades to a
- * label instead of throwing.
- */
 import { invoke } from "@tauri-apps/api/core";
 
-// ── Wire types ──────────────────────────────────────────────────────────
-
-/**
- * `SkillSource` as serde may serialise it: a bare string (`"dir"`), an
- * externally tagged object (`{ git: "https://…" }`) or an internally tagged
- * one (`{ source: "git", url: "https://…" }`). All three are handled.
- */
 type SkillSource = string | Record<string, unknown>;
 
 export interface SkillManifest {
@@ -38,29 +11,16 @@ export interface SkillManifest {
   license?: string | null;
   compatibility?: string | null;
   metadata?: Record<string, string>;
-  /** Size of the Markdown body; `inject::open` cuts at 64 KiB. */
   body_bytes?: number;
-  /** What the security scan said when this copy was installed. */
   scan?: SkillScan | null;
 }
 
-/**
- * `ScanStatus` from `core/skills/scan.rs`, internally tagged.
- *
- * The score is NVIDIA SkillSpector's `risk_assessment.score`: **0–100 where
- * high means risky**, with `> 50` (`RISK_THRESHOLD` in
- * `skillspector/constants.py`) the line the tool itself treats as unsafe. Never
- * read a low score as "this skill is safe": it is one static pass by one tool,
- * run with `--no-llm`.
- */
 export type SkillScan =
   | { status: "not_scanned" }
   | {
       status: "scanned";
       score: number;
-      /** `LOW | MEDIUM | HIGH | CRITICAL`. */
       severity?: string;
-      /** `SAFE | CAUTION | DO_NOT_INSTALL`. */
       recommendation?: string;
       max_issue_severity?: string | null;
       findings?: number;
@@ -80,57 +40,35 @@ interface SkillScanIssue {
   line?: number | null;
 }
 
-/**
- * What an install command answers: `InstallOutcome` from
- * `core/skills/install.rs`. When `needs_confirm` carries a token the skill is
- * **not** installed — it sits in quarantine until the user confirms or
- * discards it.
- */
 interface InstallOutcome {
   manifest: SkillManifest;
   scan?: SkillScan | null;
   needs_confirm?: string | null;
 }
 
-/** An install parked on its scan, waiting for the user's second click. */
 export interface PendingInstall {
   token: string;
   manifest: SkillManifest;
   scan: SkillScan;
 }
 
-/**
- * One entry of the OpenRouterTeam showcase (`core/skills/catalog.rs`, pinned
- * at a commit). `html_url` is added by `llm_skills_catalog`: on the Rust side
- * it is a method, so plain serde would drop it.
- */
 export interface SkillCatalogEntry {
   name: string;
   description: string;
-  /** Path of the skill inside the repository. */
   subdir?: string;
-  /** Page of this skill at the pinned commit. */
   html_url?: string;
   repo_url?: string;
   commit?: string;
   skill_md_sha256?: string;
   files?: number;
   bytes?: number;
-  /**
-   * Licence the catalogue declares for this entry. `null`/absent today: the
-   * OpenRouterTeam repository declares none (plan D-5), so the showcase warns
-   * before installing.
-   */
   license?: string | null;
 }
 
 type InstallKind = "dir" | "zip" | "git" | "catalog";
 
-// ── Pure helpers (tested) ───────────────────────────────────────────────
-
 const KNOWN_SOURCES: InstallKind[] = ["dir", "zip", "git", "catalog"];
 
-/** Normalises any of the three serde shapes to `dir | zip | git | catalog`. */
 function sourceKind(source: SkillSource | null | undefined): InstallKind | null {
   if (!source) return null;
   if (typeof source === "string") {
@@ -149,12 +87,10 @@ function sourceKind(source: SkillSource | null | undefined): InstallKind | null 
   return null;
 }
 
-/** i18n key for the origin badge. Unknown shapes fall back to `local`. */
 export function sourceLabelKey(source: SkillSource | null | undefined): string {
   return `llm.skills.source_${sourceKind(source) ?? "local"}`;
 }
 
-/** The url or path behind the origin, when the manifest carries one. */
 export function sourceDetail(source: SkillSource | null | undefined): string {
   if (!source || typeof source === "string") return "";
   for (const key of ["url", "from", "path", "repo", "origin"]) {
@@ -171,7 +107,6 @@ export function sourceDetail(source: SkillSource | null | undefined): string {
   return "";
 }
 
-/** Agents whose `skills` list names this skill. Pure: the roster comes in. */
 export function agentsUsingSkill(
   agents: { name: string; skills?: string[] }[],
   skill: string,
@@ -179,19 +114,10 @@ export function agentsUsingSkill(
   return agents.filter((a) => (a.skills ?? []).includes(skill)).map((a) => a.name);
 }
 
-/**
- * True when the catalogue declares no licence for this entry (plan D-5). The
- * showcase badges it and asks for a second click before installing.
- */
 export function isUnlicensed(entry: SkillCatalogEntry): boolean {
   return !entry.license;
 }
 
-/**
- * One press of a showcase Install button, as a pure step machine so the rule
- * is testable without a DOM: an unlicensed entry needs a second press (the
- * first one only arms the warning), a licensed one installs straight away.
- */
 export function catalogPress(
   entry: SkillCatalogEntry,
   confirming: string | null,
@@ -202,27 +128,13 @@ export function catalogPress(
   return { confirming: null, install: true };
 }
 
-// ── The security scan (tested) ──────────────────────────────────────────
-
-/**
- * SkillSpector's own threshold, ported from `skillspector/constants.py`
- * (`RISK_THRESHOLD = 50`). The CLI exits non-zero when `score > 50`, so the
- * comparison here is exclusive too.
- */
 export const SCAN_RISK_THRESHOLD = 50;
 
-/** The score, or `null` when there is no successful scan to read one from. */
 export function scanScore(scan: SkillScan | null | undefined): number | null {
   if (!scan || scan.status !== "scanned") return null;
   return typeof scan.score === "number" ? scan.score : null;
 }
 
-/**
- * True when a scan actually ran and came back over the threshold, or with
- * SkillSpector's `DO_NOT_INSTALL` recommendation. A missing scanner and a
- * failed scan are both false: neither is evidence of risk, and neither is
- * evidence of safety.
- */
 function isScanHighRisk(scan: SkillScan | null | undefined): boolean {
   if (!scan || scan.status !== "scanned") return false;
   if ((scan.recommendation ?? "").toUpperCase() === "DO_NOT_INSTALL") return true;
@@ -230,25 +142,18 @@ function isScanHighRisk(scan: SkillScan | null | undefined): boolean {
   return score !== null && score > SCAN_RISK_THRESHOLD;
 }
 
-/**
- * Badge for one skill. Deliberately never says "safe": the low band is
- * "scanned", with the number next to it, and everything else says what we do
- * not know.
- */
 export function scanBadgeKey(scan: SkillScan | null | undefined): string {
   if (!scan || scan.status === "not_scanned") return "llm.skills.scan_none";
   if (scan.status === "failed") return "llm.skills.scan_failed";
   return isScanHighRisk(scan) ? "llm.skills.scan_risky" : "llm.skills.scan_ok";
 }
 
-/** Class the badge uses, so the page does not re-derive the bands. */
 export function scanBadgeTone(scan: SkillScan | null | undefined): "risk" | "warn" | "plain" {
   if (!scan || scan.status === "not_scanned") return "plain";
   if (scan.status === "failed") return "warn";
   return isScanHighRisk(scan) ? "risk" : "plain";
 }
 
-/** The scan of the installed skill with this name, when there is one. */
 export function scanOf(
   installed: SkillManifest[],
   name: string | undefined,
@@ -257,15 +162,6 @@ export function scanOf(
   return installed.find((s) => s.name === name)?.scan ?? null;
 }
 
-/**
- * One press of an "install anyway" button on a skill whose scan came back
- * risky, as a pure step machine — the same shape as [`catalogPress`], for the
- * same reason: the rule is testable without a DOM.
- *
- * The first press only arms the warning; the second one goes through. A press
- * on a different skill moves the warning instead of confirming anything, so a
- * double-click on the wrong row cannot install what it did not warn about.
- */
 export function scanPress(
   name: string,
   scan: SkillScan | null | undefined,
@@ -277,16 +173,10 @@ export function scanPress(
   return { confirming: null, proceed: true };
 }
 
-/** True when the showcase entry is already installed under the same name. */
 export function isInstalled(installed: SkillManifest[], entry: SkillCatalogEntry): boolean {
   return installed.some((s) => s.name === entry.name);
 }
 
-/**
- * Maps a backend error to an i18n key the page can show. The codes are the
- * `ERR_SKILL_*` constants of `core/skills/mod.rs`; the command sends them as
- * `"CODE: message"`, so a substring match is enough.
- */
 function skillErrorKey(err: unknown): string {
   const code = String(err ?? "");
   if (code.includes("ERR_SKILL_GIT")) return "llm.skills.err_git";
@@ -303,8 +193,6 @@ function skillErrorKey(err: unknown): string {
   if (code.includes("ERR_SKILL_NOT_BOUND")) return "assist.bots.err.skill_not_bound";
   return "llm.skills.err_generic";
 }
-
-// ── State ───────────────────────────────────────────────────────────────
 
 let skills = $state<SkillManifest[]>([]);
 let catalog = $state<SkillCatalogEntry[]>([]);
@@ -333,12 +221,10 @@ export function isSkillsLoading(): boolean {
   return loading;
 }
 
-/** False once the backend could not give the list or refused a change. */
 export function isSkillsAvailable(): boolean {
   return available;
 }
 
-/** Name of the skill an install or a removal is running for, or `null`. */
 export function getBusySkill(): string | null {
   return busy;
 }
@@ -347,36 +233,23 @@ export function getSkillsErrorKey(): string | null {
   return errorKey;
 }
 
-/** Name of the last skill installed in this session (for the success line). */
 export function getLastInstalled(): string | null {
   return lastInstalled;
 }
 
-/**
- * The install parked on its scan, waiting for a decision. While this is set the
- * skill is **not** installed and is in no prompt.
- */
 export function getPendingInstall(): PendingInstall | null {
   return pending;
 }
 
-/**
- * Whether a scanner is installed on this machine. `null` until the probe has
- * answered, so the page can tell "no scanner" from "not asked yet".
- */
 export function isScannerAvailable(): boolean | null {
   return scannerAvailable;
 }
 
-/** Clears the error line and the "installed" line, e.g. on reopening the dialog. */
 export function clearSkillsNotice(): void {
   errorKey = null;
   lastInstalled = null;
 }
 
-// ── Reads ───────────────────────────────────────────────────────────────
-
-/** Loads the installed skills once per session unless `force`. Never throws. */
 export function loadSkills(force = false): Promise<void> {
   if (inFlight) return inFlight;
   if (loadedOnce && !force) return Promise.resolve();
@@ -389,11 +262,9 @@ export function loadSkills(force = false): Promise<void> {
         available = true;
         return;
       }
-      // No list at all: a backend that does not answer.
       available = false;
     })
     .catch((err) => {
-      // A real error names itself; the backend is still there.
       errorKey = skillErrorKey(err);
     })
     .finally(() => {
@@ -404,7 +275,6 @@ export function loadSkills(force = false): Promise<void> {
   return inFlight;
 }
 
-/** Loads the showcase once per session unless `force`. Never throws. */
 export async function loadCatalog(force = false): Promise<void> {
   if (catalogLoadedOnce && !force) return;
   catalogLoadedOnce = true;
@@ -417,11 +287,6 @@ export async function loadCatalog(force = false): Promise<void> {
   }
 }
 
-/**
- * Probes the scanner once per session. Never throws: an old backend that does
- * not know the command simply leaves this `false`, which reads as "not
- * scanned" everywhere and claims nothing.
- */
 export async function loadScanner(force = false): Promise<void> {
   if (scannerLoadedOnce && !force) return;
   scannerLoadedOnce = true;
@@ -433,11 +298,6 @@ export async function loadScanner(force = false): Promise<void> {
   }
 }
 
-/**
- * Picks up an install the user left undecided — the app can be closed with the
- * dialog open, and a parked folder nobody can name again is worse than a
- * dialog that comes back.
- */
 export async function loadPendingInstall(): Promise<void> {
   try {
     const list = await invoke<{ token: string; manifest: SkillManifest }[] | null>(
@@ -452,18 +312,9 @@ export async function loadPendingInstall(): Promise<void> {
         }
       : null;
   } catch {
-    // An old backend has no pending installs to report. Not an error.
   }
 }
 
-// ── Writes (always behind a click) ──────────────────────────────────────
-
-/**
- * Reads what an install command answered. Two shapes are accepted: the
- * `InstallOutcome` object the scanning backend sends, and a bare manifest,
- * which is what the pre-scan backend sent and what the screenshot harness
- * still fakes.
- */
 function readOutcome(value: unknown): InstallOutcome | null {
   if (!value || typeof value !== "object") return null;
   const record = value as Record<string, unknown>;
@@ -494,8 +345,6 @@ async function install(
     if (outcome) {
       available = true;
       if (outcome.needs_confirm) {
-        // Parked, not installed: it does not join the list, and the page owes
-        // the user a second click before it ever does.
         pending = {
           token: outcome.needs_confirm,
           manifest: outcome.manifest,
@@ -519,11 +368,6 @@ async function install(
   }
 }
 
-/**
- * Installs the parked skill the user just read the scan of. Nothing is
- * re-fetched: the backend moves the copy that was scanned, so what lands is
- * what was shown.
- */
 export async function confirmPendingInstall(): Promise<boolean> {
   const current = pending;
   if (!current || busy) return false;
@@ -551,7 +395,6 @@ export async function confirmPendingInstall(): Promise<boolean> {
   }
 }
 
-/** Throws the parked install away. The dialog closes either way. */
 export async function discardPendingInstall(): Promise<boolean> {
   const current = pending;
   if (!current) return false;
@@ -560,7 +403,6 @@ export async function discardPendingInstall(): Promise<boolean> {
     await invoke("llm_skills_discard_install", { token: current.token });
     return true;
   } catch (err) {
-    // The folder may already be gone; say so but do not bring the dialog back.
     errorKey = skillErrorKey(err);
     return false;
   }
@@ -586,15 +428,10 @@ export function installFromGit(
   );
 }
 
-/** `owner/repo`, `owner/repo/path` or `owner/repo@skill`, as in `npx skills add`. */
 export function installFromRepo(spec: string): Promise<boolean> {
   return install("llm_skills_install_repo", { spec }, spec);
 }
 
-/**
- * Installs one showcase entry by name. The repository URL and the pinned
- * commit live in `core/skills/catalog.rs`, never in the UI.
- */
 export function installCatalogEntry(entry: SkillCatalogEntry): Promise<boolean> {
   if (!entry.name) return Promise.resolve(false);
   return install("llm_skills_install_catalog", { name: entry.name }, entry.name);
@@ -619,11 +456,8 @@ export async function removeSkill(name: string): Promise<boolean> {
   }
 }
 
-// ── Version state (hash on disk vs recorded at install) ────────────────
-
 interface SkillDependency { raw: string; kind: string; server?: string; tool?: string; name?: string }
 
-/** `llm_skills_status`: what is on disk against what OmniGet recorded. */
 export interface SkillVersionStatus {
   name: string;
   hash?: string | null;
@@ -643,7 +477,6 @@ export function getSkillStatus(name: string): SkillVersionStatus | null {
   return versionStatus[name] ?? null;
 }
 
-/** Loads the version state of every installed skill. Never throws. */
 export function loadSkillStatus(): Promise<void> {
   if (statusInFlight) return statusInFlight;
   statusInFlight = invoke<SkillVersionStatus[] | null>("llm_skills_status")
@@ -656,7 +489,6 @@ export function loadSkillStatus(): Promise<void> {
   return statusInFlight;
 }
 
-/** Repair: accept the files on disk (`accept`) or install again from the recorded origin (`reinstall`). */
 export async function repairSkill(name: string, how: "accept" | "reinstall"): Promise<boolean> {
   if (busy) return false;
   busy = name;

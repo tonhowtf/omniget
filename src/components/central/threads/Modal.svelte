@@ -1,5 +1,4 @@
 <script lang="ts">
-  // Native <dialog> (focus trap and Esc for free) styled for the threads UI.
   import type { Snippet } from "svelte";
 
   let {

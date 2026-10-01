@@ -5,9 +5,6 @@
   import SettingRow from "./rebrand/SettingRow.svelte";
   import SettingsSaveBar from "./rebrand/SettingsSaveBar.svelte";
 
-  // Fonts, line height and spacing are a transactional form: nothing is written
-  // until "Save changes"; the draft survives switching tabs inside Settings.
-
   type Preset = {
     id: string;
     nameKey: string | null;
@@ -102,8 +99,6 @@
     },
   ];
 
-  // Named families are used when the device has them. No asset ships for them
-  // (only the Lao fallback does), so none is advertised as bundled.
   const FONT_OPTIONS: FontOption[] = [
     { value: "system-ui", label: null, family: "any" },
     { value: "ui-monospace", label: null, family: "mono" },

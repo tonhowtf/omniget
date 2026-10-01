@@ -7,7 +7,6 @@
 <script lang="ts">
   let { name, size = 18 }: { name: SettingsIconName; size?: 18 | 20 } = $props();
 
-  // Original outline paths on a 24 grid, one stroke language for the whole settings shell.
   const PATHS: Record<SettingsIconName, string> = {
     general: "M4 6h9m4 0h3M15 4v4M4 12h3m4 0h9M9 10v4M4 18h11m4 0h1M17 16v4",
     appearance: "M12 3a9 9 0 1 0 0 18c1.2 0 1.6-.9 1.2-1.7-.5-1 .1-2.3 1.3-2.3H16a5 5 0 0 0 5-5c0-5-4-9-9-9zM7.5 11.5h.01M10.5 7.5h.01M15.5 7.5h.01",
@@ -40,6 +39,5 @@
 
 <style>
   .settings-icon { flex: none; display: block; }
-  /* Only the navigation chevron follows reading direction. */
   .directional:dir(rtl) { transform: scaleX(-1); }
 </style>

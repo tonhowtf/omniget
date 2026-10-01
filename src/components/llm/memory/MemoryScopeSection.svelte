@@ -1,9 +1,4 @@
 <script lang="ts">
-  /**
-   * One scope (your profile, a bot's private notes, a room): its memories
-   * grouped by kind, and a box to add one yourself. The empty state says
-   * what to do next.
-   */
   import { t } from "$lib/i18n";
   import MemoryItemRow from "./MemoryItemRow.svelte";
   import {
@@ -42,7 +37,7 @@
       errorKey = null;
       adding = false;
     } else {
-      errorKey = out.errorKey; // keep what was typed
+      errorKey = out.errorKey;
     }
   }
 </script>

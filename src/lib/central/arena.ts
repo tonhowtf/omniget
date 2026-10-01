@@ -1,15 +1,9 @@
-// Arena da Central (T9): tipos e wrappers dos comandos `arena_*`, o evento
-// ao vivo `central://arena` e helpers puros de exibição. O estado ao vivo de
-// cada coluna (rodando / aprovação / pergunta) vem do `threadsStore`; o que a
-// arena mede ao fim (tempo, tokens, custo, testes, diff) vem daqui.
-
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type { DiffOptions, DiffResult } from "$lib/central/vcs";
 import type { AccessMode } from "$lib/central/threads/types";
 
 const ARENA_EVENT = "central://arena";
-/** 2 a 5 colunas (roteiro 3.8, S23), o mesmo limite do backend. */
 export const MIN_ENTRIES = 2;
 export const MAX_ENTRIES = 5;
 
@@ -124,7 +118,6 @@ export type ApplyPreview = {
   winnerCommit: string;
   checkedOutAt: string | null;
   checkoutDirty: boolean;
-  /** Por que o merge no checkout não pode começar (as pré-condições do integrate). */
   blocker: string | null;
   alreadyApplied: boolean;
   conflicts: string[];
@@ -171,11 +164,9 @@ export type ArenaEstimate = {
 
 type CompareCell = {
   entryId: string;
-  /** `=` = não tocou (igual à base). */
   status: "=" | "A" | "M" | "D";
   additions: number | null;
   deletions: number | null;
-  /** 0 = igual à base; mesmo número = mesmo conteúdo. */
   variant: number;
 };
 
@@ -197,8 +188,6 @@ export type ArenaCompare = {
 };
 
 type ArenaEventPayload = { arenaId: string; arena?: ArenaView; deleted?: boolean };
-
-// ── Comandos ────────────────────────────────────────────────────────────
 
 export const arenaCreate = (request: ArenaCreate) => invoke<ArenaView>("arena_create", { request });
 export const arenaList = (limit = 100, projectId?: string | null) =>
@@ -244,14 +233,11 @@ export function onArena(cb: (p: ArenaEventPayload) => void): Promise<UnlistenFn>
   return listen<ArenaEventPayload>(ARENA_EVENT, (e) => cb(e.payload));
 }
 
-/** `"CODE: msg"` → partes. */
 export function arenaError(e: unknown): { code: string | null; message: string } {
   const s = typeof e === "string" ? e : e instanceof Error ? e.message : String(e);
   const m = /^([A-Z][A-Z0-9_]+):\s*([\s\S]*)$/.exec(s);
   return m ? { code: m[1], message: m[2] } : { code: null, message: s };
 }
-
-// ── Helpers puros ───────────────────────────────────────────────────────
 
 const ACTIVE: EntryStatus[] = ["preparing", "running", "testing"];
 
@@ -282,7 +268,6 @@ export function formatTokens(n: number | null | undefined): string {
   return `${(n / 1_000_000).toFixed(1)}M`;
 }
 
-/** Duração ao vivo: do início do turno até agora, ou a medida final. */
 export function elapsedOf(e: ArenaEntry, now: number): number | null {
   if (e.status === "preparing" || e.status === "running") {
     const from = e.turnStartedAt ?? e.startedAt;
@@ -291,10 +276,6 @@ export function elapsedOf(e: ArenaEntry, now: number): number | null {
   return e.durationMs;
 }
 
-/**
- * Destaques por coluna para o placar da arena: o mais rápido, o mais barato,
- * o menor diff e o mais votado entre as entradas terminadas.
- */
 export function highlights(entries: ArenaEntry[]): Record<string, string[]> {
   const done = entries.filter((e) => e.status === "done");
   const out: Record<string, string[]> = {};
@@ -325,23 +306,16 @@ export function highlights(entries: ArenaEntry[]): Record<string, string[]> {
   return out;
 }
 
-/** Texto do prompt a partir de um plano aprovado. */
 export function promptFromPlan(markdown: string, lead: string): string {
   return `${lead}\n\n${markdown.trim()}\n`;
 }
 
-/**
- * Texto da estimativa antes de começar: o total conhecido, se alguma parte
- * é aproximada (preço de tabela × turno típico) e quantas colunas ficaram
- * sem estimativa. Desconhecido nunca vira $0.
- */
 export function estimateSummary(e: ArenaEstimate | null): { total: string; rough: boolean; unknown: number } | null {
   if (!e || !e.entries.length) return null;
   const rough = e.entries.some((x) => x.source === "price");
   return { total: e.totalUsd == null ? "—" : formatCost(e.totalUsd), rough, unknown: e.unknown };
 }
 
-/** Arquivos divergentes em que a coluna mexeu (para o selo da coluna). */
 export function divergentTouched(c: ArenaCompare | null, entryId: string): number {
   if (!c) return 0;
   return c.files.filter((f) => f.divergent && f.cells.some((x) => x.entryId === entryId && x.status !== "=")).length;

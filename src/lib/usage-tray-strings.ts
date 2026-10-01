@@ -1,11 +1,3 @@
-/**
- * Strings for the menu bar usage icon (`src-tauri/src/usage_tray`).
- *
- * Its right-click menu and tooltip are native, so the main window pushes the
- * translations through `usage_tray_sync_strings`, like `$lib/tray-strings`
- * does for the app's own tray. Raw locale values, not `$t`: `threshold_item`
- * keeps its `{{warn}}` / `{{critical}}` placeholders for Rust to fill.
- */
 import type { TranslationBag } from "./tray-strings";
 
 const USAGE_TRAY_MENU_KEYS = [

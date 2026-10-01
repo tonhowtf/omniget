@@ -1,7 +1,3 @@
-// In-app router for /youtube. Each face (video, music) keeps its own stack,
-// so switching faces returns to where you were. Deep links use
-// `/youtube?v=<id>`, `/youtube?list=<id>`, `/youtube?c=<id>`, `/youtube?q=<text>`,
-// `/youtube?m=1` (music face) — see `routeFromUrl`.
 import type { ChannelTabName, MusicLibraryKind, MusicSearchFilter, SearchFilter } from "./api";
 
 export type Face = "video" | "music";
@@ -30,11 +26,8 @@ export type Route =
 export const ui = $state({
   face: "video" as Face,
   stacks: { video: [{ name: "home" }] as Route[], music: [{ name: "m_home" }] as Route[] },
-  /** Guide drawer (240px) open; otherwise the 72px mini-guide shows. */
   guideOpen: true,
-  /** Music "Now playing" sheet open. */
   nowPlaying: false,
-  /** Bumped on every navigation, for scroll restore. */
   nav: 0,
 });
 
@@ -47,11 +40,9 @@ function faceOf(r: Route): Face {
   return r.name.startsWith("m_") ? "music" : "video";
 }
 
-/** Navigate. Same-name top routes (home, subscriptions...) replace instead of piling up. */
 export function go(r: Route, opts: { replace?: boolean } = {}) {
   const face = faceOf(r);
   if (r.name === "settings" || r.name === "import") {
-    // settings live on the video stack but are reachable from both faces
   }
   ui.face = r.name === "settings" || r.name === "import" ? ui.face : face;
   const stack = ui.stacks[r.name === "settings" || r.name === "import" ? ui.face : face];
@@ -66,7 +57,6 @@ export function go(r: Route, opts: { replace?: boolean } = {}) {
   ui.nav++;
 }
 
-/** Root destinations of the guide reset the stack. */
 export function goRoot(r: Route) {
   const face = faceOf(r);
   ui.face = face;
@@ -93,7 +83,6 @@ export function setFace(face: Face) {
   ui.nav++;
 }
 
-/** Parse `/youtube?...` query params into a route (deep links from other screens). */
 export function routeFromUrl(params: URLSearchParams): Route | null {
   const v = params.get("v");
   if (v) {
@@ -110,7 +99,6 @@ export function routeFromUrl(params: URLSearchParams): Route | null {
   return null;
 }
 
-/** Turn any youtube.com / youtu.be / music.youtube.com URL into a route. */
 export function routeFromYoutubeUrl(raw: string): Route | null {
   let u: URL;
   try {

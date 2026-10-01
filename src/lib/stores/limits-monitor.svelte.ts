@@ -17,7 +17,6 @@ let generation = 0;
 let off: (() => void)[] = [];
 function take(value: Described) { prefs = value.prefs; providers = value.providers; }
 export function getLimitsMonitor() { return { prefs, providers, rings, busy, error }; }
-/** A single event subscription shared by settings and header; no polling. */
 export function acquireLimitsMonitor() {
   consumers++;
   if (consumers === 1) {
@@ -48,7 +47,6 @@ export function acquireLimitsMonitor() {
     if (--consumers === 0) { generation++; off.forEach(stop => stop()); off = []; }
   };
 }
-/** UI follows persisted backend state; an unsuccessful save never flips it. */
 export async function saveLimitsPrefs(next: Prefs) {
   if (busy) return false;
   busy = true; error = null;

@@ -1,5 +1,3 @@
-/* Complementa options.css: só o que a listagem de extensões precisa a mais. */
-
 .card.wide {
   width: min(100%, 720px);
 }

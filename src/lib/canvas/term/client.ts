@@ -1,6 +1,3 @@
-// Typed wrappers over the canvas terminal commands (commands::canvas::term).
-// Argument names are camelCase (Tauri), struct fields snake_case (serde).
-
 import { Channel, invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 
@@ -18,7 +15,6 @@ export interface TermOpen {
   history_cap?: number;
   agent?: AgentKind;
   restore?: boolean;
-  /** Inherited variables to drop from the child environment. */
   env_remove?: string[];
 }
 
@@ -48,7 +44,6 @@ export interface TermInfo {
   osc_cwd: string | null;
 }
 
-/** 0 text, 1 minimap, 2 card. */
 export type WireLod = 0 | 1 | 2;
 export interface Visible {
   id: string;
@@ -59,7 +54,6 @@ export interface SlotInfo {
   slot: number;
 }
 
-/** Modifier bits of KeyInput/MouseInput. */
 export const MOD_SHIFT = 1;
 export const MOD_ALT = 2;
 export const MOD_CTRL = 4;

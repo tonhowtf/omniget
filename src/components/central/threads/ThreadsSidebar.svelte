@@ -1,9 +1,4 @@
 <script lang="ts">
-  // Sidebar: projects → threads with status in priority order (approval,
-  // input, working, failed, done, idle), pills (plan ready, PR, worktree,
-  // terminal, harness), pin / snooze / archive with an undo toast, search,
-  // inline rename and keyboard navigation. Rows have fixed heights so status
-  // changes never shift the list.
   import { t } from "$lib/i18n";
   import { threadsStore } from "$lib/central/threads/threads-store.svelte";
   import type { ThreadRow } from "$lib/central/threads/types";
@@ -34,7 +29,6 @@
   let snoozeFor = $state<string | null>(null);
   let listEl = $state<HTMLElement | null>(null);
 
-  // Minute tick for ages and snooze countdowns; a snooze wake re-sorts at its second.
   $effect(() => {
     const tick = setInterval(() => (now = Date.now()), 60_000);
     return () => clearInterval(tick);

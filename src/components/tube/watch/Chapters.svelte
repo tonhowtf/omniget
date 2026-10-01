@@ -1,6 +1,4 @@
 <script lang="ts">
-  // Chapters as a horizontal row of cards (thumb + title + time); the one
-  // playing is highlighted and clicking seeks.
   import { t } from "$lib/i18n";
   import { fmtDuration } from "$lib/tube/format";
   import { vplayer } from "$lib/tube/video.svelte";

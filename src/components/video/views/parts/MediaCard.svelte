@@ -1,7 +1,4 @@
 <script lang="ts">
-  // Poster or thumbnail tile: hover lifts it and shows a play button, a thin
-  // bar shows the resume point, a check marks watched. Optional corner button
-  // removes it from a shelf (used by Continue watching).
   import { t } from "$lib/i18n";
   import Thumb from "./Thumb.svelte";
   import VIcon from "./VIcon.svelte";
@@ -29,7 +26,6 @@
     seed?: string;
     ratio?: string;
     icon?: string;
-    /** 0..1 resume point */
     progress?: number | null;
     watched?: boolean;
     badge?: string;

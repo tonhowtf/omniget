@@ -1,6 +1,4 @@
 <script lang="ts">
-  // Virtualized track table: only the rows on screen exist in the DOM, so a
-  // 50k-track library scrolls like a 50-track one.
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "$lib/i18n";
   import { fmtTime, qualityLabel, looksUpscaled, type SortKey } from "$lib/music/library";

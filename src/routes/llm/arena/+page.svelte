@@ -1,16 +1,4 @@
 <script lang="ts">
-  /**
-   * Central › Arena (T9): o mesmo prompt em N ferramentas, cada uma na sua
-   * thread e worktree, comparadas lado a lado (estado ao vivo, tempo,
-   * tokens/custo, testes e o diff); votos, vencedor, "aplicar vencedor" e
-   * limpeza das perdedoras; histórico e placar por driver/modelo.
-   * Roteiro 3.8: 2 a 5 colunas com estimativa de custo antes, a comparação
-   * com os arquivos divergentes, "escolher este" (integrate no checkout) e
-   * "remover os outros" (worktrees e branches pela remoção segura).
-   * Deep links: `?arena=<id>`, `?thread=<id>&plan=<planId>` (plano aprovado →
-   * nova arena), `?view=score`. Ao vivo por `central://arena` e
-   * `threads://event`; o relógio só anda enquanto alguma coluna roda.
-   */
   import { onDestroy, onMount, untrack } from "svelte";
   import { page } from "$app/state";
   import { goto } from "$app/navigation";
@@ -162,7 +150,6 @@
     void select(a.arenaId);
   }
 
-  // Relógio só enquanto alguma coluna roda.
   $effect(() => {
     if (!anyActive) return;
     const id = setInterval(() => (now = Date.now()), 1000);

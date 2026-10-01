@@ -146,20 +146,17 @@ import uuid
 
 SESSION = "5e0f8a3c-1d2b-4a55-9c77-0b1f2e3d4c5a"
 
-
 def emit(obj):
     obj.setdefault("session_id", SESSION)
     obj.setdefault("uuid", str(uuid.uuid4()))
     sys.stdout.write(json.dumps(obj) + "\n")
     sys.stdout.flush()
 
-
 def init():
     emit({"type": "system", "subtype": "init", "cwd": os.getcwd(),
           "claude_code_version": "2.1.276-fake", "apiKeySource": "none",
           "model": "claude-sonnet-4-5", "permissionMode": "default",
           "tools": ["Bash", "Read", "Edit"], "mcp_servers": []})
-
 
 def text_reply(text):
     emit({"type": "stream_event", "event": {"type": "message_start", "message": {
@@ -180,11 +177,7 @@ def text_reply(text):
         "usage": {"input_tokens": 4, "output_tokens": 2, "cache_creation_input_tokens": 0,
                   "cache_read_input_tokens": 12040}}, "parent_tool_use_id": None})
 
-
 def tool_use(tool_id, command):
-    # With `--include-partial-messages` (what OmniGet passes) the tool call
-    # streams first, block by block, as in claude-2.1.276-tool-use.jsonl; the
-    # whole `assistant` message follows.
     emit({"type": "stream_event", "event": {"type": "message_start", "message": {
         "id": "msg_tool", "type": "message", "role": "assistant", "content": [],
         "model": "claude-sonnet-4-5", "usage": {"input_tokens": 4, "output_tokens": 1}}},
@@ -206,14 +199,12 @@ def tool_use(tool_id, command):
         "stop_reason": "tool_use",
         "usage": {"input_tokens": 4, "output_tokens": 9}}, "parent_tool_use_id": None})
 
-
 def tool_result(tool_id, content, is_error=False):
     block = {"type": "tool_result", "tool_use_id": tool_id, "content": content}
     if is_error:
         block["is_error"] = True
     emit({"type": "user", "message": {"role": "user", "content": [block]},
           "parent_tool_use_id": None})
-
 
 def result(text, denials=None):
     line = {"type": "result", "subtype": "success", "duration_ms": 10, "duration_api_ms": 5,
@@ -222,13 +213,10 @@ def result(text, denials=None):
             "usage": {"input_tokens": int(os.environ.get("FAKE_CLAUDE_INPUT_TOKENS", "4") or 4),
                       "output_tokens": 2, "cache_creation_input_tokens": 0,
                       "cache_read_input_tokens": 12040}}
-    # BN11 gives each arena column its own price to compare; BN7 `none` is a
-    # CLI that reports no price at all (a subscription account's Codex).
     cost = os.environ.get("FAKE_CLAUDE_COST_USD", "0")
     if cost != "none":
         line["total_cost_usd"] = float(cost or 0)
     emit(line)
-
 
 def rate_limit():
     """BN7: the 5 h window moves by STEP each turn, as `rate_limit_event`
@@ -248,13 +236,10 @@ def rate_limit():
     emit({"type": "rate_limit_event", "rate_limit_info": {"status": "allowed", "unifiedWindows": {
         "five_hour": {"utilization": used, "resetsAt": resets}}}})
 
-
 def bn6(prompt, hold):
     import re
     argv = sys.argv[1:]
     if "--system-prompt" in argv:
-        # The Loop's auditor (3.7, a side call): answers at once, never a
-        # round, so the rounds' trace and ledger stay the rounds'.
         emit({"type": "system", "subtype": "init", "cwd": os.getcwd(), "session_id": str(uuid.uuid4()),
               "claude_code_version": "2.1.276-fake", "apiKeySource": "none",
               "model": "claude-haiku-4-5", "permissionMode": "default", "tools": [], "mcp_servers": []})
@@ -269,8 +254,6 @@ def bn6(prompt, hold):
     tags = re.findall(r"bn6-[a-z0-9-]+", prompt)
     tag = tags[0] if tags else None
     if tag is None and resume and os.environ.get("FAKE_CLAUDE_TRACE"):
-        # A guided round (3.7) sends only "Round N of M. Continue…": the tag
-        # is the one its resumed session started with.
         try:
             with open(os.environ["FAKE_CLAUDE_TRACE"], encoding="utf-8") as fh:
                 for line in fh:
@@ -323,18 +306,14 @@ def bn6(prompt, hold):
     result(f"{tag} round {rnd} done")
     return 0
 
-
 def arg(flag):
     argv = sys.argv[1:]
     return argv[argv.index(flag) + 1] if flag in argv and argv.index(flag) + 1 < len(argv) else None
 
-
-# Claude's wording with `--permission-prompts none` (2.1.284, SP2).
 DENIED = ("Permission for this tool use was denied. It requires approval, and this session has no "
           "approval surface — nobody can answer a permission prompt here — so the call was not run.")
 FIXTURE = [("edit", "Edit", {"file_path": "notes.txt", "old_string": "draft", "new_string": "final"}),
            ("shell", "Bash", {"command": "ls"})]
-
 
 def trace(line):
     path = os.environ.get("FAKE_CLAUDE_TRACE")
@@ -342,14 +321,12 @@ def trace(line):
         with open(path, "a", encoding="utf-8") as fh:
             fh.write(json.dumps(line) + "\n")
 
-
 def run_fixture(kind):
     if kind == "edit":
         with open("notes.txt", "a", encoding="utf-8") as fh:
             fh.write("final\n")
         return "The file notes.txt has been updated."
     return "\n".join(sorted(os.listdir(".")))
-
 
 def perm_claude():
     asked = arg("--permission-mode") or "default"
@@ -392,7 +369,6 @@ def perm_claude():
     text_reply("done")
     result("done", denials)
     return 0
-
 
 def perm_codex():
     argv = sys.argv[1:]
@@ -441,10 +417,8 @@ def perm_codex():
     emit_raw({"type": "turn.completed", "usage": {"input_tokens": 10, "cached_input_tokens": 0, "output_tokens": 2}})
     return 0
 
-
 READ_TOOLS = ("Read", "Glob", "Grep", "LS")
 EDIT_TOOLS = ("Write", "Edit", "MultiEdit", "NotebookEdit")
-
 
 def hook_commands(settings, event, tool):
     """The commands of `event` whose matcher takes `tool` (Claude: `*`/empty = all, else a regex)."""
@@ -454,7 +428,6 @@ def hook_commands(settings, event, tool):
         if matcher == "*" or re.fullmatch(matcher, tool):
             out += [h["command"] for h in group.get("hooks") or [] if h.get("type") == "command"]
     return out
-
 
 def run_hook(command, payload):
     t = time.perf_counter()
@@ -470,7 +443,6 @@ def run_hook(command, payload):
     if "decision" in spec:  # PermissionRequest
         return spec["decision"].get("behavior"), ms, spec["decision"].get("message", "")
     return spec.get("permissionDecision"), ms, spec.get("permissionDecisionReason", "")
-
 
 def hooks_claude():
     mode = {"manual": "default"}.get(arg("--permission-mode") or "default", arg("--permission-mode") or "default")
@@ -532,7 +504,6 @@ def hooks_claude():
     result("done", denials)
     return 0
 
-
 def priced_result(text, usage, price_in, price_out):
     """A result event with the given usage, priced per million tokens (cache
     read at 0.1x and cache write at 1.25x of the input price)."""
@@ -542,9 +513,7 @@ def priced_result(text, usage, price_in, price_out):
           "is_error": False, "num_turns": 1, "result": text, "stop_reason": "end_turn",
           "total_cost_usd": round(cost, 6), "permission_denials": [], "usage": usage})
 
-
 LOOP_PROOF = "Done: result.txt\nVerified: `cat result.txt` printed ok\nMissing: nothing"
-
 
 def loop_mode(prompt):
     """BN9 (3.7): the agent of a Loop round, or its auditor."""
@@ -583,7 +552,6 @@ def loop_mode(prompt):
         with open(state, "w", encoding="utf-8") as fh:
             fh.write(str(rnd))
     profile = os.environ.get("FAKE_CLAUDE_PROFILE", "honest")
-    # The round's tool calls stream before the reply, as the auditor's evidence reads them.
     if profile == "blocked":
         text = "BLOCKED: needs the API key from the user.\nDone: nothing\nVerified: -\nMissing: the API key"
     elif profile == "stubborn" or (profile == "overclaim" and rnd == 1):
@@ -601,8 +569,6 @@ def loop_mode(prompt):
         tool_result(f"toolu_loop{rnd}b", "ok")
         text = "Wrote result.txt.\n" + LOOP_PROOF
     trace({"role": "agent", "round": rnd, "argv": argv, "stdin": prompt})
-    # A new session pays its prelude once (then it is a cached prefix); a
-    # resumed one reads the history from the cache and pays only the new text.
     fresh = len(prompt) // 4
     usage = {"input_tokens": fresh if resumed else 3000 + fresh, "output_tokens": 350,
              "cache_read_input_tokens": 15000 if resumed else 12000,
@@ -610,7 +576,6 @@ def loop_mode(prompt):
     text_reply(text)
     priced_result(text, usage, 3.0, 15.0)
     return 0
-
 
 def main():
     if "--help" in sys.argv[1:] or "-h" in sys.argv[1:]:
@@ -623,7 +588,6 @@ def main():
         return 0
     mode = os.environ.get("FAKE_CLAUDE_MODE", "ok")
     hold = float(os.environ.get("FAKE_CLAUDE_HOLD_S", "3600"))
-    # The prompt arrives on stdin and stdin is closed after it, like a turn.
     try:
         prompt = sys.stdin.read()
     except Exception:  # noqa: BLE001 - a closed or missing stdin is fine
@@ -694,7 +658,6 @@ def main():
             return path
 
         for rel, text in changes.get("write", {}).items():
-            # newline="": the bytes on disk are exactly the text given.
             with open(target(rel), "w", encoding="utf-8", newline="") as fh:
                 fh.write(text)
         for rel, data in changes.get("write_b64", {}).items():
@@ -750,8 +713,6 @@ def main():
         result("addressed the notes")
         return 0
     if mode in ("grandchild", "grandchild-setsid"):
-        # start_new_session=True is setsid() in the child: portable, where a
-        # `setsid` binary exists on Linux only.
         child = subprocess.Popen(["sleep", str(int(hold) + 60)],
                                  start_new_session=(mode == "grandchild-setsid"))
         pidfile = os.environ.get("FAKE_CLAUDE_PIDFILE")
@@ -763,7 +724,6 @@ def main():
         return 0
     sys.stderr.write(f"fake_claude: unknown FAKE_CLAUDE_MODE {mode!r}\n")
     return 2
-
 
 if __name__ == "__main__":
     sys.exit(main())

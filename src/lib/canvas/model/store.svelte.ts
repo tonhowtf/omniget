@@ -1,8 +1,3 @@
-// Normalised document store of one floor. Records live in plain Maps (the
-// frame loop reads them without reactivity cost); Svelte sees a version
-// counter per store and per node, bumped on every applied op
-// (02-motor-do-canvas §2.6, "registros em $state.raw com contador de versão").
-
 import { GridIndex } from '../spatial/grid-index';
 import { boundsOf, expand } from '../spatial/geometry';
 import { applyOp, docFrom, emptyDoc, type DocState } from './ops';
@@ -17,7 +12,6 @@ export function drawingBounds(d: Drawing): Rect {
   let r: Rect =
     d.points && d.points.length >= 2 && LINEAR_DRAWINGS.has(d.kind) ? boundsOf(d.points, d.x, d.y) : { x: d.x, y: d.y, w: d.w, h: d.h };
   if (d.rotation) {
-    // Box of the rotated box, around the drawing's centre.
     const a = (d.rotation * Math.PI) / 180;
     const c = Math.abs(Math.cos(a));
     const s = Math.abs(Math.sin(a));
@@ -36,19 +30,14 @@ export function drawingBounds(d: Drawing): Rect {
 
 export class CanvasStore {
   doc: DocState = emptyDoc();
-  /** Nodes by frame rectangle. */
   readonly nodeIndex = new GridIndex();
-  /** Drawings by bounds (stroke width included). */
   readonly drawingIndex = new GridIndex();
-  /** Bumped on any change; read it inside $derived to follow the document. */
   version = $state(0);
-  /** Bumped when records are added or removed (lists, minimap). */
   structure = $state(0);
   private nodeVersions = $state.raw<Record<string, number>>({});
   private listeners = new Set<StoreListener>();
   private cache: { v: number; nodes: CanvasNode[]; connections: Connection[]; drawings: Drawing[]; groups: Group[] } | null = null;
 
-  /** Reactive: chrome (floor bar, window title) follows workspace/floor switches. */
   workspaceId = $state('');
   floorId = $state('');
   epoch: string | number = 0;
@@ -76,7 +65,6 @@ export class CanvasStore {
     return () => this.listeners.delete(fn);
   }
 
-  /** Applies ops, keeps the indexes in step and returns the inverse (ready to apply). */
   apply(ops: Op[], origin: Origin): Op[] {
     const inverse: Op[] = [];
     let structural = false;
@@ -155,7 +143,6 @@ export class CanvasStore {
     return this.cache;
   }
 
-  /** Nodes sorted by z (bottom first). */
   get nodes(): CanvasNode[] {
     return this.lists().nodes;
   }

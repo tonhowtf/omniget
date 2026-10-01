@@ -4,8 +4,6 @@
   import { resetSettings } from "$lib/stores/settings-store.svelte";
   import type { ResetScope } from "$lib/stores/settings-v3-types";
 
-  // Reset confirmation on the app's shared dialog (focus trap, Escape, focus return).
-  // Copy always states the scope and what is kept; the action names the reset.
   let {
     open = $bindable(false),
     scope,

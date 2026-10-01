@@ -84,7 +84,6 @@ import tempfile
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 
-
 def run_tests(crate, filter_, out_file):
     env = dict(os.environ, OMNIGET_BENCH_OUT=str(out_file))
     cmd, p = run_prepared_tests(crate, filter_, env)
@@ -92,15 +91,11 @@ def run_tests(crate, filter_, out_file):
     return {"cmd": " ".join(cmd), "exit": p.returncode, "summary": summary,
             "stderr_tail": p.stderr[-1500:] if p.returncode else ""}
 
-
 def read_lines(path):
     if not path.exists():
         return []
     return [json.loads(l) for l in path.read_text().splitlines() if l.strip()]
 
-
-# Every case of `bn5_auth`: (case, expected status). The Rust test asserts
-# them too; listing them here makes a missing case a failure, not a skip.
 AUTH_CASES = {
     "extension_grace_run": 200, "extension_grace_jobs": 200, "extension_grace_agents_cli": 403,
     "extension_after_grace_run": 403, "extension_after_grace_jobs": 403, "extension_after_grace_cancel": 403,
@@ -112,7 +107,6 @@ AUTH_CASES = {
     "job_token_cancels_itself": 403, "job_token_after_end": 401,
     "user_token_before_expiry": 200, "user_token_after_expiry": 401,
 }
-
 
 def scenario_auth():
     runs = []
@@ -170,7 +164,6 @@ def scenario_auth():
         goals.append({"goal": "every auth case ran", "target": len(AUTH_CASES), "value": {"missing": missing}, "pass": False})
     return runs, goals, {"cases": cases, "metrics": {k: v.get("value") for k, v in metrics.items()}}
 
-
 def scenario_delegate():
     runs = []
     with tempfile.TemporaryDirectory() as d:
@@ -200,7 +193,6 @@ def scenario_delegate():
          "pass": m.get("e2e_ms_p50") is not None and m["e2e_ms_p50"] < 1000},
     ]
     return runs, goals, {"metrics": m}
-
 
 def scenario_workflow():
     runs = []
@@ -234,10 +226,8 @@ def scenario_workflow():
     ]
     return runs, goals, {"metrics": m}
 
-
 SCENARIOS = {"auth": scenario_auth, "delegate": scenario_delegate, "workflow": scenario_workflow}
 NOT_YET = {}
-
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -279,7 +269,6 @@ def main():
         print(("PASS " if g["pass"] else "FAIL ") + f"[{g['scenario']}] " + g["goal"] + f"  ({g['value']})")
     print("all_pass:", report["all_pass"], "->", args.out)
     return 0 if report["all_pass"] else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

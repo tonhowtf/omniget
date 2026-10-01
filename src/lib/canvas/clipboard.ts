@@ -1,9 +1,3 @@
-// Canvas clipboard (Maestri M-B21, M-B30, M-B37): ⌘C / ⌘X / ⌘V and the menu
-// entries. The clip is built and stamped in Rust (`canvas_clipboard_*`), so it
-// travels across workspaces and floors, survives a relaunch through the OS
-// clipboard, and the MCP tool `canvas_clipboard` uses the same path. A paste of
-// foreign content (link, SVG, file paths, image, text) becomes nodes.
-
 import { invoke } from '@tauri-apps/api/core';
 import type { CanvasEngine } from './engine.svelte';
 import { showToast } from '$lib/stores/toast-store.svelte';
@@ -22,12 +16,10 @@ function selected(engine: CanvasEngine): { nodeIds: string[]; drawingIds: string
   };
 }
 
-/** Copies (or cuts) the selection. Memory mode (no Rust store) does nothing. */
 export async function copySelection(engine: CanvasEngine, cut = false): Promise<boolean> {
   const sel = selected(engine);
   if (!sel.nodeIds.length && !sel.drawingIds.length) return false;
   if (engine.syncMode !== 'rust') return false;
-  // Pending local edits first, so the clip has the frames the user sees.
   engine.sync.flush();
   try {
     await invoke('canvas_clipboard_copy', {
@@ -45,10 +37,6 @@ export async function copySelection(engine: CanvasEngine, cut = false): Promise<
   }
 }
 
-/**
- * Pastes at `at` (top-left, world; right-click Paste) or at the view centre
- * with the cascade of repeated pastes (⌘V). Selects what arrived.
- */
 export async function pasteClipboard(engine: CanvasEngine, at?: { x: number; y: number }): Promise<string[]> {
   if (engine.syncMode !== 'rust') return [];
   engine.sync.flush();
@@ -60,7 +48,6 @@ export async function pasteClipboard(engine: CanvasEngine, at?: { x: number; y: 
       center: at ? null : engine.camera.center(),
     });
     const ids = [...(r.nodeIds ?? []), ...(r.drawingIds ?? [])];
-    // The nodes come back through `canvas://patch`; select once they are in.
     const t0 = performance.now();
     const pick = () => {
       if (ids.every((id) => engine.exists(id)) || performance.now() - t0 > 1500) {

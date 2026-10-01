@@ -2,10 +2,6 @@
   import type { Snippet } from "svelte";
   import { hueOf, initial } from "$lib/washmybelly/startup";
 
-  /// One process in the game lists: letter tile, name, a detail line and a
-  /// trailing action. Hairline row of the shared `group` list, the same
-  /// "launcher card" shape as the startup rows (21st.dev "Switch List Card",
-  /// sean0205), with the button in place of the switch.
   let {
     name,
     sub = "",

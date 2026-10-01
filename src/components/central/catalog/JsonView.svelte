@@ -1,5 +1,4 @@
 <script lang="ts">
-  /** JSON viewer: collapsible tree (first two levels open) or raw code, copy whole or section. */
   import { t } from "$lib/i18n";
   import { showToast } from "$lib/stores/toast-store.svelte";
   import CodeView from "./CodeView.svelte";

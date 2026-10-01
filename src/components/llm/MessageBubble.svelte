@@ -1,9 +1,4 @@
 <script lang="ts">
-  /**
-   * One message. Assistant text is markdown (sanitised; see `$lib/llm/markdown`),
-   * user text stays plain. Tool calls render as collapsed blocks the user can
-   * open; the raw JSON input is shown as text, never as HTML.
-   */
   import { onDestroy } from "svelte";
   import { t } from "$lib/i18n";
   import { renderSafeMarkdownSync } from "$lib/llm/markdown";
@@ -31,16 +26,14 @@
   let isAssistant = $derived(message.role === "assistant");
   let authorKind = $derived(message.author?.kind ?? (isAssistant ? "bot" : "user"));
   let isSystem = $derived(authorKind === "system");
-  // Rooms have several authors: the bubble names the one that wrote it.
   let author = $derived(message.author?.botId ? getAgent(message.author.botId) : agent);
   let authorName = $derived(author?.name ?? message.author?.botId ?? agent?.name ?? "");
   let delegated = $derived(authorKind === "bot" && !!message.taskId);
   let html = $derived.by(() => {
-    version; // re-run once `marked` has loaded
+    version;
     return isAssistant ? renderSafeMarkdownSync(message.text, cache, () => (version += 1)) : "";
   });
   let toolCalls = $derived<ToolCallView[]>(message.toolCalls ?? []);
-  // While the turn streams, the orb says what the agent is doing right now.
   let runningTool = $derived(toolCalls.filter((c) => !c.done).pop());
   let orbState = $derived<OrbState>(
     runningTool ? toolOrb(runningTool.name) : message.text ? "composing" : "breathing",

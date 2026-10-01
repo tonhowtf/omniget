@@ -1,6 +1,4 @@
 <script lang="ts">
-  // L0: the single WebGL2 canvas. Registers the engine's built-in passes and
-  // falls back to Canvas 2D (tier 0) when WebGL2 is missing or will not come back.
   import { onMount } from "svelte";
   import { useEngine } from "$lib/canvas/engine.svelte";
   import { registerPass } from "$lib/canvas/render/gl-layer";
@@ -34,7 +32,6 @@
       registerPass(createSnapshotPass(engine)),
       registerPass(createSpritePass(engine, () => th())),
       registerPass(createOverlayPass(engine, () => th())),
-      // Terminal bodies (term-front), order 45, in this same context.
       registerTermPass(() => engine.invalidate()),
     ];
     const ok = glCanvas
@@ -46,7 +43,6 @@
           onRestored: () => engine.invalidate(),
         })
       : false;
-    // Must be known before terminal nodes mount (they pick xterm.js without GL).
     setTermGlAvailable(ok);
     if (!ok) engine.glFallback = true;
     engine.invalidate();
@@ -56,7 +52,6 @@
     };
   });
 
-  // Canvas 2D fallback on its own element (a canvas never hands out a second context kind).
   $effect(() => {
     if (!engine.glFallback || !fallbackCanvas) return;
     const c = fallbackCanvas;

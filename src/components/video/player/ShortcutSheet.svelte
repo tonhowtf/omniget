@@ -1,5 +1,4 @@
 <script lang="ts">
-  // Every player shortcut, grouped; click a key to bind a new one.
   import { t } from "$lib/i18n";
   import { KEY_GROUPS, keyLabel, keymap, rebind, resetKeys, type KeyAction } from "$lib/video/keys.svelte";
   import VIcon from "./VIcon.svelte";

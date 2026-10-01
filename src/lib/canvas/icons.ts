@@ -1,4 +1,3 @@
-// Stroke icons (24×24) for the canvas chrome: tools, arrange, zoom.
 export const TOOL_ICONS = {
   select: 'M5 3l14 8-6 2-2 6z',
   hand: 'M8 13V5.5a1.5 1.5 0 0 1 3 0V12 M11 11V4.5a1.5 1.5 0 0 1 3 0V12 M14 11.5V6a1.5 1.5 0 0 1 3 0v8a6 6 0 0 1-6 6h-1a6 6 0 0 1-5-2.7L3.5 14a1.5 1.5 0 0 1 2.5-1.6L8 15',

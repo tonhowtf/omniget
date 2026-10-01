@@ -1,32 +1,4 @@
 #!/usr/bin/env node
-// Canary: do the platform extractors still resolve a real, public URL?
-//
-// Runs the existing `omniget-cli --json info <url>` (metadata only, nothing is
-// downloaded) against one long-lived public URL per platform and prints a
-// pass/fail table. Exit code 1 when any platform fails.
-//
-// A platform passes only when its own extractor answered. `info` falls back to
-// the generic yt-dlp extractor when a native one errors; that still helps the
-// user, but it means the native extractor broke, so the canary reports it as
-// FALLBACK and fails.
-//
-//   node scripts/canary.mjs                    # build the CLI, run everything
-//   node scripts/canary.mjs --json             # machine-readable result
-//   node scripts/canary.mjs --only youtube,x   # a subset
-//   node scripts/canary.mjs --bin path/to/omniget-cli   # skip the build
-//   node scripts/canary.mjs --profile DIR      # reuse a profile between runs
-//   node scripts/canary.mjs --real-profile     # use the real app profile
-//                                              # (its cookies and managed yt-dlp)
-//
-// By default each run uses a fresh, empty profile (OMNIGET_DATA_DIR in a temp
-// dir), so a pass means "works without login" and not "works with the cookies
-// of whoever ran it". With no managed yt-dlp in it, the first probe that needs
-// yt-dlp installs it (the app's own first-run path, ~2 minutes), so the first
-// probe gets a longer timeout. `--profile` keeps that install between runs.
-//
-// Only platforms that work without login are here. Left out on purpose:
-//   - Douyin: needs a signed web session (ttwid/msToken); anonymous requests
-//     get an empty body.
 
 import { spawn, spawnSync } from "node:child_process";
 import { appendFileSync, existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
@@ -36,9 +8,6 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
-// One public URL per platform, picked to stay up for years (official
-// accounts, famous posts, the extractor's own test fixtures). `extractor` is
-// the `platform` field `info --json` must report.
 const TARGETS = [
   { platform: "youtube", extractor: "youtube", url: "https://www.youtube.com/watch?v=jNQXAC9IVRw" },
   { platform: "tiktok", extractor: "tiktok", url: "https://www.tiktok.com/@scout2015/video/6718335390845095173" },
@@ -47,7 +16,6 @@ const TARGETS = [
   { platform: "bluesky", extractor: "bluesky", url: "https://bsky.app/profile/bsky.app/post/3l3vgf77uco2g" },
   { platform: "pinterest", extractor: "pinterest", url: "https://www.pinterest.com/pin/664281013778109217/" },
   { platform: "twitch", extractor: "twitch", url: "https://clips.twitch.tv/FaintLightGullWholeWheat" },
-  // The player URL: yt-dlp's vimeo.com web client now asks for a login.
   { platform: "vimeo", extractor: "vimeo", url: "https://player.vimeo.com/video/76979871" },
   { platform: "bilibili", extractor: "bilibili", url: "https://www.bilibili.com/video/BV1bK411W797" },
   { platform: "instagram", extractor: "instagram", url: "https://www.instagram.com/p/BQ0eAlwhDrw/" },
@@ -94,7 +62,6 @@ function buildCli() {
       const msg = JSON.parse(line);
       if (msg.reason === "compiler-artifact" && msg.target?.name === "omniget-cli" && msg.executable) exe = msg.executable;
     } catch {
-      /* not a cargo message */
     }
   }
   if (!exe) {
@@ -113,7 +80,6 @@ if (!existsSync(bin)) {
 const keptProfile = option("--profile") ? resolve(option("--profile")) : null;
 if (keptProfile) mkdirSync(keptProfile, { recursive: true });
 const profile = realProfile ? null : (keptProfile ?? mkdtempSync(join(tmpdir(), "omniget-canary-")));
-// Room for the managed yt-dlp install the first yt-dlp probe may trigger.
 const FIRST_TIMEOUT_MS = Math.max(timeoutMs, 600_000);
 const env = { ...process.env, RUST_LOG: process.env.RUST_LOG ?? "warn" };
 if (profile) env.OMNIGET_DATA_DIR = profile;
@@ -143,7 +109,6 @@ function probe(t, limitMs) {
           info = JSON.parse(line);
           break;
         } catch {
-          /* keep looking */
         }
       }
       if (code !== 0 || !info) {
@@ -169,8 +134,6 @@ function probe(t, limitMs) {
   });
 }
 
-// Sequential on purpose: probes share one profile, and the first one that
-// needs yt-dlp may start installing the managed copy into it.
 const results = [];
 for (const [i, t] of targets.entries()) {
   log(`canary: ${t.platform} ...`);
@@ -181,7 +144,6 @@ if (profile && !keptProfile) {
   try {
     rmSync(profile, { recursive: true, force: true });
   } catch {
-    /* best effort */
   }
 }
 
@@ -212,7 +174,6 @@ if (process.env.GITHUB_STEP_SUMMARY) {
   try {
     appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${md}\n`);
   } catch {
-    /* summary is a nicety */
   }
 }
 

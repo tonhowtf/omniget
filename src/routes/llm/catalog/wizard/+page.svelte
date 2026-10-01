@@ -1,10 +1,4 @@
 <script lang="ts">
-  /**
-   * Project wizard: detects the stack of a folder, suggests the pieces of the
-   * catalog's 14 project templates plus a generated AGENTS.md, lets the user
-   * pick (only what is picked is installed), installs into the tools found
-   * for this project through the agentkit plan, then offers a review Job.
-   */
   import { t } from "$lib/i18n";
   import { showToast } from "$lib/stores/toast-store.svelte";
   import ProjectPicker from "$components/central/catalog/ProjectPicker.svelte";

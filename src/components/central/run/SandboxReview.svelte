@@ -1,9 +1,4 @@
 <script lang="ts">
-  /**
-   * Review of a sandboxed job: what the agent changed in the copy, file by
-   * file, and "apply" for the ones picked. A file the user edited in the
-   * project meanwhile is a conflict and is never overwritten.
-   */
   import { t } from "$lib/i18n";
   import { showToast } from "$lib/stores/toast-store.svelte";
   import { errText } from "$lib/central/catalog";

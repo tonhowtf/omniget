@@ -1,7 +1,4 @@
 <script lang="ts">
-  // One course: collapsible modules with lessons numbered "2.10" in natural
-  // order, each marked done / current / pending (after the 21st "Task Steps").
-  // Lessons can be marked by hand, one by one or in batch.
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "$lib/i18n";
   import { showToast } from "$lib/stores/toast-store.svelte";
@@ -23,7 +20,6 @@
 
   $effect(() => {
     void app.version;
-    // reload when the player closes: progress changed
     if (player.open) return;
     void load(id);
   });

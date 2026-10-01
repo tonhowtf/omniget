@@ -1,7 +1,4 @@
 <script lang="ts">
-  // Playlist (spec §2.11): a 360px panel with the cover blurred behind it,
-  // title 28/700, owner, counts, Play all / Shuffle / Download all; the
-  // numbered list on the right. Under ~1000px the panel sits on top.
   import { t } from "$lib/i18n";
   import * as api from "$lib/tube/api";
   import { thumbUrl, videoThumb } from "$lib/tube/format";
@@ -84,7 +81,6 @@
         await api.download({ video_id: v.id, title: v.title, audio_only: false, music: false });
         ok++;
       } catch {
-        // keep going: one private/removed video shouldn't stop the rest
       }
     }
     dlBusy = false;

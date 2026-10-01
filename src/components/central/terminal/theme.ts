@@ -1,7 +1,3 @@
-// xterm theme built from the app's CSS variables. Tokens are often
-// `color-mix(...)`, which xterm cannot parse, so each one is resolved through a
-// probe element and a 1x1 canvas into plain `rgba()`.
-
 import type { ITheme } from "@xterm/xterm";
 
 let canvasCtx: CanvasRenderingContext2D | null = null;

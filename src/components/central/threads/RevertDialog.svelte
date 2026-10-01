@@ -1,7 +1,4 @@
 <script lang="ts">
-  // "Edit from here": rewind the chat to before a message; the prompt goes
-  // back to the composer. Files can be restored too (checkpoint of that
-  // turn) — safe in a thread worktree, a warning in a shared checkout.
   import { t } from "$lib/i18n";
   import Modal from "./Modal.svelte";
 

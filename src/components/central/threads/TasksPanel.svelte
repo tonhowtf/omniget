@@ -1,5 +1,4 @@
 <script lang="ts">
-  // Tasks surface: every subagent / task the thread launched, live first.
   import { t } from "$lib/i18n";
   import type { WorkEntry } from "$lib/central/threads-ui/work";
   import { formatTokens, formatAge } from "$lib/central/threads-ui/format";

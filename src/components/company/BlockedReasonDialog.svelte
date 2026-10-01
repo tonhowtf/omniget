@@ -1,5 +1,4 @@
 <script lang="ts">
-  /** Asks what a blocked issue waits for (the core refuses `blocked` without it). */
   import { t } from "$lib/i18n";
 
   let {

@@ -1,5 +1,4 @@
 <script lang="ts">
-  /** One line of the issue list: status, identifier, title, labels, assignee, age. */
   import { t } from "$lib/i18n";
   import type { Issue, Label, Staff } from "$lib/company/rpc";
   import IssuePriority from "./IssuePriority.svelte";

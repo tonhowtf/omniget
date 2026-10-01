@@ -1,11 +1,4 @@
 #!/usr/bin/env node
-/*
- * Screenshot harness for visual review.
- * Usage: node scripts/shots.mjs [phase] [--routes=/a,/b] [--themes=light,dark]
- * Captures every main route at 3 viewports x 2 themes into .shots/<phase>/ (gitignored).
- * Runs against `vite dev` (port 1420) with the Tauri IPC fully mocked, so no
- * real backend, credentials or user data are involved.
- */
 import { chromium } from "playwright";
 import { mkdirSync, existsSync } from "node:fs";
 import { spawn } from "node:child_process";
@@ -28,13 +21,8 @@ const VIEWPORTS = [
 
 const THEMES = (argOf("themes") || "light,dark").split(",");
 const VP_FILTER = argOf("vp") ? argOf("vp").split(",") : null;
-// --platform=other makes the page believe it runs on Windows/Linux (no titlebar
-// overlay, opaque materials, controls on the right).
 const PLATFORM = argOf("platform") || "macos";
-// --full captures the whole scrollable page instead of just the viewport.
 const FULL_PAGE = process.argv.includes("--full");
-// --vp accepts the preset names and also ad-hoc WxH sizes (e.g. --vp=1440x1700
-// to fit a long list without scrolling).
 const ACTIVE_VIEWPORTS = VP_FILTER
   ? VP_FILTER.map((name) => {
       const preset = VIEWPORTS.find((v) => v.name === name);
@@ -163,8 +151,6 @@ const DEPS = [
   { name: "ffmpeg", installed: true, version: "7.1" },
 ];
 
-// The /llm section: the app shows no demo data of its own any more (a
-// failing backend reads as an error), so the screenshots get theirs here.
 const LLM_ROSTER = [
   { id: "omni", name: "Omni", role: "coordinator", system_prompt: "You coordinate the other agents.", model: { policy: "fixed", model: { provider: "anthropic", model: "claude-opus-5" } }, tools: [], skills: [], budget: {}, runtime: { kind: "native" } },
   { id: "shellhand", name: "Shellhand", role: "worker", system_prompt: "You run the local CLI agents.", model: { policy: "fixed", model: { provider: "custom", model: "claude-code" } }, tools: [], skills: [], budget: {}, runtime: { kind: "cli", cli: "claude", account: "local" } },

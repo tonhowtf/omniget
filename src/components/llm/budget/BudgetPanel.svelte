@@ -1,16 +1,4 @@
 <script lang="ts">
-  /**
-   * Budgets (3.3, S18, D5): ceilings by scope — everything, an agent, an
-   * account, a loop, a job or a mission — in dollars, weighted tokens or a
-   * share of a subscription's 5 h / 7 d window, and the incidents that hold a
-   * scope paused. Without a ceiling nothing is limited (and nothing here
-   * changes a turn).
-   *
-   * A subscription account reports no dollars: a dollar ceiling on it counts
-   * the price table's estimate, and says so. A quota ceiling reads only what
-   * the CLI reported on its own stream; with no reading yet it shows none
-   * instead of a made-up percentage.
-   */
   import { onMount } from "svelte";
   import { page } from "$app/state";
   import { t } from "$lib/i18n";

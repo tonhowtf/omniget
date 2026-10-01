@@ -1,17 +1,4 @@
 <script lang="ts">
-  /**
-   * Omni's face: the mascot sprite inside a tinted disc.
-   *
-   * The animation is one CSS `steps()` walk over a background-position, so there
-   * is no JavaScript per frame, no `requestAnimationFrame` and no timer: when the
-   * avatar is neither hovered nor speaking the element is completely idle, and
-   * `prefers-reduced-motion` freezes it on frame 0.
-   *
-   * Omni is green by nature, so the skin tint is NOT painted on the character: it
-   * colours the disc behind him and its ring, the same way `ProfileCard` used the
-   * tint for its placeholder disc. That keeps 8 skins readable at 24 px while the
-   * mascot stays recognizable.
-   */
   import {
     OMNI_STRIP,
     moodPose,
@@ -31,27 +18,18 @@
     label,
     compact = false,
   }: {
-    /** RGB 0-255, straight from `profile.skin.tint` or `SKIN_TINTS`. */
     tint: readonly number[] | null | undefined;
-    /** Side of the disc in CSS px. */
     size?: number;
-    /** Fits the complete official frame inside small profile discs. */
     compact?: boolean;
     mood?: Mood | string;
     speaking?: boolean;
-    /** `auto` animates on hover or while speaking; `always`/`never` force it. */
     animate?: "auto" | "always" | "never";
-    /** Overrides the pose the mood would pick (used by the gallery/tests). */
     pose?: OmniPose;
-    /** Accessible name. Without one the avatar is decoration and is hidden. */
     label?: string;
   } = $props();
 
   let activePose = $derived(pose ?? moodPose(mood, speaking));
   let anim = $derived(stripAnimationCss(OMNI_STRIP, activePose));
-  // The sprite is 48x64 with the pivot at (24,60): drawn at 1:1 and anchored to
-  // the bottom centre of the disc, the feet sit on the rim and the head fills the
-  // top, which is what reads best in a circle. `scale` is the only size knob.
   let scale = $derived(compact ? size / 72 : size / 40);
 </script>
 
@@ -112,17 +90,10 @@
     background-repeat: no-repeat;
     background-size: var(--omni-sheet-w) var(--omni-frame-h);
     background-position: var(--omni-from) 0;
-    /* Pixel art: never let the compositor smooth it. */
     image-rendering: pixelated;
     pointer-events: none;
   }
 
-  /*
-   * One keyframe pair for every pose: the custom properties carry the pose's
-   * slice of the strip, so changing mood changes four variables and no CSS rule.
-   * `to` is one frame PAST the last one, which is what makes `steps(n)` land on
-   * each frame exactly once.
-   */
   @keyframes omni-walk {
     from {
       background-position-x: var(--omni-from);
@@ -143,7 +114,6 @@
     }
   }
 
-  /* Reduced motion: frame 0, no animation at all, in every state. */
   @media (prefers-reduced-motion: reduce) {
     .omni-avatar .omni-sprite,
     .omni-avatar[data-animate="always"] .omni-sprite,

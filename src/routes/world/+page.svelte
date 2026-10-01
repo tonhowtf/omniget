@@ -1,5 +1,4 @@
 <script lang="ts">
-  /** `/world` — the agent canvas. */
   import { t } from "$lib/i18n";
   import { getSettings } from "$lib/stores/settings-store.svelte";
   import Canvas from "$components/canvas/Canvas.svelte";
@@ -30,7 +29,6 @@
     flex-direction: column;
     gap: 1rem;
   }
-  /* The canvas takes every pixel the shell gives the route. */
   .world-page.fill {
     flex: 1;
     min-height: 0;

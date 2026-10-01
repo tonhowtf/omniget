@@ -1,5 +1,4 @@
 <script lang="ts">
-  /** Safe markdown (same sanitiser as /llm chats) with `@mentions` highlighted. */
   import { renderSafeMarkdownSync } from "$lib/llm/markdown";
 
   let { text }: { text: string } = $props();
@@ -7,7 +6,6 @@
   const cache = new Map<string, string>();
   let ready = $state(0);
 
-  /** Wraps `@name` in text nodes only (never inside tags or after a word char). */
   function mentions(html: string): string {
     return html
       .split(/(<[^>]*>)/)

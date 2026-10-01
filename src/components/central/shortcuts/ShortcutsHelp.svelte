@@ -1,9 +1,4 @@
 <script lang="ts">
-  /**
-   * Ajuda de atalhos (overlay aberto com `?`): a tabela inteira agrupada, com
-   * as teclas no formato do SO e a condição `when` de cada uma. Filtro por
-   * texto; Esc ou `?` fecham.
-   */
   import { onMount } from "svelte";
   import { t } from "$lib/i18n";
   import { COMMANDS, commandInfo, commandLabelKey, keyLabel, type ShortcutGroup, type ShortcutRule } from "$lib/central/shortcuts";

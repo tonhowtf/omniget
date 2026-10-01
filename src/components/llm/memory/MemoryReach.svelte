@@ -1,9 +1,4 @@
 <script lang="ts">
-  /**
-   * What "forget" reaches and what it does not, plus export, import and the
-   * app's own backups. `compact` shows only export and the explanation (the
-   * bot panel); the full version lives on /llm/memory.
-   */
   import { onMount } from "svelte";
   import { t } from "$lib/i18n";
   import {

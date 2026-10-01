@@ -43,8 +43,6 @@
   } as const;
 
   let enabled = $derived(getSettings()?.washmybelly?.enabled ?? true);
-  // Synchronous guess so the list never flashes modules of another system;
-  // the backend answer replaces it.
   let caps = $state<Caps>({ os: currentOs() });
   let loaded = $state(false);
   let refreshing = $state(false);
@@ -84,7 +82,6 @@
     void goto(`/washmybelly?m=${id}`, { noScroll: true, keepFocus: true, replaceState: true });
   }
 
-  /// Arrow keys walk the sidebar like a source list.
   function onSideKey(e: KeyboardEvent) {
     if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
     const ids = GROUP_ORDER.flatMap((g) => modules.filter((m) => m.mod.group === g).map((m) => m.mod.id));
@@ -96,7 +93,6 @@
     queueMicrotask(() => side?.querySelector<HTMLElement>(`[data-mod="${next}"]`)?.focus());
   }
 
-  /// Screen action that fixes a missing requirement, by reason.
   function fixFor(reasonKey: string): { labelKey: string; action: string } | null {
     if (reasonKey === "washmybelly.reason.full_disk_access") {
       return { labelKey: "washmybelly.ui.open_fda", action: "security.open_fda_settings" };

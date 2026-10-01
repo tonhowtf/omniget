@@ -108,7 +108,6 @@ describe("pickAudio", () => {
 });
 
 describe("proxy urls", () => {
-  // the backend sends the session root as `base`
   const set = { base: "http://127.0.0.1:5000/yt/s1", token: "t k", session: "s1", hls: null };
   it("builds media and manifest urls with the token", () => {
     expect(mediaUrl(set, 140)).toBe("http://127.0.0.1:5000/yt/s1/140?k=t%20k");

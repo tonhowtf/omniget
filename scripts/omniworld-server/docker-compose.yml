@@ -1,7 +1,3 @@
-# OmniWorld room server.
-# TLS is not handled here: put a reverse proxy (Caddy/nginx) in front, let it
-# terminate TLS and forward WebSocket upgrades to port 7878, then point the app
-# at wss://<domain>/v1/room
 services:
   omniworld:
     build:

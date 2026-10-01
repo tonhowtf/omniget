@@ -1,18 +1,13 @@
-// YouTube's keyboard shortcuts for /youtube (spec §5). Installed by TubeApp.
-// They drive the video when the watch page (or the mini player, if it was the
-// last thing playing) is up, the music player otherwise.
 import { back, current, ui } from "./ui.svelte";
 import * as M from "./music.svelte";
 import * as V from "./video.svelte";
 
 export const keys = $state({
-  /** Shortcut sheet open ("?"). */
   help: false,
 });
 
 let focusSearch: (() => void) | null = null;
 
-/** The masthead registers how to focus its search box ("/"). */
 export function onFocusSearch(fn: () => void): () => void {
   focusSearch = fn;
   return () => {
@@ -27,7 +22,6 @@ function typing(e: KeyboardEvent): boolean {
   return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || t.isContentEditable;
 }
 
-/** A focused control that already reacts to Space/Enter. */
 function onControl(e: KeyboardEvent): boolean {
   const t = e.target as HTMLElement | null;
   return !!t && (t.tagName === "BUTTON" || t.tagName === "A" || t.getAttribute("role") === "slider" || t.getAttribute("role") === "tab");
@@ -139,7 +133,6 @@ function videoKey(e: KeyboardEvent, k: string): boolean {
     case "i":
     case "I":
       if (current().name === "watch") {
-        // leaving the watch page is what turns on the mini player
         if (!back()) return false;
       } else if (V.vplayer.mini) V.expandMini();
       return true;
@@ -232,13 +225,11 @@ function musicKey(e: KeyboardEvent, k: string): boolean {
   return false;
 }
 
-/** Global listener while /youtube is mounted. */
 export function installKeys(): () => void {
   const h = (e: KeyboardEvent) => {
     if (handleKey(e)) e.preventDefault();
   };
   const mouse = (e: MouseEvent) => {
-    // mouse "back" button
     if (e.button === 3 && back()) e.preventDefault();
   };
   window.addEventListener("keydown", h);

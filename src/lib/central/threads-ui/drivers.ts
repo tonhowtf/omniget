@@ -1,7 +1,3 @@
-// Display metadata for drivers/instances: label, tint and the model hints
-// offered by the composer's model field. Tints follow each vendor's brand
-// colour so a thread's harness reads at a glance.
-
 import type { AccessMode, InstanceView } from "$lib/central/threads/types";
 
 const TINTS: Record<string, string> = {
@@ -51,7 +47,6 @@ export function driverName(driver: string, inst?: InstanceView | null): string {
   return inst?.instance.label ?? NAMES[driver] ?? driver.charAt(0).toUpperCase() + driver.slice(1);
 }
 
-/** Model hints per driver (the field stays free text). */
 export const MODEL_HINTS: Record<string, string[]> = {
   claude: ["sonnet", "opus", "haiku", "claude-sonnet-4-5", "claude-opus-4-1"],
   codex: ["gpt-5-codex", "gpt-5", "gpt-5-mini", "o3"],

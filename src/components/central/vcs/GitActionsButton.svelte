@@ -1,12 +1,4 @@
 <script lang="ts">
-  // Botão dividido de git: a parte principal faz "o próximo passo sensato"
-  // (commit, commit & push, commit/push & PR, push, abrir PR, ver PR) e a
-  // seta abre o menu com cada ação. A mensagem vem sugerida do diff; o
-  // diálogo deixa editar antes de rodar e escolher quais arquivos entram.
-  // Com `ops` (a árvore de arquivos do canvas), o menu ganha o resto do git
-  // do Maestri: pull, fetch, sync, branches (checkout, merge, apagar, nova),
-  // stash, abortar merge e remover lock velho. Menu e diálogos vão para o
-  // <body> (dentro do canvas o nó é transformado e `fixed` sairia deslocado).
   import { onMount } from "svelte";
   import { open as openExternal } from "@tauri-apps/plugin-shell";
   import { t } from "$lib/i18n";
@@ -29,7 +21,6 @@
     type RepoStatus,
   } from "$lib/central/vcs";
 
-  /** Git operations of the host (the canvas file tree); paths relative to its root. */
   type GitOps = {
     run: (
       action: string,
@@ -47,13 +38,10 @@
     onpr,
     ops,
   }: {
-    /** Pasta do repositório/worktree da thread. */
     path: string;
-    /** Só o ícone na parte principal (cabeçalho estreito). */
     compact?: boolean;
     onchanged?: () => void;
     onpr?: (pr: PrInfo) => void;
-    /** Extra git actions (pull, fetch, branches, stash…) run through the host. */
     ops?: GitOps;
   } = $props();
 
@@ -71,8 +59,6 @@
     draft: boolean;
     files: { path: string; kind: string; checked: boolean }[];
   } | null>(null);
-  /** Changes behind the suggested message, and the text it produced: while
-   *  the message is still that text, (un)checking files redoes it. */
   let suggested: { changes: ChangeSummary[]; text: string } | null = null;
   let root: HTMLDivElement | undefined = $state();
   let chevEl: HTMLButtonElement | undefined = $state();
@@ -252,13 +238,11 @@
     }
   }
 
-  /** Git's own words in a copyable box (Maestri: readable, copyable errors). */
   function fail(title: string, e: unknown, conflicts: string[] = []) {
     const text = typeof e === "string" ? e : vcsError(e).message.replace(/^CANVAS_GIT:\s*/, "");
     failure = { title, text, conflicts };
   }
 
-  /** Runs one host git action (`branches`/`stash` open their dialogs). */
   async function extra(x: Extra | "checkout" | "merge" | "deleteBranch" | "newBranch" | "stashPush" | "stashApply" | "stashPop" | "stashDrop", args: Record<string, unknown> = {}) {
     menuOpen = false;
     if (!ops) return;
@@ -331,8 +315,6 @@
     }
   }
 
-  // ⌘Enter / Esc reach the dialog even when the key lands on the window
-  // (the canvas routes keys itself; the MCP key tool targets the window).
   $effect(() => {
     if (!dialog && !branchDlg && !stashDlg && !failure) return;
     const h = (e: KeyboardEvent) => {
@@ -352,7 +334,6 @@
     if (r) menuPos = { top: r.bottom + 4, right: Math.max(8, window.innerWidth - r.right) };
   }
 
-  /** Moves an element to <body> so `position: fixed` is the viewport's. */
   function portal(el: HTMLElement) {
     document.body.appendChild(el);
     return { destroy: () => el.remove() };

@@ -1,10 +1,4 @@
 <script lang="ts">
-  /**
-   * The bot screen: who it is (purpose, capabilities, memory policy), the
-   * connection it runs on, its skills with their real state, what it can
-   * really do this turn (from the backend manifest, never from the boxes),
-   * what it remembers and its reading journeys.
-   */
   import { untrack } from "svelte";
   import { goto } from "$app/navigation";
   import { t } from "$lib/i18n";
@@ -27,7 +21,6 @@
   let { botId, conversationId = null, focusSection = null }: {
     botId: string;
     conversationId?: string | null;
-    /** From `/llm/roster?bot=<id>&section=…`: reveal and focus that block of this bot only. */
     focusSection?: "skills" | "learning" | null;
   } = $props();
 
@@ -61,12 +54,9 @@
 
   $effect(() => {
     void botId;
-    // Forced: a skill installed elsewhere (the reading panel, the Skills page)
-    // must show up here to be linked, not wait for a stale session cache.
     untrack(() => { void loadSkills(true); void loadRoster(); void refresh(); });
   });
 
-  // The blocks exist only once the bot has loaded; focusWhenReady waits for them.
   $effect(() => {
     void botId;
     const selector = rosterSectionSelector(focusSection);

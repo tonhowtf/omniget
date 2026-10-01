@@ -1,5 +1,3 @@
-// Native P0 harness. Requires a debug build in an explicitly isolated profile.
-// Uses the app's existing authenticated test driver, never Chromium/mocked IPC.
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import path from 'node:path';
 const [profile, operation = 'inspect', output] = process.argv.slice(2);

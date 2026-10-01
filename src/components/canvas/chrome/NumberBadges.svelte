@@ -1,5 +1,4 @@
 <script lang="ts">
-  // ⌘1–⌘9 badges on terminals, shown while ⌘ (Ctrl) is held (Maestri).
   import { useEngine } from "$lib/canvas/engine.svelte";
   import { atWorld } from "$lib/canvas/screen";
 

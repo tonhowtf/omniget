@@ -43,7 +43,6 @@
 {/if}
 
 <style>
-  /* macOS notifications: top-trailing, glass, one line of text, symbol tile. */
   .toast-container {
     position: fixed;
     top: calc(var(--titlebar-height, 44px) + var(--space-2));

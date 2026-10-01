@@ -92,7 +92,6 @@ if (fs.existsSync(pkgLockPath)) {
   });
 }
 
-// The CLI ships in the same release as the app, so `omniget --version` follows it.
 const cargoTomlPaths = [
   path.join(root, "src-tauri", "Cargo.toml"),
   path.join(root, "src-tauri", "omniget-cli", "Cargo.toml"),
@@ -146,8 +145,6 @@ if (fs.existsSync(changelogStorePath)) {
   );
 }
 
-// MCP Registry entry: the release workflow fills in fileSha256 and uploads
-// the final server.json next to omniget-mcp.mcpb.
 const serverJsonPath = path.join(root, "server.json");
 if (fs.existsSync(serverJsonPath)) {
   writeJson(serverJsonPath, (server) => {

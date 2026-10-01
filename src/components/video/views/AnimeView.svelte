@@ -1,7 +1,4 @@
 <script lang="ts">
-  // AniList: search, the user's list by status, and a detail page with the
-  // episodes where progress is marked. Skipping openings (AniSkip) lives in
-  // the player.
   import { onMount } from "svelte";
   import { t } from "$lib/i18n";
   import { showToast } from "$lib/stores/toast-store.svelte";

@@ -1,6 +1,4 @@
 <script lang="ts">
-  // Settings section: illustration, title, one-line description, then a card
-  // with the rows.
   import type { Snippet } from "svelte";
 
   let {

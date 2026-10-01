@@ -1,9 +1,4 @@
 <script lang="ts">
-  /**
-   * Catalog sources: the built-in mirror, user sources (GitHub repo/path,
-   * local folder, Claude plugin marketplace) with add / rescan / remove, and
-   * the curated plugin marketplaces with "fetch now".
-   */
   import { onMount } from "svelte";
   import { open as openDialog } from "@tauri-apps/plugin-dialog";
   import { open as openUrl } from "@tauri-apps/plugin-shell";
@@ -32,7 +27,6 @@
     meta?: CatalogMeta | null;
     onclose?: () => void;
     onchanged?: () => void;
-    /** Show the plugins of one marketplace in the catalog. */
     onbrowse?: (repo: string) => void;
   } = $props();
 
@@ -90,7 +84,6 @@
         kind = "local";
       }
     } catch {
-      /* closed */
     }
   }
 

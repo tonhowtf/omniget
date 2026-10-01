@@ -1,18 +1,6 @@
-// Glue between the vendored foliate-js and the Read pane: books are read
-// lazily from the local server with Range requests (never loaded whole into
-// the webview), and every XHTML/SVG resource is stripped of scripts before
-// it reaches an iframe. The iframes foliate creates need `allow-scripts`
-// (WebKit bug 218086), so this is what keeps a hostile EPUB away from the
-// Tauri bridge.
-
 const CHUNK = 256 * 1024;
 const MAX_CHUNKS = 96;
 
-/**
- * A File-like object backed by HTTP Range requests. foliate (and the zip
- * reader it uses) only calls `slice().arrayBuffer()`, `size`, `name` and
- * `type`, so a duck-typed object is enough.
- */
 class RemoteFile {
   name: string;
   type: string;
@@ -39,7 +27,6 @@ class RemoteFile {
   private chunk(i: number): Promise<Uint8Array> {
     let p = this.chunks.get(i);
     if (p) {
-      // LRU: move to the end.
       this.chunks.delete(i);
       this.chunks.set(i, p);
       return p;
@@ -115,8 +102,6 @@ class RemoteFile {
   }
 }
 
-// ---------- sanitizing ----------
-
 const DROP = new Set(["script", "iframe", "frame", "frameset", "object", "embed", "applet", "base", "portal"]);
 const URL_ATTRS = new Set(["href", "src", "xlink:href", "action", "formaction", "data", "poster", "background", "srcset"]);
 
@@ -146,13 +131,11 @@ function clean(root: Element) {
   for (const r of remove) r.remove();
 }
 
-/** Strips anything executable from an (X)HTML or SVG resource. */
 function sanitizeMarkup(data: string, type: string): string {
   const isXml = /xml|svg/.test(type);
   const parser = new DOMParser();
   let doc = parser.parseFromString(data, (isXml ? type.split(";")[0] : "text/html") as DOMParserSupportedType);
   if (isXml && doc.getElementsByTagName("parsererror").length) {
-    // Broken XHTML: foliate falls back to HTML too.
     doc = parser.parseFromString(data, "text/html");
     clean(doc.documentElement);
     return "<!DOCTYPE html>\n" + doc.documentElement.outerHTML;
@@ -165,7 +148,6 @@ function sanitizeMarkup(data: string, type: string): string {
   return "<!DOCTYPE html>\n" + doc.documentElement.outerHTML;
 }
 
-/** Hooks the book's resource loader: no scripts, sanitized markup. */
 function guardBook(book: any) {
   const t: EventTarget | undefined = book?.transformTarget;
   if (!t) return;
@@ -183,7 +165,6 @@ function guardBook(book: any) {
 
 let loaded: Promise<unknown> | null = null;
 
-/** Registers `<foliate-view>` once. */
 export function loadFoliate() {
   loaded ??= import("$lib/vendor/foliate-js/view.js");
   return loaded;
@@ -197,8 +178,6 @@ export async function openBookFile(url: string, name: string, type = "") {
   guardBook(book);
   return book;
 }
-
-// ---------- reader CSS ----------
 
 export type ReaderPrefs = {
   theme: string;
@@ -224,7 +203,6 @@ export type ReaderPrefs = {
   brightness: number;
   invertImages: boolean;
   customCss: string;
-  // comics
   comicMode: "ltr" | "rtl" | "vertical" | "webtoon";
   comicFit: "width" | "height" | "contain" | "original";
   comicSpread: "single" | "double" | "auto";
@@ -277,7 +255,6 @@ export function isDarkTheme(p: Pick<ReaderPrefs, "theme">) {
   return ["dusk", "dark", "black", "nord"].includes(p.theme);
 }
 
-/** CSS injected into every section (after the book's own CSS). */
 export function readerCss(p: ReaderPrefs): string {
   const t = THEMES[p.theme] ?? THEMES.light;
   const font = FONTS.find((f) => f.id === p.fontFamily)?.css ?? "";
@@ -318,7 +295,6 @@ export function readerCss(p: ReaderPrefs): string {
   `;
 }
 
-/** "Bionic" reading: bold the first half of each word, in place. */
 export function applyBionic(doc: Document) {
   const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT, {
     acceptNode: (n) =>

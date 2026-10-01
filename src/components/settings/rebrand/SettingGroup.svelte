@@ -25,7 +25,6 @@
   let regionId = $derived(`settings-group-${id}-region`);
   let region = $state<HTMLElement | null>(null);
 
-  // Search and deep links ask a collapsed region to open before focusing inside it.
   $effect(() => {
     const node = region;
     if (!node) return;

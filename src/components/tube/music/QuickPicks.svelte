@@ -1,6 +1,4 @@
 <script lang="ts">
-  // "Quick picks": songs laid out 4 rows high, flowing into 420px columns that
-  // scroll sideways and snap per column. The scroller itself is MusicShelf's.
   import SongRow from "./SongRow.svelte";
   import SquareCard from "./SquareCard.svelte";
   import { songFromItem } from "../views/music/shared.svelte";

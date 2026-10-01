@@ -26,7 +26,6 @@
     free_bytes: number | null;
   };
 
-  // 0 = audio only, null = best available.
   const QUALITIES: (number | null)[] = [null, 2160, 1440, 1080, 720, 480, 360, 0];
 
   let url = $state("");

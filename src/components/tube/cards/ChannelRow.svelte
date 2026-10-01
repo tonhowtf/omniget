@@ -1,7 +1,4 @@
 <script lang="ts">
-  // Channel item. `row` = search result (avatar 136 centered in a 360 column,
-  // then name, handle · subscribers, description, Subscribe). `card` = grid /
-  // shelf tile (round avatar, name, subscribers, Subscribe).
   import { t } from "$lib/i18n";
   import { bestAvatar } from "$lib/tube/format";
   import { tubePrefs } from "$lib/tube/prefs.svelte";

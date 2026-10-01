@@ -1,18 +1,4 @@
 #!/usr/bin/env node
-// The verification gate (there is no CI): runs every check and prints one table at the end.
-//
-//   pnpm verify              every check (Rust + web + optional suites)
-//   pnpm verify --changed    only the areas touched since the merge-base with
-//                            main (commits, working tree and untracked files)
-//   pnpm verify --fix        run `cargo fmt --all` first
-//
-// Rust checks run one after another (they share cargo's target lock); the web
-// checks run in parallel with them. Exits non-zero when any check fails and
-// prints the tail of each failing check's output.
-//
-// cargo builds in the shared target (~/.cache/omniget/target) unless
-// CARGO_TARGET_DIR is set or OMNIGET_SHARED_TARGET=0; see scripts/cargo-env.mjs.
-// The opt-in pre-push hook (`pnpm hooks:install`) runs `--changed`.
 import { spawn, spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
@@ -36,16 +22,11 @@ const fix = argv.includes("--fix");
 const env = cargoEnv();
 const scripts = JSON.parse(readFileSync(join(root, "package.json"), "utf8")).scripts ?? {};
 
-// ---------------------------------------------------------------------------
-// What changed (--changed)
-// ---------------------------------------------------------------------------
-
 function git(args) {
   const r = spawnSync("git", args, { cwd: root, encoding: "utf8" });
   return r.status === 0 ? r.stdout : null;
 }
 
-/** Files changed since the merge-base with main, or null when git cannot tell. */
 function changedFiles() {
   let base = null;
   for (const ref of ["main", "origin/main"]) {
@@ -85,7 +66,7 @@ const areas = {
   plugin: (f) => f.startsWith("claude-plugin/"),
 };
 
-let touched = null; // null = run everything
+let touched = null;
 if (onlyChanged) {
   const files = changedFiles();
   if (files === null) {
@@ -97,10 +78,6 @@ if (onlyChanged) {
   }
 }
 const wants = (area) => touched === null || touched[area];
-
-// ---------------------------------------------------------------------------
-// Running checks
-// ---------------------------------------------------------------------------
 
 const results = [];
 
@@ -118,7 +95,7 @@ function skip(label, why) {
 function exec(cmd, args, cwd = root) {
   const started = Date.now();
   return new Promise((done) => {
-    // pnpm is a .cmd shim on Windows, which spawn only finds through a shell.
+    // WHY: pnpm is a .cmd shim on Windows, which spawn only finds through a shell.
     const child = spawn(cmd, args, { cwd, env, stdio: ["ignore", "pipe", "pipe"], shell: isWindows });
     let out = "";
     child.stdout.on("data", (d) => (out += d));
@@ -153,7 +130,6 @@ function webChecks() {
   return [check("pnpm check", "pnpm", ["-s", "check"]), check("pnpm test", "pnpm", ["-s", "test"]), check("pnpm check:i18n", "pnpm", ["-s", "check:i18n"])];
 }
 
-// Suites other scripts define; each runs only when package.json has it.
 const optional = [
   ["check:ipc", "ipc", "no src/ or src-tauri/ changes"],
   ["test:extension", "extension", "no browser-extension/ changes"],
@@ -173,15 +149,6 @@ function optionalChecks() {
 const started = Date.now();
 await Promise.all([rustChain(), ...webChecks(), ...optionalChecks()]);
 
-// ---------------------------------------------------------------------------
-// Report
-// ---------------------------------------------------------------------------
-
-/**
- * The part of a failing check's output worth reading. The tail, plus every
- * test harness "failures:" block: with --no-fail-fast the failing crate's
- * report scrolls far above the tail, which only says "1 target failed".
- */
 function digest(out) {
   const lines = out.replace(/\x1b\[[0-9;]*m/g, "").trimEnd().split("\n");
   const blocks = [];

@@ -1,14 +1,8 @@
 <script lang="ts" module>
-  // start face / start page apply once per app session, not on every visit
   let booted = false;
 </script>
 
 <script lang="ts">
-  // Root of /youtube: masthead on top, guide (240) or mini guide (72) on the
-  // left, the view of the current route in a scroller that remembers its
-  // position per route, the music bar at the bottom and Now playing over the
-  // content. Widths come from the container, not the window (it lives inside
-  // the OmniGet shell).
   import { onMount, tick } from "svelte";
   import { fade, fly } from "svelte/transition";
   import { cubicOut } from "svelte/easing";
@@ -55,7 +49,6 @@
 
   let root = $state<HTMLDivElement>();
   let scroller = $state<HTMLElement>();
-  // 0 until measured: no guide is drawn before the real width is known
   let width = $state(0);
   let drawer = $state(false);
   let scrolled = $state(false);
@@ -72,7 +65,6 @@
   let scheme = $derived(ui.face === "music" && prefs.look === "classic" ? "dark" : look.scheme);
   let showBar = $derived(!!currentSong() && !(onWatch && vplayer.videoId && vplayer.active) && !(vplayer.mini && vplayer.active));
 
-  // views remount per route, except the watch page, which follows id changes itself
   let viewKey = $derived(route.name === "watch" ? "watch" : JSON.stringify(route));
   let posKey = $derived(`${ui.face}:${ui.stacks[ui.face].length}:${viewKey}`);
 
@@ -81,7 +73,6 @@
     else drawer = !drawer;
   }
 
-  // ---- deep links (/youtube?v=… from other screens, the extension, the palette)
   let lastQuery = "";
   $effect(() => {
     const qs = page.url.search;
@@ -93,7 +84,6 @@
     else go(r);
   });
 
-  // ---- scroll memory per route
   const positions = new Map<string, number>();
   let activeKey = "";
   function onScroll() {
@@ -113,7 +103,6 @@
     if (!el) return;
     el.scrollTop = want;
     if (want <= 0) return;
-    // the view may still be loading: keep trying while its content grows
     const started = performance.now();
     const step = () => {
       if (activeKey !== key || !scroller) return;
@@ -124,13 +113,10 @@
     requestAnimationFrame(step);
   }
 
-  // ---- loading state = any view region reporting data-agent-readiness="loading"
   $effect(() => {
     const el = root;
     const box = scroller;
     if (!el || !box) return;
-    // Only what is on screen counts: lazy sections below the fold (comments)
-    // stay "loading" until scrolled to, and must not hold the loading bar.
     const onScreen = (n: Element) => {
       const r = n.getBoundingClientRect();
       return r.width > 0 && r.height > 0 && r.bottom > 0 && r.top < innerHeight;
@@ -139,7 +125,6 @@
     const mo = new MutationObserver(check);
     mo.observe(box, { subtree: true, childList: true, attributes: true, attributeFilter: ["data-agent-readiness"] });
     box.addEventListener("scroll", check, { passive: true });
-    // layout shifts move sections off screen without a mutation here
     const tick = setInterval(() => loading && check(), 1000);
     check();
     return () => {
@@ -152,7 +137,6 @@
   $effect(() => setFormatLocale($locale));
 
 
-  // close the drawer when navigating
   $effect(() => {
     void ui.nav;
     drawer = false;

@@ -1,11 +1,4 @@
 <script lang="ts">
-  /**
-   * Create or edit a group room: name, members (existing bots) with a role
-   * each, optional coordinator, who answers without a mention, and — in
-   * "Advanced" — the limits the backend enforces. On an existing room, the
-   * user can share memory into it explicitly; nothing private reaches a room
-   * otherwise.
-   */
   import { onMount, untrack } from "svelte";
   import { t } from "$lib/i18n";
   import type { AgentDef, MentionPolicy, Room, RoomLimits } from "$lib/llm/types";
@@ -41,7 +34,6 @@
 
   let dialogEl = $state<HTMLDialogElement | null>(null);
   let titleInput = $state<HTMLInputElement | null>(null);
-  // The form edits a copy taken once, when the dialog opens.
   const initial = untrack(() => room);
   let title = $state(initial?.title ?? "");
   let selected = $state<Record<string, boolean>>(

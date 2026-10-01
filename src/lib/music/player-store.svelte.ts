@@ -1,10 +1,3 @@
-// The music player engine. Lives for the whole app session (the mini player
-// keeps playing while you browse), so nothing here is tied to a component.
-//
-// Graph per deck:  <audio> -> source -> replaygain -> fade ─┐
-//                                                          ├─> preamp -> 10 x peaking EQ -> analyser -> volume -> out
-// Two decks let the next track preload (near gapless) and crossfade.
-
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { EQ_FREQS } from "./eq";
@@ -28,7 +21,6 @@ export type VisualizerMode = "bars" | "wave" | "circle" | "off";
 const PREFS_KEY = "omniget.music.prefs.v1";
 const SESSION_KEY = "omniget.music.session.v1";
 
-/** Formats webviews never decode natively; these go straight to ffmpeg. */
 const ALWAYS_TRANSCODE = new Set(["APE", "WavPack", "Musepack", "WMA", "Speex", "DSF"]);
 
 function loadJson<T>(key: string, fallback: T): T {
@@ -44,7 +36,6 @@ function saveJson(key: string, value: unknown) {
   try {
     localStorage.setItem(key, JSON.stringify(value));
   } catch {
-    /* private mode or quota: preferences just won't persist */
   }
 }
 
@@ -72,7 +63,6 @@ export const prefs = $state(loadJson(PREFS_KEY, DEFAULT_PREFS));
 
 export const player = $state({
   queue: [] as number[],
-  /** order before shuffling, to restore it */
   base: [] as number[],
   index: -1,
   playing: false,
@@ -85,7 +75,6 @@ export const player = $state({
   sleepAt: null as number | null,
   sleepEndOfTrack: false,
   error: "",
-  /** where the queue came from ("Album · X"), for the now-playing header */
   context: "",
 });
 
@@ -95,7 +84,6 @@ type Deck = {
   rg: GainNode | null;
   fade: GainNode | null;
   trackId: number | null;
-  /** seconds already skipped by ffmpeg `-ss` when transcoding */
   offset: number;
   transcoded: boolean;
   hls: { destroy(): void } | null;
@@ -124,7 +112,6 @@ function makeDeck(): Deck {
   el.preload = "auto";
   const d: Deck = { el, source: null, rg: null, fade: null, trackId: null, offset: 0, transcoded: false, hls: null };
   el.addEventListener("ended", () => onEnded(d));
-  // hidden windows throttle timers to ~1 s; timeupdate keeps position fresh
   el.addEventListener("timeupdate", () => {
     if (d === decks[active] && ticker) pump();
   });
@@ -147,7 +134,6 @@ function ensureDecks() {
   if (!decks.length) decks = [makeDeck(), makeDeck()];
 }
 
-/** Builds the Web Audio graph on the first user gesture (autoplay policy). */
 function ensureGraph() {
   ensureDecks();
   if (ctx) {
@@ -203,22 +189,19 @@ function dbToLin(db: number) {
 function useAlbumGain(t: Track): boolean {
   if (prefs.rgMode === "album") return true;
   if (prefs.rgMode !== "auto") return false;
-  // auto: album gain when neighbours in the queue are from the same album
   const i = player.queue.indexOf(t.id);
   const near = [player.queue[i - 1], player.queue[i + 1]].map((id) => (id != null ? trackById(id) : undefined));
   return near.some((n) => n && n.album && n.album === t.album && n.folder === t.folder);
 }
 
-/** ReplayGain linear factor for a track, with clipping prevention. */
 function replayGainFor(t: Track): number {
   if (prefs.rgMode === "off") return 1;
   const album = useAlbumGain(t);
   const gain = (album ? t.rg_album_gain : null) ?? t.rg_track_gain;
   const peak = (album ? t.rg_album_peak : null) ?? t.rg_track_peak;
-  if (gain == null) return 1; // never measured: leave the file as it is
+  if (gain == null) return 1;
   let db = gain + prefs.rgPreamp;
   if (prefs.preventClip && peak && peak > 0) {
-    // keep the true peak under -1 dBTP
     db = Math.min(db, 20 * Math.log10(0.891 / peak));
   }
   return dbToLin(db);
@@ -240,7 +223,7 @@ export function applyEq() {
 }
 
 export function applyVolume() {
-  const v = prefs.muted ? 0 : prefs.volume * prefs.volume; // perceptual curve
+  const v = prefs.muted ? 0 : prefs.volume * prefs.volume;
   if (master) master.gain.value = v;
   else for (const d of decks) d.el.volume = Math.min(1, v);
   savePrefs();
@@ -326,9 +309,6 @@ function reportPlay(skipped: boolean, completed: boolean) {
   }
 }
 
-// A timer, not requestAnimationFrame: WebKit stops rAF while the window is
-// hidden, and music mostly plays with the window hidden. Crossfades, the
-// sleep timer and play counting must keep running.
 function startTicker() {
   if (ticker) return;
   lastTick = performance.now();
@@ -379,7 +359,6 @@ function tick(dt: number) {
     updatePositionState();
   }
   const t = player.current;
-  // repeat-one loops on "ended"; a crossfade would move on to the next song
   if (!t || player.radio || fading || !player.playing || prefs.repeat === "one") return;
   const dur = player.duration || t.duration_ms / 1000;
   const nextIdx = nextIndex();
@@ -387,7 +366,6 @@ function tick(dt: number) {
   const next = trackById(player.queue[nextIdx]);
   if (!next) return;
   const remaining = dur - player.position;
-  // preload the next track for a near-gapless start
   if (remaining < 20 && preloadedFor !== next.id) {
     preloadedFor = next.id;
     const other = decks[1 - active];
@@ -420,7 +398,6 @@ async function crossfadeTo(idx: number, seconds: number) {
   try {
     await to.el.play();
   } catch {
-    /* handled by the error listener */
   }
   active = 1 - active;
   player.index = idx;
@@ -429,7 +406,6 @@ async function crossfadeTo(idx: number, seconds: number) {
   setTimeout(() => {
     from.el.pause();
     if (from.fade) {
-      // a scheduled ramp wins over a plain `.value`, so clear it first
       from.fade.gain.cancelScheduledValues(0);
       from.fade.gain.value = 1;
     }
@@ -469,7 +445,6 @@ function onEnded(d: Deck) {
   const other = decks[1 - active];
   const next = trackById(player.queue[n]);
   if (next && other.trackId === next.id) {
-    // preloaded: swap decks for the smallest gap
     reportPlay(false, true);
     active = 1 - active;
     player.index = n;
@@ -493,7 +468,6 @@ function onError(d: Deck) {
   const t = d.trackId != null ? trackById(d.trackId) : undefined;
   if (!t) return;
   if (!d.transcoded) {
-    // the webview can't decode this file: let ffmpeg do it
     needsTranscode.add(t.id);
     const pos = deckPosition(d);
     loadInto(d, t, pos);
@@ -525,8 +499,6 @@ async function fadeOutAndPause(seconds: number) {
     pause();
   }
 }
-
-// ---------- public API ----------
 
 export async function playIndex(i: number, startS = 0) {
   const id = player.queue[i];
@@ -560,7 +532,6 @@ export async function playIndex(i: number, startS = 0) {
   saveSession();
 }
 
-/** Replaces the queue. `startId` is the track clicked (kept first when shuffling). */
 export async function playTracks(ids: number[], startId?: number, context = "") {
   if (!ids.length) return;
   player.base = [...ids];
@@ -655,7 +626,6 @@ export async function toggle() {
       player.playing = true;
       startTicker();
     } catch {
-      /* ignore */
     }
   } else pause();
   updateMediaSession();
@@ -715,7 +685,6 @@ export async function seek(s: number) {
     d.el.currentTime = target;
     player.position = target;
   }
-  // a seek past the crossfade point must not trigger a fade immediately
   fading = false;
   updatePositionState();
 }
@@ -766,8 +735,6 @@ export function setSleepTimer(minutes: number | "track" | null) {
   player.sleepAt = typeof minutes === "number" ? Date.now() + minutes * 60_000 : null;
 }
 
-// ---------- radio ----------
-
 function stopRadio() {
   for (const d of decks) stopHls(d);
   for (const u of radioUnlisten) u();
@@ -809,20 +776,17 @@ export async function playStation(st: Station) {
   try {
     url = await invoke<string>("music_radio_resolve", { url: st.url });
   } catch {
-    /* keep the original */
   }
   const isHls = st.hls || /\.m3u8(\?|$)/i.test(url);
   if (isHls) {
     const { default: Hls } = await import("hls.js");
     if (Hls.isSupported()) {
       const hls = new Hls({
-        // every request goes through the local proxy so Web Audio gets CORS
         xhrSetup: (xhr: XMLHttpRequest, u: string) => xhr.open("GET", proxyUrl(u), true),
         lowLatencyMode: false,
       });
       hls.on(Hls.Events.ERROR, (_e, data) => {
         if (!data.fatal || session !== radioSession) return;
-        // one recovery attempt for media errors, then give up visibly
         if (data.type === Hls.ErrorTypes.MEDIA_ERROR && !recovered) {
           recovered = true;
           hls.recoverMediaError();
@@ -856,7 +820,6 @@ export async function playStation(st: Station) {
   void invoke("music_radio_played", { id: st.id }).catch(() => {});
 }
 
-/** HLS radio puts "now playing" in timed ID3 (TIT2 title, TPE1 artist). */
 function watchId3(el: HTMLAudioElement, session: string) {
   const attach = (tt: TextTrack) => {
     if (tt.kind !== "metadata") return;
@@ -884,8 +847,6 @@ function watchId3(el: HTMLAudioElement, session: string) {
   });
 }
 
-// ---------- OS media controls ----------
-
 function updateMediaSession() {
   if (typeof navigator === "undefined" || !("mediaSession" in navigator)) return;
   const ms = navigator.mediaSession;
@@ -911,7 +872,6 @@ function updateMediaSession() {
     }
     ms.playbackState = player.playing ? "playing" : player.current || player.radio ? "paused" : "none";
   } catch {
-    /* older webviews */
   }
 }
 
@@ -924,13 +884,11 @@ function updatePositionState() {
       playbackRate: prefs.speed,
     });
   } catch {
-    /* ignore */
   }
 }
 
 let initialized = false;
 
-/** Restores the last queue (paused) and wires OS media keys. Safe to call often. */
 export function initPlayer() {
   if (initialized || typeof window === "undefined") return;
   initialized = true;
@@ -947,7 +905,6 @@ export function initPlayer() {
       try {
         ms.setActionHandler(a, h);
       } catch {
-        /* unsupported action */
       }
     };
     set("play", () => void toggle());
@@ -963,7 +920,6 @@ export function initPlayer() {
   }
 }
 
-/** After the library loads, the restored queue can show its current track. */
 export function hydrateCurrent() {
   if (player.current || player.radio) return;
   const id = player.queue[player.index];
@@ -974,7 +930,6 @@ export function hydrateCurrent() {
   }
 }
 
-/** Keeps `player.current` in sync when the row changes (tags edited, liked). */
 export function syncCurrent() {
   if (!player.current) return;
   const t = trackById(player.current.id);

@@ -1,15 +1,12 @@
 <script lang="ts" module>
   import type { WhenContext } from "$lib/central/shortcuts";
 
-  /** Handler de um comando; `arg` é o N de `thread.jump.N`. */
   export type ShortcutHandler = (e: KeyboardEvent | null, arg?: number) => void;
 
   export type PaletteThread = {
     id: string;
     title: string;
-    /** Projeto · status · driver (aparece ao lado). */
     subtitle?: string;
-    /** Texto extra buscável (branch, id…). */
     terms?: string;
     archived?: boolean;
   };
@@ -26,16 +23,6 @@
 </script>
 
 <script lang="ts">
-  /**
-   * Handler global de atalhos da Central, montável numa rota (ex.: threads).
-   * Escuta `keydown` na fase de captura, monta o contexto `when` (foco em
-   * campo/terminal e diálogos lidos do DOM + o que a página passa em
-   * `context`) e dispara só comandos que têm handler: sem handler, a tecla
-   * segue para os componentes (composer, gaveta de aprovação, terminal).
-   *
-   * Embutidos: `palette.toggle` (⌘K, paleta com ações + threads + catálogo),
-   * `help.toggle` (`?`, overlay com a tabela) e `nav.*` (rotas da Central).
-   */
   import { onMount } from "svelte";
   import { goto } from "$app/navigation";
   import { t } from "$lib/i18n";
@@ -70,7 +57,6 @@
     threads?: PaletteThread[];
     onopenthread?: (id: string) => void;
     actions?: PaletteAction[];
-    /** Regras extras/do usuário (substituem as padrão do mesmo comando). */
     rules?: ShortcutRule[];
     disabled?: boolean;
   } = $props();
@@ -148,7 +134,6 @@
       helpOpen,
       isMac,
     };
-    // Com a paleta ou a ajuda abertas, só o próprio atalho delas passa.
     const rule = resolve(rules, e, ctx, (cmd) => {
       if ((paletteOpen || helpOpen) && cmd !== "palette.toggle" && cmd !== "help.toggle") return false;
       return available(cmd);

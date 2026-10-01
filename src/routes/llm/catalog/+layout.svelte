@@ -1,8 +1,4 @@
 <script lang="ts">
-  /**
-   * Catalog shell: the list and the detail share the stack drawer and its
-   * floating button (the stack persists across both and across restarts).
-   */
   import { onMount, type Snippet } from "svelte";
   import { t } from "$lib/i18n";
   import StackDrawer from "$components/central/catalog/StackDrawer.svelte";
@@ -16,7 +12,6 @@
     try {
       targets = await agentkitTargets();
     } catch (e) {
-      // Without targets the catalogue still lists; the log says why none show.
       console.warn("catalog: could not read the install targets", e);
       targets = [];
     }

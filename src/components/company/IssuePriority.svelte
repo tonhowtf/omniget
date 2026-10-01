@@ -1,5 +1,4 @@
 <script lang="ts">
-  /** Priority glyph (Linear-style bars, a bang for critical) with its color. */
   import { t } from "$lib/i18n";
   import { priorityColor, priorityKey } from "./company-format";
 

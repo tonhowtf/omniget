@@ -1,13 +1,4 @@
 <script lang="ts">
-  // File node (kind "file"). With `data.view = "editor"` (opened from a File
-  // Tree) it is the editor of study 95 §K 118–121: syntax colours, line
-  // numbers, ⌘S saves with `ifRevision` (conflict bar when the file changed
-  // on disk, e.g. an agent wrote it), ⌘F find and replace, ⌃G go to line,
-  // rendered Markdown, image/video/audio/PDF viewer, the file's working-tree
-  // diff, ⌘D / ⌘⇧D extra cursors on the next / every occurrence, auto-closed
-  // brackets and quotes, detected indentation, and "Ask…" that sends the
-  // selected lines (path and line range) to a terminal.
-  // Without it, it is the plain file card of the engine (FileNode).
   import { onMount, tick, untrack } from "svelte";
   import { t } from "$lib/i18n";
   import { renderSafeMarkdownSync } from "$lib/llm/markdown";
@@ -71,7 +62,6 @@
 
   const isEditor = $derived(node.data.view === "editor");
   const abs = $derived(String(node.data.path ?? ""));
-  /** Remote editor (opened from an SSH/Docker tree, Maestri §K9). */
   const envData = $derived(node.data.environment);
   const root = $derived.by(() => {
     const r = String(node.data.rootPath ?? "");
@@ -85,13 +75,10 @@
   const ws = $derived(engine.store.workspaceId);
   const src = $derived(fileSource(ws, root, envData));
 
-  // ---- tabs (Maestri §K4) ---------------------------------------------------
-
   const tabs = $derived.by(() => {
     const t = Array.isArray(node.data.tabs) ? (node.data.tabs as unknown[]).filter((x): x is string => typeof x === "string") : [];
     return abs && !t.includes(abs) ? [...t, abs] : t;
   });
-  /** Unsaved text of tabs that are not on screen. */
   const drafts = new Map<string, string>();
 
   function switchTab(path: string, line?: number) {
@@ -115,8 +102,6 @@
     }
   }
 
-  // ---- go to definition (F12, ⌘-click) ------------------------------------
-
   let defNote = $state<string | null>(null);
 
   async function goToDefinition(at?: number) {
@@ -131,7 +116,6 @@
     }
     const here = draft.slice(0, pos).split("\n").length;
     let hits = await filesDefinition(ws, root, symbol, rel).catch(() => []);
-    // Standing on the definition itself: go to the next one.
     hits = hits.filter((h) => !(h.path === rel && h.line === here)).concat(hits.filter((h) => h.path === rel && h.line === here));
     const hit = hits[0];
     if (!hit || (hit.path === rel && hit.line === here)) {
@@ -143,8 +127,6 @@
     if (hit.path === rel) goToLine(hit.line ?? 1);
     else switchTab(joinPath(root, hit.path), hit.line ?? 1);
   }
-
-  // ---- Ask… (Maestri §K7): selected lines to a terminal -------------------
 
   let selLines = $state<{ from: number; to: number; text: string } | null>(null);
   let askOpen = $state(false);
@@ -162,7 +144,6 @@
     selLines = { from, to, text: draft.slice(a, b) };
   }
 
-  /** Terminals: the ones corded to this editor first, then the rest of the floor. */
   const askTargets = $derived.by(() => {
     void engine.store.structure;
     const tied = new Set<string>();
@@ -195,8 +176,6 @@
     }
   }
 
-  // ---- media viewer (video, audio, PDF) ---------------------------------
-
   let mediaEl = $state<HTMLDivElement | null>(null);
   let mediaUrl = $state<string | null>(null);
   let playing = $state(false);
@@ -210,7 +189,6 @@
     return null;
   }
 
-  // The bytes come as a data URL once; players read a blob URL (cheaper to seek).
   $effect(() => {
     const f = file;
     const kind = mediaKind(f?.mime);
@@ -232,7 +210,6 @@
     };
   });
 
-  // Only a visible player plays: leaving the screen (or the floor) pauses it.
   $effect(() => {
     const el = mediaEl;
     if (!el) return;
@@ -247,8 +224,6 @@
       el.querySelectorAll<HTMLMediaElement>("video, audio").forEach((m) => m.pause());
     };
   });
-
-  // ---- load / poll -----------------------------------------------------
 
   async function load(keepDraft = false) {
     if (!root || rel === null) return;
@@ -289,7 +264,6 @@
         dirty = false;
       }
     } catch {
-      // Deleted or moved: keep the buffer.
     }
   }
 
@@ -303,15 +277,12 @@
     };
   });
 
-  // Jump to data.line when it changes (palette content search).
   $effect(() => {
     const line = Number(node.data.line ?? 0);
     if (!line || !file) return;
     untrack(() => void tick().then(() => goToLine(line)));
   });
 
-  // `data.selectLines {from, to}` selects those lines once (MCP / tests:
-  // the Ask… button then offers them), then clears itself.
   $effect(() => {
     const want = node.data.selectLines as { from?: number; to?: number } | undefined;
     if (!want?.from || !file || !area) return;
@@ -328,7 +299,6 @@
         area.setSelectionRange(a, Math.min(b, draft.length));
         area.scrollTop = Math.max(0, (from - 5) * LINE_H);
         trackSelection();
-        // null, not a missing key: Rust merges `data` patches.
         const n = engine.store.node(node.id);
         if (n?.data.selectLines) engine.commit([{ op: "update_node", id: n.id, patch: { data: { ...n.data, selectLines: null } } }], { history: false });
       });
@@ -338,8 +308,6 @@
   $effect(() => {
     if (focused && mode === "code") void tick().then(() => area?.focus({ preventScroll: true }));
   });
-
-  // ---- save ------------------------------------------------------------
 
   async function save(force?: string) {
     if (!file || !root || rel === null || saving) return;
@@ -375,8 +343,6 @@
     dirty = false;
   }
 
-  // ---- highlight -------------------------------------------------------
-
   const lines = $derived(draft.split("\n"));
   const highlighted = $derived.by(() => {
     if (lines.length > 20000 || draft.length > 1_500_000) return null;
@@ -389,8 +355,6 @@
     scrollTop = el.scrollTop;
     scrollLeft = el.scrollLeft;
   }
-
-  // ---- find / replace / go to line -------------------------------------
 
   const matches = $derived.by(() => {
     if (!findOpen || !findText) return [] as number[];
@@ -457,15 +421,9 @@
     gotoInput?.focus();
   }
 
-  // ---- keys ------------------------------------------------------------
-
-  // ---- extra cursors (⌘D), brackets, indentation -----------------------
-
-  /** Extra selections; the textarea's own selection is always the last one. */
   let multi = $state<{ start: number; end: number }[]>([]);
   const PAIRS: Record<string, string> = { "(": ")", "[": "]", "{": "}", '"': '"', "'": "'", "`": "`" };
 
-  /** Indent unit of the file: a tab, or the smallest run of leading spaces (2 by default). */
   const indentUnit = $derived.by(() => {
     let tabs = 0;
     let min = 0;
@@ -494,7 +452,6 @@
     void tick().then(() => area?.setSelectionRange(caret, caretEnd));
   }
 
-  /** ⌘D: add the next occurrence of the selection; ⌘⇧D: every occurrence. */
   function addOccurrence(all: boolean) {
     if (!area) return;
     let cur = { start: area.selectionStart, end: area.selectionEnd };
@@ -524,7 +481,6 @@
     area.setSelectionRange(i, i + needle.length);
   }
 
-  /** Types `ins` (or deletes one char back when null) at every extra cursor. */
   function editAll(ins: string | null) {
     const ranges = [...multi].sort((a, b) => a.start - b.start);
     let text = draft;
@@ -577,7 +533,6 @@
       const e0 = area.selectionEnd;
       const close = PAIRS[e.key];
       const nextCh = draft[e0];
-      // Typing the closer that is already there steps over it.
       if (s0 === e0 && (e.key === ")" || e.key === "]" || e.key === "}" || (close === e.key && nextCh === e.key)) && nextCh === e.key) {
         e.preventDefault();
         area.setSelectionRange(s0 + 1, s0 + 1);
@@ -586,7 +541,6 @@
       if (close) {
         const quote = close === e.key;
         const prev = draft[s0 - 1] ?? "";
-        // Quotes only pair at a word boundary (not in "don't").
         if (s0 !== e0 || !quote || (!/\w/.test(prev) && (!nextCh || /[\s)\]},;]/.test(nextCh)))) {
           if (s0 !== e0 || !nextCh || /[\s)\]},;]/.test(nextCh) || quote) {
             e.preventDefault();
@@ -606,7 +560,6 @@
       }
     }
     if (area && e.key === "Enter" && !mod && !e.shiftKey && mode === "code") {
-      // Keep the line's indentation; one more level after an opener.
       e.preventDefault();
       const s0 = area.selectionStart;
       const e0 = area.selectionEnd;
@@ -1069,7 +1022,6 @@
     background: color-mix(in srgb, var(--accent) 35%, transparent);
     color: transparent;
   }
-  /* Same advance as the transparent textarea on top: no bold/italic. */
   .hl :global(.hl-keyword),
   .hl :global(.hl-comment) {
     font-weight: inherit;

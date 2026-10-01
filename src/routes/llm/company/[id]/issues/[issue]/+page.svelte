@@ -1,9 +1,4 @@
 <script lang="ts">
-  /**
-   * One issue: editable title and body, status bar with the valid moves,
-   * properties, comments, documents, deliverables, relations, runs and the
-   * subtree controls.
-   */
   import { page } from "$app/state";
   import { goto } from "$app/navigation";
   import { t } from "$lib/i18n";

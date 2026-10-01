@@ -1,9 +1,4 @@
 <script lang="ts">
-  /**
-   * Routines: recurring tasks. Each firing opens an issue (title with
-   * {{date}}/{{week}} filled in) assigned to one agent, on a cron in a time
-   * zone, with a catch-up rule for missed firings and a concurrency rule.
-   */
   import { page } from "$app/state";
   import { t } from "$lib/i18n";
   import { errorText, onCompanyChange, rpc, type Priority, type Project, type Routine, type Staff } from "$lib/company/rpc";
@@ -149,9 +144,6 @@
     void act(r, () => rpc("routine.delete", { company: id, routine_id: r.id }));
   }
 
-  // The literal "{{week}}"/"{{date}}" shown in the form. Passed escaped: the
-  // i18n parser re-parses its own output, so a raw "{{week}}" value recursed
-  // forever and froze the window when the form opened.
   const WEEK_TOKEN = "\\{\\{week\\}\\}";
   const DATE_TOKEN = "\\{\\{date\\}\\}";
 </script>

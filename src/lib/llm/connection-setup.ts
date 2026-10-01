@@ -2,7 +2,6 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import type { TurnEventEnvelope, AgentDef } from './types';
 
-/** Parse argv without a shell: quoting groups arguments; metacharacters stay literal. */
 export function parseCommand(input: string): string[] {
   const args: string[] = []; let value = ''; let quote = ''; let escaped = false; let started = false;
   for (let index = 0; index < input.length; index++) {
@@ -19,13 +18,11 @@ export function parseCommand(input: string): string[] {
   return args;
 }
 
-/** A separate conversation, real runtime, one explicit short request, no invented success. */
 export async function testConnection(agentId: string, signal: AbortSignal): Promise<void> {
   let requestId = ''; let finished = false; let said = false;
   const early: TurnEventEnvelope[] = [];
   let resolve!: () => void; let reject!: (e: Error) => void;
   const result = new Promise<void>((yes, no) => { resolve = yes; reject = no; });
-  // Attach rejection handling before invoking: cancellation may happen during IPC.
   void result.catch(() => {});
   const settle = (error?: string) => { if (finished) return; finished = true; error ? reject(new Error(error)) : resolve(); };
   const receive = (p: TurnEventEnvelope) => {
@@ -45,7 +42,6 @@ export async function testConnection(agentId: string, signal: AbortSignal): Prom
       conversationId: `setup-${crypto.randomUUID()}`, agentId,
       input: 'Connection test. Reply only OK. Do not use tools or access files.',
     });
-    // If cancellation wins while IPC is pending, cancel its eventual request too.
     void started.then(response => {
       if (finished && response?.request_id) void invoke('llm_turn_cancel', { requestId: response.request_id }).catch(() => {});
     }, () => {});
@@ -63,7 +59,6 @@ interface ConnectionDraft {
   cli: string; account: string; name: string; provider: string; models: string[];
   model: string; loginOpened: boolean; agentId: string; attempt: string; credentialId: string;
 }
-/** Whitelist fields: never restore secrets or a previous verification result. */
 export function parseConnectionDraft(raw: unknown): ConnectionDraft | null {
   if (!raw || typeof raw !== 'object') return null;
   const r = raw as Record<string, unknown>;
@@ -88,7 +83,6 @@ export function parseConnectionDraft(raw: unknown): ConnectionDraft | null {
 }
 
 export const CONNECTION_TOKEN_LIMIT = 8192;
-/** A resumed setup must not silently claim an externally edited agent as its own. */
 export function connectionMatchesIntent(agent: AgentDef, expected: AgentDef): boolean {
   return agent.name === expected.name && JSON.stringify(agent.model) === JSON.stringify(expected.model)
     && JSON.stringify(agent.runtime) === JSON.stringify(expected.runtime)
@@ -97,23 +91,18 @@ export function connectionMatchesIntent(agent: AgentDef, expected: AgentDef): bo
     && (agent.budget?.max_tool_calls_per_turn ?? 0) === (expected.budget?.max_tool_calls_per_turn ?? 0);
 }
 
-/** What went wrong with a connection, in terms a person can act on. */
 type ConnectionProblem =
   | 'missing_executable' | 'login_expired' | 'credential_invalid' | 'model_unavailable'
   | 'local_service_down' | 'rate_limited' | 'network' | 'cancelled' | 'no_answer' | 'unknown';
 
 export interface ConnectionDiagnosis {
   problem: ConnectionProblem;
-  /** i18n keys: what happened and what to do. */
   titleKey: string;
   actionKey: string;
-  /** Offered buttons, in order. */
   actions: ('retry' | 'sign_in' | 'switch' | 'open_local' | 'install_cli' | 'change_model')[];
-  /** The backend's message with anything that looks like a secret masked. */
   detail: string;
 }
 
-/** Masks API keys, bearer tokens and long opaque strings before an error is shown or kept. */
 function sanitizeError(text: string): string {
   return text
     .replace(/(bearer\s+)[A-Za-z0-9._~+/=-]{8,}/gi, '$1•••')
@@ -123,10 +112,6 @@ function sanitizeError(text: string): string {
     .slice(0, 600);
 }
 
-/**
- * Turns a failed connect/test into a concrete problem. `mode` is the wizard's
- * choice: a network error against a local model means the server is off.
- */
 export function diagnoseConnectionError(raw: unknown, mode: 'subscription' | 'api' | 'local' | string): ConnectionDiagnosis {
   const text = String((raw as { message?: string })?.message ?? raw ?? '');
   const has = (...needles: string[]) => needles.some(n => text.includes(n));

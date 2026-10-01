@@ -89,7 +89,6 @@
 
   {#if isDropdownOpen}
     <ul class="location-picker-menu" role="listbox">
-      <!-- Default Directory -->
       <li class="location-picker-item-wrapper">
         <button
           type="button"
@@ -104,7 +103,6 @@
         </button>
       </li>
 
-      <!-- Saved Directories -->
       {#each savedDirs as dir}
         <li class="location-picker-item-wrapper">
           <button
@@ -133,7 +131,6 @@
         </li>
       {/each}
 
-      <!-- Browse Option -->
       <li class="location-picker-item-wrapper">
         <button
           type="button"

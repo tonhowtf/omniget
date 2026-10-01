@@ -1,7 +1,4 @@
 <script lang="ts">
-  // Frame of every Music screen: near-black background, centered content at
-  // the YT Music widths (1050 / 1264 / 1478 by container width), and the
-  // readiness flag the native agent reads.
   import type { Snippet } from "svelte";
 
   let {

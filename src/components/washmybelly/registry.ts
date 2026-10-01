@@ -1,7 +1,5 @@
 import type { Os } from "$lib/platform";
 
-/// What the person can expect from a module. `beta` and `experimental` get a
-/// discreet badge; a module of another system never renders at all.
 type ModuleState = "stable" | "beta" | "experimental";
 
 type Requirement =
@@ -18,17 +16,13 @@ type WmbModule = {
   group: ModuleGroup;
   labelKey: string;
   state: ModuleState;
-  /// Empty: every system.
   platforms: Os[];
   needs?: Requirement[];
-  /// Tile colours (Apple system palette) and Phosphor Fill glyph.
   glyph: string;
   from: string;
   to: string;
 };
 
-/// Screen order. Mirrors `MODULES` in `core/washmybelly/caps.rs`; the
-/// backend's answer wins when both exist.
 const WMB_MODULES: readonly WmbModule[] = [
   { id: "overview", group: "see", labelKey: "washmybelly.modules.overview", state: "stable", platforms: [], glyph: "gauge", from: "#5AA9FF", to: "#1E6FE8" },
   { id: "disk", group: "see", labelKey: "washmybelly.modules.disk", state: "stable", platforms: [], glyph: "hard-drives", from: "#A3A3A8", to: "#6F6F75" },
@@ -48,7 +42,6 @@ const WMB_MODULES: readonly WmbModule[] = [
 
 export const GROUP_ORDER: readonly ModuleGroup[] = ["see", "clean", "protect", "perform", "maintain"];
 
-/// The subset of `wmb_capabilities` the screen needs.
 export type Caps = {
   os: Os;
   os_version?: string;
@@ -84,9 +77,6 @@ function requirementMissing(req: Requirement, caps: Caps): string | null {
   }
 }
 
-/// A module of another system is not shown at all. One of this system that
-/// misses a requirement is shown with the reason. The backend's own module
-/// list, when present, has the last word.
 export function availability(mod: WmbModule, caps: Caps): Availability {
   if (mod.platforms.length > 0 && !mod.platforms.includes(caps.os)) return { show: false };
   const backend = caps.modules?.find((m) => m.id === mod.id);

@@ -1,9 +1,3 @@
-// Mini parser de YAML para frontmatter (subconjunto): mapas e listas por
-// indentação, escalares simples/aspas, blocos `|`/`>`, fluxo `[..]`/`{..}` e
-// escalares simples continuados em várias linhas. Sem dependência externa.
-// O port em Rust fica em src-tauri/omniget-core/src/core/catalog/frontmatter.rs.
-
-/** Separa `---\n...\n---` do corpo. Devolve { yaml, body } ou null. */
 export function splitFrontmatter(text) {
   const t = text.replace(/^﻿/, '');
   if (!/^---[ \t]*\r?\n/.test(t)) return null;
@@ -27,7 +21,6 @@ function isBlank(line) {
 }
 
 function stripComment(s) {
-  // Remove ` # comentário` fora de aspas.
   let q = null;
   for (let i = 0; i < s.length; i++) {
     const c = s[i];
@@ -68,7 +61,6 @@ function plainScalar(s) {
   return v;
 }
 
-/** Parser de fluxo: `[a, "b", {c: d}]`. */
 function parseFlow(src) {
   let i = 0;
   function ws() { while (i < src.length && /\s/.test(src[i])) i++; }
@@ -184,7 +176,6 @@ class P {
     const s = line.slice(ind);
     if (s === '-' || s.startsWith('- ')) return this.list(ind);
     if (KEY_RE.test(s)) return this.map(ind);
-    // Escalar solto (texto multi-linha).
     const parts = [];
     while (this.i < this.lines.length && (isBlank(this.lines[this.i]) || indentOf(this.lines[this.i]) >= ind)) {
       const t = this.lines[this.i].trim();
@@ -227,7 +218,6 @@ class P {
     return text.replace(/\n+$/, '') + '\n';
   }
   inlineValue(rest, ownIndent) {
-    // valor na mesma linha da chave ou do traço
     const r = rest.trim();
     if (r === '' || r.startsWith('#')) {
       this.skip();
@@ -241,7 +231,6 @@ class P {
       return null;
     }
     if (/^[|>][+-]?[0-9]?\s*(#.*)?$/.test(r)) return this.blockScalar(r, ownIndent);
-    // aspas abertas que continuam em outras linhas
     if ((r[0] === '"' || r[0] === "'") && findClose(r, r[0]) < 0) {
       let acc = r;
       while (this.i < this.lines.length) {
@@ -261,12 +250,10 @@ class P {
       void open;
       try { return parseFlow(acc); } catch { return acc; }
     }
-    // escalar simples continuado em linhas mais indentadas
     const parts = [r];
     while (this.i < this.lines.length) {
       const l = this.lines[this.i];
       if (l.trim() === '') {
-        // linha em branco dentro de escalar simples: só continua se a próxima ainda é continuação
         let j = this.i + 1;
         while (j < this.lines.length && this.lines[j].trim() === '') j++;
         if (j < this.lines.length && indentOf(this.lines[j]) > ownIndent && !KEY_RE.test(this.lines[j].trim())) {
@@ -318,7 +305,6 @@ class P {
       const restTrim = rest.trimStart();
       const col = li + 2 + (rest.length - restTrim.length);
       if (restTrim !== '' && KEY_RE.test(restTrim) && !restTrim.startsWith('"') && !restTrim.startsWith("'")) {
-        // item-mapa: reescreve a linha como chave na coluna do texto
         this.lines[this.i] = ' '.repeat(col) + restTrim;
         arr.push(this.map(col));
       } else {
@@ -347,7 +333,6 @@ function balanced(s) {
   return depth <= 0;
 }
 
-/** YAML → valor JS. Nunca lança: em erro devolve pares `chave: valor` linha a linha. */
 export function parseYaml(text) {
   try {
     const p = new P(text);

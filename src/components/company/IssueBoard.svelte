@@ -1,9 +1,4 @@
 <script lang="ts">
-  /**
-   * Kanban of a company's issues. Dragging only lands on statuses the core
-   * accepts from the card's current one (`TRANSITIONS`); `blocked` asks for
-   * the reason first. The card moves at once and goes back if the core says no.
-   */
   import { t } from "$lib/i18n";
   import { TRANSITIONS, type Issue, type IssueStatus, type Label, type Staff } from "$lib/company/rpc";
   import IssuePriority from "./IssuePriority.svelte";
@@ -22,11 +17,9 @@
     staff: Staff[];
     labelsOf: (id: string) => Label[];
     hrefOf: (i: Issue) => string;
-    /** Resolves true when the core accepted the move. */
     onmove: (issue: Issue, to: IssueStatus, note?: string) => Promise<boolean>;
   } = $props();
 
-  /** Optimistic positions while a move is in flight. */
   let moved = $state<Record<string, IssueStatus>>({});
   let dragging = $state<Issue | null>(null);
   let over = $state<IssueStatus | null>(null);
@@ -52,7 +45,6 @@
       delete next[issue.id];
       moved = next;
     };
-    // On success the live reload brings the new status; hold it until then.
     if (ok) setTimeout(settle, 1500);
     else settle();
   }

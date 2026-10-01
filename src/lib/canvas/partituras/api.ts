@@ -1,5 +1,3 @@
-// Partitura library: typed wrappers over the `canvas_partitura_*` commands.
-
 import { invoke } from '@tauri-apps/api/core';
 import type { CanvasNode } from '../model/types';
 
@@ -83,9 +81,7 @@ export interface PartituraSummary {
   cords: [string, string][];
   hasSetup: boolean;
   hasBudget: boolean;
-  /** Options it was saved with; Update Existing keeps them. */
   privacy?: { noStartupCommands?: boolean; blankNotes?: boolean };
-  /** Earlier versions kept (the last update can be undone while > 0). */
   versions?: number;
 }
 
@@ -119,7 +115,6 @@ export interface ImportPreview {
   permissions?: Permissions;
   replacesExisting: boolean;
   warnings: string[];
-  /** Terminals whose chat history travels with it (format 2). */
   chatTranscripts?: number;
 }
 
@@ -141,7 +136,6 @@ interface SaveRequest {
   budget?: Budget;
   permissions?: Permissions;
   setup?: SetupSpec;
-  /** Format 2: carry the terminals' chat history. */
   includeChat?: boolean;
 }
 
@@ -207,5 +201,4 @@ export const addToLibrary = (items: LibraryPartitura[]) =>
 export const exportPartituraFile = (ids: string[], path: string) =>
   invoke<void>('canvas_partitura_export_file', { ids, path });
 
-/** Drag payload of a library card (drop on the canvas to stamp there). */
 export const PARTITURA_DRAG_TYPE = 'application/x-omniget-partitura';

@@ -1,11 +1,3 @@
-/**
- * Legacy URLs remain stable; only the active destination exposes its tools.
- * Roadmap 3.9: "Work" gathers everything an agent is doing for you (the
- * unified list first, then each kind's own page), and the pages visited
- * less often sit under "More" instead of the primary tabs. Configure is not a
- * tab: it links to Settings (AI and agents), while the existing managers keep
- * their URLs and show their own tools when opened.
- */
 export const LLM_SETTINGS_HREF = '/settings?tab=ai';
 
 const LLM_DESTINATIONS = [
@@ -34,7 +26,6 @@ const LLM_DESTINATIONS = [
 
 export const LLM_PRIMARY_DESTINATIONS = LLM_DESTINATIONS.filter(d => d.primary);
 
-/** Old addresses that now land elsewhere (the page itself redirects too). */
 export const LLM_REDIRECTS: Record<string, string> = { '/llm/local': '/llm/models' };
 
 export function llmDestination(path: string) {
@@ -45,7 +36,6 @@ export function llmDestination(path: string) {
   const nested = LLM_DESTINATIONS.find(d => (d.routes as readonly string[]).some(r => r !== '/llm' && normalized.startsWith(r + '/')));
   return nested ?? LLM_DESTINATIONS[2];
 }
-/** i18n key of a destination's tab: its own `label`, else `llm.workspace.<id>`. */
 export function llmDestinationLabel(d: (typeof LLM_DESTINATIONS)[number]): string {
   return 'label' in d ? d.label : `llm.workspace.${d.id}`;
 }

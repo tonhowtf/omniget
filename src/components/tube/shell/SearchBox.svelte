@@ -1,8 +1,4 @@
 <script lang="ts">
-  // Masthead search (spec §2.2): 40px pill + 64px search button on the video
-  // face, the rounded 480px box on the music face. Suggestions come from the
-  // backend, recent searches from localStorage (clock icon, "Remove"). A pasted
-  // YouTube link opens directly.
   import { onMount } from "svelte";
   import { t } from "$lib/i18n";
   import { agentActions } from "$lib/native-agent/actions";
@@ -38,13 +34,11 @@
     try {
       localStorage.setItem(key(), JSON.stringify(recent));
     } catch {
-      /* storage off */
     }
   }
 
   onMount(() => onFocusSearch(() => input?.focus()));
 
-  // keep the box in sync with the route (back/forward, face switch)
   $effect(() => {
     void ui.nav;
     const r = current();
@@ -119,7 +113,6 @@
     input?.focus();
   }
 
-  /** "how to" + typed "how" -> "how" normal, " to" bold, like YouTube. */
   function split(text: string): [string, string] {
     const s = q.trim();
     return s && text.toLowerCase().startsWith(s.toLowerCase()) ? [text.slice(0, s.length), text.slice(s.length)] : ["", text];
@@ -349,7 +342,6 @@
     text-decoration: underline;
   }
 
-  /* music face: 480px rounded box (spec §3.1) */
   .music {
     max-width: 480px;
   }

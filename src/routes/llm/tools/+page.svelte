@@ -1,17 +1,4 @@
 <script lang="ts">
-  /**
-   * Ferramentas (Central): instalar, atualizar e logar os CLIs de código.
-   *
-   * Uma leitura da tabela ao abrir (sem processo), depois uma varredura com
-   * cache (`clitools_detect`) e a versão mais nova só das instaladas (cache de
-   * 1 h no backend). Nada fica em polling: o único listener é o log ao vivo
-   * (`clitools://progress`), que morre com a página.
-   *
-   * Regras que esta tela só mostra (quem garante é o backend): o comando
-   * aparece antes de rodar; atualizar só roda contra instalação com dono
-   * provado; o login acontece no terminal, dentro da ferramenta, e o OmniGet
-   * nunca lê a credencial.
-   */
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "$lib/i18n";
@@ -117,7 +104,6 @@
         try {
           latest[r.tool.id] = await latestOf(r.tool.id, force);
         } catch {
-          /* sem rede: fica sem "mais nova" */
         }
       }),
     );
@@ -187,7 +173,6 @@
     try {
       latest[row.tool.id] = await latestOf(row.tool.id);
     } catch {
-      /* ignora */
     }
   }
 
@@ -204,7 +189,6 @@
           return;
         }
       } catch {
-        /* sem contas: login na instância padrão */
       }
     }
     await doLogin(row, null);
@@ -256,7 +240,6 @@
     try {
       updates = await checkUpdates({ force });
     } catch {
-      /* sem rede: fica o último relatório */
     } finally {
       checkingUpdates = false;
     }

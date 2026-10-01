@@ -1,7 +1,3 @@
-// Activity → work entry (T3 `deriveWorkLogEntries` + `toolGroupAction`):
-// classify each tool item, pull the command, output, touched paths and a
-// mini diff out of the payload, and summarize a run of entries in one line.
-
 import type { ActivityRow, ApprovalRow } from "$lib/central/threads/types";
 
 type WorkKind =
@@ -28,20 +24,15 @@ export type WorkEntry = {
   turnId: string | null;
   kind: WorkKind;
   status: WorkStatus;
-  /** Tool / program name ("git", "Read", "mcp__github__search"). */
   name: string;
-  /** Human label (title, query, first path…). */
   label: string;
   command: string | null;
   cwd: string | null;
   output: string | null;
   paths: string[];
-  /** Unified diff of an edit, when the payload carries one (or can build one). */
   diff: string | null;
   detail: string | null;
-  /** Raw JSON shown for MCP / dynamic tools. */
   raw: unknown;
-  /** Subagent / task fields. */
   agent: { taskId: string; title: string; status: string; model: string | null; summary: string | null; tokens: number | null } | null;
   severe: boolean;
   createdAt: string;
@@ -52,7 +43,6 @@ type Obj = Record<string, unknown>;
 const isObj = (v: unknown): v is Obj => !!v && typeof v === "object" && !Array.isArray(v);
 const str = (v: unknown): string | null => (typeof v === "string" && v.length > 0 ? v : null);
 
-/** Activities that feed side surfaces, not the timeline (T3 "quiet timeline"). */
 export function isQuietActivity(a: ActivityRow): boolean {
   switch (a.kind) {
     case "tool.progress":
@@ -88,7 +78,6 @@ export function isQuietActivity(a: ActivityRow): boolean {
 const PATH_KEYS = ["path", "file_path", "filePath", "relativePath", "filename", "newPath", "oldPath", "notebook_path", "target_file"];
 const NEST_KEYS = ["item", "result", "input", "data", "changes", "files", "edits", "patch", "patches", "operations", "output"];
 
-/** Bounded recursive scan for path-like fields (depth ≤ 4, ≤ 12 files). */
 function collectPaths(v: unknown, out: string[] = [], depth = 0): string[] {
   if (depth > 4 || out.length >= 12 || v == null) return out;
   if (Array.isArray(v)) {
@@ -106,7 +95,6 @@ function collectPaths(v: unknown, out: string[] = [], depth = 0): string[] {
     if (s && s.length < 400 && !out.includes(s)) out.push(s);
   }
   for (const k of NEST_KEYS) if (k in v) collectPaths(v[k], out, depth + 1);
-  // `changes` in Codex is `{ "<path>": {...} }`.
   if (isObj(v.changes)) for (const k of Object.keys(v.changes)) if (!out.includes(k) && out.length < 12) out.push(k);
   return out;
 }
@@ -122,7 +110,6 @@ function commandOf(input: unknown, payload: Obj): string | null {
   return null;
 }
 
-/** ["bash","-lc","git status"] → "git status". */
 function unwrapShell(argv: string[]): string {
   if (argv.length >= 3 && /(^|\/)(ba|z|da|fi)?sh$|pwsh|powershell|cmd(\.exe)?$/i.test(argv[0]) && /^(-l?c|\/c|-Command)$/i.test(argv[1])) {
     return argv.slice(2).join(" ");
@@ -156,7 +143,6 @@ function outputOf(data: unknown, payload: Obj): string | null {
   return str(payload.aggregatedOutput);
 }
 
-/** A unified diff for edit tools: explicit patch, or old/new strings, or new content. */
 function diffOf(input: unknown, data: unknown, path: string | null): string | null {
   const probe = [input, isObj(data) ? data.output : null, data];
   for (const p of probe) {
@@ -208,7 +194,6 @@ export function diffStats(diff: string | null): { add: number; del: number } {
 
 export type DiffFileStat = { path: string; status: string; additions: number; deletions: number; patch: string };
 
-/** Splits a multi-file unified diff (`turn.diff.updated`) into per-file stats. */
 export function splitUnifiedDiff(diff: string): DiffFileStat[] {
   const out: DiffFileStat[] = [];
   let cur: DiffFileStat | null = null;
@@ -312,7 +297,6 @@ function statusOf(a: ActivityRow): WorkStatus {
   return "done";
 }
 
-/** Output text that says the tool failed even when the provider said "completed". */
 function looksLikeFailure(text: string | null): boolean {
   if (!text) return false;
   const tail = text.slice(-2000);
@@ -402,11 +386,8 @@ export function approvalEntry(ap: ApprovalRow): WorkEntry {
   };
 }
 
-// ── One-line summaries ──────────────────────────────────────────────────
-
 export type SummaryPart = { key: string; count: number };
 
-/** "Ran 3 commands, read 2 files, changed 1 file" as i18n parts (distinct files for edits). */
 export function summarize(entries: WorkEntry[]): SummaryPart[] {
   const commands = entries.filter((e) => e.kind === "command").length;
   const reads = new Set(entries.filter((e) => e.kind === "read" || e.kind === "image").flatMap((e) => (e.paths.length ? e.paths.slice(0, 1) : [e.id]))).size;
@@ -428,12 +409,10 @@ export function summarize(entries: WorkEntry[]): SummaryPart[] {
   return parts;
 }
 
-/** Tense-aware verb key for a single entry ("Running", "Ran"…); failures get a badge. */
 export function entryVerbKey(e: WorkEntry): string {
   return `llm.central.threads.work.${e.kind}.${e.status === "running" ? "running" : "done"}`;
 }
 
-/** Unified diff → `FileDiff[]` for the DiffViewer (headerless hunks go under `fallbackPath`). */
 export function toFileDiffs(diff: string | null | undefined, fallbackPath = "file"): import("$lib/central/vcs").FileDiff[] {
   if (!diff || !diff.trim()) return [];
   const files = splitUnifiedDiff(diff);

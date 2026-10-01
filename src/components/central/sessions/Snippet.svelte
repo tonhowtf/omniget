@@ -1,5 +1,4 @@
 <script lang="ts">
-  /** Trecho de busca com o termo marcado (posições em caracteres). */
   interface Props {
     text: string;
     start: number;

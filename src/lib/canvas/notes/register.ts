@@ -1,9 +1,3 @@
-// Registers the node kinds of the notes/files area: `note` (full .md note,
-// overrides the engine placeholder), `stack` (fichário), `filetree` and
-// `file` (file card, or editor with data.view = "editor"). Imported once by
-// Canvas.svelte; registration without `ifAbsent` wins over the built-ins in
-// any import order.
-
 import { ICONS, registerNodeKind } from '../nodes/registry';
 import NoteNodeFull from '$components/canvas/nodes/notes/NoteNodeFull.svelte';
 import StackNode from '$components/canvas/nodes/notes/StackNode.svelte';

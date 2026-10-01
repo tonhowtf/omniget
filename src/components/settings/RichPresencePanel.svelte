@@ -13,8 +13,6 @@
   let busy = $state(false);
   let testResult = $state<"ok" | "fail" | null>(null);
 
-  // Application ID and image key are free text: edited as a draft and written
-  // together with "Save changes".
   const advanced = createSettingsDraft({
     id: "rpc",
     read: (s) => ({
@@ -40,7 +38,6 @@
         void rpcSyncIdleStats();
       }
     } catch {
-      // The row's SettingStatus (rpc.enabled) already shows the failure inline.
       if (!failureShownInline({ rpc: { enabled: true } })) showToast("error", $t("settings.save_failed") as string);
     } finally {
       busy = false;

@@ -1,5 +1,4 @@
 <script lang="ts">
-  /** A budget incident: raise the limit above what was used and resume, or keep it paused. */
   import { t } from "$lib/i18n";
   import { rpc, errorText, type Incident, type PolicyStatus } from "$lib/company/rpc";
   import BudgetBar from "./BudgetBar.svelte";

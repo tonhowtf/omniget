@@ -1,7 +1,3 @@
-// Cord geometry (02-motor-do-canvas §5): a cubic bezier between node ports on
-// the four edges; the side pair that minimises the length wins; tangents are
-// normal to the exit edge with a control offset of clamp(0.5·d, 40, 240).
-
 import type { Rect } from '../model/types';
 import { arcLengths, sampleCubic, type Cubic, type Pt } from '../spatial/geometry';
 
@@ -44,7 +40,6 @@ function controlOffset(d: number): number {
   return Math.min(240, Math.max(40, d * 0.5));
 }
 
-/** Best bezier between two rectangles (or a rectangle and a free point). */
 export function cordPath(from: Rect, to: Rect | Pt): CordPath {
   const toRect = 'w' in to ? (to as Rect) : null;
   let best: CordPath | null = null;
@@ -58,7 +53,6 @@ export function cordPath(from: Rect, to: Rect | Pt): CordPath {
     for (const [ts, p1] of targets) {
       const dx = p1.x - p0.x;
       const dy = p1.y - p0.y;
-      // Skip ports facing away from each other when a better pair exists.
       const facing = n0.x * dx + n0.y * dy;
       const n1 = sideNormal(ts);
       const facing1 = -(n1.x * dx + n1.y * dy);
@@ -84,9 +78,7 @@ function oppositeOf(s: Side): Side {
 
 interface SampledCord {
   path: CordPath;
-  /** Flat polyline, 33 points. */
   pts: number[];
-  /** Arc-length table (32 segments) for uniform-speed travel. */
   lens: number[];
 }
 
@@ -95,17 +87,12 @@ export function sampleCord(path: CordPath, n = 32): SampledCord {
   return { path, pts, lens: arcLengths(pts) };
 }
 
-/** Reversed copy of a sampled cord (for a message going to → from). */
 export function reverseCord(c: SampledCord): SampledCord {
   const pts: number[] = [];
   for (let i = c.pts.length - 2; i >= 0; i -= 2) pts.push(c.pts[i], c.pts[i + 1]);
   return { path: c.path, pts, lens: arcLengths(pts) };
 }
 
-/**
- * Circuit routing (Settings → Canvas → Cord style): axis-aligned segments
- * with at most two 90° turns between the same ports the bezier uses.
- */
 export function circuitPoints(path: CordPath): number[] {
   const { p0, p1 } = path;
   const h0 = path.fromSide === 'left' || path.fromSide === 'right';

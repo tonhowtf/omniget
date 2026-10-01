@@ -1,6 +1,4 @@
 <script lang="ts">
-  // Typography, layout and theme for the ebook reader. Changes apply live;
-  // presets store a whole look under a name.
   import { t } from "$lib/i18n";
   import { FONTS, THEMES } from "$lib/read/foliate";
   import { applyPreset, deletePreset, presets, prefs, resetPrefs, savePreset, savePrefs } from "$lib/read/prefs.svelte";

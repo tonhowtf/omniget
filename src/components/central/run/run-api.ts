@@ -1,8 +1,3 @@
-/**
- * Typed wrappers of the `run_*` commands (src-tauri/src/commands/central/run.rs):
- * catalog loops on the Loops engine, playbooks, the project wizard, "Run now"
- * and the sandbox recipe.
- */
 import { invoke } from "@tauri-apps/api/core";
 import type { InstallPlan } from "$lib/central/catalog";
 
@@ -238,7 +233,6 @@ export const runSandboxApply = (jobId: string, paths: string[] | null) =>
   invoke<{ applied: string[]; skipped: string[] }>("run_sandbox_apply", { jobId, paths });
 export const runSandboxDiscard = (jobId: string) => invoke<{ ok: boolean }>("run_sandbox_discard", { jobId });
 
-/** Encodes a runner as one `<select>` value and back. */
 export function runnerKey(r: RunnerSpec): string {
   return [r.kind, r.id, r.account ?? ""].join("|");
 }
@@ -248,13 +242,11 @@ export function parseRunnerKey(k: string): RunnerSpec {
   return { kind: kind as RunnerKind, id, account: account || null };
 }
 
-/** Label of a job's agent id (`tool:claude` → `claude (CLI)`). */
 export function agentLabel(id: string, names: Record<string, string> = {}): string {
   if (id.startsWith("tool:")) return `${id.slice(5)} (CLI)`;
   return names[id] ?? id;
 }
 
-/** `10m`, `2h`, `daily`, or a 5-field cron line. */
 export function scheduleValid(s: string): boolean {
   const t = s.trim();
   if (!t || t === "on-demand") return true;

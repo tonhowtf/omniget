@@ -1,5 +1,4 @@
 <script lang="ts">
-  // "↑ 3 new videos" pill floating over the top of a feed (21st 23546).
   import { t } from "$lib/i18n";
   import TIcon from "../TIcon.svelte";
 

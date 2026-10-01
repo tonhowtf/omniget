@@ -5,8 +5,6 @@
   import { formatBytes } from "$lib/stores/download-store.svelte";
   import { showToast } from "$lib/stores/toast-store.svelte";
 
-  // Send links to an aria2 on another machine and watch its downloads.
-  // Idea from AriaNg (a web front end for aria2's JSON-RPC).
   type Task = { gid: string; status: string; name: string; total: number; done: number; speed: number; error: string | null };
   type Overview = { version: string; download_speed: number; tasks: Task[] };
 
@@ -22,7 +20,6 @@
   }
 
   let address = $state(stored());
-  // The secret is kept only while the panel is open.
   let secret = $state("");
   let links = $state("");
   let overview = $state<Overview | null>(null);
@@ -55,7 +52,6 @@
     try {
       localStorage.setItem(ADDRESS_KEY, address.trim());
     } catch {
-      // Remembering the address is a convenience only.
     }
     await refresh();
     busy = false;

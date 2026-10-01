@@ -14,10 +14,6 @@
   import SelectList, { type SelectItem } from "./ui/SelectList.svelte";
   import { onProgress } from "./ui/progress";
 
-  /// Updates: what the system's package managers (winget, Homebrew, apt,
-  /// dnf, pacman, zypper, Flatpak, Snap) have pending, grouped by manager,
-  /// current → new version, and one button that updates the ticked ones
-  /// through a plan.
   let _props: { caps: Caps } = $props();
 
   const mod = moduleById("packages");

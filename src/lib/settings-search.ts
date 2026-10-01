@@ -5,16 +5,11 @@ export type { SettingsCategory } from "./settings-navigation";
 export type SettingSearchEntry = {
   key: string;
   category: SettingsCategory;
-  /** Section id (`settings-group-<id>`), empty for the category page itself. */
   section: string;
   sectionKey: string;
-  /** Destination outside /settings (operational blocks that moved), otherwise undefined. */
   href?: string;
 };
 
-// Labels that are not in the navigation alias table but name controls that live in Settings.
-// Search metadata exists independently of mounted panels, enabled features, collapsed
-// disclosures and visual CSS. Values, paths and secrets are never indexed: only label keys.
 const EXTRA: [SettingsCategory, string, string[]][] = [
   ["general", "limits-strip", ["llm.limits.title", "llm.limits.enable", "llm.limits.edge", "llm.limits.size", "llm.limits.show_percent", "llm.limits.show_pace", "llm.limits.notify_pace"]],
   ["general", "usage-tray", ["usage_tray.menu.toggle", "usage_tray.menu.accounts", "usage_tray.menu.icon_shows", "usage_tray.menu.percent_text", "usage_tray.menu.colored", "usage_tray.menu.thresholds"]],
@@ -63,7 +58,6 @@ export function searchSettings(query: string, translate: (key: string) => string
   const terms = normalizeSettingsQuery(query).split(/\s+/).filter(Boolean);
   if (!terms.length) return [];
   return SETTINGS_SEARCH_INDEX.filter(entry => {
-    // The sibling `.title` names the sub-panel (e.g. Proxy inside Network).
     const parentTitle = entry.key.replace(/\.[^.]+$/, ".title");
     const keys = [entry.key, entry.sectionKey, parentTitle, `${entry.key}_desc`, `${entry.key}_hint`];
     const text = normalizeSettingsQuery(keys.map(key => {
@@ -78,7 +72,6 @@ export function settingsEntryUrl(entry: SettingSearchEntry): string {
   return entry.href ?? settingsHref(entry.category, entry.section || null, entry.key);
 }
 
-/** Native numeric inputs expose their declared limits; zero is valid when min permits it. */
 export function parseSettingNumber(value: string, min: string, max: string): number | null {
   if (!value.trim()) return null;
   const number = Number(value);

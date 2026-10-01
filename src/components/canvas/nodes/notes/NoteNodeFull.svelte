@@ -1,11 +1,4 @@
 <script lang="ts">
-  // Note node (study 95 §G): a real .md file with Formatted and Raw modes,
-  // live Markdown render, Lock Contents (agent writes fail), colours, name
-  // from the first line unless pinned (Rust updates the title on write),
-  // conditional saves with `ifRevision` and a conflict bar when someone else
-  // wrote meanwhile, live reload on `canvas://note`, and "written by <agent>"
-  // when the last change came from an agent. External notes (.md/.markdown/
-  // .txt dropped from Finder) stay where they are.
   import { onDestroy, onMount, tick, untrack } from "svelte";
   import { t } from "$lib/i18n";
   import { renderSafeMarkdownSync } from "$lib/llm/markdown";
@@ -42,7 +35,6 @@
     node: CanvasNode;
     selected?: boolean;
     focused?: boolean;
-    /** Rendered by a fichário (front page), not on its own. */
     embedded?: boolean;
     onpatch?: (patch: Partial<CanvasNode>) => void;
     onexit?: () => void;
@@ -57,7 +49,6 @@
 
   const cache = new Map<string, string>();
   let bump = $state(0);
-  /** Text of the file as last read or written. */
   let text = $state("");
   let revision = $state<string | undefined>(undefined);
   let draft = $state("");
@@ -68,7 +59,6 @@
   let error = $state<string | null>(null);
   let conflict = $state<{ text: string; revision: string } | null>(null);
   let writer = $state<{ name: string; at: number } | null>(null);
-  // New Item Defaults (Settings → Canvas) may make a note start in Raw.
   let raw = $state(untrack(() => node.data.mode === "raw"));
   let colorsOpen = $state(false);
   let area = $state<HTMLTextAreaElement | null>(null);
@@ -98,7 +88,6 @@
   async function load() {
     error = null;
     if (!hasFile(node) || engine.syncMode === "memory") {
-      // Memory mode or a placeholder note: the text lives in the node.
       fileBacked = false;
       text = String(node.data.text ?? "");
       if (!dirty) draft = text;
@@ -109,7 +98,6 @@
     const { ws, floor } = ids();
     try {
       const c = await noteRead(ws, floor, node.id);
-      // A note created with inline text (older placeholder): move it into the file.
       const legacy = String(node.data.text ?? "");
       if (!c.text && legacy) {
         const w = await noteWrite(ws, floor, node.id, legacy, c.revision).catch(() => null);
@@ -131,7 +119,6 @@
       if (msg.startsWith("CANVAS_")) {
         error = msg;
       } else {
-        // Notes API not available (command missing): edit the inline text.
         fileBacked = false;
         text = String(node.data.text ?? "");
         if (!dirty) draft = text;
@@ -141,13 +128,11 @@
     }
   }
 
-  // (Re)load when the backing file changes identity.
   $effect(() => {
     void fileKey;
     untrack(() => void load());
   });
 
-  // Memory-mode notes follow node.data.text when not being edited.
   $effect(() => {
     const inline = String(node.data.text ?? "");
     untrack(() => {
@@ -158,7 +143,6 @@
     });
   });
 
-  // Entering focus = Raw editing (Maestri double-click), leaving = Formatted.
   $effect(() => {
     if (focused) {
       untrack(() => {
@@ -169,15 +153,12 @@
     } else {
       untrack(() => {
         void flush();
-        // Back to the note's own face: Raw stays Raw (New Item Defaults).
         raw = node.data.mode === "raw" && !locked;
         colorsOpen = false;
       });
     }
   });
 
-  // The mode changed from outside (MCP, another window): follow it while
-  // the note is not being edited.
   $effect(() => {
     const wantRaw = node.data.mode === "raw";
     untrack(() => {
@@ -211,7 +192,6 @@
           dirty = false;
         }
       } catch {
-        // Gone or unreadable: keep what we have.
       }
     });
     clock = setInterval(() => (now = Date.now()), 30_000);
@@ -225,8 +205,6 @@
     void flush();
     cache.clear();
   });
-
-  // ---- saving ----------------------------------------------------------
 
   function onInput() {
     dirty = draft !== text;
@@ -290,8 +268,6 @@
     dirty = false;
   }
 
-  // ---- toolbar ---------------------------------------------------------
-
   function setData(changes: Record<string, unknown>) {
     onpatch?.({ data: { ...node.data, ...changes } });
   }
@@ -304,7 +280,6 @@
 
   let moveError = $state<string | null>(null);
 
-  /** Maestri "Move to…": save the note as a file of the project; it becomes external there. */
   async function moveTo() {
     moveError = null;
     await flush();
@@ -342,15 +317,12 @@
     setData({ customColor: id });
   }
 
-  // ---- rich Markdown (Mermaid, code, tables, images, paths) --------------
-
   const richBase = $derived(data.isExternal && data.path ? dirOf(data.path) : workspaceDir(engine));
 
   function openPath(abs: string, isDir: boolean, line?: number) {
     openPathOnCanvas(engine, node, abs, isDir, line);
   }
 
-  /** Pasting an image stores it with the workspace and writes `![](path)`. */
   async function onPaste(e: ClipboardEvent) {
     const files = Array.from(e.clipboardData?.files ?? []).filter((f) => f.type.startsWith("image/"));
     if (!files.length) return;
@@ -396,8 +368,6 @@
     return tr("canvas.notes.minutesAgo", "{{count}} min ago", { count: Math.round(s / 60) });
   }
 
-  // Notes hold code and paths: system autocorrect/capitalization stay off
-  // (Maestri), spell check follows Settings → Canvas.
   const noAutocorrect: Record<string, string> = { autocorrect: "off", autocapitalize: "off" };
 
   const showWriter = $derived(!!writer && now - writer.at < AGENT_BADGE_MS);
@@ -532,7 +502,6 @@
     {:else if !loaded}
       <p class="empty">…</p>
     {:else if raw && shown.trim()}
-      <!-- Raw face without focus (New Item Defaults render = raw). -->
       <pre class="raw-view" style:font-family={typeof node.data.font === "string" && node.data.font ? node.data.font : null}>{shown}</pre>
     {:else if shown.trim()}
       <div class="md" use:richMarkdown={{ baseDir: richBase, onOpenPath: openPath }}>{@html html}</div>

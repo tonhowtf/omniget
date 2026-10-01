@@ -1,8 +1,4 @@
 <script lang="ts">
-  // The visitor's read-only view of someone else's canvas: nodes as cards,
-  // cords as curves, the canonical state as a coloured edge, and a shared
-  // terminal's screen text when the host chose to show it. Clicking empty
-  // space points there (the host sees it); nothing here can reach an agent.
   import { t } from "$lib/i18n";
   import type { Scene } from "$lib/canvas/visit/api";
   import { cordPaths, sceneBounds, screenTail } from "$lib/canvas/visit/scene";

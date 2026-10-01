@@ -1,6 +1,3 @@
-/// Types and pure helpers of the Energy module (`wmb_power_status`,
-/// `wmb_power_hold`, `wmb_battery_health`).
-
 export type SleepBlocker = { process: string; pid?: number; kind: string; reason: string; display: boolean };
 
 export type PowerAction = {
@@ -86,10 +83,8 @@ export type Battery = {
   source: string;
 };
 
-/// The hold lengths the screen offers, in minutes.
 export const HOLD_CHOICES = [30, 60, 120] as const;
 
-/// Profiles of the power-profiles API, in the order the desktop shows them.
 const PROFILE_ORDER = ["power-saver", "balanced", "performance"] as const;
 
 export function remainingSecs(until: number | null | undefined, nowMs: number): number {
@@ -97,7 +92,6 @@ export function remainingSecs(until: number | null | undefined, nowMs: number): 
   return Math.max(0, Math.round(until - nowMs / 1000));
 }
 
-/// `4:05`, `1:02:09`.
 export function formatCountdown(secs: number): string {
   const s = Math.max(0, Math.floor(secs));
   const h = Math.floor(s / 3600);
@@ -107,7 +101,6 @@ export function formatCountdown(secs: number): string {
   return h > 0 ? `${h}:${pad(m)}:${pad(r)}` : `${m}:${pad(r)}`;
 }
 
-/// Share of the manual hold already gone, 0..1 (for the pill's ring).
 export function holdProgress(h: HoldState | null | undefined, nowMs: number): number {
   if (!h?.until || h.started == null || h.until <= h.started) return 0;
   const span = h.until - h.started;
@@ -121,7 +114,6 @@ export function healthTone(pct: number | null | undefined): "good" | "warn" | "b
   return "bad";
 }
 
-/// Full charge against design, as widths for the two bars of the card.
 export function capacityBars(b: Battery | null | undefined): { design: number; full: number; unit: string; lost: number } | null {
   if (!b?.design_capacity || !b.full_charge_capacity) return null;
   const design = b.design_capacity;
@@ -129,7 +121,6 @@ export function capacityBars(b: Battery | null | undefined): { design: number; f
   return { design, full, unit: b.capacity_unit ?? "", lost: Math.max(0, Math.round((1 - full / design) * 100)) };
 }
 
-/// The segmented options of the Linux profile switch.
 export function profileOptions(s: PowerStatus | null | undefined): string[] {
   const avail = s?.profile?.available ?? [];
   if (!s?.profile?.can_switch) return [];
@@ -140,7 +131,6 @@ export function actionsOf(s: PowerStatus | null | undefined, action: string): Po
   return (s?.actions ?? []).filter((a) => a.action === action);
 }
 
-/// Charge limit choices for one battery, as `{percent, id}` sorted.
 export function chargeChoices(s: PowerStatus | null | undefined, battery: string): { percent: number; id: string }[] {
   return actionsOf(s, "charge_limit")
     .filter((a) => a.args.battery === battery)
@@ -148,8 +138,6 @@ export function chargeChoices(s: PowerStatus | null | undefined, battery: string
     .sort((x, y) => x.percent - y.percent);
 }
 
-/// One line per process: several assertions of one app collapse, the
-/// reasons kept in order.
 export function groupBlockers(list: SleepBlocker[] | null | undefined): { process: string; count: number; display: boolean; reasons: string[] }[] {
   const out = new Map<string, { process: string; count: number; display: boolean; reasons: string[] }>();
   for (const b of list ?? []) {
@@ -163,7 +151,6 @@ export function groupBlockers(list: SleepBlocker[] | null | undefined): { proces
   return [...out.values()];
 }
 
-/// The i18n key suffix of a manager id (`power-profiles-daemon` → `ppd`).
 export function managerKey(id: string | null | undefined): string {
   switch (id) {
     case "power-profiles-daemon":

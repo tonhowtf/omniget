@@ -1,24 +1,10 @@
-/**
- * Browser-only fixture. Never imports Tauri, opens the app, or calls a backend.
- * Serialized into the page by Playwright (addInitScript), so it must stay self-contained.
- *
- * Options:
- *   defaults       synthetic AppSettings document (docs/settings-rebrand/defaults-fixture.json)
- *   language/theme case locale and colour mode
- *   family/state   legacy per-family state injection (loading/error/empty/disabled/expanded)
- *   settingsState  v3 envelope scenario: ready | loading | get-failed | patch-rejected |
- *                  pending-effect | recovered
- *   delays         { command: ms } late responses (used by the navigation/focus cases)
- */
 export function installSyntheticIPC({ defaults, language, theme, family = "", state = "baseline", settingsState = "ready", delays = {} }) {
   const copy = value => (value === undefined ? undefined : structuredClone(value));
   const key = "settings-rebrand.mock.settings.v3";
   const initial = copy(defaults);
   initial.appearance.language = language;
-  // v3 appearance: explicit mode/preset, import already committed (migration_version=1).
   Object.assign(initial.appearance, { mode: theme, preset: "omniget-desktop", legacy_theme: null, migration_version: 1, theme });
   initial.schema_version = 3;
-  // Documented harness-only overrides: bypass onboarding/legal overlays, not IPC security.
   initial.onboarding_completed = true;
   initial.legal_acknowledged = true;
   if (family === "network" && state !== "disabled") initial.proxy.enabled = true;
@@ -27,8 +13,6 @@ export function installSyntheticIPC({ defaults, language, theme, family = "", st
     music_hotkey_enabled: true, youtube_sponsorblock: true, bilibili_danmaku_enabled: true,
     bilibili_cover_sidecar: true,
   });
-  // Private document (never leaves the mock unredacted). Secret values are fictitious
-  // sentinels so a leak into the DOM is detectable; has_* markers are derived from them.
   let stored = null;
   try { stored = JSON.parse(localStorage.getItem(key) || "null"); } catch { stored = null; }
   let settings = stored?.settings || initial;
@@ -66,8 +50,6 @@ export function installSyntheticIPC({ defaults, language, theme, family = "", st
   if (settingsState === "loading") behavior.hold.push("settings_get_v3", "get_settings");
   if (settingsState === "patch-rejected") behavior.rejectWith.settings_patch_v3 = { kind: "persistence", code: "write_failed", committed: false, fieldErrors: [] };
 
-  // Commands that change product state. A navigation must call none of them.
-  // Explicit list first; unknown commands matching the verb pattern also count.
   const MUTATING = [
     "settings_patch_v3", "settings_reset_v3", "settings_import_appearance_v3", "settings_retry_effect_v3",
     "update_settings", "reset_settings", "mark_onboarding_complete", "mark_legal_acknowledged",
@@ -88,7 +70,6 @@ export function installSyntheticIPC({ defaults, language, theme, family = "", st
     "assist_learning_rollback", "assist_learning_settings_save", "assist_learning_export",
   ];
   const MUTATING_PATTERN = /(^|_)(set|save|add|remove|delete|clear|create|update|reset|import|retry|install|rotate|revoke|grant|toggle|refresh|start|stop|send|download|export|promote|rollback|forget|apply|configure|enable|disable|write|rename|move|test|selftest|summarize|evaluate|propose|observe|pair)(_|$)/;
-  // Session/UI plumbing that runs on every page load; not product-state mutation.
   const PLUMBING = new Set([
     "native_agent_register", "native_agent_reply", "sync_tray_strings", "usage_tray_sync_strings", "sync_llm_prompts",
     "sync_llm_notify_strings", "llm_ui_focus", "rpc_set_idle_stats", "sync_channels_tray", "register_frontend",
@@ -96,7 +77,6 @@ export function installSyntheticIPC({ defaults, language, theme, family = "", st
     "plugin:event|listen", "plugin:event|unlisten", "plugin:event|emit", "plugin:event|emit_to",
     "plugin:clipboard-manager|write_text",
   ]);
-  // Reads named like get_/list_/…_status never count, unless listed explicitly above.
   const READ_PATTERN = /^(get|list|check|read|fetch|load|is|has|query|preview|validate|probe|describe)_|_(list|status|view|get|stats|info|overview|history|capabilities|exists|health|snippets|budget|peaks|playlists|clients|tracks|prefs|state|dir|path|versions)$/;
   const isMutating = command => {
     if (PLUMBING.has(command)) return false;
@@ -106,7 +86,7 @@ export function installSyntheticIPC({ defaults, language, theme, family = "", st
   };
 
   let callbackId = 5000;
-  const persist = () => { try { localStorage.setItem(key, JSON.stringify({ settings, revision: String(revision) })); } catch { /* storage optional */ } };
+  const persist = () => { try { localStorage.setItem(key, JSON.stringify({ settings, revision: String(revision) })); } catch { } };
   const merge = (base, patch) => {
     for (const [name, value] of Object.entries(patch)) {
       if (value && typeof value === "object" && !Array.isArray(value) && base[name] && typeof base[name] === "object") merge(base[name], value);
@@ -114,7 +94,6 @@ export function installSyntheticIPC({ defaults, language, theme, family = "", st
     }
     return base;
   };
-  // SettingsPublicV3: explicit redaction, has_* are booleans only.
   const redact = () => {
     const dto = copy(settings);
     dto.proxy.has_password = !!settings.proxy.password; delete dto.proxy.password;
@@ -179,7 +158,6 @@ export function installSyntheticIPC({ defaults, language, theme, family = "", st
       case "plugin:dialog|open": case "plugin:dialog|save": return behavior.dialog;
       case "plugin:clipboard-manager|read_text": return "";
       case "plugin:clipboard-manager|write_text": return null;
-      // ---- v3 contract (06-api-contract.md)
       case "settings_get_v3": return settingsState === "get-failed" ? failedSnapshot() : snapshot();
       case "settings_patch_v3": {
         const request = args.request || {};
@@ -205,7 +183,6 @@ export function installSyntheticIPC({ defaults, language, theme, family = "", st
         checkRevision(request);
         const scope = request.scope;
         if (!scope || !["app", "section"].includes(scope.kind)) throw apiError("validation", "invalid_request", { fieldErrors: [{ path: "scope", code: "invalid_enum" }] });
-        // Synthetic: restore the fixture's non-secret values of the scope; secrets/bridge/consent kept.
         return commit(() => {
           const groups = { general: ["start_with_system", "start_minimized", "exit_on_close"], appearance: ["appearance", "typography", "accessibility"], downloads: ["download"], ai: ["llm"], integrations: ["rpc", "world", "league", "music"], advanced: ["advanced"] };
           const names = scope.kind === "app" ? Object.values(groups).flat() : groups[scope.section] || [];
@@ -231,11 +208,9 @@ export function installSyntheticIPC({ defaults, language, theme, family = "", st
         if (settings.appearance.migration_version >= 1) return { outcome: "already_imported", snapshot: snapshot() };
         return { outcome: "imported", snapshot: commit(() => { settings.appearance.migration_version = 1; }) };
       }
-      // ---- legacy wrappers: same document, redacted DTO.
       case "get_settings": if (settingsState === "get-failed") throw new Error("HARNESS_INJECTED_FAILURE: get_settings"); return redact();
       case "update_settings": return commit(() => merge(settings, JSON.parse(args.partial))).settings;
       case "reset_settings": return commit(() => { const secrets = { password: settings.proxy.password, cookie: settings.advanced.twitter_manual_cookie, token: settings.bridge?.token }; settings = copy(initial); settings.proxy.password = secrets.password; settings.advanced.twitter_manual_cookie = secrets.cookie; settings.bridge.token = secrets.token; }).settings;
-      // ---- domain fixtures (read-only unless noted)
       case "check_ytdlp_available": return true;
       case "check_cookie_error": return false;
       case "register_external_frontend": case "get_download_history": case "get_queue_state": case "get_download_queue": case "get_recovery_items": case "tool_mcp_auth_requests": return [];
@@ -286,13 +261,11 @@ export function installSyntheticIPC({ defaults, language, theme, family = "", st
   };
   window.__TAURI_INTERNALS__ = {
     invoke: async (command, args = {}) => {
-      // Log names only. Fixtures are synthetic, but this keeps the recorder safe by construction.
       calls.push({ command, argumentKeys: Object.keys(args), at: Date.now(), mutating: isMutating(command) });
       if (behavior.reject.includes(command)) throw new Error("HARNESS_INJECTED_FAILURE: " + command);
       if (behavior.rejectWith[command]) throw copy(behavior.rejectWith[command]);
       if (behavior.hold.includes(command)) return new Promise(() => {});
       if (behavior.delay[command]) await new Promise(resolve => setTimeout(resolve, behavior.delay[command]));
-      // Serialized like Tauri: ApiError objects reject as plain data, not Error instances.
       try { return copy(respond(command, args)); }
       catch (error) { if (error instanceof Error) throw error; throw copy(error); }
     },
@@ -303,16 +276,10 @@ export function installSyntheticIPC({ defaults, language, theme, family = "", st
   };
   window.__TAURI_EVENT_PLUGIN_INTERNALS__ = { unregisterListener: () => {} };
   window.isTauri = true;
-  // Legacy key present on purpose: with migration_version=1 the store must not import it.
   localStorage.setItem("omniget.workspace.appearance.v1", JSON.stringify({ preset: "amber-minimal", mode: theme }));
   Object.defineProperty(navigator, "platform", { get: () => "MacIntel" });
 }
 
-/**
- * Read-only fixtures for the contextual destinations outside /settings (roster, MCP,
- * music, Home templates, summaries, indicators). Installed as a second init script;
- * it only answers reads. Writes stay unknown (they reject and are recorded).
- */
 export function installDestinationFixtures() {
   const bot = { id: "fixture-bot", name: "Fixture bot", role: "worker", system_prompt: "Synthetic bot for the settings harness.", model: { policy: "fixed", model: { provider: "local", model: "fixture-model" } }, tools: [], skills: [], runtime: { kind: "native" }, skin: null };
   const botProfile = { bot_id: bot.id, purpose: "Synthetic", instructions: "", capabilities: [], memory_policy: "ask", default_connection: null };

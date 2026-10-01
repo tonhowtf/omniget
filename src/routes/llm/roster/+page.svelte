@@ -1,12 +1,10 @@
 <script module lang="ts">
   import type { AgentDef as PendingAgent } from "$lib/llm/types";
-  // Only this window's in-memory edit travels to Connections; nothing is saved.
   let pendingEditor: PendingAgent | null = null;
 </script>
 
 <script lang="ts">
   import SurfaceGuide from "$components/llm/SurfaceGuide.svelte";
-  /** Roster tab: the agent list, the editor and the team templates. */
   import { onMount, untrack } from "svelte";
   import { t } from "$lib/i18n";
   import type { AgentDef } from "$lib/llm/types";
@@ -31,7 +29,6 @@
   let agents = $derived(getAgents());
   let editing = $state<AgentDef | null>(null);
   let editingStep = $state(0);
-  // "Create bot" (the guided flow) and the bot screen of one roster agent.
   let creating = $state(false);
   let selected = $state<string | null>(null);
   let selectedAgent = $derived(agents.find((a) => a.id === selected) ?? null);
@@ -49,12 +46,7 @@
     }
   });
 
-  // `?bot=<id>[&section=skills|learning]`, also when the query changes on
-  // this route. It only selects an agent that exists (the list shows until
-  // the roster loads); an unknown id creates nothing. An open editor or the
-  // create flow keeps its draft.
   let target = $derived(parseRosterTarget(page.url.searchParams));
-  /** The bot the current link points at, until the user goes back to the list. */
   let linkBot = $state<string | null>(null);
   $effect(() => {
     const bot = target.bot;
@@ -65,12 +57,10 @@
     });
   });
 
-  // Back to the list forgets the link target, so reopening a bot does not jump again.
   function backToList() {
     selected = null;
     if (!linkBot) return;
     linkBot = null;
-    // `page.url` is not updated by replaceState: read the live address.
     const next = new URL(location.href);
     next.searchParams.delete("bot");
     next.searchParams.delete("section");
@@ -199,8 +189,6 @@
   .agent-connection { display:block; margin-top:6px; color:var(--text-muted); }
   .team-templates summary { cursor:pointer; padding:16px 0; font-weight:600; }
   .team-templates p { color:var(--text-muted); font-size:13px; }
-  /* Block layout on purpose: as a flex column the groups would shrink to fit
-     the viewport and clip their own rows instead of letting the page scroll. */
   .roster-page {
     flex: 1;
     min-height: 0;

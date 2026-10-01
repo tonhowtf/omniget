@@ -1,6 +1,3 @@
-// Typed wrappers for every `video_*` Tauri command. Argument names follow the
-// Rust parameters in camelCase (Tauri converts them).
-
 import { invoke } from "@tauri-apps/api/core";
 import type {
   AddonInfo,
@@ -55,7 +52,6 @@ export async function status(): Promise<VideoStatus> {
   return s;
 }
 
-/** Absolute URL for a server path returned by the backend ("/thumb/12"). */
 export function serverUrl(path: string | null | undefined): string | null {
   if (!path) return null;
   if (/^https?:/i.test(path)) return path;
@@ -69,7 +65,6 @@ export async function ensureServer(): Promise<ServerInfo> {
   return (await status()).server;
 }
 
-// ---- library ----
 export const rootsAdd = (path: string, kind: RootKind) => invoke<void>("video_roots_add", { path, kind });
 export const rootsRemove = (path: string) => invoke<void>("video_roots_remove", { path });
 export const scan = () => invoke<void>("video_scan");
@@ -84,7 +79,6 @@ export const courseImport = (path: string) => invoke<CourseSummary>("video_cours
 export const courseRemove = (id: number) => invoke<void>("video_course_remove", { id });
 export const reveal = (mediaId: number) => invoke<void>("video_reveal", { mediaId });
 
-// ---- playback ----
 export const play = (source: SourceRef) => invoke<PlaybackInfo>("video_play", { source });
 export const playFallback = (source: SourceRef, failedMode: PlayMode) =>
   invoke<PlaybackInfo>("video_play_fallback", { source, failedMode });
@@ -98,7 +92,6 @@ export const linkResolve = (url: string) => invoke<PlaybackInfo>("video_link_res
 export const openExternal = (source: SourceRef, player: "mpv" | "iina" | "vlc" | null = null) =>
   invoke<void>("video_open_external", { source, player });
 
-// ---- study ----
 export const notes = (key: string) => invoke<Note[]>("video_notes", { key });
 export const noteAdd = (key: string, tMs: number, text: string, opts: { tEndMs?: number | null; capture?: boolean; mediaId?: number | null } = {}) =>
   invoke<Note>("video_note_add", { key, tMs, tEndMs: opts.tEndMs ?? null, text, capture: opts.capture ?? false, mediaId: opts.mediaId ?? null });
@@ -117,7 +110,6 @@ export const transcript = (key: string, mediaId: number | null = null) => invoke
 export const transcribe = (key: string, mediaId: number | null = null) => invoke<Cue[]>("video_transcribe", { key, mediaId });
 export const transcriptSearch = (query: string, courseId: number | null = null) =>
   invoke<TranscriptHit[]>("video_transcript_search", { query, courseId });
-/** Silent ranges, in seconds. */
 export const silences = (mediaId: number, minS = 0.6, noiseDb = -35) =>
   invoke<[number, number][]>("video_silences", { mediaId, minS, noiseDb });
 export const sourceForKey = (key: string) => invoke<SourceRef>("video_source_for_key", { key });
@@ -125,12 +117,10 @@ export const openPath = (path: string) => invoke<PlaybackInfo>("video_open_path"
 export const ask = (key: string, question: string, mode: "ask" | "summary" | "quiz" | "chapters" = "ask") =>
   invoke<string>("video_ask", { key, question, mode });
 
-// ---- sources ----
 export const sources = () => invoke<SourceInfo[]>("video_sources");
 export const sourceRemove = (id: number) => invoke<void>("video_source_remove", { id });
 export const sourceToggle = (id: number, enabled: boolean) => invoke<void>("video_source_toggle", { id, enabled });
 
-// Jellyfin / Emby
 export const jfConnect = (server: string, username: string, password: string) =>
   invoke<SourceInfo>("video_jf_connect", { server, username, password });
 export const jfQuickConnectStart = (server: string) => invoke<{ code: string; secret: string }>("video_jf_quickconnect_start", { server });
@@ -154,7 +144,6 @@ export const jfPlay = (source: number, itemId: string) => invoke<PlaybackInfo>("
 export const jfReport = (source: number, itemId: string, event: "start" | "progress" | "stop", positionMs: number, paused: boolean) =>
   invoke<void>("video_jf_report", { source, itemId, event, positionMs, paused });
 
-// IPTV
 export const iptvAdd = (name: string, url: string, epgUrl: string | null = null) => invoke<SourceInfo>("video_iptv_add", { name, url, epgUrl });
 export const iptvAddXtream = (name: string, server: string, username: string, password: string) =>
   invoke<SourceInfo>("video_iptv_add_xtream", { name, server, username, password });
@@ -171,7 +160,6 @@ export const iptvEpg = (channelIds: number[], fromMs: number, toMs: number) => i
 export const iptvFavorite = (channelId: number, fav: boolean) => invoke<void>("video_iptv_favorite", { channelId, fav });
 export const iptvPlay = (channelId: number) => invoke<PlaybackInfo>("video_iptv_play", { channelId });
 
-// Add-ons (open Stremio protocol; http and YouTube streams only)
 export const addonInstall = (manifestUrl: string) => invoke<AddonInfo>("video_addon_install", { manifestUrl });
 export const addons = () => invoke<AddonInfo[]>("video_addons");
 export const addonRemove = (id: number) => invoke<void>("video_addon_remove", { id });
@@ -182,7 +170,6 @@ export const addonStreams = (type: string, id: string) => invoke<AddonStream[]>(
 export const addonPlay = (stream: AddonStream, type: string, id: string, title: string) =>
   invoke<PlaybackInfo>("video_addon_play", { stream, type, id, title });
 
-// AniList + AniSkip
 export const anilistSetToken = (token: string) => invoke<void>("video_anilist_set_token", { token });
 export const anilistViewer = () => invoke<AniViewer | null>("video_anilist_viewer");
 export const anilistSearch = (q: string) => invoke<AniMedia[]>("video_anilist_search", { q });
@@ -190,7 +177,6 @@ export const anilistMedia = (id: number) => invoke<AniMedia>("video_anilist_medi
 export const anilistList = (status: string | null = null) => invoke<AniMedia[]>("video_anilist_list", { status });
 export const anilistProgress = (mediaId: number, episode: number) => invoke<AniMedia>("video_anilist_progress", { mediaId, episode });
 
-// Cast
 export const castDiscover = () => invoke<CastDevice[]>("video_cast_discover");
 export const castStart = (deviceId: string, source: SourceRef, startMs: number) =>
   invoke<CastStatus>("video_cast_start", { deviceId, source, startMs });

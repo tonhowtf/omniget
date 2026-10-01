@@ -1,20 +1,8 @@
-/*
- * Settings rebrand tokens (docs/settings-rebrand/06-spec-redesign.md).
- *
- * `--sr-*` are the canonical semantic tokens. With the default
- * `omniget-desktop` preset they carry the table values and the legacy source
- * tokens of app.css point at them. Workspace presets and named themes keep
- * their own palettes: there the `--sr-*` tokens derive from the legacy
- * aliases, so new components read correctly under any saved style.
- */
-
 :root {
-  /* Radii: control 6, group 10, dialog 14. */
   --sr-radius-control: 6px;
   --sr-radius-group: 10px;
   --sr-radius-dialog: 14px;
 
-  /* Motion: 120 ms for color/opacity, 160 ms for disclosure. */
   --sr-duration-color: 120ms;
   --sr-duration-disclosure: 160ms;
   --sr-motion-shift: 1;
@@ -22,7 +10,6 @@
   --sr-font-ui: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --sr-font-code: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
-  /* Fallback derivation for every theme/preset other than omniget-desktop. */
   --sr-canvas: var(--bg);
   --sr-surface: var(--surface);
   --sr-surface-hover: var(--surface-hi);
@@ -73,7 +60,6 @@
   --sr-shadow-popover: 0 8px 28px #00000050;
 }
 
-/* Legacy sources of app.css follow the canonical tokens in the Omniget style. */
 :root[data-preset="omniget-desktop"][data-theme="light"],
 :root[data-preset="omniget-desktop"][data-theme="dark"] {
   --primary: var(--sr-canvas);
@@ -100,7 +86,6 @@
   --focus-ring: solid 2px var(--sr-focus);
 }
 
-/* Reduced motion from the OS OR the app preference: no displacement, no pulse. */
 @media (prefers-reduced-motion: reduce) {
   :root {
     --sr-duration-color: 0.01ms;

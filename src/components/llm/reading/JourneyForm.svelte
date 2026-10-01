@@ -1,5 +1,4 @@
 <script lang="ts">
-  /** Start a reading journey, typed by hand. */
   import { t } from "$lib/i18n";
   import {
     POSITION_KINDS,

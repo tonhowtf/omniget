@@ -1,6 +1,4 @@
 <script lang="ts">
-  // Zoom controls: −, percentage (drag it for a centred zoom, click = 100%),
-  // +, fit all, minimap toggle.
   import { t } from "$lib/i18n";
   import { useEngine } from "$lib/canvas/engine.svelte";
   import { TOOL_ICONS } from "$lib/canvas/icons";

@@ -15,7 +15,6 @@
 
   const TABS = ["library", "shelves", "sources", "updates", "sync", "devices", "notes", "import"];
 
-  // organize
   let orgTpl = $state("{author}/<{series}/><{index} - >{title}");
   let orgPlan = $state<{ id: number; from: string; to: string }[] | null>(null);
   async function organize(dry: boolean) {
@@ -28,11 +27,9 @@
     }
   }
 
-  // library
   let dupes = $state<number[][] | null>(null);
   let dlDir = $state("");
 
-  // sources
   let catalogs = $state<Catalog[]>([]);
   let newCat = $state({ kind: "opds", title: "", url: "", username: "", password: "" });
   let repoUrl = $state("");
@@ -53,14 +50,11 @@
     await loadExts();
   }
 
-  // updates
   let upd = $state({ interval_h: 12, delete_after_read: -1, download_ahead: 0 });
 
-  // sync
   let kosync = $state({ enabled: false, server: "https://sync.koreader.rocks", username: "", password: "", device: "OmniGet" });
   let share = $state({ enabled: false, port: 8580, username: "omniget", password: "" });
 
-  // trackers
   let trackers = $state<{ anilist: string | null; mangaupdates: boolean }>({ anilist: null, mangaupdates: false });
   let aniToken = $state("");
   let muUser = $state("");
@@ -69,13 +63,10 @@
     trackers = await invoke<typeof trackers>("read_tracker_status").catch(() => trackers);
   }
 
-  // devices
   let mail = $state({ host: "", port: 587, security: "starttls", username: "", password: "", from: "", to: "" });
 
-  // notes
   let notesDir = $state("");
 
-  // shelves
   let editing = $state<{ id: number | null; name: string; smart: boolean; rules: SmartRules } | null>(null);
 
   onMount(async () => {
@@ -156,7 +147,6 @@
     }
   }
 
-  // ---------- shelves ----------
   const FIELDS = ["title", "author", "series", "tag", "subject", "status", "format", "language", "publisher", "rating", "progress", "favorite", "added_days", "read_days", "pages", "size_mb", "read_hours", "source", "path"];
   const NUMERIC = new Set(["rating", "progress", "added_days", "read_days", "pages", "size_mb", "read_hours"]);
   const TEXT_OPS = ["contains", "not_contains", "is", "is_not", "starts", "empty", "not_empty"];
@@ -183,7 +173,6 @@
     await refreshShelves();
   }
 
-  // ---------- backup ----------
   async function exportBackup() {
     const p = await save({ defaultPath: `omniget-read-${new Date().toISOString().slice(0, 10)}.json` });
     if (!p) return;

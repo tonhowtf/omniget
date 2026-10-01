@@ -1,7 +1,4 @@
 <script lang="ts">
-  // "You" (spec §2.11): header with avatar 120 and name 36/700, then rows:
-  // history, playlists, watch later, liked. Without an account: an invite to
-  // sign in plus what is kept locally (history, watch later, local subs).
   import { t } from "$lib/i18n";
   import * as api from "$lib/tube/api";
   import { bestAvatar } from "$lib/tube/format";
@@ -42,7 +39,6 @@
   let acct = $derived(account());
   let shelves = $derived(pager.shelves.filter((s) => s.items.length > 0));
 
-  // Local shelves carry no "more" nav; point the known ones at their screens.
   function withMore(s: (typeof shelves)[number]) {
     if (s.more) return s;
     const id = s.id.toLowerCase();

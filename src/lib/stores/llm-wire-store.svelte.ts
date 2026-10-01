@@ -1,12 +1,3 @@
-/**
- * Wire probe store.
- *
- * Holds the evidence that a generation parameter reached the provider: the
- * redacted body sent with value A, the one sent with value B, both replies and
- * the verdict. Nothing here runs on its own — `estimateRound` and `runRound`
- * are only called from a click, and `loadLast` reads the round already in
- * memory on the Rust side without spending a request.
- */
 import { invoke } from "@tauri-apps/api/core";
 
 export type Verdict = "proven" | "sent" | "ignored" | "unsupported";
@@ -15,7 +6,6 @@ export interface ProbeResult {
   provider: string;
   model: string;
   param: string;
-  /** Redacted request body sent with value A; `null` when the provider captured nothing. */
   sent_a: unknown;
   sent_b: unknown;
   reply_a: string;
@@ -42,7 +32,6 @@ interface ProbeEstimate {
   cost_usd: number | null;
 }
 
-/** Same order the Rust side runs them in. `reasoning_effort` is the opt-in one. */
 export const PROBE_PARAMS = [
   "temperature",
   "top_p",
@@ -54,14 +43,10 @@ export type ProbeParam = (typeof PROBE_PARAMS)[number];
 
 export const MAX_OUTPUT_TOKENS = 200;
 
-// ---------------------------------------------------------------- pure helpers
-
-/** i18n key for a verdict badge. */
 export function verdictKey(v: Verdict): string {
   return `llm.wire.verdict.${v}`;
 }
 
-/** Colour role, so the panel does not hard-code a palette per verdict. */
 export function verdictTone(v: Verdict): "ok" | "warn" | "bad" | "muted" {
   switch (v) {
     case "proven":
@@ -75,7 +60,6 @@ export function verdictTone(v: Verdict): "ok" | "warn" | "bad" | "muted" {
   }
 }
 
-/** Maps a Rust error string (`ERR_LLM_*: message`) to an i18n key. */
 function wireErrorKey(err: unknown): string {
   const text = typeof err === "string" ? err : String((err as Error)?.message ?? err ?? "");
   const code = text.split(":", 1)[0]?.trim() ?? "";
@@ -95,7 +79,6 @@ function wireErrorKey(err: unknown): string {
   }
 }
 
-/** `< $0.01` is a number too; only `null` means "price unknown". */
 export function formatCost(usd: number | null | undefined): string {
   if (usd === null || usd === undefined) return "—";
   if (usd === 0) return "$0.00";
@@ -103,7 +86,6 @@ export function formatCost(usd: number | null | undefined): string {
   return `$${usd.toFixed(2)}`;
 }
 
-/** Stable, indented JSON for the evidence blocks. `null` renders as a dash. */
 export function prettyBody(body: unknown): string {
   if (body === null || body === undefined) return "—";
   try {
@@ -113,10 +95,6 @@ export function prettyBody(body: unknown): string {
   }
 }
 
-/**
- * Line-level diff between the two bodies, so the eye lands on the parameter
- * instead of reading two JSON blocks. `same` lines are shown dimmed.
- */
 export interface DiffLine {
   kind: "same" | "a" | "b";
   text: string;
@@ -140,14 +118,11 @@ export function diffBodies(a: unknown, b: unknown): DiffLine[] {
   return out;
 }
 
-/** How many results carry each verdict, for the one-line summary. */
 export function tally(round: ProbeRound | null): Record<Verdict, number> {
   const out: Record<Verdict, number> = { proven: 0, sent: 0, ignored: 0, unsupported: 0 };
   for (const r of round?.results ?? []) out[r.verdict] = (out[r.verdict] ?? 0) + 1;
   return out;
 }
-
-// ---------------------------------------------------------------------- state
 
 let round = $state<ProbeRound | null>(null);
 let estimateState = $state<ProbeEstimate | null>(null);
@@ -169,14 +144,10 @@ export function isRunning(): boolean {
 export function isLoading(): boolean {
   return loading;
 }
-/** i18n key, never a raw message. */
 export function getWireError(): string | null {
   return error;
 }
 
-// -------------------------------------------------------------------- actions
-
-/** Reads the round already in memory. Once per session, no polling. */
 export async function loadLast(force = false): Promise<void> {
   if (inFlight) return inFlight;
   if (loadedOnce && !force) return;
@@ -196,7 +167,6 @@ export async function loadLast(force = false): Promise<void> {
   return inFlight;
 }
 
-/** What the round would cost. No request leaves the machine. */
 export async function estimateRound(
   provider: string,
   model: string,
@@ -216,7 +186,6 @@ export async function estimateRound(
   }
 }
 
-/** Runs the round. Only from a click, and never twice at the same time. */
 export async function runRound(
   provider: string,
   model: string,

@@ -1,6 +1,4 @@
 <script lang="ts">
-  // "Why is it like this?": how the file is being played and what the
-  // webview could not play directly.
   import { t } from "$lib/i18n";
   import { player } from "$lib/video/player.svelte";
   import VIcon from "./VIcon.svelte";

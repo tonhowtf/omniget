@@ -1,9 +1,3 @@
-// Copyable tables (Maestri 0.24.1): Copy as Table puts HTML + RTF + TSV on
-// the clipboard so a spreadsheet, Pages or Word receives a real table; Copy
-// Markdown gives the source back; a double-click on a cell copies that cell.
-// Pure string builders live here (tested); the clipboard write is in
-// `clipboard.ts`.
-
 interface TableData {
   header: string[];
   rows: string[][];
@@ -59,7 +53,6 @@ function rtfEsc(s: string): string {
     const code = ch.codePointAt(0) ?? 0;
     if (ch === '\\' || ch === '{' || ch === '}') out += `\\${ch}`;
     else if (code > 127) {
-      // RTF \u takes a signed 16-bit value; astral chars go as surrogates.
       for (const unit of ch.length === 2 ? [ch.charCodeAt(0), ch.charCodeAt(1)] : [code]) {
         out += `\\u${unit > 32767 ? unit - 65536 : unit}?`;
       }

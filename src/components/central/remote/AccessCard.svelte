@@ -1,9 +1,4 @@
 <script lang="ts">
-  /**
-   * The opt-in: turns the second listener (only `/remote/*`, auth per device)
-   * on or off on the interface the user picks. The local bridge stays on
-   * 127.0.0.1 either way.
-   */
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "$lib/i18n";
   import { showToast } from "$lib/stores/toast-store.svelte";

@@ -59,13 +59,11 @@ CODE_TASKS = ["t03-bugfix-py", "t04-feature-py", "t05-bugfix-js", "t09-rename"]
 COSTS = {"a": 0.031, "b": 0.024, "c": 0.042}
 INTEGRATE_MAX_MS = 2000
 
-
 def load(name, file):
     spec = importlib.util.spec_from_file_location(name, ROOT / "scripts" / "llm" / file)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod
-
 
 def variants(diff_eval, name, seed):
     a = diff_eval.changes_for(name, seed)
@@ -77,7 +75,6 @@ def variants(diff_eval, name, seed):
     c["write"][first] = c["write"][first] + mark
     return {"a": a, "b": b, "c": c}, sorted({"NOTES.md", first})
 
-
 CHECK = '''import importlib.util, pathlib, sys
 spec = importlib.util.spec_from_file_location("missions_eval", {me!r})
 me = importlib.util.module_from_spec(spec); spec.loader.exec_module(me)
@@ -86,7 +83,6 @@ ok, detail = task.check(pathlib.Path.cwd())
 print(detail)
 sys.exit(0 if ok else 1)
 '''
-
 
 def read_metrics(path):
     per = {}
@@ -99,10 +95,8 @@ def read_metrics(path):
             per.setdefault(m["task"], {})[m["metric"]] = m["value"]
     return per
 
-
 def goal(name, value, ok, target):
     return {"goal": name, "target": target, "value": value, "pass": bool(ok)}
-
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -229,7 +223,6 @@ def main():
         print(f"{'PASS' if g['pass'] else 'FAIL'}  {g['goal']}: {json.dumps(g['value'], ensure_ascii=False)}")
     print(f"BN11: {'ALL PASS' if report['all_pass'] else 'FAILED'} -> {args.out}")
     return 0 if report["all_pass"] else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

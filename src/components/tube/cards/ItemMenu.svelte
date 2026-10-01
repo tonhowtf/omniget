@@ -1,6 +1,4 @@
 <script lang="ts">
-  // The same ⋮ menu on every item (PipePipe's single action menu): queue,
-  // watch later, save, download, share, and the feed feedback actions.
   import { t } from "$lib/i18n";
   import * as api from "$lib/tube/api";
   import { vplayer } from "$lib/tube/video.svelte";
@@ -24,7 +22,6 @@
     anchor?: HTMLElement | null;
     point?: { x: number; y: number } | null;
     onclose: () => void;
-    /** Not interested / don't recommend: only where the feed is a recommendation. */
     feedbackActions?: boolean;
   } = $props();
 

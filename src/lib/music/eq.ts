@@ -1,5 +1,3 @@
-// 10-band graphic EQ (ISO octave centres) and its presets.
-
 export const EQ_FREQS = [31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000] as const;
 
 type EqPreset = { id: string; gains: number[] };
@@ -18,7 +16,6 @@ export const EQ_PRESETS: EqPreset[] = [
   { id: "night", gains: [-4, -3, -1, 0, 1, 2, 2, 0, -2, -3] },
 ];
 
-/** Headroom the preamp should pull so boosted bands don't clip. */
 export function autoPreamp(gains: number[]): number {
   const max = Math.max(0, ...gains);
   return -Math.round(max * 0.8 * 10) / 10;

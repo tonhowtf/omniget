@@ -1,26 +1,12 @@
 <script lang="ts">
-  /**
-   * Inline-SVG sparkline. No chart library: one series, one hue, a 2px line,
-   * a 10% wash under it, an end-dot with a 2px surface ring, and a crosshair
-   * with a value readout on hover. Single series, so no legend box — the
-   * caller's tile title already says what is plotted.
-   *
-   * The component draws whatever it is given but never more than `MAX_POINTS`
-   * (budget of the route): extra points are dropped from the head.
-   */
   import { MAX_POINTS } from "$lib/stores/llm-telemetry-store.svelte";
 
   interface Props {
-    /** Y values, oldest first. */
     values: number[];
-    /** Epoch ms per value, same length; used only by the tooltip. */
     times?: number[];
-    /** Rendered value in the tooltip. */
     format?: (v: number) => string;
-    /** Accessible description of the series. */
     label: string;
     height?: number;
-    /** `accent` is the default; the status tones are for guardian-driven cards. */
     tone?: "accent" | "warn" | "error";
   }
 
@@ -34,7 +20,6 @@
   let step = $derived(data.length > 1 ? W / (data.length - 1) : W);
 
   function y(v: number): number {
-    // 3px of headroom top and bottom so the 2px line never clips.
     return height - 3 - (Math.max(0, v) / max) * (height - 6);
   }
 

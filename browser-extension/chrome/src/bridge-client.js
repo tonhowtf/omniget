@@ -1,29 +1,10 @@
-// Localhost HTTP bridge client.
-//
-// Replaces native messaging: instead of relying on Chrome's native-messaging
-// manifest (which requires hard-coded extension IDs in the desktop app), we
-// POST the same payload to the OmniGet desktop app's local HTTP listener,
-// authenticating each request with a bearer token the user pastes once into
-// the extension's options page.
-//
-// Lookup contract:
-//   - The user copies `endpoint` (e.g. http://127.0.0.1:47720) and `token`
-//     from the OmniGet Settings UI into the extension's Options page.
-//   - chrome.storage.local stores them under the keys below.
-//   - If either value is missing the bridge is considered "unpaired" and the
-//     caller falls through to the omniget:// scheme handler.
-
 export const STORAGE_KEY_ENDPOINT = "bridge_endpoint";
 export const STORAGE_KEY_TOKEN = "bridge_token";
-// Name of the low-frequency autopair alarm owned by background.js. Exported
-// so the 401 recovery path below can re-arm it without duplicating the name.
 export const AUTOPAIR_ALARM_NAME = "omniget-autopair";
 const HEALTH_TIMEOUT_MS = 1500;
 const ENQUEUE_TIMEOUT_MS = 8000;
 const PROTOCOL_VERSION = 1;
 const DEFAULT_ENDPOINT = "http://127.0.0.1:47720";
-// Mirrors `PORT_RANGE` in src-tauri/src/local_bridge.rs — kept narrow so the
-// auto-discovery probe is fast.
 export const DEFAULT_PORT_RANGE = [
   47720, 47721, 47722, 47723, 47724, 47725, 47726, 47727, 47728, 47729,
 ];
@@ -67,10 +48,6 @@ export async function saveBridgeConfig(
   });
 }
 
-// Forget the stored token (keep the endpoint — it's still valid). Used when
-// the desktop app rejects our bearer, e.g. after the user rotated the token
-// in Settings; keeping the stale token around would leave this browser
-// permanently unable to re-pair.
 export async function clearStoredToken({ storage = globalThis.chrome?.storage?.local } = {}) {
   if (!storage?.set) return false;
   return new Promise((resolve) => {
@@ -78,9 +55,6 @@ export async function clearStoredToken({ storage = globalThis.chrome?.storage?.l
   });
 }
 
-// 401/403 from the bridge means our token is stale (rotated or reset on the
-// desktop side). Clear it and re-arm the autopair alarm so the extension can
-// pick up a fresh token the next time the user opens a pairing window.
 async function handleUnauthorized(storage) {
   try {
     await clearStoredToken({ storage });
@@ -117,9 +91,6 @@ function withTimeout(promise, ms, controller) {
   });
 }
 
-// Probes the bridge port range in parallel and returns the first endpoint
-// that answers `/v1/health` with `ok: true`. Used by the options page to
-// pre-fill the URL without making the user discover the port by hand.
 export async function discoverBridgeEndpoint({
   fetchImpl = typeof fetch !== "undefined" ? fetch : null,
   ports = DEFAULT_PORT_RANGE,
@@ -170,10 +141,6 @@ export async function checkBridgeHealth(
   }
 }
 
-// One-shot auto-pair. If we don't have a token yet, discover the bridge and
-// ask `GET /v1/pair`. That endpoint only returns the token while the user has
-// an active, single-use, ~120s pairing window open in the desktop app — so
-// this turns "find the token, copy, paste" into a single click in the app.
 export async function autoPair({
   fetchImpl = typeof fetch !== "undefined" ? fetch : null,
   storage = globalThis.chrome?.storage?.local,
@@ -265,8 +232,6 @@ export async function sendViaBridge(
   }
 
   if (response.status === 401 || response.status === 403) {
-    // Stale token (rotated/reset in the app) — drop it and re-arm autopair
-    // so this browser can pair again instead of being locked out forever.
     await handleUnauthorized(storage);
     return {
       ok: false,
@@ -356,8 +321,6 @@ export async function sendCookiesViaBridge(
   }
 
   if (response.status === 401 || response.status === 403) {
-    // Stale token (rotated/reset in the app) — drop it and re-arm autopair
-    // so this browser can pair again instead of being locked out forever.
     await handleUnauthorized(storage);
     return {
       ok: false,

@@ -1,9 +1,3 @@
-// Cords and the envelopes flying along them (02-motor-do-canvas §5, estudo 97).
-// Cords are tessellated in screen space every frame (constant pixel width,
-// one draw call). Idle cords are neutral at 40% opacity; a cord carrying an
-// envelope lights up in its sender's state colour; selected cords use the
-// accent. Envelopes: a small rotated card with a flap, then a ring on arrival.
-
 import type { CanvasEngine } from '../engine.svelte';
 import { circuitPoints, cordPath, sampleCord, portPoint } from '../cords/route';
 import { canvasPrefs } from '../prefs.svelte';
@@ -35,7 +29,6 @@ export function createCordsPass(engine: CanvasEngine, colors: () => { cord: Rgba
       const dt = lastTime ? frame.time - lastTime : 16;
       lastTime = frame.time;
       let ropeMoving = false;
-      // Settings → Canvas: cord style (rope routing "circuit" forces circuits).
       const prefs = canvasPrefs();
       const globalStyle = prefs.rope_routing === 'circuit' ? 'circuit' : prefs.cord_style;
       const toScreen = (pts: number[]) => {
@@ -74,7 +67,6 @@ export function createCordsPass(engine: CanvasEngine, colors: () => { cord: Rgba
         }
         const selected = engine.selection.has(c.id);
         let color = withAlpha(cordColor, 0.4);
-        // A connector chip stands for the node on the other floor/workspace.
         const remoteOf = (n: typeof a) =>
           n.kind === 'connector' ? String((n.data as Record<string, unknown> | undefined)?.remoteNodeId ?? n.id) : n.id;
         if (active.has(c.id) || engine.traffic.pairActive(remoteOf(a), remoteOf(b))) {
@@ -84,7 +76,6 @@ export function createCordsPass(engine: CanvasEngine, colors: () => { cord: Rgba
         if (selected) color = accent;
         const width = (selected ? 3 : 2) * (z < 0.3 ? 0.75 : 1);
         lines.polyline(toScreen(pts), width, color, c.kind === 'note' || c.kind === 'portal' ? 6 : 0);
-        // Direction hint: a small dot at the receiving end.
         const end = path.p1;
         sdf.circle((end.x - cam.x) * z, (end.y - cam.y) * z, 3.2, { fill: color });
       }
@@ -95,7 +86,6 @@ export function createCordsPass(engine: CanvasEngine, colors: () => { cord: Rgba
         }
       }
 
-      // Cord being dragged out of a port.
       const draftCord = engine.draft.cord;
       if (draftCord) {
         const from = engine.store.node(draftCord.from);
@@ -110,7 +100,6 @@ export function createCordsPass(engine: CanvasEngine, colors: () => { cord: Rgba
 
       lines.flush(gl, frame.viewport.w, frame.viewport.h);
 
-      // Envelopes.
       const envs = engine.traffic.frame(frame.time);
       flaps.begin();
       for (const env of envs) {
@@ -123,7 +112,6 @@ export function createCordsPass(engine: CanvasEngine, colors: () => { cord: Rgba
         }
         const col = hexToRgba(env.color, 1);
         sdf.push({ cx: sx, cy: sy, hw: 7, hh: 5, radius: 1.5, rotation: env.angle, fill: col, strokeWidth: 1, stroke: withAlpha(ink, 0.8) });
-        // Flap: a V from the top corners to the centre, rotated with the card.
         const c = Math.cos(env.angle);
         const s = Math.sin(env.angle);
         const rot = (x: number, y: number) => [sx + x * c - y * s, sy + x * s + y * c];

@@ -1,6 +1,4 @@
 <script lang="ts">
-  // One `Shelf` of a Page, drawn by its kind: grid, horizontal row (with
-  // arrows and fades), Shorts row, or a vertical list.
   import { t } from "$lib/i18n";
   import { bestAvatar } from "$lib/tube/format";
   import { go } from "$lib/tube/ui.svelte";
@@ -28,7 +26,6 @@
     showAvatar?: boolean;
     feedbackActions?: boolean;
     listSize?: "search" | "list" | "compact";
-    /** First shelf of the page: no top divider. */
     first?: boolean;
   } = $props();
 
@@ -37,7 +34,6 @@
   let isShorts = $derived(shelf.kind === "shorts" || (items.length > 0 && items.every((i) => i.kind === "short")));
   let kind = $derived(isShorts ? "shorts" : shelf.kind === "carousel" || shelf.kind === "quick_picks" ? "row" : shelf.kind);
   let titled = $derived(!!shelf.title || isShorts);
-  // Shelves built on our side (local library, home without an account) carry an i18n key.
   let title = $derived(shelf.title?.startsWith("tube.") ? ($t(shelf.title) as string) : shelf.title);
 
   function hideShorts() {

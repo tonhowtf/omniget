@@ -1,14 +1,8 @@
-// Settings destinations: one place for tab/section/setting parsing, legacy aliases and
-// the allowlists other routes use to reveal a block. Parsers only read; unknown values
-// resolve to null/defaults and never trigger an action.
-// Source of truth: docs/settings-rebrand/navigation-map.json (closed planning contract).
-
 export type SettingsCategory = "general" | "appearance" | "downloads" | "ai" | "integrations" | "advanced";
 
 export const SETTINGS_CATEGORIES: readonly SettingsCategory[] = ["general", "appearance", "downloads", "ai", "integrations", "advanced"];
 const DEFAULT_SETTINGS_CATEGORY: SettingsCategory = "downloads";
 
-/** Section ids per category, in render order. Each becomes `settings-group-<id>`. */
 const SETTINGS_SECTIONS: Record<SettingsCategory, readonly string[]> = {
   general: ["language", "startup", "profile", "guidance", "limits-strip", "usage-tray"],
   appearance: ["theme", "accessibility", "typography"],
@@ -27,7 +21,6 @@ export const CATEGORY_LABEL_KEYS: Record<SettingsCategory, string> = {
   advanced: "settings.rebrand.category.advanced",
 };
 
-/** Heading key for each section id; menus, group titles and search share it. */
 export const SECTION_LABEL_KEYS: Record<string, string> = {
   language: "settings.appearance.language",
   startup: "settings.general.title",
@@ -75,7 +68,6 @@ export const SECTION_LABEL_KEYS: Record<string, string> = {
 
 type SettingAlias = { tab: SettingsCategory; section: string | null } | { href: string };
 
-/** Exact translation-key aliases; they win over any old tab/section in the URL. */
 export const SETTING_ALIASES: Record<string, SettingAlias> = {
   "design.title": { tab: "appearance", section: "theme" },
   "design.hint": { tab: "appearance", section: "theme" },
@@ -235,7 +227,6 @@ export const SETTING_ALIASES: Record<string, SettingAlias> = {
   "settings.advanced.reset": { tab: "advanced", section: null },
 };
 
-/** Old `tab|section` pairs (section may be empty) that moved. */
 const TAB_SECTION_ALIASES: Record<string, [SettingsCategory, string | null]> = {
   "advanced|league": ["integrations", "league"],
   "advanced|music": ["integrations", "music"],
@@ -272,7 +263,6 @@ function isSection(tab: SettingsCategory, section: string | null): section is st
   return section !== null && SETTINGS_SECTIONS[tab].includes(section);
 }
 
-/** Legacy `#settings-section-x`, `#settings-pet` and bare `#x` hashes name a section. */
 function sectionFromHash(hash: string): string | null {
   if (!hash || hash === "#") return null;
   const raw = decodeURIComponent(hash.slice(1));
@@ -299,10 +289,6 @@ function withParams(pathname: string, first: [string, string][], rest: URLSearch
   return `${pathname}${search ? `?${search}` : ""}${hash}`;
 }
 
-/**
- * Resolution order (navigation-map.json): exact known setting, known tab/section alias,
- * valid new tab and section, downloads fallback. Unrelated params and the hash survive.
- */
 export function resolveSettingsLocation(url: URL): SettingsLocation {
   const params = url.searchParams;
   const rawTab = params.get("tab");
@@ -344,7 +330,6 @@ export function resolveSettingsLocation(url: URL): SettingsLocation {
 
   let canonicalHref: string;
   if (external) {
-    // Operational AI blocks moved out of Settings; keep the setting key and extra params.
     const target = new URL(external, url.origin);
     for (const [key, value] of rest) if (!target.searchParams.has(key)) target.searchParams.append(key, value);
     canonicalHref = `${target.pathname}?${target.searchParams}${hash}`;
@@ -359,7 +344,6 @@ export function resolveSettingsLocation(url: URL): SettingsLocation {
   return { tab: tab!, section, setting, hash, canonicalHref, changed: canonicalHref !== current };
 }
 
-/** Canonical href for a Settings destination. */
 export function settingsHref(tab: SettingsCategory, section?: string | null, setting?: string | null): string {
   const params = new URLSearchParams({ tab });
   if (section) params.set("section", section);
@@ -371,31 +355,26 @@ function oneOf<T extends string>(value: string | null, allowed: readonly T[]): T
   return value !== null && (allowed as readonly string[]).includes(value) ? (value as T) : null;
 }
 
-/** `/llm/roster?bot=<id>&section=skills|learning`. The bot id is only a lookup key. */
 export function parseRosterTarget(params: URLSearchParams): { bot: string | null; section: "skills" | "learning" | null } {
   const raw = params.get("bot");
   const bot = raw !== null && raw.trim() !== "" && raw.length <= 200 ? raw : null;
   return { bot, section: bot ? oneOf(params.get("section"), ["skills", "learning"] as const) : null };
 }
 
-/** `/llm/mcp?mode=server&section=permissions|media`; client is the default. */
 export function parseMcpTarget(params: URLSearchParams): { mode: "client" | "server"; section: "permissions" | "media" | null } {
   const mode = oneOf(params.get("mode"), ["client", "server"] as const) ?? "client";
   return { mode, section: mode === "server" ? oneOf(params.get("section"), ["permissions", "media"] as const) : null };
 }
 
-/** `/music?view=settings&panel=eq`. */
 export function parseMusicTarget(params: URLSearchParams): { view: "settings" | null; panel: "eq" | null } {
   const view = oneOf(params.get("view"), ["settings"] as const);
   return { view, panel: oneOf(params.get("panel"), ["eq"] as const) };
 }
 
-/** `/?panel=download-advanced`. */
 export function parseHomeTarget(params: URLSearchParams): { panel: "download-advanced" | null } {
   return { panel: oneOf(params.get("panel"), ["download-advanced"] as const) };
 }
 
-/** `/llm/summaries?section=form|history&setting=...`; setting is preserved as given. */
 export function parseSummariesTarget(params: URLSearchParams): { section: "form" | "history" | null; setting: string | null } {
   return {
     section: oneOf(params.get("section"), ["form", "history"] as const),
@@ -413,31 +392,20 @@ const FOCUSABLE = "button:not([disabled]), input:not([disabled]), select:not([di
 
 type FocusWhenReadyOptions = {
   timeoutMs?: number;
-  /** Focus the first enabled control inside the target (a `data-setting-key` row). */
   preferControl?: boolean;
-  /** Called when the target never appears, or (with preferControl) has no enabled control. */
   onUnavailable?: () => void;
 };
 
-// ---- Initial navigation gate.
-// On a cold load SvelteKit mounts the page, waits a few ticks and then, when the focused
-// element did not change during those ticks, sends focus back to <body>
-// (reset_focus <- navigate <- start). A destination focused while the page mounted is
-// lost that way. The root layout holds focus requests until its first afterNavigate;
-// client navigations are not gated (their focus already lands after the capture).
 let initialNavigationPending = false;
 let holdTimer: ReturnType<typeof setTimeout> | null = null;
 const navigationWaiters = new Set<() => void>();
 
-/** Root layout, while it initializes: focus requests wait for the first navigation. */
 export function holdFocusUntilNavigated(maxMs = 3000): void {
   if (initialNavigationPending) return;
   initialNavigationPending = true;
-  // Never strand a destination if afterNavigate does not come (error page, bare window).
   holdTimer = setTimeout(releaseFocusAfterNavigation, maxMs);
 }
 
-/** Root layout's first afterNavigate: runs the held focus requests. */
 export function releaseFocusAfterNavigation(): void {
   if (!initialNavigationPending) return;
   initialNavigationPending = false;
@@ -448,7 +416,6 @@ export function releaseFocusAfterNavigation(): void {
   for (const run of waiters) run();
 }
 
-// ---- Keep a destination in view while the content above it settles.
 const SETTLE_MS = 2000;
 const INTERACTION_EVENTS = ["wheel", "touchstart", "pointerdown", "keydown"] as const;
 
@@ -462,7 +429,6 @@ function scrollParent(node: HTMLElement): HTMLElement | null {
   return null;
 }
 
-/** True when the target's top edge is outside the visible part of its scroller. */
 function outOfView(target: HTMLElement): boolean {
   const rect = target.getBoundingClientRect();
   let top = 0;
@@ -476,12 +442,6 @@ function outOfView(target: HTMLElement): boolean {
   return rect.bottom <= top || rect.top >= bottom - 32;
 }
 
-/**
- * Late content above a destination (the limits strip, a lazy panel) can push it off
- * screen right after the first scroll. For a short window, re-scroll it into view when
- * a surrounding box resizes. The user wins: any scroll, click or key, or focus moving
- * elsewhere, stops it.
- */
 function keepInView(target: HTMLElement, focused: HTMLElement): () => void {
   if (typeof ResizeObserver === "undefined" || typeof document.addEventListener !== "function") return () => {};
   let stopped = false;
@@ -511,12 +471,6 @@ function keepInView(target: HTMLElement, focused: HTMLElement): () => void {
   return stop;
 }
 
-/**
- * Waits for `selector` (late-loading destinations), reveals collapsed disclosures around it,
- * scrolls it into view and focuses it. Sections get tabindex=-1. On a cold load it starts
- * after the initial navigation (see holdFocusUntilNavigated), and for a short while it
- * keeps the target in view as the layout settles. Returns a cleanup.
- */
 export function focusWhenReady(selector: string, opts: FocusWhenReadyOptions = {}): () => void {
   if (typeof document === "undefined") return () => {};
   const timeoutMs = opts.timeoutMs ?? 4000;
@@ -538,20 +492,17 @@ export function focusWhenReady(selector: string, opts: FocusWhenReadyOptions = {
     if (done) return true;
     const target = document.querySelector<HTMLElement>(selector);
     if (!target) return false;
-    // A collapsed disclosure opens asynchronously; the observer retries once it is visible.
     if (revealAncestors(target)) return false;
     let focusTarget: HTMLElement;
     if (opts.preferControl) {
       const control = target.matches(FOCUSABLE) ? target : target.querySelector<HTMLElement>(FOCUSABLE);
       if (!control) {
-        // Conditional or disabled control: never focus an unrelated one.
         finish();
         opts.onUnavailable?.();
         return true;
       }
       focusTarget = control;
     } else {
-      // A section link to a collapsed group opens it: the user asked for that section.
       const region = target.querySelector<HTMLElement>(":scope > [data-disclosure-region][hidden]");
       if (region) {
         region.dispatchEvent(new CustomEvent("settings-reveal", { bubbles: false }));
@@ -583,7 +534,6 @@ export function focusWhenReady(selector: string, opts: FocusWhenReadyOptions = {
   return () => { finish(); stopSettle(); };
 }
 
-/** Asks collapsed disclosure regions (SettingGroup advanced) around `node` to open. */
 function revealAncestors(node: HTMLElement): boolean {
   let revealed = false;
   let current: HTMLElement | null = node;

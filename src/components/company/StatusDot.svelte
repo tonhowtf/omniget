@@ -1,8 +1,4 @@
 <script lang="ts">
-  /**
-   * Coloured dot for a staff status, run state or issue status. Pulses while
-   * `running`. `label` shows the translated status next to it.
-   */
   import { t } from "$lib/i18n";
   import { statusTone } from "./company-ui";
 
@@ -13,7 +9,6 @@
     size = 8,
   }: {
     status: string | null | undefined;
-    /** Which i18n family names the status: staff_status, run_state, status (issue) or company_status. */
     kind?: "staff" | "run" | "issue" | "company";
     label?: boolean;
     size?: number;

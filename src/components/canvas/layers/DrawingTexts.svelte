@@ -1,7 +1,4 @@
 <script lang="ts">
-  // Text of drawings, in world space inside the camera-transformed div: the
-  // `text` tool and the label inside a shape (Maestri `textContent`). The GL
-  // mesh draws the strokes; text stays DOM so it wraps and stays crisp.
   import { useEngine } from "$lib/canvas/engine.svelte";
 
   const engine = useEngine();

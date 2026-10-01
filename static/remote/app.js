@@ -1,13 +1,3 @@
-/* OmniGet Remote — a dependency-free PWA served by the desktop app.
- *
- * Auth: the pairing link carries `#pair=<secret>&scope=…`; the secret is
- * traded once at /remote/api/pair for a per-device bearer (localStorage).
- * Live updates: a WebSocket opened with a short ticket from
- * /remote/api/ws-ticket and `after=<sequence>`; any event marks the
- * snapshot (and the open thread) stale and they are re-read, debounced.
- * Offline: the last snapshot and the last opened threads are kept in
- * localStorage and shown with an "offline" banner.
- */
 (function () {
   "use strict";
 
@@ -61,16 +51,13 @@
     online: true,
     sessions: null,
     sessionQuery: "",
-    // The jobs' pending questions (/remote/api/approvals): they raise no
-    // thread event, so they are polled while the page is visible.
     jobAsks: [],
   };
 
   var $ = function (id) { return document.getElementById(id); };
 
-  // ── storage ──
   function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
-  function lsSet(k, v) { try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) { /* full */ } }
+  function lsSet(k, v) { try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) { } }
   function jsonGet(k) { try { return JSON.parse(lsGet(k) || "null"); } catch (e) { return null; } }
   function saveThreadPage(id, page) {
     S.threadPages[id] = page;
@@ -79,7 +66,6 @@
     lsSet(LS_THREADS, JSON.stringify(S.threadPages));
   }
 
-  // ── dom helpers ──
   function h(tag, attrs, kids) {
     var el = document.createElement(tag);
     if (attrs) for (var k in attrs) {
@@ -107,7 +93,6 @@
   }
   function canDrive() { return S.device && S.device.scope === "drive"; }
 
-  // ── api ──
   function api(path, opts) {
     opts = opts || {};
     var headers = { "Accept": "application/json" };
@@ -131,12 +116,11 @@
   function forget(msg) {
     S.token = null; S.device = null;
     lsSet(LS_TOKEN, null); lsSet(LS_DEVICE, null);
-    if (S.ws) { try { S.ws.close(); } catch (e) { /* closed */ } }
+    if (S.ws) { try { S.ws.close(); } catch (e) { } }
     render();
     if (msg) banner(msg, true);
   }
 
-  // ── pairing ──
   function readPairing() {
     var hash = location.hash.replace(/^#/, "");
     if (hash.indexOf("pair=") < 0) return null;
@@ -154,14 +138,13 @@
     }, function () { banner(T.pairFailed, true); });
   }
 
-  // ── data ──
   var snapTimer = null, threadTimer = null;
   function loadApprovals() {
     return api("approvals").then(function (list) {
       var before = JSON.stringify(S.jobAsks);
       S.jobAsks = Array.isArray(list) ? list : [];
       if (JSON.stringify(S.jobAsks) !== before && S.route.name === "threads") render();
-    }, function () { /* offline: keep the last list */ });
+    }, function () { });
   }
   setInterval(function () { if (S.token && !document.hidden) loadApprovals(); }, 5000);
   function answerJob(id, decision) {
@@ -224,7 +207,6 @@
     }
   }
 
-  // ── live socket ──
   function setConn(state) {
     S.wsState = state;
     var d = $("conn");
@@ -249,7 +231,7 @@
         else if (msg.type === "revoked") { forget(T.revoked); }
       };
       ws.onclose = function () { S.ws = null; setConn(S.online ? "connecting" : "offline"); schedule(); };
-      ws.onerror = function () { try { ws.close(); } catch (e) { /* closed */ } };
+      ws.onerror = function () { try { ws.close(); } catch (e) { } };
     }, function () { setConn("offline"); schedule(); });
   }
   function schedule() {
@@ -261,14 +243,12 @@
     if (!document.hidden && S.token) { loadSnapshot().catch(function () {}); connect(); }
   });
 
-  // ── dispatch ──
   function cmdId() { return "rmt_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
   function dispatch(cmd) {
     cmd.commandId = cmdId();
     return api("dispatch", { body: cmd }).then(function (r) { stale(null); return r; }, function (e) { banner(e.message, true); throw e; });
   }
 
-  // ── routing ──
   function go(route) {
     S.route = route;
     route.fresh = true;
@@ -290,7 +270,6 @@
     b.addEventListener("click", function () { go({ name: b.getAttribute("data-tab") }); });
   });
 
-  // ── render ──
   function render() {
     var view = $("view");
     var r = S.route;
@@ -542,7 +521,6 @@
   function autosize() { var ta = $("composer-text"); ta.style.height = "auto"; ta.style.height = Math.min(ta.scrollHeight, window.innerHeight * 0.4) + "px"; }
   $("composer-text").addEventListener("input", autosize);
 
-  // ── diff ──
   function diffBlock(patch) {
     var box = h("div", { class: "diff" });
     String(patch).split("\n").slice(0, 4000).forEach(function (line) {
@@ -580,7 +558,6 @@
     });
   }
 
-  // ── sessions of outside CLIs ──
   function loadSessions() {
     var q = "sessions?limit=60" + (S.sessionQuery ? "&query=" + encodeURIComponent(S.sessionQuery) : "");
     api(q).then(function (p) { S.sessions = p.sessions || []; if (S.route.name === "sessions") render(); }, function () {});
@@ -636,7 +613,6 @@
     return k ? String(k).slice(0, 160) : JSON.stringify(input).slice(0, 160);
   }
 
-  // ── device ──
   function renderDevice(view) {
     $("title").textContent = T.device; $("subtitle").textContent = "";
     var d = S.device || {};
@@ -657,7 +633,6 @@
     } }));
   }
 
-  // ── boot ──
   if ("serviceWorker" in navigator && window.isSecureContext) {
     navigator.serviceWorker.register("/remote/sw.js", { scope: "/remote/" }).catch(function () {});
   }

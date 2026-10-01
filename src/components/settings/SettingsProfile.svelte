@@ -1,10 +1,4 @@
 <script lang="ts">
-  /**
-   * Settings → General → Local profile. Mounted inside the "profile" SettingGroup,
-   * with no props. Loads the profile once when the panel is first shown; no interval,
-   * no polling. A failed read renders an error with retry, never the empty state of a
-   * successful read, and a refresh failure keeps the last profile that loaded.
-   */
   import { t } from "$lib/i18n";
   import ProfileCard from "$components/profile/ProfileCard.svelte";
   import ProfileEditor from "$components/profile/ProfileEditor.svelte";

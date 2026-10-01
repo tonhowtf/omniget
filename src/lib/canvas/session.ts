@@ -1,8 +1,3 @@
-// Boot guard of the canvas window (study 100, M-A13 and M-A19): the window
-// reopens on the last workspace used (kept in the data folder, so it follows
-// the profile), and a workspace that failed to open on two boots in a row is
-// skipped once, with a warning.
-
 import { invoke } from '@tauri-apps/api/core';
 import { get } from 'svelte/store';
 import { t } from '$lib/i18n';
@@ -15,10 +10,8 @@ interface Boot {
   crashedName?: string | null;
 }
 
-/** Time a workspace must stay open for its boot to count as fine. */
 const OK_AFTER_MS = 4000;
 
-/** Workspace the window should open on (`preferred` is the page's guess). */
 export async function bootWorkspace(preferred?: string): Promise<string | undefined> {
   let boot: Boot;
   try {
@@ -42,7 +35,6 @@ export async function bootWorkspace(preferred?: string): Promise<string | undefi
 
 let okTimer: ReturnType<typeof setTimeout> | null = null;
 
-/** Records the workspace on screen; after a few seconds its boot counts as fine. */
 export function markWorkspaceOpen(workspaceId: string): void {
   void invoke('canvas_session_mark', { workspaceId, ok: false }).catch(() => {});
   if (okTimer) clearTimeout(okTimer);

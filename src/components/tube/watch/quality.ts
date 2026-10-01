@@ -1,5 +1,3 @@
-// Quality list built from a StreamSet: one entry per height (the best format
-// of each), the same list the player's quality menu shows, plus audio-only.
 import type { Format, StreamSet } from "$lib/tube/types";
 
 type VideoOption = {
@@ -10,7 +8,6 @@ type VideoOption = {
   hdr: boolean;
   badge: string;
   itag: number;
-  /** Audio to mux with it (null for muxed formats). */
   audioItag: number | null;
   bytes: number | null;
   codec: string;
@@ -37,7 +34,6 @@ function family(codecs: string): string {
   return c.split(".")[0] || "?";
 }
 
-/** Original (not auto-dubbed) track first, then bitrate. */
 export function bestAudio(set: StreamSet): Format | null {
   const audio = set.formats.filter((f) => f.kind === "audio");
   audio.sort((a, b) => {

@@ -1,6 +1,4 @@
 <script lang="ts">
-  // Side panel next to the video (it pushes the picture instead of covering
-  // it): Lessons, Notes, Transcript and AI.
   import { t } from "$lib/i18n";
   import { player, setPanel, togglePanel, type PanelTab } from "$lib/video/player.svelte";
   import AskTab from "$components/video/study/AskTab.svelte";

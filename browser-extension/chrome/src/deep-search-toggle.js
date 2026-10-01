@@ -1,12 +1,3 @@
-// Deep search is opt-in: it injects hooks into the MAIN world of every page,
-// which is a much bigger ask than the passive network sniffer, so it defaults
-// to off and only turns on from an explicit user gesture.
-//
-// Two separate content scripts are registered on purpose. The MAIN-world one
-// can see the page's fetch/XHR/Worker but has no access to `chrome.runtime`;
-// the isolated-world bridge has `chrome.runtime` but cannot see the page's
-// globals. Putting both files in a single MAIN-world registration would leave
-// the bridge unable to talk to the background, and nothing would ever arrive.
 import {
   DEFAULT_BLOCKED_HOSTS,
   USER_BLOCKED_HOSTS_KEY,
@@ -24,28 +15,12 @@ const MAIN_SCRIPT_FILE = "src/deep-search.js";
 const BRIDGE_SCRIPT_FILE = "src/deep-search-bridge.js";
 const MATCHES = ["*://*/*"];
 
-// The probe registration exists only to find out whether `world: "MAIN"` is
-// accepted at all, so its pattern has two jobs: never match a page the user
-// could be looking at, and stay inside a host permission the extension already
-// holds unconditionally.
-//
-// That second part is what makes this the loopback address and not a reserved
-// `.invalid` name. `registerContentScripts` refuses a pattern the extension has
-// no host permission for, and the wildcard is optional — only granted once the
-// user turns something on. Probing an origin we do not hold yet would fail on a
-// fresh install for lack of permission, be read as "MAIN world unsupported",
-// and hide the toggle that asks for the permission in the first place. The
-// bridge's `http://127.0.0.1/*` is a fixed permission in both manifests, and no
-// real page lives under this path.
 export const DEEP_SEARCH_PROBE_MATCHES = Object.freeze([
   "http://127.0.0.1/__omniget_deep_search_probe__/*",
 ]);
 
 const MAX_EXCLUDE_MATCHES = 100;
 
-// Pages where hooking JSON.parse and fetch buys nothing and costs a lot: heavy
-// single-page apps, and places where reading response bodies is simply not our
-// business. These sit on top of the shared analytics/tracker blocklist.
 export const DEEP_SEARCH_EXTRA_BLOCKED_HOSTS = Object.freeze([
   "accounts.google.com",
   "mail.google.com",
@@ -79,8 +54,6 @@ export function shouldSkipDeepSearch(url) {
   return isUrlHostBlocked(url, blocklist);
 }
 
-// Only entries that look like real hostnames can become match patterns; the
-// shared blocklist also carries bare substrings such as "analytics".
 export function getDeepSearchExcludeMatches() {
   const out = [];
   for (const host of blocklist) {
@@ -110,13 +83,6 @@ export async function refreshDeepSearchBlocklist() {
   return getBlockedDeepSearchHosts();
 }
 
-// Capability detection instead of a browser sniff. `world: "MAIN"` needs Chrome
-// 111+ and Firefox 128+, and this project still supports Firefox 109, so the
-// feature has to hide itself where it cannot work rather than raise the
-// minimum. Registering a throwaway MAIN-world script against a pattern that
-// matches nothing is the cheapest honest probe: browsers that do not know the
-// `world` key reject the call, no page is ever touched, and the answer is
-// cached for the life of the service worker.
 export async function isDeepSearchSupported() {
   if (mainWorldSupported !== null) return mainWorldSupported;
   if (
@@ -131,7 +97,6 @@ export async function isDeepSearchSupported() {
   try {
     await chrome.scripting.unregisterContentScripts({ ids: [PROBE_SCRIPT_ID] });
   } catch {
-    // No leftover probe from a previous run; that is the normal case.
   }
   try {
     await chrome.scripting.registerContentScripts([
@@ -151,7 +116,6 @@ export async function isDeepSearchSupported() {
   try {
     await chrome.scripting.unregisterContentScripts({ ids: [PROBE_SCRIPT_ID] });
   } catch {
-    // ignore
   }
   return mainWorldSupported;
 }
@@ -165,8 +129,6 @@ export async function registerDeepSearchScripts() {
   const excludeMatches = getDeepSearchExcludeMatches();
   try {
     await chrome.scripting.registerContentScripts([
-      // The bridge is listed first so its listener is in place before the
-      // MAIN-world hooks have anything to report.
       {
         id: BRIDGE_SCRIPT_ID,
         js: [BRIDGE_SCRIPT_FILE],
@@ -199,8 +161,6 @@ export async function unregisterDeepSearchScripts() {
     await chrome.scripting.unregisterContentScripts({ ids: [BRIDGE_SCRIPT_ID, MAIN_SCRIPT_ID] });
     return true;
   } catch {
-    // Unregistering ids that were never registered throws; that is still the
-    // state we wanted.
     return true;
   }
 }
@@ -209,7 +169,6 @@ async function store(value) {
   try {
     await chrome.storage.local.set({ [DEEP_SEARCH_STORAGE_KEY]: value });
   } catch {
-    // ignore
   }
 }
 
@@ -237,9 +196,6 @@ export function isDeepSearchEnabled() {
   return enabled;
 }
 
-// Must be reachable from a user gesture: `chrome.permissions.request` only
-// resolves to true when it can show its prompt, which rules out calling this
-// from an alarm or from service-worker startup.
 export async function setDeepSearchEnabled(value) {
   if (value) {
     if (!(await isDeepSearchSupported())) {

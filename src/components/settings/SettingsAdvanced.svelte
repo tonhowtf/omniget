@@ -9,9 +9,6 @@
   import { getSettings, saveSettings as updateSettings, toggleBool, changeNumber } from "./settings-helpers";
   import SettingRow from "./rebrand/SettingRow.svelte";
 
-  // Rows only: the settings route wraps each part in its SettingGroup, so the same
-  // controls can live under Advanced (performance, torrent, expert, debug) and
-  // Integrations (League, Music and the other superpowers) without a second copy.
   let { part }: { part: AdvancedPart } = $props();
 
   let settings = $derived(getSettings());

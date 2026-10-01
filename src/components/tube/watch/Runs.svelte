@@ -1,6 +1,4 @@
 <script lang="ts">
-  // Rich text from a description or comment: links, timestamps that seek,
-  // @mentions / channels and videos that open in the app, bold runs.
   import type { TextRun } from "$lib/tube/types";
   import { followRun } from "../cards/util";
 

@@ -143,7 +143,6 @@ function parseTikTok(segments) {
     return "profile";
   }
 
-  // Short video links (/t/<code>) and embeds (/embed/v2/<id>)
   if (segments[0] === "t" && segments[1]) {
     return "video";
   }
@@ -208,7 +207,7 @@ function parseTwitch(url, segments) {
 
   const twitchNonChannel = ["directory", "settings", "downloads", "jobs", "turbo", "store", "inventory", "wallet", "subscriptions", "friends", "prime"];
   if (segments[0] && !twitchNonChannel.includes(segments[0])) {
-    return "video"; // live stream — downloadable via yt-dlp
+    return "video";
   }
 
   return "unknown";

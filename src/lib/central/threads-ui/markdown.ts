@@ -1,11 +1,5 @@
-// Incremental Markdown for streamed answers: the text is split at the last
-// block boundary outside an open code fence. The stable prefix renders once
-// (cached by its exact text) and only the short tail re-renders per delta.
-// File-looking inline code becomes a clickable chip after sanitising.
-
 import { escapeHtml, renderSafeMarkdownSync } from "$lib/llm/markdown";
 
-/** Index where the still-growing tail starts (0 = everything is tail). */
 function stableSplit(text: string): number {
   let inFence = false;
   let fenceMark = "";
@@ -41,7 +35,6 @@ export function looksLikePath(s: string): boolean {
   return PATHISH.test(s);
 }
 
-/** Marks path-like `<code>` as file chips (data-path) — runs on sanitised HTML. */
 function linkFileChips(html: string): string {
   return html.replace(/<code>([^<]{1,240})<\/code>/g, (whole, inner: string) => {
     const raw = inner.replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"');

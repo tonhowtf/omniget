@@ -1,6 +1,3 @@
-// "Not interested", "Don't recommend channel" and "Block channel" from the
-// card menu. The item disappears at once; the account feedback is only sent
-// when the undo pill runs out, so "Undo" really undoes.
 import * as api from "$lib/tube/api";
 import { patchTubePrefs, tubePrefs } from "$lib/tube/prefs.svelte";
 import type { Item } from "$lib/tube/types";
@@ -34,7 +31,6 @@ export function channelOf(item: Item): { id: string; name: string } | null {
   return null;
 }
 
-/** False for items hidden in this session or from a blocked channel. */
 export function isVisible(item: Item): boolean {
   if ("id" in item && feedback.videos[item.id]) return false;
   const ch = channelOf(item);

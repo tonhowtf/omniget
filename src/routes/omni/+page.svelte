@@ -1,10 +1,4 @@
 <script lang="ts">
-  /**
-   * Omni's own window (Maestri: the Ombro window, ⌘⇧O): floats above every
-   * app, shows what each agent just did with three next steps, and answers
-   * questions about a workspace. Built in Rust by
-   * `crate::canvas::companion::toggle_window`; ⌘⇧O or Esc hides it.
-   */
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { WebviewWindow, getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
@@ -29,7 +23,6 @@
     try {
       localStorage.setItem(LAST_KEY, id);
     } catch {
-      /* private storage: fine */
     }
   }
 
@@ -52,7 +45,6 @@
           if (n.kind === "terminal" || n.kind === "agent") out.push({ id: n.id, title: n.title ?? n.id.slice(0, 6) });
         }
       } catch {
-        /* a floor that does not load is skipped */
       }
     }
     terminals = out;

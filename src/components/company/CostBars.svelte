@@ -1,5 +1,4 @@
 <script lang="ts">
-  /** Horizontal bars of cost rows (by agent, project or model), largest first. */
   import { t } from "$lib/i18n";
   import type { CostRow } from "$lib/company/rpc";
   import { usd } from "./company-ui";

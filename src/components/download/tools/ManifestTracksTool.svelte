@@ -57,7 +57,6 @@
     try {
       const got = await invoke<Tracks>("manifest_tracks_list", { url: target });
       tracks = got;
-      // Same default as N_m3u8DL-RE: the best video, and the best audio of each language.
       video = got.video[0]?.id ?? "";
       const seen = new Set<string>();
       audio = got.audio

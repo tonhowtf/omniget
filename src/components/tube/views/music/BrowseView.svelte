@@ -1,6 +1,4 @@
 <script lang="ts">
-  // Generic YT Music browse page: moods & genres, a mood's playlists, charts,
-  // new releases, "More" of any shelf.
   import { t } from "$lib/i18n";
   import * as api from "$lib/tube/api";
   import { back, canGoBack, type Route } from "$lib/tube/ui.svelte";
@@ -21,7 +19,6 @@
   let seq = 0;
 
   let title = $derived(page?.header?.title || route.title || "");
-  // A page that is only one shelf reads better as a grid than as one carousel.
   let single = $derived(!!page && page.shelves.length === 1);
 
   async function load() {

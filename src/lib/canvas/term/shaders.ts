@@ -1,7 +1,3 @@
-// GLSL for the terminal pass: one quad per terminal body. The fragment shader
-// finds the cell, fetches its texel (glyph slot, fg, bg, flags) and composes
-// background, glyph from the atlas, underline/strike, selection and cursor.
-
 export const TERM_VS = `#version 300 es
 in vec2 a_pos;
 uniform vec4 u_rect;      // body rect in device px: x, y, w, h (top-left origin)

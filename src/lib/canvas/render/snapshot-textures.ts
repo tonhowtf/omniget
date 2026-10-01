@@ -1,8 +1,3 @@
-// Snapshot textures (02-motor-do-canvas §2.2, §7.3, §8.3): the last picture of
-// a portal that is not live, or of a terminal that was just unmounted, drawn
-// in L0 at the node's frame until its card or live view takes over.
-// Owners call setSnapshot(nodeId, image) / clearSnapshot(nodeId).
-
 import type { CanvasEngine } from '../engine.svelte';
 import type { FrameInfo, GlPass } from './gl-layer';
 import { QuadBatch, uploadTexture } from './quads';
@@ -40,7 +35,6 @@ export function createSnapshotPass(engine: CanvasEngine): GlPass {
       const cam = frame.camera;
       const z = cam.zoom;
       for (const v of frame.visibleNodes) {
-        // Near = live DOM on top; far = sprite. The picture bridges the rest.
         if (v.lod === 'near' || v.lod === 'far') continue;
         const snap = snapshots.get(v.id);
         if (!snap) continue;

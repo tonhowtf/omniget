@@ -5,12 +5,7 @@
   import RiskBadge from "./ui/RiskBadge.svelte";
   import TweakStateBadge from "./TweakStateBadge.svelte";
 
-  /// One tweak: pick box, name, state read from Windows, tags (restart,
-  /// administrator, source), the warning, and the reason when it cannot be
   /// changed here. Ported from "Styled Toggle Switches" (ai2, 21st.dev):
-  /// a hairline settings row with the control leading and badges inline;
-  /// here the control is a pick box, because nothing changes until the
-  /// plan is reviewed.
   let {
     item,
     picked = false,

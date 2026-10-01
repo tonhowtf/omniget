@@ -1,9 +1,4 @@
 <script lang="ts">
-  /**
-   * Optional onboarding step: pick a nickname and a tint. Skippable — the
-   * wizard's own Skip/Next buttons already cover it, so this step has no
-   * primary action of its own and never blocks. Nothing is sent anywhere.
-   */
   import { t } from "$lib/i18n";
   import SkinPicker from "$components/profile/SkinPicker.svelte";
   import {
@@ -34,7 +29,6 @@
     loadProfile();
   });
 
-  /** Saves on blur so the step never needs a button of its own. */
   async function commitNickname() {
     if (normalizeNickname(value) === null) return;
     if (value.trim() === (profile?.nickname ?? "")) return;

@@ -1,5 +1,4 @@
 <script lang="ts">
-  // Shows found in the local library, as a grid; opening one goes to ShowView.
   import { onMount } from "svelte";
   import { t } from "$lib/i18n";
   import { showToast } from "$lib/stores/toast-store.svelte";
@@ -56,7 +55,6 @@
       .sort((a, b) => coll.compare(a.name, b.name));
   });
 
-  /** Plays the first unwatched episode of a show. */
   async function playNext(name: string) {
     try {
       const d = await api.show(name);

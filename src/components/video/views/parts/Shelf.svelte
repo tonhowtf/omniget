@@ -1,6 +1,4 @@
 <script lang="ts">
-  // Horizontal row with round prev/next arrows (the "Apple Card Carousel" on
-  // 21st.dev, redone with native scroll snapping instead of embla).
   import type { Snippet } from "svelte";
   import { t } from "$lib/i18n";
   import VIcon from "./VIcon.svelte";

@@ -1,8 +1,4 @@
 <script lang="ts">
-  /**
-   * A company's issues: a list (grouped by status or flat) and a kanban board,
-   * with filters, debounced search and the new-issue form (`c`).
-   */
   import { onMount } from "svelte";
   import { page } from "$app/state";
   import { t } from "$lib/i18n";
@@ -31,7 +27,6 @@
   let staff = $state<Staff[]>([]);
   let projects = $state<Project[]>([]);
   let labels = $state<Label[]>([]);
-  /** issue id → its labels (names come with `issue.list`). */
   let labelMap = $state<Record<string, Label[]>>({});
   let loaded = $state(false);
   let loadError = $state("");
@@ -60,7 +55,6 @@
     try {
       localStorage.setItem(VIEW_KEY, v);
     } catch {
-      /* private window: the choice just is not remembered */
     }
   }
 
@@ -99,13 +93,11 @@
     }
   }
 
-  // Reload when the company or a server-side filter changes.
   $effect(() => {
     void [company, fAssignee, fProject, fLabel, includeDone];
     void load();
   });
 
-  // Debounced full-text search.
   $effect(() => {
     const q = query.trim();
     const c = company;

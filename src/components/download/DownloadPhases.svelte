@@ -29,9 +29,6 @@
   const hasVideo = (s: StreamInfo | null | undefined) => !!s?.vcodec && s.vcodec !== "none";
   const hasAudio = (s: StreamInfo | null | undefined) => !!s?.acodec && s.acodec !== "none";
 
-  // Dois streams (bv+ba) → trilho completo; um stream (muxado ou só áudio) →
-  // trilho curto. Decidido pelo plano que o yt-dlp anunciou; se ainda não
-  // anunciou, pelo que já vimos passar.
   let multi = $derived.by(() => {
     if (plannedFormats && plannedFormats.length > 0) return plannedFormats.length > 1;
     if (downloadMode === "audio") return false;

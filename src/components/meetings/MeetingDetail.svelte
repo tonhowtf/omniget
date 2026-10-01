@@ -50,7 +50,6 @@
     turns(detail.segments).filter((s) => !query.trim() || s.text.toLowerCase().includes(query.trim().toLowerCase()) || (s.speaker ?? "").toLowerCase().includes(query.trim().toLowerCase())),
   );
 
-  // Reset the local edit state when another meeting is shown.
   $effect(() => {
     if (m.id !== lastId) {
       lastId = m.id;
@@ -63,7 +62,6 @@
     }
   });
 
-  // A live bot is polled while this meeting is on screen.
   let botTimer: ReturnType<typeof setInterval> | null = null;
   $effect(() => {
     if (botTimer) clearInterval(botTimer);

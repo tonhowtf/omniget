@@ -124,7 +124,6 @@
       try {
         patchBookLocal(await invoke<Book>("read_set_cover", { id: book.id, url: c.cover }));
       } catch {
-        /* keep the old cover */
       }
     }
     candidates = [];

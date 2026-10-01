@@ -1,10 +1,4 @@
 <script lang="ts">
-  /**
-   * Heatmap de atividade estilo calendário: semanas em colunas, segunda a
-   * domingo em linhas, uma rampa de um só tom (o accent) de claro para forte
-   * pelo `level` 0–4 que o núcleo calcula por quartis. Hover ou setas mostram
-   * o dia; Enter chama `onpick`.
-   */
   import { t } from "$lib/i18n";
   import { compact, isoDay, type HeatDay } from "$lib/central/sessions";
   import "./viz.css";
@@ -28,7 +22,7 @@
     const [ty, tm, td] = to.split("-").map(Number);
     const start = new Date(fy, fm - 1, fd);
     const end = new Date(ty, tm - 1, td);
-    const lead = (start.getDay() + 6) % 7; // 0 = segunda
+    const lead = (start.getDay() + 6) % 7;
     const out: Cell[] = [];
     const cur = new Date(start);
     let i = lead;
@@ -44,7 +38,6 @@
 
   let cols = $derived(cells.length ? cells[cells.length - 1].col + 1 : 0);
 
-  /** Rótulo no primeiro "segunda-feira" de cada mês, sem encostar no anterior. */
   let months = $derived.by(() => {
     const out: { col: number; label: string }[] = [];
     const done = new Set<string>();

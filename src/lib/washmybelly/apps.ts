@@ -1,12 +1,5 @@
-/// Pure logic behind the Uninstall screen: sources, filters, sorting, "last
-/// opened", and how the leftovers of one app are split, grouped and ticked.
-/// No Svelte and no Tauri here, so all of it runs under vitest.
-
 import type { Risk } from "./api";
 
-// ── Contract (`wmb_apps_list`, `wmb_app_leftovers`) ─────────────────
-
-/// Mirrors `core/washmybelly/apps/mod.rs::App`.
 export type App = {
   id: string;
   name: string;
@@ -16,7 +9,6 @@ export type App = {
   path?: string | null;
   bytes?: number | null;
   native_id?: string | null;
-  /// Unix seconds.
   installed?: number | null;
   last_used?: number | null;
   removable: boolean;
@@ -29,7 +21,6 @@ export type AppsList = { apps: App[]; total: number };
 
 type Confidence = "high" | "medium" | "low";
 
-/// Mirrors `apps/mod.rs::Leftover`.
 type Leftover = {
   path: string;
   bytes: number;
@@ -46,9 +37,7 @@ type LeftoverItemPreview = {
   bytes: number;
   risk: Risk;
   admin: boolean;
-  /// Left out of the default plan (app open, needs a password, weak match).
   unticked?: boolean;
-  /// Why it is unticked (`open`, `admin`, `medium`, `low`, `alternative`).
   why?: string;
 };
 
@@ -66,14 +55,9 @@ export type LeftoversResponse = {
   } | null;
 };
 
-// ── Sources ──────────────────────────────────────────────────────────
-
 export type SourceInfo = {
-  /// i18n key of the chip / tag label.
   key: string;
-  /// English label used when the key is missing (brand names never change).
   fallback: string;
-  /// Tile gradient (Apple system palette).
   from: string;
   to: string;
 };
@@ -112,8 +96,6 @@ export function sourceInfo(source: string): SourceInfo {
   };
 }
 
-/// The sources that appear in the list, most apps first (then by name), so
-/// the chips only offer what exists on this machine.
 export function sourcesPresent(apps: readonly App[]): { source: string; count: number }[] {
   const counts = new Map<string, number>();
   for (const a of apps) counts.set(a.source, (counts.get(a.source) ?? 0) + 1);
@@ -122,7 +104,6 @@ export function sourcesPresent(apps: readonly App[]): { source: string; count: n
     .sort((a, b) => b.count - a.count || a.source.localeCompare(b.source));
 }
 
-/// One or two letters for the generic tile: "Visual Studio Code" → "VS".
 export function monogram(name: string): string {
   const words = name
     .replace(/[^\p{L}\p{N}\s]/gu, " ")
@@ -132,8 +113,6 @@ export function monogram(name: string): string {
   if (words.length === 1) return words[0].slice(0, 1).toUpperCase();
   return (words[0][0] + words[1][0]).toUpperCase();
 }
-
-// ── Filter and sort ──────────────────────────────────────────────────
 
 export type AppSort = "name" | "size" | "last_used";
 
@@ -146,8 +125,6 @@ function norm(s: string): string {
     .toLowerCase();
 }
 
-/// Search matches name, publisher, native id and app id, ignoring case and
-/// accents. An empty source set means every source.
 export function filterApps(apps: readonly App[], f: AppFilter): App[] {
   const q = norm((f.query ?? "").trim());
   const sources = f.sources;
@@ -159,8 +136,6 @@ export function filterApps(apps: readonly App[], f: AppFilter): App[] {
   });
 }
 
-/// Name: A→Z. Size: biggest first, unknown last. Last used: longest unused
-/// first (the ones worth removing), never-seen last. Ties go by name.
 export function sortApps(apps: readonly App[], sort: AppSort): App[] {
   const byName = (a: App, b: App) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
   const list = [...apps];
@@ -178,30 +153,22 @@ export function sortApps(apps: readonly App[], sort: AppSort): App[] {
   });
 }
 
-// ── "Not opened in 8 months" ─────────────────────────────────────────
-
 type LastUsed = {
-  /// i18n key under `washmybelly.uninstall.used.*`.
   key: string;
   count: number;
-  /// Unused for 90 days or more: drawn in the warning tone.
   stale: boolean;
 };
 
 const DAY = 86_400;
 
-/// How long ago an app was opened, in the unit a person would say.
 export function lastUsed(ts: number | null | undefined, now: number = Date.now() / 1000): LastUsed | null {
   if (ts == null || !Number.isFinite(ts) || ts <= 0) return null;
   const days = Math.max(0, Math.floor((now - ts) / DAY));
   const stale = days >= 90;
   if (days < 1) return { key: "washmybelly.uninstall.used.today", count: 0, stale };
   const [unit, count] = days < 30 ? ["days", days] : days < 365 ? ["months", Math.floor(days / 30)] : ["years", Math.floor(days / 365)];
-  // The i18n parser has no plural rules: one gets its own key.
   return { key: `washmybelly.uninstall.used.${unit}${count === 1 ? "_one" : ""}`, count, stale };
 }
-
-// ── Leftovers of one app ─────────────────────────────────────────────
 
 const CONFIDENCE_ORDER: readonly Confidence[] = ["high", "medium", "low"];
 
@@ -213,11 +180,8 @@ export type LeftoverItem = LeftoverItemPreview & {
 };
 
 export type Classified = {
-  /// Removes the app itself (bundle, uninstaller, package manager).
   app: LeftoverItemPreview[];
-  /// `brew uninstall --zap` (or another manager's "remove with data").
   zap: LeftoverItemPreview[];
-  /// Everything the app left behind, with its confidence.
   leftovers: LeftoverItem[];
 };
 
@@ -231,11 +195,6 @@ function asConfidence(c: string | null | undefined): Confidence {
   return c === "high" || c === "medium" || c === "low" ? c : "low";
 }
 
-/// Splits the plan items of `wmb_app_leftovers` into the app, the zap
-/// alternative and the leftovers. A leftover is matched to its evidence by
-/// path (the item's detail, or the tail of its id); an item with no evidence
-/// and an app-like group is the app itself; an item with no evidence and any
-/// other group is a leftover of low confidence (never ticked blindly).
 export function classify(resp: Pick<LeftoversResponse, "items" | "extra">): Classified {
   const evidence = new Map<string, Leftover>();
   for (const l of resp.extra?.leftovers ?? []) evidence.set(l.path, l);
@@ -266,7 +225,6 @@ export function classify(resp: Pick<LeftoversResponse, "items" | "extra">): Clas
   return out;
 }
 
-/// Leftovers under confidence headings (high → low), empty ones dropped.
 export function byConfidence(items: readonly LeftoverItem[]): { confidence: Confidence; items: LeftoverItem[]; bytes: number }[] {
   return CONFIDENCE_ORDER.map((confidence) => {
     const list = items.filter((i) => i.confidence === confidence);
@@ -274,17 +232,12 @@ export function byConfidence(items: readonly LeftoverItem[]): { confidence: Conf
   }).filter((g) => g.items.length > 0);
 }
 
-/// Leftovers ticked when the app opens: high and medium; low never.
 export function defaultLeftovers(items: readonly LeftoverItem[]): Set<string> {
   return new Set(items.filter((i) => i.confidence !== "low" && !i.unticked).map((i) => i.id));
 }
 
-/// What the one button does: remove the app normally, remove it through the
-/// package manager with its data (`--zap`), or keep the app and only wipe
-/// its data and settings.
 export type UninstallMode = "uninstall" | "zap" | "reset";
 
-/// Modes this app offers, in display order.
 export function modesFor(c: Classified, installed: boolean): UninstallMode[] {
   const modes: UninstallMode[] = [];
   if (c.app.length > 0 || (c.zap.length === 0 && installed)) modes.push("uninstall");
@@ -293,17 +246,13 @@ export function modesFor(c: Classified, installed: boolean): UninstallMode[] {
   return modes;
 }
 
-/// Item ids that go into the plan for a mode and the ticked leftovers.
 export function planIds(c: Classified, mode: UninstallMode, chosen: ReadonlySet<string>): string[] {
   const left = c.leftovers.filter((l) => chosen.has(l.id)).map((l) => l.id);
   if (mode === "reset") return left;
   if (mode === "zap") return [...c.zap.filter((i) => !i.unticked).map((i) => i.id), ...left];
-  // An app item left out by the backend (the app is open) never joins.
   return [...c.app.filter((i) => !i.unticked).map((i) => i.id), ...left];
 }
 
-/// Bytes the plan for a mode frees (the zap item's own size may be 0: the
-/// manager measures it).
 export function planBytes(c: Classified, mode: UninstallMode, chosen: ReadonlySet<string>): number {
   const ids = new Set(planIds(c, mode, chosen));
   let n = 0;
@@ -311,10 +260,6 @@ export function planBytes(c: Classified, mode: UninstallMode, chosen: ReadonlySe
   return n;
 }
 
-/// Id sent to `wmb_app_leftovers` for an app that is not installed anymore.
-/// The core builds a bare App from it (`source` = "removed", `name` = the
-/// text) and searches by name and bundle id. A full id (`app:com.x.y`) goes
-/// through untouched.
 export function removedAppId(text: string): string | null {
   const s = text.trim();
   if (!s) return null;
@@ -322,8 +267,6 @@ export function removedAppId(text: string): string | null {
   return `removed:${s}`;
 }
 
-/// The app is still installed (the core marks a bare, removed one with
-/// `removable: false` and no path/version).
 export function isInstalled(app: App): boolean {
   return !(app.source === "removed" || (!app.removable && !app.path && !app.version && app.reason === "not installed anymore"));
 }

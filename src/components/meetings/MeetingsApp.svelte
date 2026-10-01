@@ -28,10 +28,6 @@
     type Progress,
   } from "$lib/meetings/api";
 
-  // Meetings: record locally (no bot), import a Teams/SharePoint recording or
-  // a file, or send a Vexa bot. Every meeting ends as transcript + summary +
-  // action items + markdown the agents read over MCP.
-
   type Panel = "none" | "record" | "link" | "teams" | "settings";
 
   let meetings = $state<Meeting[]>([]);
@@ -86,7 +82,6 @@
       try {
         detail = await getMeeting(id);
       } catch {
-        /* deleted meanwhile */
       }
     }
   }

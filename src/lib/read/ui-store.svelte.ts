@@ -1,5 +1,3 @@
-// Navigation inside /read, the open reader, and dialogs any view can open.
-
 import { invoke } from "@tauri-apps/api/core";
 import { get } from "svelte/store";
 import { t } from "$lib/i18n";

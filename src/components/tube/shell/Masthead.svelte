@@ -1,8 +1,4 @@
 <script lang="ts">
-  // 56px masthead (spec §2.2): ≡, brand, the "Videos | Music" segmented
-  // switch (our addition), centered search, settings and the account.
-  // Frosted when the content is scrolled; a thin accent bar runs along the
-  // bottom while a view is loading.
   import { t } from "$lib/i18n";
   import { agentActions } from "$lib/native-agent/actions";
   import { back, canGoBack, go, goRoot, setFace, ui, type Face } from "$lib/tube/ui.svelte";

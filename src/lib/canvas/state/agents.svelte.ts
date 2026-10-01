@@ -1,8 +1,3 @@
-// Canonical agent state per terminal (briefing "Terminal (core::term)"):
-// fed by `term://state` (keyed by terminal id) and `canvas://node-state`
-// (keyed by node id, from the cords bus). The canvas, cards, sprites and the
-// "next needs you" shortcut all read from here.
-
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 
 export type AgentState =
@@ -22,7 +17,6 @@ export interface AgentSignal {
   source?: string;
   since_ms?: number;
   message?: string;
-  /** Optional live details some sources carry. */
   contextTokens?: number;
   contextLimit?: number;
   costUsd?: number;
@@ -32,7 +26,6 @@ export interface AgentSignal {
 const TERM_STATE_EVENT = 'term://state';
 const NODE_STATE_EVENT = 'canvas://node-state';
 
-/** Munder Difflin palette, one channel per question (estudo 97 §4). */
 export const STATE_COLORS: Record<AgentState, number> = {
   idle: 0xa199ab,
   thinking: 0x4f9faf,
@@ -51,7 +44,6 @@ export function stateCss(state: AgentState | undefined): string {
   return `#${c.toString(16).padStart(6, '0')}`;
 }
 
-/** Normalises whatever casing the Rust side sends (`Blocked`, `waiting_peer`...). */
 export function normaliseState(raw: unknown): AgentState {
   const s = String(raw ?? '').replace(/[_\s-]/g, '').toLowerCase();
   switch (s) {
@@ -95,16 +87,12 @@ interface RawStateEvent {
 }
 
 class AgentStates {
-  /** Terminal id → signal. Replaced (not mutated) on change. */
   byTerminal = $state.raw<Record<string, AgentSignal>>({});
-  /** Node id → signal (bus-derived; wins when present and fresher). */
   byNode = $state.raw<Record<string, AgentSignal>>({});
   private unlisten: UnlistenFn[] = [];
   private refs = 0;
 
   private toSignal(p: RawStateEvent): AgentSignal {
-    // The node bus says "done" + detail "failed" for a failed turn the user
-    // has not seen; "exited" carries no outcome (the terminal signal has it).
     const state = p.detail === 'failed' ? 'failed' : normaliseState(p.state);
     return {
       state,
@@ -118,7 +106,6 @@ class AgentStates {
     };
   }
 
-  /** Starts listening; reference counted so several canvases can share it. */
   async start(): Promise<void> {
     this.refs++;
     if (this.refs > 1) return;
@@ -136,7 +123,6 @@ class AgentStates {
         }),
       );
     } catch {
-      // Outside Tauri (tests, storybook): states stay empty.
     }
   }
 
@@ -162,14 +148,11 @@ class AgentStates {
     this.byTerminal = next;
   }
 
-  /** Signal of a canvas node (by node id first, then its terminal id). */
   of(node: { id: string; data?: unknown }): AgentSignal | undefined {
     const byNode = this.byNode[node.id];
     const tid = (node.data as { terminalId?: string } | undefined)?.terminalId;
     const byTerm = tid ? this.byTerminal[tid] : undefined;
     if (byNode && byTerm) {
-      // A bus state that carries no outcome ("exited", "no_signal") never
-      // hides a known terminal state (an Ollama node that failed at launch).
       if (byNode.state === 'unknown' && byTerm.state !== 'unknown') return byTerm;
       return (byNode.since_ms ?? 0) >= (byTerm.since_ms ?? 0) ? byNode : byTerm;
     }

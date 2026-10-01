@@ -1,7 +1,3 @@
-// Mirror of the serde types of core::canvas (02-motor-do-canvas §9, briefing
-// "Documento do canvas"). Enums are open on read: an unknown kind renders as a
-// plain box and is written back untouched. Optionals are omitted, never null.
-
 type NodeKind =
   | 'terminal'
   | 'agent'
@@ -23,17 +19,14 @@ export type AgentKind = 'claude' | 'codex' | 'gemini' | 'opencode' | 'ollama' | 
 export interface CanvasNode {
   id: string;
   kind: NodeKind;
-  /** World units (CSS px at zoom 1), top-left. */
   x: number;
   y: number;
   w: number;
   h: number;
-  /** Stacking order; higher draws on top. */
   z: number;
   title?: string;
   groupId?: string;
   locked?: boolean;
-  /** Page of a fichário (stack node): hidden on the canvas, still addressable. */
   stackId?: string;
   subtitle?: string;
   icon?: string;
@@ -66,14 +59,12 @@ type DrawingKind =
   | 'text'
   | (string & {});
 
-/** `cross` is the front's name of the wire's `crossHatch`; `solid` is a light tint kept for old drawings. */
 export type FillStyle = 'none' | 'solid' | 'hachure' | 'cross' | 'tint' | 'solidOpaque';
 
 type StrokePattern = 'solid' | 'dashed' | 'dotted';
 
 type DrawingEdge = 'top' | 'bottom' | 'left' | 'right' | (string & {});
 
-/** Arrow end attached to the edge of another drawing (Maestri `sourceConnection`). */
 interface DrawingAnchor {
   drawingId: string;
   edge: DrawingEdge;
@@ -82,32 +73,22 @@ interface DrawingAnchor {
 export interface Drawing {
   id: string;
   kind: DrawingKind;
-  /** Origin (top-left of the bounding box) in world units. */
   x: number;
   y: number;
   w: number;
   h: number;
   z?: number;
-  /**
-   * Flat [x0, y0, x1, y1, ...] relative to the origin, rounded to 0.1.
-   * Pen/highlighter: the stroke samples. Arrow/line: the two end points.
-   */
   points?: number[];
-  /** Per-sample pressure 0..1 for pen strokes, when a pen gave it. */
   pressures?: number[];
-  /** CSS colour of the stroke. */
   color: string;
   strokeWidth: number;
   opacity?: number;
   fill?: string;
   fillStyle?: FillStyle;
-  /** Hand-drawn look (rough.js-like). */
   sketch?: boolean;
-  /** PRNG seed of the sketch jitter; kept so the shape never "boils". */
   seed?: number;
   text?: string;
   groupId?: string;
-  /** Degrees, clockwise, around the centre of the box. */
   rotation?: number;
   strokePattern?: StrokePattern;
   cornerRadius?: number;
@@ -122,12 +103,10 @@ export interface Group {
   id: string;
   name?: string;
   color?: string;
-  /** Node groups and drawing groups are separate (Maestri). */
   target?: 'nodes' | 'drawings';
 }
 
 export interface CameraState {
-  /** World coordinate at the viewport's top-left corner. */
   x: number;
   y: number;
   zoom: number;
@@ -136,7 +115,6 @@ export interface CameraState {
 export interface Snapshot {
   workspaceId: string;
   floorId: string;
-  /** Opaque; a new epoch means "drop local state and reload". */
   epoch: string | number;
   rev: number;
   seq?: number;
@@ -157,7 +135,6 @@ export interface Workspace {
   floors?: Array<{ id: string; name?: string }>;
 }
 
-/** Who made a change: the user or an agent (`agent:<terminalId>`). */
 export type Origin = 'user' | `agent:${string}` | (string & {});
 
 export type Op =
@@ -177,7 +154,6 @@ export interface ApplyResult {
   epoch?: string | number;
   rev: number;
   seq: number;
-  /** Effective ops after Rust normalisation (cascades, filled ids), wire format. */
   ops?: unknown[];
   inverse?: unknown[];
   rebased?: boolean;
@@ -213,7 +189,6 @@ export function terminalIdOf(node: { id: string; data?: unknown }): string {
   return typeof data?.terminalId === 'string' && data.terminalId ? data.terminalId : node.id;
 }
 
-/** Plain UUID (the Rust side echoes ids literally, as the Maestri does). */
 export function newId(): string {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID();
   const hex = () => Math.floor(Math.random() * 0x10000).toString(16).padStart(4, '0');

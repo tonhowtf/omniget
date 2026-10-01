@@ -1,8 +1,4 @@
 <script lang="ts">
-  /**
-   * Cron field with readable presets ("Every weekday at 9:00") and a custom
-   * expression. `value` is null when `allowNone` and nothing is chosen.
-   */
   import { t } from "$lib/i18n";
   import { CRON_PRESETS, presetOf } from "./company-ui";
 

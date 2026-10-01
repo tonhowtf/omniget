@@ -1,10 +1,4 @@
 <script lang="ts">
-  /**
-   * The stack drawer: items, target tools (default: tools detected for the
-   * chosen project), scope, conflict policy; "See plan" (diff dialog),
-   * "Install" (plan + apply, result with undo), save as collection, export
-   * `.omnistack`, copy the equivalent `omniget agentkit install …` line.
-   */
   import { save as saveDialog } from "@tauri-apps/plugin-dialog";
   import { t } from "$lib/i18n";
   import { showToast } from "$lib/stores/toast-store.svelte";
@@ -30,7 +24,6 @@
     oncollections,
   }: {
     targets?: TargetAdapter[];
-    /** Collections changed (saved/exported): the sidebar reloads. */
     oncollections?: () => void;
   } = $props();
 

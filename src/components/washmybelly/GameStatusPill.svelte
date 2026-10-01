@@ -2,9 +2,6 @@
   import type { Tone } from "$lib/washmybelly/game";
 
   /// Pill with a status dot. Ported from diceui "Status" (21st.dev): rounded
-  /// pill, tinted border and background from the tone, a dot whose halo
-  /// pings; here with app tokens, and the ping only for `success` (something
-  /// is on right now) and never under reduced motion.
   let { label, tone = "default" }: { label: string; tone?: Tone } = $props();
 </script>
 

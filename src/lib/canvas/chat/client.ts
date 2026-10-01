@@ -1,9 +1,6 @@
-// Typed wrappers over commands::canvas::chat and the `canvas://chat` event.
-
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 
-/** The seven threads (core::canvas::chat::THREADS), in slot order. */
 export const THREADS = [
   { key: 'blue', color: '#3B82F6' },
   { key: 'purple', color: '#8B5CF6' },
@@ -54,15 +51,12 @@ interface HistoryPage {
   threads: ThreadInfo[];
   activeThread: number;
   turnOpen: boolean;
-  /** Thread of the open (or last) turn: where the agent's `say` lands. */
   turnThread: number;
   turnInterrupted: boolean;
-  /** Unread agent replies per thread, before this read marked `thread` read. */
   unread: number[];
   unreadCount: number;
 }
 
-/** `canvas://chat-state`: the node's chat state changed. */
 export interface ChatStateEvent {
   workspaceId: string;
   nodeId: string;
@@ -80,19 +74,15 @@ export function onChatState(cb: (e: ChatStateEvent) => void): Promise<UnlistenFn
   return listen<ChatStateEvent>(CHAT_STATE_EVENT, (e) => cb(e.payload));
 }
 
-/** Selects the thread the next message goes to (CHAT_TURN_ACTIVE while the agent answers on another). */
 export const chatSelectThread = (workspaceId: string, nodeId: string, thread: number) =>
   invoke<unknown>('canvas_chat_select_thread', { workspaceId, nodeId, thread });
 
-/** Marks one thread (or all) read. */
 export const chatMarkRead = (workspaceId: string, nodeId: string, thread?: number) =>
   invoke<unknown>('canvas_chat_mark_read', { workspaceId, nodeId, thread: thread ?? null });
 
-/** Esc: ESC to the agent and the open turn closed as interrupted. */
 export const chatInterrupt = (workspaceId: string, nodeId: string) =>
   invoke<ChatEntry | null>('canvas_chat_interrupt', { workspaceId, nodeId });
 
-/** One chat entry matching a palette search. */
 export interface ChatSearchHit {
   workspaceId: string;
   floorId: string | null;
@@ -101,11 +91,9 @@ export interface ChatSearchHit {
   entryId: string;
   role: 'user' | 'agent';
   ts: string;
-  /** ~120 characters around the first match. */
   snippet: string;
 }
 
-/** Every thread of every terminal of every workspace; no case, no accents, all words; newest first. */
 export const chatSearch = (query: string, limit?: number) =>
   invoke<ChatSearchHit[]>('canvas_chat_search', { query, limit: limit ?? null });
 
@@ -168,11 +156,9 @@ export interface ChatRemovedEvent {
 
 const CHAT_REMOVED_EVENT = 'canvas://chat-removed';
 
-/** Delete Message: one entry (and its unused attachment files). */
 export const chatDeleteEntry = (workspaceId: string, nodeId: string, entryId: string, thread?: number) =>
   invoke<ChatRemoved>('canvas_chat_delete_entry', { workspaceId, nodeId, entryId, thread: thread ?? null });
 
-/** Clear Chat History: every thread (or one). Refused while a turn runs. */
 export const chatWipe = (workspaceId: string, nodeId: string, thread?: number) =>
   invoke<ChatRemoved>('canvas_chat_wipe', { workspaceId, nodeId, thread: thread ?? null });
 
@@ -180,7 +166,6 @@ export function onChatRemoved(cb: (e: ChatRemovedEvent) => void): Promise<Unlist
   return listen<ChatRemovedEvent>(CHAT_REMOVED_EVENT, (e) => cb(e.payload));
 }
 
-/** Saves bytes into `<ws>/inbox/attachments` and returns the absolute path. */
 export const attachmentSave = (workspaceId: string, name: string, dataBase64: string) =>
   invoke<string>('canvas_attachment_save', { workspaceId, name, dataBase64 });
 
@@ -188,7 +173,6 @@ export function onChat(cb: (e: ChatEvent) => void): Promise<UnlistenFn> {
   return listen<ChatEvent>(CHAT_EVENT, (e) => cb(e.payload));
 }
 
-/** Reads a Blob/File as base64 (no data: prefix). */
 export function blobToBase64(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const r = new FileReader();

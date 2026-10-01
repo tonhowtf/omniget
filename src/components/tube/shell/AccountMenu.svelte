@@ -1,7 +1,4 @@
 <script lang="ts">
-  // Avatar + account menu (21st 24857): header with avatar, name and handle,
-  // then switch account / sign out, settings and import. Signed out: the
-  // outlined "Sign in" pill YouTube shows.
   import { fly } from "svelte/transition";
   import { cubicOut } from "svelte/easing";
   import { t } from "$lib/i18n";

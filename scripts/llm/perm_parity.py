@@ -51,7 +51,6 @@ ENV_PATHS = [".env", "app/.env", "a/b/.env", "config/.env", "backend/.env", "fro
              "svc/api/.env", "tools/.env", "infra/.env", "web/.env", "server/.env", "db/.env", "mobile/.env",
              "k8s/.env", "docker/.env", "scripts/.env", "test/.env", "etc/.env", "pkg/core/.env"]
 
-
 def build_shim(dest):
     target = pathlib.Path(os.environ.get("CARGO_TARGET_DIR") or ROOT / "src-tauri" / "target")
     subprocess.run(["cargo", "build", "-p", "omniget-cli", "--bin", "omniget-hook-shim"], cwd=ROOT / "src-tauri",
@@ -61,7 +60,6 @@ def build_shim(dest):
     shutil.copy2(target / "debug" / name, out)
     return out
 
-
 def rust_rows(shim, out_file):
     env = dict(os.environ, OMNIGET_BENCH_OUT=str(out_file), OMNIGET_HOOK_BIN=str(shim))
     cmd, p = run_prepared_tests("omniget-core", "claude_hooks::tests::bn8_", env)
@@ -69,7 +67,6 @@ def rust_rows(shim, out_file):
     return rows, {"cmd": " ".join(map(str, cmd)), "exit": p.returncode,
                   "summary": [l for l in p.stdout.splitlines() if l.startswith("test result")],
                   "stderr_tail": p.stderr[-1500:] if p.returncode else ""}
-
 
 def fake_turn(calls, run_mode, settings, cwd, trace, surface=True):
     argv = [sys.executable, str(FAKE), "-p", "--output-format", "stream-json", "--verbose"]
@@ -86,7 +83,6 @@ def fake_turn(calls, run_mode, settings, cwd, trace, surface=True):
                    timeout=120)
     return [json.loads(l) for l in trace.read_text().splitlines()]
 
-
 def direct_p50(shim, turn, n=200):
     payload = json.dumps({"tool_name": "Write", "tool_input": {"file_path": "/ws/src/main.py", "content": "x"}})
     times = []
@@ -96,7 +92,6 @@ def direct_p50(shim, turn, n=200):
                        capture_output=True, text=True, check=True)
         times.append((time.perf_counter() - t) * 1000)
     return times
-
 
 def real_sample(rows, work):
     """3 cases on the real claude -p (haiku, acceptEdits, no approval surface)."""
@@ -135,13 +130,10 @@ def real_sample(rows, work):
                         attempted = True
         effect = {"env-top": (cwd / ".env").exists(), "rm-deny": not (cwd / "build" / "old.txt").exists(),
                   "env-other-file": (cwd / "app" / "main.py").exists()}[case]
-        # A denial counts only when the model tried and the hook said why;
-        # a model that never tried proves nothing.
         cli = "allow" if effect else ("deny" if (attempted and hook_denied) else "not_attempted")
         out.append({"case": case, "native": r["native"], "real_cli": cli, "effect_happened": effect,
                     "attempted": attempted, "denials": len(denied), "hook_said_why": hook_denied, "cost_usd": cost, "exit": p.returncode})
     return out
-
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -219,7 +211,6 @@ def main():
         print(("PASS " if g["pass"] else "FAIL ") + g["goal"] + ": " + json.dumps(g["value"], ensure_ascii=False))
     print("all_pass:", report["all_pass"], "->", args.out)
     return 0 if report["all_pass"] else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

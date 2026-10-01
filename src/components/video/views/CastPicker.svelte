@@ -1,7 +1,4 @@
 <script lang="ts">
-  // Chromecast picker and remote: finds devices on the network, starts the
-  // current item on one and controls it. Status comes from the
-  // "video-cast-status" event.
   import { onMount, tick } from "svelte";
   import { listen } from "@tauri-apps/api/event";
   import { t } from "$lib/i18n";
@@ -16,9 +13,7 @@
     startMs = undefined,
     onclose,
   }: {
-    /** what to cast; defaults to what the player has open */
     source?: SourceRef | null;
-    /** defaults to the player's position when casting what it has open */
     startMs?: number;
     onclose: () => void;
   } = $props();

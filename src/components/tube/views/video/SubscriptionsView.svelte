@@ -1,8 +1,4 @@
 <script lang="ts">
-  // Subscriptions (spec §2.10): "Latest" header with Manage and grid/list
-  // toggle, videos grouped by day. With an account it is the account feed;
-  // without one the local RSS feed, refreshed in the background, with the
-  // "new videos" pill when the refresh brings something.
   import { t } from "$lib/i18n";
   import * as api from "$lib/tube/api";
   import type { Item, Page, VideoItem } from "$lib/tube/types";
@@ -52,7 +48,6 @@
         pendingCount = added;
       }
     } catch {
-      // the cached feed stays; the next visit tries again
     } finally {
       refreshing = false;
     }
@@ -83,7 +78,6 @@
     }
   }
 
-  // Local feeds carry publish times: group by day. Account feeds keep their shelves.
   let videos = $derived(pager.shelves.flatMap((s) => s.items).filter((i): i is VideoItem => i.kind === "video" && isVisible(i)));
   let dated = $derived(videos.length > 0 && videos.every((v) => v.published_ms));
   let groups = $derived.by(() => {

@@ -1,6 +1,4 @@
 <script lang="ts">
-  // Floating toolbar above the selection: rename, arrange, group, z-order,
-  // lock, duplicate, delete; drawing style when drawings are selected.
   import { t } from "$lib/i18n";
   import { useEngine } from "$lib/canvas/engine.svelte";
   import type { AlignMode } from "$lib/canvas/interaction/snap";
@@ -64,7 +62,6 @@
     if (sel.drawings.length) styleDrawings({ fillStyle: f === "none" ? undefined : f, fill: f === "none" ? undefined : engine.penColor });
   }
 
-  // Text block style (M-B29): size 8 to 200, weight, family, color.
   const texts = $derived(sel.nodes.length > 0 && sel.nodes.every((n) => n.kind === "text") ? sel.nodes : []);
   const TEXT_SIZES = [8, 10, 12, 14, 16, 20, 24, 32, 40, 48, 64, 80, 96, 128, 160, 200];
   const WEIGHT_CYCLE = ["regular", "medium", "bold"];

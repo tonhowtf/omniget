@@ -1,13 +1,4 @@
 <script lang="ts">
-  /**
-   * A 20 px thinking orb (libraries.dev `thinking-orbs`) for an agent wait
-   * in `/llm`, drawn by the framework-free action the limits strip uses.
-   *
-   * It only shows after `after` ms: a wait shorter than that gets nothing, so
-   * a quick tool call or a fast first token never flashes an orb. The ink
-   * follows the app's `data-theme` (or the system when none is set). The orb
-   * is decorative; the caller keeps the text label that says what is going on.
-   */
   import { onMount } from "svelte";
   import type { OrbState } from "thinking-orbs/engine";
   import { orb } from "$components/limits-strip/orb";

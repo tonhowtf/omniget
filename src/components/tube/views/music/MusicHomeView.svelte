@@ -1,6 +1,4 @@
 <script lang="ts">
-  // OmniTube Music home: mood chips from FEmusic_home itself, then the shelves
-  // (Quick picks, mixes, albums...) with infinite continuation.
   import { onMount } from "svelte";
   import { t } from "$lib/i18n";
   import * as api from "$lib/tube/api";
@@ -40,7 +38,6 @@
     try {
       localStorage.setItem(BANNER_KEY, "1");
     } catch {
-      /* private mode */
     }
   }
 
@@ -53,7 +50,6 @@
       const res = await api.musicHome(p);
       if (my !== seq) return;
       page = res;
-      // Keep the chip bar from the unfiltered home; a filtered page may omit it.
       if (res.chips.length) chips = res.chips;
     } catch (e) {
       if (my === seq) error = String(e);

@@ -1,6 +1,4 @@
 <script lang="ts">
-  // A connector chip: one half of a cord to a terminal on another floor or
-  // workspace ("B @ W2"). Clicking the arrow goes to the other end.
   import { emit } from "@tauri-apps/api/event";
   import { t } from "$lib/i18n";
   import type { CanvasNode } from "$lib/canvas/model/types";

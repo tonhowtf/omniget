@@ -26,7 +26,6 @@
     await load();
   }
 
-  // 53 weeks x 7 days, Sunday first, ending today.
   let heat = $derived.by(() => {
     if (!s) return [];
     const days: { key: string; ms: number; future: boolean }[] = [];

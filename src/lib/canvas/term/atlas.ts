@@ -1,16 +1,7 @@
-// Glyph atlas for every terminal on the canvas. A glyph gets one slot index
-// that is the same in every size bucket (wide glyphs take two consecutive
-// slots, left and right half), so cell textures never change when the zoom
-// does. Each bucket is a grid of fixed-size cells rasterised with Canvas 2D
-// (the browser does shaping and font fallback, CJK and emoji included), the
-// same method as the world's text atlas, filled progressively a few hundred
-// glyphs per frame. Buckets are 2^(1/8) steps of the on-screen font size.
-
 import { Lru } from '$lib/gfx/text';
 import { cellMetrics, TERM_FONT_SIZE } from './metrics';
 
 const MAX_SLOTS = 8192;
-/** Glyphs rasterised per frame across all buckets. */
 const RASTER_BUDGET = 192;
 const MIN_FONT_PX = 6;
 const MAX_FONT_PX = 72;
@@ -22,9 +13,7 @@ interface GlyphInfo {
   text: string;
   bold: boolean;
   italic: boolean;
-  /** Left half slot of a wide glyph; its right half lives at slot + 1. */
   wide: boolean;
-  /** Colour glyph (emoji): the shader uses the atlas colour, not fg. */
   color: boolean;
 }
 
@@ -34,7 +23,6 @@ function isColorGlyph(text: string): boolean {
   return EMOJI_RE.test(text);
 }
 
-/** Bucket index for an on-screen font size in device pixels. */
 function bucketIndex(fontPx: number): number {
   const px = Math.min(MAX_FONT_PX, Math.max(MIN_FONT_PX, fontPx));
   return Math.round(8 * Math.log2(px));
@@ -54,11 +42,8 @@ class GlyphBucket {
   texture: WebGLTexture | null = null;
   texW = ATLAS_WIDTH;
   texH = 0;
-  /** Slot capacity of the current texture. */
   capacity = 0;
-  /** 1 once the slot has been rasterised into this bucket. */
   done = new Uint8Array(0);
-  /** Slots below this index are all done (fast readiness check). */
   doneUpTo = 1;
   private ctx: Ctx2D | null = null;
 
@@ -112,13 +97,11 @@ class GlyphBucket {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     this.texture = tex;
-    // Reallocation loses the pixels: rasterise everything again.
     this.done = new Uint8Array(this.capacity);
     this.done[0] = 1;
     this.doneUpTo = 1;
   }
 
-  /** Rasterises up to `budget` pending slots; returns how many it spent. */
   fill(gl: WebGL2RenderingContext, glyphs: GlyphTable, budget: number): number {
     const count = glyphs.count;
     this.ensureTexture(gl, count);
@@ -175,11 +158,9 @@ class GlyphBucket {
   }
 }
 
-/** Bucket-independent glyph → slot table. Slot 0 is the empty glyph. */
 class GlyphTable {
   private slots = new Map<string, number>();
   private infos: (GlyphInfo | null)[] = [null];
-  /** Bumped when the table was wiped: every cell texel is stale. */
   epoch = 0;
 
   get count(): number {
@@ -190,7 +171,6 @@ class GlyphTable {
     return this.infos[slot] ?? null;
   }
 
-  /** Slot for a glyph, allocating it if new. Wide glyphs return the left half. */
   slot(text: string, bold: boolean, italic: boolean, wide: boolean): number {
     if (!text || text === ' ') return 0;
     const key = `${bold ? 'b' : ''}${italic ? 'i' : ''}${wide ? 'w' : ''}|${text}`;
@@ -212,7 +192,6 @@ class GlyphTable {
   }
 }
 
-/** Glyph table plus the live size buckets (LRU, textures freed on eviction). */
 export class TermAtlas {
   readonly glyphs = new GlyphTable();
   private gl: WebGL2RenderingContext | null = null;
@@ -240,18 +219,10 @@ export class TermAtlas {
     return b;
   }
 
-  /**
-   * Bucket to sample for this font size: the exact one when fully rasterised,
-   * otherwise the closest ready one (stretched) while the exact one fills.
-   * `exact` says whether the returned bucket matches the requested size.
-   * While the camera moves (`settled` false) no new bucket is created if any
-   * ready one exists, so a zoom gesture does not thrash the LRU.
-   */
   pick(fontPx: number, settled: boolean): { bucket: GlyphBucket; exact: boolean } | null {
     const gl = this.gl;
     if (!gl) return null;
     if (this.glyphs.epoch !== this.lastEpoch) {
-      // Table wiped: every bucket's pixels point at old slots.
       this.lastEpoch = this.glyphs.epoch;
       for (const k of this.buckets.keys()) this.buckets.get(k)?.dispose(gl);
     }
@@ -278,7 +249,6 @@ export class TermAtlas {
   private wanted = new Set<number>();
   private moving = new Set<number>();
 
-  /** Spends this frame's raster budget, wanted bucket first. Returns true if work remains. */
   work(): boolean {
     const gl = this.gl;
     if (!gl) return false;

@@ -1,5 +1,4 @@
 <script lang="ts">
-  // Movies from the local library: poster grid with filter, sort and search.
   import { onMount } from "svelte";
   import { t } from "$lib/i18n";
   import * as api from "$lib/video/api";

@@ -1,6 +1,4 @@
 <script lang="ts">
-  // Uma coluna da arena: estado ao vivo (da thread), tempo, tokens/custo,
-  // testes, tamanho do diff, votos, vencedor e o diff contra a base.
   import { untrack } from "svelte";
   import { t } from "$lib/i18n";
   import { threadsStore } from "$lib/central/threads/threads-store.svelte";
@@ -37,7 +35,6 @@
     entry: ArenaEntry;
     now: number;
     tags?: string[];
-    /** Arquivos divergentes (entre as colunas) em que esta coluna mexeu. */
     divergent?: number;
     diffHeight?: string;
     showDiff?: boolean;
@@ -59,7 +56,6 @@
   let testOpen = $state(false);
   let mode = $state<"unified" | "split">("unified");
 
-  // Recarrega o diff quando o commit da entrada muda (fim de turno) ou ao abrir.
   let diffKey = $derived(`${entry.entryId}:${entry.commitSha ?? ""}:${entry.status === "done" || entry.status === "failed" || entry.status === "interrupted"}`);
   $effect(() => {
     void diffKey;

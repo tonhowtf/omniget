@@ -1,9 +1,4 @@
 <script lang="ts">
-  /**
-   * One installed skill: name, description, origin, the tools its frontmatter
-   * allows and the agents whose roster entry lists it. Read-only except for
-   * the remove button.
-   */
   import { t } from "$lib/i18n";
   import {
     sourceDetail,
@@ -20,7 +15,6 @@
     onremove,
   }: {
     skill: SkillManifest;
-    /** Names of the agents that have this skill active. */
     usedBy?: string[];
     busy?: boolean;
     onremove?: (name: string) => void;
@@ -38,13 +32,10 @@
       {#if skill.license}
         <span class="chip">{skill.license}</span>
       {:else}
-        <!-- Plan D-5: a skill whose SKILL.md declares no licence says so. -->
         <span class="badge warn" title={$t("llm.skills.catalog.unlicensed")}>
           {$t("llm.skills.unlicensed_badge")}
         </span>
       {/if}
-      <!-- What the security scan said at install time. "Not scanned" when no
-           scanner was there: never a claim that the skill is safe. -->
       <SkillScanBadge scan={skill.scan} />
     </div>
     {#if onremove}

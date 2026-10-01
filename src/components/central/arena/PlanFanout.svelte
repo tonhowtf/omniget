@@ -1,7 +1,4 @@
 <script lang="ts">
-  // Botão do cartão de plano: "Implementar em N ferramentas". Abre a Arena
-  // com o plano aprovado da thread como prompt (a Arena lê o plano pelo
-  // `threads_turns_page`). Feito para ser montado no PlanCard das threads.
   import { goto } from "$app/navigation";
   import { t } from "$lib/i18n";
   import Icon from "$components/central/threads/Icon.svelte";

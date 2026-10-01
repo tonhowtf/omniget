@@ -29,8 +29,6 @@
 
   let hasText = $derived(url.trim().length > 0);
 
-  // One click from the clipboard to a detected link: the value comes before
-  // any typing (RCD: value first). Falls back to the web clipboard in dev.
   async function pasteFromClipboard() {
     let text = "";
     try {
@@ -139,7 +137,6 @@
     outline: none;
   }
 
-  /* the field's ring is on the whole bar (focus-within), not on the bare input */
   .url-input:focus-visible {
     outline: none;
   }
@@ -162,7 +159,6 @@
 
   .clear:hover { color: var(--text-muted); }
 
-  /* the page's one call to action once there is a link */
   .go {
     display: grid;
     place-items: center;
@@ -182,7 +178,6 @@
   .go:hover { background: var(--cta-hover); }
   .go:active { background: var(--cta-press); transform: scale(0.95); }
 
-  /* the arrow draws itself in (21st Placeholders And Vanish Input, #1420) */
   .go-arrow {
     stroke-dasharray: 40;
     stroke-dashoffset: 40;
@@ -227,7 +222,6 @@
     outline-offset: var(--focus-ring-offset);
   }
 
-  /* checking: a light that runs around the field (21st Border Beam, #1268) */
   .beam {
     position: absolute;
     inset: 0;
@@ -248,7 +242,6 @@
     inherits: false;
   }
 
-  /* shimmering status text (21st Text Shimmer, #1641) */
   .busy-label {
     margin: 10px 0 0;
     text-align: center;

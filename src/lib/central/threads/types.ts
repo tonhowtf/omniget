@@ -1,8 +1,3 @@
-/**
- * Wire types of the Central threads engine (Rust: `omniget_core::core::threads`
- * and `core::llm::drivers`). camelCase everywhere, event names as in T3 Code.
- */
-
 import type { PrInfo, SetupSnapshot } from "$lib/central/vcs";
 
 export type AccessMode = "approval-required" | "auto-accept-edits" | "auto" | "full-access";
@@ -38,7 +33,6 @@ type RequestDetail = {
   command?: string;
   cwd?: string;
   reason?: string;
-  /** Unified diff / patch of the edit being approved. */
   diff?: string;
   paths?: string[];
   preview?: string;
@@ -58,8 +52,6 @@ type UserInputQuestion = {
 
 type PlanStep = { step: string; status: string };
 
-// ── Read side (projections) ──────────────────────────────────────────────
-
 export type ProjectRow = {
   projectId: string;
   title: string;
@@ -68,10 +60,8 @@ export type ProjectRow = {
   updatedAt: string;
 };
 
-/** `pending|preparing|ready|failed|removed` (absent = the thread has no worktree). */
 type WorktreeState = "pending" | "preparing" | "ready" | "failed" | "removed";
 
-/** A read-only thread mirroring a session of a CLI run outside OmniGet. */
 type ExternalLink = {
   tool: string;
   sessionId: string;
@@ -108,11 +98,8 @@ export type ThreadRow = {
   updatedAt: string;
   baseBranch: string | null;
   worktreeState: WorktreeState | null;
-  /** Last worktree setup snapshot (stages with state/percent/tail). */
   worktreeSetup: SetupSnapshot | null;
-  /** The PR/MR badge of the thread's branch. */
   pr: PrInfo | null;
-  /** PTY session ids opened for this thread. */
   terminals: string[];
   external: ExternalLink | null;
   status: ThreadStatus;
@@ -135,7 +122,6 @@ export type MessageRow = {
   messageId: string;
   threadId: string;
   turnId: string | null;
-  /** `user|assistant|system|reasoning|plan|output`. */
   role: string;
   text: string;
   attachments: unknown[];
@@ -148,7 +134,6 @@ export type ActivityRow = {
   activityId: string;
   threadId: string;
   turnId: string | null;
-  /** The runtime event type (`item.completed`, `runtime.error`, `task.progress`…). */
   kind: string;
   tone: "info" | "tool" | "approval" | "error" | "warning";
   summary: string;
@@ -208,7 +193,6 @@ export type UsageRow = {
   durationMs: number | null;
 };
 
-/** One file of a turn's numstat. */
 type CheckpointFile = {
   path: string;
   status: "added" | "deleted" | "modified" | "renamed" | "binary";
@@ -216,14 +200,12 @@ type CheckpointFile = {
   deletions: number;
 };
 
-/** Checkpoint `turnCount` (0 = baseline before the first turn). */
 export type CheckpointRow = {
   threadId: string;
   turnCount: number;
   turnId: string | null;
   ref: string | null;
   commit: string | null;
-  /** `ready|error`. */
   status: string;
   files: CheckpointFile[];
   additions: number;
@@ -231,13 +213,10 @@ export type CheckpointRow = {
   createdAt: string;
 };
 
-/** What "edit from here" (`threads_revert_to_turn`) gives back. */
 export type RevertOutcome = {
   threadId: string;
   turnCount: number;
-  /** Files put back (empty when only the conversation was cut). */
   restoredFiles: string[];
-  /** Prompt of the first dropped turn, for the composer. */
   prompt: string | null;
   attachments: unknown;
 };
@@ -272,7 +251,6 @@ export type ExternalImport = {
   resumeCommand: string | null;
 };
 
-/** `mcp_thread_get`: the embedded OmniGet MCP of one thread. */
 export type McpThreadState = { threadId: string; enabled: boolean; sessions: number; calls: number };
 
 type ProviderSessionRow = {
@@ -301,7 +279,6 @@ export type TurnDetail = {
   userInputs: UserInputRow[];
   plans: PlanRow[];
   usage: UsageRow | null;
-  /** Checkpoint taken at the end of this turn, with its file stats. */
   checkpoint?: CheckpointRow | null;
 };
 
@@ -317,8 +294,6 @@ export type TurnsPage = {
   session: ProviderSessionRow | null;
 };
 
-// ── Events ───────────────────────────────────────────────────────────────
-
 export type Activity = {
   activityId: string;
   turnId: string | null;
@@ -329,7 +304,6 @@ export type Activity = {
   createdAt: string;
 };
 
-/** Persisted domain events: `{type, payload}`. */
 type DomainEvent =
   | { type: "project.created"; payload: { projectId: string; title: string; workspaceRoot: string; createdAt: string } }
   | { type: "project.meta-updated"; payload: { projectId: string; title?: string | null; workspaceRoot?: string | null; updatedAt: string } }
@@ -341,7 +315,6 @@ type DomainEvent =
         model?: string | null; agentId?: string | null; runtimeMode: AccessMode; interactionMode: InteractionMode;
         branch?: string | null; worktreePath?: string | null;
         forkedFrom?: { threadId: string; turnCount: number } | null;
-        /** A worktree was asked for; the host sets it up (`thread.worktree-updated`). */
         worktree?: { baseBranch?: string | null } | null;
         createdAt: string;
       };
@@ -466,7 +439,6 @@ export type StoredEvent = DomainEvent & {
   metadata: Record<string, unknown>;
 };
 
-/** `threads://event` payload. */
 export type ThreadsEventEnvelope = { sequence: number; event: StoredEvent };
 
 export type EventsPage = { events: StoredEvent[]; head: number; reset: boolean; hasMore: boolean };
@@ -478,8 +450,6 @@ export type DispatchResult = {
   deduplicated: boolean;
 };
 
-// ── Commands ─────────────────────────────────────────────────────────────
-
 type C<T extends string, P> = { type: T; commandId?: string } & P;
 
 export type ThreadCommand =
@@ -487,11 +457,9 @@ export type ThreadCommand =
   | C<"project.meta.update", { projectId: string; title?: string; workspaceRoot?: string }>
   | C<"project.delete", { projectId: string }>
   | C<"thread.create", {
-      /** `projectId`, or `projectPath` (the project of that folder, created on the spot). */
       threadId?: string; projectId?: string; projectPath?: string; title?: string; instanceId: string; driver: string;
       model?: string; agentId?: string; runtimeMode?: AccessMode; interactionMode?: InteractionMode;
       branch?: string; worktreePath?: string;
-      /** Own git worktree (branch `omniget/<hex>` off `baseBranch`), set up by the host. */
       worktree?: boolean; baseBranch?: string;
     }>
   | C<"thread.turn.start", { threadId: string; turnId?: string; messageId?: string; text: string; attachments?: unknown[]; model?: string }>
@@ -507,8 +475,6 @@ export type ThreadCommand =
   | C<"thread.revert", { threadId: string; turnCount: number }>
   | C<"thread.revert-to-turn", { threadId: string; turn: number; restoreFiles?: boolean }>
   | C<"thread.fork", { threadId: string; newThreadId?: string; turnCount?: number; title?: string }>;
-
-// ── Drivers ──────────────────────────────────────────────────────────────
 
 type DriverCapabilities = {
   rollback: boolean;
@@ -545,7 +511,6 @@ export type InstanceView = {
   capabilities: DriverCapabilities;
 };
 
-/** A thread's loaded timeline (turn pages merged, oldest first). */
 export type ThreadDetail = {
   threadId: string;
   turns: TurnDetail[];
@@ -554,7 +519,6 @@ export type ThreadDetail = {
   hasMore: boolean;
   beforeTurn: number | null;
   session: ProviderSessionRow | null;
-  /** Events up to this sequence are already in the page. */
   appliedThrough: number;
   loading: boolean;
 };

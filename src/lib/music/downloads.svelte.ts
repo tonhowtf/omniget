@@ -1,7 +1,3 @@
-// Music downloads started from /music: they go through the normal download
-// queue in audio mode (so the user's music format and tagging apply), and
-// when one finishes its file is added to the library.
-
 import { invoke } from "@tauri-apps/api/core";
 import type { DownloadItem } from "$lib/stores/download-store.svelte";
 import { ensureStatus, upsertTracks } from "./library-store.svelte";
@@ -34,7 +30,6 @@ function persist() {
   try {
     localStorage.setItem(KEY, JSON.stringify(musicDownloads.items.slice(0, 100)));
   } catch {
-    /* ignore */
   }
 }
 
@@ -53,7 +48,6 @@ export async function startMusicDownload(url: string, title = "", thumb: string 
 
 const importing = new Set<number>();
 
-/** Called whenever the download queue changes. */
 export function syncMusicDownloads(map: Map<number, DownloadItem>) {
   for (const md of musicDownloads.items) {
     if (md.state !== "running" || importing.has(md.id)) continue;

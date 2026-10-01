@@ -1,11 +1,4 @@
 <script lang="ts">
-  /**
-   * Work (roadmap 3.9, stage 2): one list of everything the agents do for
-   * you — background tasks, loops, missions, the Central's threads and chat
-   * turns that wait for an answer — in five sections, each row linking to
-   * the page that owns its detail. Live from the same stores as the header
-   * badge (`$lib/stores/llm-work-store`), no timer.
-   */
   import { onMount } from "svelte";
   import { t } from "$lib/i18n";
   import { getWorkErrors, getWorkItems, initWorkStore, retryWork } from "$lib/stores/llm-work-store.svelte";
@@ -18,7 +11,6 @@
 
   onMount(() => initWorkStore());
 
-  /** The job failure reasons with a label (`llm.jobs.failure.*`). */
   const FAILURES = new Set(["stalled", "no_start", "deadline", "limit", "ask_expired", "app_restart"]);
 
   function detailText(item: WorkItem): string {

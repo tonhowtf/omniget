@@ -1,7 +1,4 @@
 <script lang="ts">
-  // Responsive rich grid (spec §2.5). Columns come from the grid's own width
-  // (container query), locked at 4 until very wide like YouTube, never below
-  // the 290px card. `grid_columns` in the prefs forces a count.
   import { tubePrefs } from "$lib/tube/prefs.svelte";
   import type { Item } from "$lib/tube/types";
   import ChannelRow from "./ChannelRow.svelte";
@@ -19,13 +16,10 @@
     limit = 0,
   }: {
     items: Item[];
-    /** 9:16 grid (Shorts shelves and the channel Shorts tab). */
     shorts?: boolean;
     showAvatar?: boolean;
     feedbackActions?: boolean;
-    /** Extra skeleton cells at the end (loading more / first load). */
     skeleton?: number;
-    /** Show at most this many (0 = all). */
     limit?: number;
   } = $props();
 

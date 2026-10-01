@@ -1,5 +1,4 @@
 <script lang="ts">
-  /** Last requests on the remote listener (API and sockets; the PWA shell is left out). */
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "$lib/i18n";
   import type { AccessEntry } from "./types";

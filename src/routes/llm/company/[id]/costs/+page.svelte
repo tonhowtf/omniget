@@ -1,5 +1,4 @@
 <script lang="ts">
-  /** Spend of a company: totals, breakdowns, budget policies and incidents. */
   import { page } from "$app/state";
   import { t } from "$lib/i18n";
   import { showToast } from "$lib/stores/toast-store.svelte";

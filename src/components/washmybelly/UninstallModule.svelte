@@ -14,9 +14,6 @@
   import UninstallFilters from "./UninstallFilters.svelte";
   import UninstallDetail from "./UninstallDetail.svelte";
 
-  /// Uninstall: every app with where it came from, size and when it was last
-  /// opened; pick one to see what it left behind and remove it with its
-  /// leftovers through a plan. Also finds leftovers of apps already gone.
   let _props: { caps: Caps } = $props();
 
   const mod = moduleById("uninstall");
@@ -47,7 +44,6 @@
       const r = await api.call<AppsList>("wmb_apps_list");
       apps = r.apps ?? [];
       now = Date.now() / 1000;
-      // Drop filters for origins that vanished.
       const have = new Set(apps.map((a) => a.source));
       if ([...sources].some((s) => !have.has(s))) sources = new Set([...sources].filter((s) => have.has(s)));
       if (picked && picked.source !== "removed") picked = apps.find((a) => a.id === picked?.id) ?? null;

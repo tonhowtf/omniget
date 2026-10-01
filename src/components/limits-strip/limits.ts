@@ -1,4 +1,3 @@
-/** Shapes of `limits://state` and the small pure helpers the strip draws with. */
 import type { BotAvatarType } from "bot-avatars";
 import { paceOf } from "./pace";
 
@@ -14,7 +13,6 @@ export type LimitWindow = {
   limit_abs: number | null;
   unit: string | null;
   resets_at: number | null;
-  /** Length of the window, when the provider says: what the pace needs. */
   span_ms: number | null;
   group: string | null;
 };
@@ -46,7 +44,6 @@ export type Ring = {
   read_at: number | null;
   activity: Activity;
 };
-/** How the strip draws itself (`StripPrefs::look` in Rust); the window is already sized for it. */
 export type Look = {
   size: "s" | "m" | "l";
   scale: number;
@@ -63,17 +60,11 @@ export function tone(used: number | null): Tone {
   return used < 0.95 ? "amber" : "red";
 }
 
-/** The window that decides the ring: the fullest one. */
 export function worst(ring: Ring): number | null {
   const used = (ring.reading?.windows ?? []).map((w) => w.used).filter((u): u is number => u != null);
   return used.length ? Math.max(...used) : null;
 }
 
-/**
- * The two arcs: the first window the provider lists (its short one, the
- * session or "5h limit") outside, the fullest of the rest inside. A ring
- * with one window draws a single arc.
- */
 export function arcs(ring: Ring): { outer: number | null; inner: number | null } {
   const ws = (ring.reading?.windows ?? []).filter((w) => w.used != null);
   if (!ws.length) return { outer: null, inner: null };
@@ -82,10 +73,6 @@ export function arcs(ring: Ring): { outer: number | null; inner: number | null }
   return { outer: ws[0].used, inner: Math.max(...rest) };
 }
 
-/**
- * The "on pace" tick of a ring: of the windows its arcs draw, the fullest
- * one that has a pace, placed on the arc that draws it.
- */
 export function paceTick(ring: Ring, now: number): { at: number; arc: "outer" | "inner" } | null {
   const ws = (ring.reading?.windows ?? []).filter((w) => w.used != null);
   if (!ws.length) return null;
@@ -102,12 +89,10 @@ export function paceTick(ring: Ring, now: number): { at: number; arc: "outer" | 
   return best && { at: best.at, arc: best.arc };
 }
 
-/** "claude:work" → "claude": rings of one tool share the part before the colon. */
 export function toolOf(id: string): string {
   return id.split(":")[0];
 }
 
-/** Consecutive rings of the same tool, so several accounts read as one stack. */
 export function groups(rings: Ring[]): { tool: string; rings: Ring[] }[] {
   const out: { tool: string; rings: Ring[] }[] = [];
   for (const r of rings) {
@@ -119,11 +104,6 @@ export function groups(rings: Ring[]): { tool: string; rings: Ring[] }[] {
   return out;
 }
 
-/**
- * A bot body per account, from the free body types. Each tool starts on its
- * own shape and a second or third account of that tool takes the next one,
- * so two Claude logins never look alike.
- */
 const BODIES: Record<string, BotAvatarType[]> = {
   claude: ["star", "flower", "ghost", "circle", "hexagon"],
   codex: ["clover", "mech", "square", "circle", "ghost"],

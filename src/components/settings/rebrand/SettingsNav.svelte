@@ -21,7 +21,6 @@
   }
 </script>
 
-<!-- Wide: six links with icons. Narrow (< 800 px, zoom): one native selector. -->
 <nav class="settings-nav" aria-label={$t("settings.rebrand.title")}>
   <ul>
     {#each SETTINGS_CATEGORIES as tab (tab)}
@@ -61,7 +60,6 @@
   .settings-nav-link:hover { background: var(--surface-hi); }
   .settings-nav-link.active { background: var(--accent-soft); color: var(--accent-text, var(--accent)); font-weight: 600; }
   .settings-nav-link:focus-visible { outline: var(--focus-ring); outline-offset: var(--focus-ring-offset, 2px); }
-  /* Names may wrap to two lines; never an ellipsis, not even on the active one. */
   .settings-nav-label { min-inline-size: 0; overflow-wrap: anywhere; white-space: normal; }
   .settings-nav-select { display: none; }
   .settings-nav-select label {

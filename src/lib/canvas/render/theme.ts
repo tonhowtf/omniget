@@ -1,6 +1,3 @@
-// Theme colours for L0, read from the app's CSS tokens (--text, --accent,
-// --surface, --bg) and refreshed when the theme changes.
-
 import { parseColor, prefersDark, type Rgba } from './color';
 
 export interface CanvasTheme {
@@ -34,7 +31,6 @@ export function readTheme(el: Element = document.documentElement): CanvasTheme {
   };
 }
 
-/** Calls `fn` whenever the theme may have changed. Returns the stop function. */
 export function watchTheme(fn: () => void): () => void {
   if (typeof window === 'undefined') return () => {};
   const mo = new MutationObserver(fn);
