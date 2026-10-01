@@ -6,9 +6,9 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import type { CanvasNode } from '../model/types';
 
-export const NOTE_EVENT = 'canvas://note';
+const NOTE_EVENT = 'canvas://note';
 
-export interface NoteContent {
+interface NoteContent {
   nodeId: string;
   fileName?: string;
   path: string;
@@ -20,7 +20,7 @@ export interface NoteContent {
   preview: string;
 }
 
-export interface NoteSummary {
+interface NoteSummary {
   nodeId?: string;
   floorId?: string;
   fileName?: string;
@@ -32,14 +32,14 @@ export interface NoteSummary {
   preview: string;
 }
 
-export interface NoteEvent {
+interface NoteEvent {
   workspaceId: string;
   nodeId: string;
   revision: string;
   origin: string;
 }
 
-export interface NoteData {
+interface NoteData {
   fileName?: string;
   path?: string;
   isExternal?: boolean;
@@ -151,13 +151,6 @@ export function onNoteEvent(fn: NoteListener): () => void {
       void p.then((u) => u?.());
     }
   };
-}
-
-/** First non-empty line without leading `#` (mirror of Rust notes::derive_name). */
-export function deriveName(text: string): string {
-  const line = text.split('\n').map((l) => l.trim()).find((l) => l.length > 0) ?? '';
-  const name = Array.from(line.replace(/^#+/, '').trim()).slice(0, 80).join('');
-  return name || 'Untitled';
 }
 
 /** Note colours (Maestri sticky palette). `undefined` = default surface. */

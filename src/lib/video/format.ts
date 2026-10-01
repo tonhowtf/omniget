@@ -102,7 +102,7 @@ export function cueBefore(cues: Cue[], ms: number): number {
   return found;
 }
 
-export type AnswerPart = { text: string } | { t_ms: number; label: string };
+type AnswerPart = { text: string } | { t_ms: number; label: string };
 
 /** Splits an AI answer into text and clickable "[mm:ss]" / "[h:mm:ss]" citations. */
 export function splitCitations(answer: string): AnswerPart[] {
@@ -119,13 +119,6 @@ export function splitCitations(answer: string): AnswerPart[] {
   }
   if (last < answer.length) parts.push({ text: answer.slice(last) });
   return parts;
-}
-
-const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
-
-/** Natural order (1, 2, 10), case and accent insensitive. */
-export function naturalCmp(a: string, b: string): number {
-  return collator.compare(a, b);
 }
 
 export const VIDEO_EXT = /\.(mp4|m4v|mkv|webm|mov|avi|wmv|flv|ts|m2ts|mts|mpg|mpeg|3gp|ogv)$/i;

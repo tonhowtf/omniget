@@ -5,11 +5,11 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
-export const WORKTREE_SETUP_EVENT = "central://vcs/worktree-setup";
+const WORKTREE_SETUP_EVENT = "central://vcs/worktree-setup";
 
 // ---- tipos (espelham os structs Rust, campos em snake_case) ----
 
-export type StatusFile = {
+type StatusFile = {
   path: string;
   orig_path?: string;
   index: string;
@@ -17,8 +17,8 @@ export type StatusFile = {
   kind: "modified" | "added" | "deleted" | "renamed" | "copied" | "typechange" | "untracked" | "conflict" | "ignored";
 };
 
-export type RemoteInfo = { name: string; url: string; host_kind: HostKind };
-export type HostKind = "github" | "gitlab" | "bitbucket" | "azure" | "forgejo" | "unknown" | "none";
+type RemoteInfo = { name: string; url: string; host_kind: HostKind };
+type HostKind = "github" | "gitlab" | "bitbucket" | "azure" | "forgejo" | "unknown" | "none";
 
 export type RepoStatus = {
   is_repo: boolean;
@@ -64,7 +64,7 @@ export type LogEntry = {
   refs: string;
 };
 
-export type WorktreeRequest = {
+type WorktreeRequest = {
   repo: string;
   thread: string;
   base?: string | null;
@@ -74,9 +74,9 @@ export type WorktreeRequest = {
   run_setup?: boolean;
 };
 
-export type SetupStageId = "fetch" | "checkout" | "submodules" | "setup-script";
-export type SetupStageState = "pending" | "running" | "done" | "skipped" | "warning" | "failed";
-export type SetupStage = {
+type SetupStageId = "fetch" | "checkout" | "submodules" | "setup-script";
+type SetupStageState = "pending" | "running" | "done" | "skipped" | "warning" | "failed";
+type SetupStage = {
   id: SetupStageId;
   state: SetupStageState;
   detail: string | null;
@@ -101,23 +101,6 @@ export type WorktreeInfo = {
   base_commit: string;
   repo_root: string;
   reused: boolean;
-};
-
-export type WorktreeEntry = {
-  path: string;
-  head: string | null;
-  branch: string | null;
-  thread: string | null;
-  omniget: boolean;
-  prunable: boolean;
-  main: boolean;
-};
-
-export type RemoveResult = {
-  path: string;
-  removed: boolean;
-  branch_deleted: string | null;
-  checkpoints_deleted: number;
 };
 
 export type Checkpoint = {
@@ -158,10 +141,10 @@ export type DiffResult = {
   truncated: boolean;
 };
 
-export type RestoreResult = { turn: number; files: string[]; dropped_later: number };
+type RestoreResult = { turn: number; files: string[]; dropped_later: number };
 
 export type ChangeSummary = { path: string; status: FileStatus; additions: number; deletions: number };
-export type CommitSuggestion = { subject: string; body: string; files: ChangeSummary[] };
+type CommitSuggestion = { subject: string; body: string; files: ChangeSummary[] };
 export type CommitResult = {
   status: "created" | "skipped_no_changes";
   sha: string | null;
@@ -219,20 +202,6 @@ export type ReviewComment = {
   language: string;
 };
 
-// ---- códigos de erro ----
-
-export const VCS_ERR = {
-  gitMissing: "ERR_VCS_GIT_MISSING",
-  timeout: "ERR_VCS_TIMEOUT",
-  exit: "ERR_VCS_EXIT",
-  notRepo: "ERR_VCS_NOT_REPO",
-  invalid: "ERR_VCS_INVALID",
-  unsafe: "ERR_VCS_UNSAFE",
-  notFound: "ERR_VCS_NOT_FOUND",
-  unavailable: "ERR_VCS_UNAVAILABLE",
-  cancelled: "ERR_VCS_CANCELLED",
-} as const;
-
 /** Separa "CODE: mensagem" do erro de um invoke. */
 export function vcsError(e: unknown): { code: string | null; message: string } {
   const s = typeof e === "string" ? e : e instanceof Error ? e.message : String(e);
@@ -250,20 +219,6 @@ export const vcsLog = (path: string, n = 50, rev?: string) => invoke<LogEntry[]>
 
 export const vcsWorktreeCreate = (request: WorktreeRequest) => invoke<WorktreeInfo>("vcs_worktree_create", { request });
 export const vcsWorktreeCancel = (thread: string) => invoke<boolean>("vcs_worktree_cancel", { thread });
-export const vcsWorktreeRenameBranch = (path: string, name: string) =>
-  invoke<string>("vcs_worktree_rename_branch", { path, name });
-export const vcsWorktreeRemove = (
-  path: string,
-  opts: { force?: boolean; deleteBranch?: boolean; thread?: string } = {},
-) =>
-  invoke<RemoveResult>("vcs_worktree_remove", {
-    path,
-    force: opts.force ?? false,
-    deleteBranch: opts.deleteBranch ?? false,
-    thread: opts.thread ?? null,
-  });
-export const vcsWorktreeList = (path: string) => invoke<WorktreeEntry[]>("vcs_worktree_list", { path });
-export const vcsWorktreeCleanup = (path: string) => invoke<string[]>("vcs_worktree_cleanup", { path });
 
 /** Assina o progresso do setup de worktree (filtra pela thread se dada). */
 export function onWorktreeSetup(cb: (s: SetupSnapshot) => void, thread?: string): Promise<UnlistenFn> {

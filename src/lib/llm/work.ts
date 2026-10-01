@@ -21,11 +21,11 @@ import type { MissionRow } from "$lib/stores/assist-missions-store.svelte";
 import type { ApprovalRow, ThreadRow, UserInputRow } from "$lib/central/threads/types";
 import type { BudgetIncident } from "$lib/llm/budget";
 
-export type WorkSource = "job" | "loop" | "mission" | "thread" | "run" | "ask" | "budget";
-export type WorkPill = "approval" | "input" | "decision" | "working" | "failed" | "queued" | "review" | "ready" | "stopped";
-export type WorkSection = "needs_you" | "running" | "queued" | "review" | "done";
+type WorkSource = "job" | "loop" | "mission" | "thread" | "run" | "ask" | "budget";
+type WorkPill = "approval" | "input" | "decision" | "working" | "failed" | "queued" | "review" | "ready" | "stopped";
+type WorkSection = "needs_you" | "running" | "queued" | "review" | "done";
 
-export const WORK_SECTIONS: WorkSection[] = ["needs_you", "running", "queued", "review", "done"];
+const WORK_SECTIONS: WorkSection[] = ["needs_you", "running", "queued", "review", "done"];
 
 export type WorkItem = {
   /** `source:id`, unique in the list. */
@@ -55,7 +55,7 @@ export type WorkItem = {
   resumed?: number;
 };
 
-export type WorkInput = {
+type WorkInput = {
   jobs: Job[];
   loops: LoopDef[];
   asks: PendingAsk[];
@@ -82,8 +82,8 @@ export type WorkInput = {
   doneLimit?: number;
 };
 
-export const DONE_WINDOW_MS = 3 * 24 * 60 * 60 * 1000;
-export const DONE_LIMIT = 20;
+const DONE_WINDOW_MS = 3 * 24 * 60 * 60 * 1000;
+const DONE_LIMIT = 20;
 
 const RANK: Record<WorkPill, number> = {
   approval: 0,
@@ -97,11 +97,7 @@ const RANK: Record<WorkPill, number> = {
   stopped: 8,
 };
 
-export function pillRank(pill: WorkPill): number {
-  return RANK[pill];
-}
-
-export function sectionOf(pill: WorkPill): WorkSection {
+function sectionOf(pill: WorkPill): WorkSection {
   switch (pill) {
     case "approval":
     case "input":
@@ -119,7 +115,7 @@ export function sectionOf(pill: WorkPill): WorkSection {
 }
 
 /** The pill of one job by itself. */
-export function jobPill(state: Job["state"]): WorkPill {
+function jobPill(state: Job["state"]): WorkPill {
   switch (state) {
     case "waiting_approval":
       return "approval";
@@ -438,7 +434,7 @@ export function notificationKey(item: Pick<WorkItem, "key" | "turn" | "pill">): 
  * background work (a job, a loop, a mission) that happened after `sinceMs`. A chat thread going idle is not
  * news, and what ended before this session is history, not a notification.
  */
-export function notifiable(item: WorkItem, sinceMs: number): boolean {
+function notifiable(item: WorkItem, sinceMs: number): boolean {
   if (item.section === "needs_you") return true;
   if (item.pill !== "failed" && item.pill !== "ready" && item.pill !== "review") return false;
   if (item.source !== "job" && item.source !== "loop" && item.source !== "mission") return false;

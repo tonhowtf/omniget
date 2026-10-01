@@ -44,12 +44,7 @@ export const MOODS: readonly Mood[] = [
 /** Poses present in the repacked strip, in strip order. */
 export type OmniPose = "idle" | "talk" | "wave" | "sleep" | "work";
 
-export const STRIP_POSES: readonly OmniPose[] = ["idle", "talk", "wave", "sleep", "work"];
-
-/** Direction repacked into the strip: S, the one that faces the viewer. */
-export const STRIP_DIRECTION = "S";
-
-export interface PoseSlice {
+interface PoseSlice {
   /** Index of the pose's first frame inside the strip. */
   start: number;
   count: number;
@@ -57,7 +52,7 @@ export interface PoseSlice {
   loop: boolean;
 }
 
-export interface SpriteStrip {
+interface SpriteStrip {
   /** Absolute URL under `static/`. */
   image: string;
   frameW: number;
@@ -107,24 +102,8 @@ export function moodPose(mood: Mood | string | null | undefined, speaking = fals
 }
 
 /** The slice of a pose, falling back to `idle` for anything unknown. */
-export function poseSlice(strip: SpriteStrip, pose: OmniPose | string): PoseSlice {
+function poseSlice(strip: SpriteStrip, pose: OmniPose | string): PoseSlice {
   return strip.poses[pose as OmniPose] ?? strip.poses.idle;
-}
-
-/**
- * `background-position-x` for one frame of a pose, in CSS pixels (negative, since
- * the strip scrolls leftwards behind the 48x64 window). `index` is clamped into
- * the pose, so callers cannot scroll into the neighbouring pose.
- */
-export function framePositionPx(
-  strip: SpriteStrip,
-  pose: OmniPose | string,
-  index: number,
-): number {
-  const slice = poseSlice(strip, pose);
-  const safe = Number.isFinite(index) ? Math.floor(index) : 0;
-  const clamped = Math.min(slice.count - 1, Math.max(0, safe));
-  return leftOf((slice.start + clamped) * strip.frameW);
 }
 
 /** Avoids `-0`, which is a real value in JS and leaks into CSS and assertions. */
@@ -132,7 +111,7 @@ function leftOf(px: number): number {
   return px === 0 ? 0 : -px;
 }
 
-export interface StripAnimation {
+interface StripAnimation {
   /** Frame 0 of the pose. */
   fromPx: number;
   /**
@@ -172,71 +151,3 @@ export function stripAnimationCss(
   };
 }
 
-// --- drift guard: recompute the descriptor straight from the world atlas -----
-
-interface AtlasFrame {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-}
-
-interface AtlasAnim {
-  fps: number;
-  loop: boolean;
-  dirs: Record<string, string[] | { mirror_of: string }>;
-}
-
-export interface OmniAtlas {
-  pages: string[];
-  frames: Record<string, AtlasFrame>;
-  anims: Record<string, AtlasAnim>;
-}
-
-/**
- * Derives the strip descriptor from a parsed `atlas.json`, exactly as the offline
- * repacker does: the poses are laid out side by side in `STRIP_POSES` order, each
- * taking the frames of `dir` in atlas order. Throws when the art no longer matches
- * the assumption (missing pose, mirrored direction, mixed frame sizes), which is
- * what the test asserts against.
- */
-export function stripFromAtlas(
-  atlas: OmniAtlas,
-  poses: readonly OmniPose[] = STRIP_POSES,
-  dir: string = STRIP_DIRECTION,
-  image: string = OMNI_STRIP.image,
-): SpriteStrip {
-  let frameW = 0;
-  let frameH = 0;
-  let cursor = 0;
-  const out: Partial<Record<OmniPose, PoseSlice>> = {};
-
-  for (const pose of poses) {
-    const anim = atlas.anims[`omni/${pose}`];
-    if (!anim) throw new Error(`atlas has no animation omni/${pose}`);
-    const keys = anim.dirs[dir];
-    if (!Array.isArray(keys)) {
-      throw new Error(`omni/${pose} direction ${dir} is a mirror, not a frame list`);
-    }
-    for (const key of keys) {
-      const frame = atlas.frames[key];
-      if (!frame) throw new Error(`atlas has no frame ${key}`);
-      if (frameW === 0) {
-        frameW = frame.w;
-        frameH = frame.h;
-      } else if (frame.w !== frameW || frame.h !== frameH) {
-        throw new Error(`frame ${key} is ${frame.w}x${frame.h}, expected ${frameW}x${frameH}`);
-      }
-    }
-    out[pose] = { start: cursor, count: keys.length, fps: anim.fps, loop: anim.loop };
-    cursor += keys.length;
-  }
-
-  return {
-    image,
-    frameW,
-    frameH,
-    frames: cursor,
-    poses: out as Record<OmniPose, PoseSlice>,
-  };
-}

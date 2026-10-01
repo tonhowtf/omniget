@@ -8,7 +8,7 @@ import { boundsOf, expand } from '../spatial/geometry';
 import { applyOp, docFrom, emptyDoc, type DocState } from './ops';
 import type { CameraState, CanvasNode, Connection, Drawing, Group, Op, Origin, Rect, Snapshot } from './types';
 
-export type StoreListener = (ops: Op[], origin: Origin) => void;
+type StoreListener = (ops: Op[], origin: Origin) => void;
 
 const LINEAR_DRAWINGS = new Set(['pen', 'brush', 'smartDraw', 'smart', 'highlighter', 'arrow', 'line']);
 

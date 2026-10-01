@@ -13,7 +13,7 @@
  */
 import type { BotAvatarType } from "bot-avatars";
 
-export type BotOptions = {
+type BotOptions = {
   type: BotAvatarType;
   state: "default" | "working";
   size: number | string;

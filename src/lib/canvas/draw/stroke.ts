@@ -4,7 +4,7 @@
 // No self-intersecting outline to fill, so no stencil pass. The same
 // left/right rails also give the SVG outline for export.
 
-export interface StrokeOptions {
+interface StrokeOptions {
   /** Base diameter in world units. */
   size: number;
   /** How much pressure narrows the stroke, 0..1. */
@@ -28,7 +28,7 @@ interface Sample {
 }
 
 /** Streamlined samples with radius per point. `pts` is flat [x,y,...]. */
-export function strokeSamples(pts: ArrayLike<number>, opts: StrokeOptions): Sample[] {
+function strokeSamples(pts: ArrayLike<number>, opts: StrokeOptions): Sample[] {
   const n = Math.floor(pts.length / 2);
   if (n === 0) return [];
   const size = Math.max(0.5, opts.size);
@@ -130,16 +130,6 @@ export function freehandTriangles(pts: ArrayLike<number>, opts: StrokeOptions): 
   const z = s[s.length - 2];
   const endAng = Math.atan2(y.y - z.y, y.x - z.x);
   pushFan(out, y.x, y.y, y.r, endAng - Math.PI / 2, endAng + Math.PI / 2, CAP_SEGMENTS);
-  return out;
-}
-
-/** Closed outline polygon (for SVG export). */
-export function freehandOutline(pts: ArrayLike<number>, opts: StrokeOptions): number[] {
-  const s = strokeSamples(pts, opts);
-  if (s.length < 2) return [];
-  const { left, right } = rails(s);
-  const out = left.slice();
-  for (let i = right.length - 2; i >= 0; i -= 2) out.push(right[i], right[i + 1]);
   return out;
 }
 

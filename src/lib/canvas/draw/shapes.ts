@@ -36,7 +36,7 @@ export function ellipsePolygon(r: Rect, segs?: number): number[] {
   return out;
 }
 
-export function diamondPolygon(r: Rect): number[] {
+function diamondPolygon(r: Rect): number[] {
   const cx = r.x + r.w / 2;
   const cy = r.y + r.h / 2;
   return [cx, r.y, r.x + r.w, cy, cx, r.y + r.h, r.x, cy];
@@ -46,13 +46,13 @@ export function trianglePolygon(r: Rect): number[] {
   return [r.x + r.w / 2, r.y, r.x + r.w, r.y + r.h, r.x, r.y + r.h];
 }
 
-export function hexagonPolygon(r: Rect): number[] {
+function hexagonPolygon(r: Rect): number[] {
   const q = r.w / 4;
   const cy = r.y + r.h / 2;
   return [r.x + q, r.y, r.x + r.w - q, r.y, r.x + r.w, cy, r.x + r.w - q, r.y + r.h, r.x + q, r.y + r.h, r.x, cy];
 }
 
-export function starPolygon(r: Rect, points = 5, inner = 0.45): number[] {
+function starPolygon(r: Rect, points = 5, inner = 0.45): number[] {
   const cx = r.x + r.w / 2;
   const cy = r.y + r.h / 2;
   const out: number[] = [];
@@ -64,13 +64,13 @@ export function starPolygon(r: Rect, points = 5, inner = 0.45): number[] {
   return out;
 }
 
-export function parallelogramPolygon(r: Rect, slant = 0.25): number[] {
+function parallelogramPolygon(r: Rect, slant = 0.25): number[] {
   const k = r.w * slant;
   return [r.x + k, r.y, r.x + r.w, r.y, r.x + r.w - k, r.y + r.h, r.x, r.y + r.h];
 }
 
 /** Heart from the classic parametric curve, fitted to the box. */
-export function heartPolygon(r: Rect, segs = 64): number[] {
+function heartPolygon(r: Rect, segs = 64): number[] {
   const raw: number[] = [];
   let minX = Infinity;
   let maxX = -Infinity;
@@ -94,7 +94,7 @@ export function heartPolygon(r: Rect, segs = 64): number[] {
 }
 
 /** Cloud: bumps (circle arcs) around an ellipse, as one outline. */
-export function cloudPolygon(r: Rect, bumps = 9): number[] {
+function cloudPolygon(r: Rect, bumps = 9): number[] {
   const cx = r.x + r.w / 2;
   const cy = r.y + r.h / 2;
   const rx = r.w / 2;
@@ -113,7 +113,7 @@ export function cloudPolygon(r: Rect, bumps = 9): number[] {
 }
 
 /** Block arrow pointing `dir`, shaft 50% of the cross size, head 40% of the length. */
-export function blockArrowPolygon(r: Rect, dir: 'left' | 'right' | 'up' | 'down'): number[] {
+function blockArrowPolygon(r: Rect, dir: 'left' | 'right' | 'up' | 'down'): number[] {
   // Built pointing right in a unit box, then mapped.
   const unit = [0, 0.25, 0.6, 0.25, 0.6, 0, 1, 0.5, 0.6, 1, 0.6, 0.75, 0, 0.75];
   const out: number[] = [];
@@ -129,7 +129,7 @@ export function blockArrowPolygon(r: Rect, dir: 'left' | 'right' | 'up' | 'down'
 }
 
 /** Stadium (capsule) — Maestri's oval. */
-export function ovalPolygon(r: Rect): number[] {
+function ovalPolygon(r: Rect): number[] {
   return rectPolygon(r, Math.min(r.w, r.h) / 2, 12);
 }
 

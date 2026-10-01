@@ -27,10 +27,10 @@ export type App = {
 
 export type AppsList = { apps: App[]; total: number };
 
-export type Confidence = "high" | "medium" | "low";
+type Confidence = "high" | "medium" | "low";
 
 /// Mirrors `apps/mod.rs::Leftover`.
-export type Leftover = {
+type Leftover = {
   path: string;
   bytes: number;
   confidence: Confidence | string;
@@ -38,7 +38,7 @@ export type Leftover = {
   kind: string;
 };
 
-export type LeftoverItemPreview = {
+type LeftoverItemPreview = {
   id: string;
   label: string;
   detail?: string | null;
@@ -137,7 +137,7 @@ export function monogram(name: string): string {
 
 export type AppSort = "name" | "size" | "last_used";
 
-export type AppFilter = { query?: string; sources?: ReadonlySet<string> };
+type AppFilter = { query?: string; sources?: ReadonlySet<string> };
 
 function norm(s: string): string {
   return s
@@ -180,7 +180,7 @@ export function sortApps(apps: readonly App[], sort: AppSort): App[] {
 
 // ── "Not opened in 8 months" ─────────────────────────────────────────
 
-export type LastUsed = {
+type LastUsed = {
   /// i18n key under `washmybelly.uninstall.used.*`.
   key: string;
   count: number;
@@ -203,7 +203,7 @@ export function lastUsed(ts: number | null | undefined, now: number = Date.now()
 
 // ── Leftovers of one app ─────────────────────────────────────────────
 
-export const CONFIDENCE_ORDER: readonly Confidence[] = ["high", "medium", "low"];
+const CONFIDENCE_ORDER: readonly Confidence[] = ["high", "medium", "low"];
 
 export type LeftoverItem = LeftoverItemPreview & {
   confidence: Confidence;

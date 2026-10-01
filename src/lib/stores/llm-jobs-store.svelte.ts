@@ -7,7 +7,7 @@ import { listen } from "@tauri-apps/api/event";
 import { showToast } from "$lib/stores/toast-store.svelte";
 import { addLog } from "$lib/stores/debug-store.svelte";
 
-export type JobState =
+type JobState =
   | "queued"
   /** Another job holds an overlapping folder (one writer per folder). */
   | "waiting_workspace"
@@ -26,7 +26,7 @@ export type JobState =
 export type Isolation = "shared" | "worktree" | "auto";
 
 /** What removing a job's worktree did (`llm_job_remove_worktree`). */
-export type WorktreeRemoval = {
+type WorktreeRemoval = {
   dirty: string[];
   saved: string | null;
   preserved_branch: string | null;
@@ -35,7 +35,7 @@ export type WorktreeRemoval = {
 };
 
 /** What the host recorded about a finished job (never the agent's words). */
-export type JobProof = {
+type JobProof = {
   generated_by: "host";
   /** `host:workspace@base→head` */
   stamp: string;
@@ -266,7 +266,7 @@ export type TriggerConcurrency = "skip_if_active" | "queue";
 export type BridgeInfo = { base_url: string };
 
 /** One job still at the gate, from `llm_jobs_state` / `llm://queue`. */
-export type QueuedEntry = {
+type QueuedEntry = {
   id: string;
   /** 1-based, in the order the gate lets them in. */
   position: number;
@@ -285,7 +285,7 @@ export type QueuedEntry = {
 type HeldEntry = { id: string; agent_id: string; kind: string | null; state: string; workspace: string | null };
 
 /** What runs, what waits and the limits (`GET /v1/state`). */
-export type QueueState = {
+type QueueState = {
   running: HeldEntry[];
   /** Holds a slot but waits for a person. */
   blocked: (HeldEntry & { reason: "approval" })[];
@@ -359,7 +359,7 @@ export type Approval = {
   note: string | null;
 };
 
-export type LoopInput = {
+type LoopInput = {
   agent_id: string;
   prompt: string;
   name?: string;
@@ -378,7 +378,7 @@ export type LoopInput = {
   token_budget?: number | null;
 };
 
-export type TriggerInput = {
+type TriggerInput = {
   id?: string;
   name?: string;
   kind: "cron" | "webhook";
@@ -433,7 +433,7 @@ export type RunState =
   | "interrupted"
   | "unknown";
 
-export type ResumeKind = "native" | "replay" | "new";
+type ResumeKind = "native" | "replay" | "new";
 
 export type RunView = {
   id: string;
@@ -483,7 +483,7 @@ export type PermissionRequest = {
   resolved_ms: number | null;
 };
 
-export type RunEvent = {
+type RunEvent = {
   id: string;
   run_id: string;
   seq: number;
@@ -495,7 +495,7 @@ export type RunEvent = {
 
 export type CommandRun = { command: string; ok: boolean | null; output: string; is_test: boolean };
 
-export type RuntimeSession = {
+type RuntimeSession = {
   id: string;
   runtime: string;
   account: string | null;
@@ -600,7 +600,7 @@ export function getRunTick(): number {
   return runTick;
 }
 
-export async function reloadRuns(): Promise<void> {
+async function reloadRuns(): Promise<void> {
   try {
     const [list, stale] = await Promise.all([
       invoke<RunView[]>("assist_runs_list", { limit: 150 }),
@@ -766,7 +766,7 @@ export function queuedEntry(id: string): QueuedEntry | undefined {
   return queue?.queued.find((q) => q.id === id);
 }
 
-export async function reloadQueue(): Promise<void> {
+async function reloadQueue(): Promise<void> {
   try {
     queue = await invoke<QueueState>("llm_jobs_state");
   } catch {
@@ -801,7 +801,7 @@ function upsert<T extends { id: string }>(list: T[], row: T): T[] {
  * `state_seq` is lower than the row already shown is stale and dropped; an
  * equal one (a log line) still applies.
  */
-export function mergeJobEvent(list: Job[], row: Job): Job[] {
+function mergeJobEvent(list: Job[], row: Job): Job[] {
   const current = list.find((j) => j.id === row.id);
   if (current && (row.state_seq ?? 0) < (current.state_seq ?? 0)) return list;
   return upsert(list, row);
@@ -815,7 +815,7 @@ export async function reloadJobs(): Promise<void> {
   }
 }
 
-export async function reloadLoops(): Promise<void> {
+async function reloadLoops(): Promise<void> {
   try {
     loops = await invoke<LoopDef[]>("llm_loops_list");
   } catch (e) {
@@ -823,7 +823,7 @@ export async function reloadLoops(): Promise<void> {
   }
 }
 
-export async function reloadTriggers(): Promise<void> {
+async function reloadTriggers(): Promise<void> {
   try {
     const out = await invoke<{ triggers: Trigger[]; bridge: BridgeInfo }>("llm_triggers_list");
     triggers = out.triggers ?? [];

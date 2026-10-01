@@ -2,7 +2,7 @@
 
 export type RemoteScope = "read" | "drive";
 
-export type InterfaceOption = { ip: string; kind: "loopback" | "lan" | "tailscale" | "other" | string };
+type InterfaceOption = { ip: string; kind: "loopback" | "lan" | "tailscale" | "other" | string };
 
 export type Endpoint = { kind: "direct" | "tailscale-serve" | "ssh" | string; url: string };
 

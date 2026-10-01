@@ -13,10 +13,10 @@ import { invoke } from "@tauri-apps/api/core";
 export type JourneyStatus = "active" | "paused" | "finished" | "abandoned";
 export type PositionKind = "chapter" | "page" | "percent" | "locator";
 export type AccessKind = "subscription" | "rent" | "buy" | "free";
-export type EvidenceStatus = "confirmed" | "inferred" | "absent" | "unknown";
-export type FinalStatus = "confirmed" | "probable" | "unconfirmed";
+type EvidenceStatus = "confirmed" | "inferred" | "absent" | "unknown";
+type FinalStatus = "confirmed" | "probable" | "unconfirmed";
 export type Role = "entry" | "shift" | "surprise";
-export type ViewingKind = "recommended" | "planned" | "watched" | "abandoned" | "declined";
+type ViewingKind = "recommended" | "planned" | "watched" | "abandoned" | "declined";
 
 export interface Journey {
   id: string;
@@ -47,7 +47,7 @@ export interface Progress {
   recorded_ms: number;
 }
 
-export interface RoundContext {
+interface RoundContext {
   id: string;
   text: string;
   created_ms: number;
@@ -100,7 +100,7 @@ export interface Subtitle {
   checked_ms: number;
 }
 
-export interface ViewingEvent {
+interface ViewingEvent {
   id: string;
   movie_id: string;
   kind: ViewingKind;
@@ -110,7 +110,7 @@ export interface ViewingEvent {
   created_ms: number;
 }
 
-export interface RoundItem {
+interface RoundItem {
   id: string;
   movie_id: string;
   role: Role;
@@ -136,7 +136,7 @@ export interface ItemView {
   state?: ViewingKind | null;
 }
 
-export interface RoundView {
+interface RoundView {
   round: {
     id: string;
     reason?: string | null;
@@ -162,7 +162,7 @@ export interface JourneyDetail {
   spoiler_terms_count: number;
 }
 
-export interface SkillStatus {
+interface SkillStatus {
   name: string;
   installed: boolean;
   differs: boolean;
@@ -184,7 +184,7 @@ export const POSITION_KINDS: PositionKind[] = ["chapter", "page", "percent", "lo
 export const ACCESS_KINDS: AccessKind[] = ["subscription", "free", "rent", "buy"];
 export const JOURNEY_STATUSES: JourneyStatus[] = ["active", "paused", "finished", "abandoned"];
 
-export function readingErrorKey(err: unknown): string {
+function readingErrorKey(err: unknown): string {
   const s = String((err as { message?: string })?.message ?? err ?? "");
   switch (s.split(":")[0]?.trim()) {
     case "ERR_READING_INPUT":
@@ -275,12 +275,6 @@ export function isReadingLoading(): boolean {
 
 export function getReadingErrorKey(): string | null {
   return state.errorKey;
-}
-
-export function resetReadingStore(): void {
-  state.byBot = {};
-  state.loading = false;
-  state.errorKey = null;
 }
 
 export async function loadOverview(botId: string): Promise<void> {

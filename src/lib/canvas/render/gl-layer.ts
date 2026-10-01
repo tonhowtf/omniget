@@ -83,7 +83,7 @@ export function registerPass(pass: GlPass): () => void {
   };
 }
 
-export function registeredPasses(): GlPass[] {
+function registeredPasses(): GlPass[] {
   return Array.from(passes.values()).sort((a, b) => a.order - b.order);
 }
 
@@ -93,19 +93,15 @@ export function onPassesChange(fn: () => void): () => void {
   return () => passListeners.delete(fn);
 }
 
-export function passesRevision(): number {
-  return passesVersion;
-}
-
 /** Screen (CSS px) of a world point for a frame. */
 export function worldToScreen(cam: CameraInfo, x: number, y: number): { x: number; y: number } {
   return { x: (x - cam.x) * cam.zoom, y: (y - cam.y) * cam.zoom };
 }
 
-export const CONTEXT_RETRY_DELAY_MS = 1500;
-export const CONTEXT_MAX_RETRIES = 3;
+const CONTEXT_RETRY_DELAY_MS = 1500;
+const CONTEXT_MAX_RETRIES = 3;
 
-export interface GlLayerCallbacks {
+interface GlLayerCallbacks {
   /** The context died and will not come back: switch to Canvas 2D. */
   onFallback?: () => void;
   /** Context is back: redraw everything. */

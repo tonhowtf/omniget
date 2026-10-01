@@ -1,6 +1,6 @@
 /// macOS privacy permissions (TCC), as `privacy.tcc_list` returns them.
 
-export type TccAuth = "allowed" | "denied" | "limited" | "unknown";
+type TccAuth = "allowed" | "denied" | "limited" | "unknown";
 
 export type TccApp = {
   client: string;
@@ -74,7 +74,3 @@ export function mergeTargets(apps: readonly TccApp[]): (TccApp & { targets: stri
   return [...out.values()].sort((a, b) => appName(a.client).localeCompare(appName(b.client)));
 }
 
-/// The terminal line for people who prefer to reset by hand.
-export function resetCommand(service: string, bundle: string): string {
-  return `tccutil reset ${service} ${bundle}`;
-}

@@ -15,7 +15,7 @@
 import type { TranslationBag } from "./agent-prompts";
 
 // A type alias (not an interface): Tauri's `invoke` wants an index signature.
-export type LlmNotifyStrings = {
+type LlmNotifyStrings = {
   needsYouTitle: string;
   needsYouBody: string;
   expiredTitle: string;

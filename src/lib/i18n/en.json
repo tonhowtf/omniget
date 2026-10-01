@@ -1862,21 +1862,16 @@
     "general": {
       "title": "General",
       "start_with_system": "Start with system",
-      "start_with_system_desc": "Launch OmniGet automatically when your computer starts",
       "start_minimized": "Start in tray only",
-      "start_minimized_desc": "Open OmniGet to the system tray without showing the window. Click the tray icon to open.",
       "exit_on_close": "Quit when the window is closed",
-      "exit_on_close_desc": "Closing the window with X quits OmniGet instead of keeping it in the system tray. Active downloads still ask before quitting.",
       "reset_hints": "Reset hints",
       "reset_hints_desc": "Show all dismissed tips again",
       "restore": "Restore",
       "hints_restored": "All hints restored",
       "run_in_background": "Run agents in the background",
-      "run_in_background_desc": "OmniGet starts hidden when you log in, and closing the window keeps it in the tray, so jobs, Loops and routines keep running and the omniget command finds it. Turns off “Quit when the window is closed”.",
       "run_in_background_flatpak": "Flatpak: starting at login and being started from the command line are not verified yet."
     },
     "appearance": {
-      "title": "Appearance",
       "accessibility_title": "Accessibility",
       "reduce_motion": "Reduce motion",
       "reduce_motion_desc": "Turns position and scale animations into simple fades.",
@@ -1897,8 +1892,7 @@
       "lang_es": "Español",
       "lang_el": "Ελληνικά",
       "lang_fa": "فارسی",
-      "lang_lo": "ລາວ",
-      "preview_pending": "Preview only. Apply appearance to save these changes."
+      "lang_lo": "ລາວ"
     },
     "download": {
       "default_output_dir": "Default folder",
@@ -1919,7 +1913,6 @@
       "section_quality": "Quality & format",
       "section_quality_desc": "Default video quality and yt-dlp presets.",
       "section_subtitles": "Subtitles & extras",
-      "section_subtitles_desc": "Subtitles, thumbnails, and metadata saved alongside media.",
       "section_clipboard_hotkeys": "Clipboard & hotkeys",
       "section_clipboard_hotkeys_desc": "Paste detection and global shortcuts.",
       "section_per_platform": "Per-platform options",
@@ -2020,8 +2013,7 @@
       "filename_template": "Filename template",
       "filename_template_desc": "yt-dlp output template for downloaded files",
       "filename_template_preview": "Preview: {{preview}}",
-      "filename_template_invalid": "Not saved. Enter a filename template containing %(ext)s for the file extension.",
-      "filename_template_save_failed": "Could not save this template. Your edit is still shown."
+      "filename_template_invalid": "Not saved. Enter a filename template containing %(ext)s for the file extension."
     },
     "update_available": "OmniGet {{version}} is available",
     "update_button": "update now",
@@ -2064,7 +2056,6 @@
       "quality_placeholder": "1080p",
       "audio_only": "Audio only",
       "add": "Add rule",
-      "saved": "Rules saved",
       "test_title": "Test a link",
       "test_placeholder": "Paste a link to see which rule catches it",
       "test_run": "Test",
@@ -2133,21 +2124,17 @@
       "filter_all_files": "All files",
       "set_file_failed": "Failed to set file: {{msg}}",
       "open_folder_failed": "Failed to open folder: {{msg}}",
-      "system_font_suffix": "system",
       "load_failed": "Could not check installed components. Try again."
     },
     "typography": {
       "section_title": "Typography",
       "presets_title": "Presets",
       "presets_desc": "Tested combinations. One click applies fonts + line-height + spacing.",
-      "modified_indicator": "(manually modified)",
       "fonts_title": "Fonts",
       "fonts_desc": "Per-family choice. List shows fonts bundled with the app (system fonts not yet supported).",
-      "reset": "Reset",
       "display_label": "Display",
       "body_label": "Body",
       "mono_label": "Mono",
-      "body_sample": "The quick brown fox",
       "line_height_label": "Line-height",
       "line_height_desc": "Vertical space between lines. Higher = airier, easier to read on long sessions.",
       "spacing_label": "Global spacing",
@@ -2172,8 +2159,7 @@
       "host": "Host",
       "port": "Port",
       "username": "Username",
-      "password": "Password",
-      "save_failed": "Could not save the proxy fields. Your edits are still shown; try again."
+      "password": "Password"
     },
     "advanced": {
       "max_concurrent_downloads": "Concurrent downloads",
@@ -2212,17 +2198,8 @@
       "user_agent_desc": "Send a custom User-Agent to downloads. Leave empty to use the default.",
       "user_agent_placeholder": "Default browser User-Agent"
     },
-    "group_general": "General",
-    "group_media": "Media",
-    "group_integrations": "Integrations",
-    "group_advanced": "Advanced",
     "cat_appearance": "Appearance",
-    "cat_typography": "Typography",
-    "cat_downloads": "Downloads",
     "cat_network": "Network",
-    "cat_advanced": "Advanced",
-    "search_placeholder": "Search settings...",
-    "drill_back": "Back",
     "rpc": {
       "title": "Discord Rich Presence",
       "desc": "Show your activity on your Discord profile. The timer keeps going across activities, never resets.",
@@ -2233,8 +2210,6 @@
       "test_button": "Send test",
       "test_ok": "Connected to Discord",
       "test_fail": "Could not reach Discord. Make sure it is running.",
-      "saved": "Saved",
-      "save": "Save",
       "advanced": "Advanced",
       "app_id": "Application ID",
       "app_id_hint": "Discord application ID. Change only if you know what you're doing.",
@@ -2270,15 +2245,11 @@
       "rotate_confirm": "Generate a new pairing token? Previously paired browsers will lose access until you pair them again or update their token.",
       "rotate_confirm_action": "Generate new token"
     },
-    "cat_cookies": "Cookies",
-    "cat_channels": "Channels",
-    "cat_ai": "AI",
     "ai": {
       "title": "AI provider",
       "provider": "Provider",
       "provider_desc": "Choose where AI requests go. Your key is stored locally and never logged.",
       "provider_none": "Off",
-      "provider_local": "Local (OpenAI-compatible)",
       "model": "Model",
       "model_desc": "The model identifier for the chosen provider.",
       "model_placeholder": "e.g. gpt-4o-mini, claude-3-5-sonnet-latest, llama3",
@@ -2287,7 +2258,6 @@
       "key_set": "A key is saved. Leave blank to keep it.",
       "key_unset": "No key saved yet.",
       "local_url": "Local endpoint URL",
-      "local_url_desc": "OpenAI-compatible base URL (Ollama, LM Studio, …).",
       "save": "Save",
       "test": "Test connection",
       "test_ok": "AI connection works",
@@ -2311,7 +2281,6 @@
       "history_clear_confirm": "Clear all AI history?",
       "history_empty": "No AI results yet.",
       "save_test": "Save and test",
-      "unsaved": "These settings are not saved. Testing will save them first; save them before summarizing.",
       "saving": "Saving…",
       "provider_endpoint": "Custom endpoint (local or remote)",
       "connection_kind": "Connection type: {{kind}}",
@@ -2330,7 +2299,6 @@
       "save_failed": "Could not save AI settings. Your changes are still here; try saving again.",
       "history_load_failed": "Could not load AI history. Your saved results may still be available.",
       "history_clear_failed": "Could not clear AI history. Try again.",
-      "test_effect": "Testing sends a short AI request using the selected connection and model. The provider may charge for it.",
       "summarize_effect": "Fetches subtitles and sends their text to the saved AI connection. If subtitles are unavailable, it may download audio and send it for transcription. Provider charges may apply. The result is saved in history."
     },
     "channels": {
@@ -2450,15 +2418,8 @@
         "login_webview_loading": "Opening sign-in window..."
       }
     },
-    "cat_profile": "Profile",
-    "cat_world": "Canvas",
     "save_failed": "Could not save this change. Try again.",
-    "retry": "Try again",
     "search": {
-      "clear": "Clear search",
-      "title": "Search settings",
-      "count": "{{count}} results",
-      "empty": "No settings found. Try another word or choose a category.",
       "destination_hint": "Options may require enabling the related feature or choosing a provider first. Nothing was enabled by this search.",
       "back": "Back to results"
     },
@@ -2483,10 +2444,6 @@
         "empty": "No settings found",
         "empty_hint": "Try another word or choose a category."
       },
-      "navigation": {
-        "back": "Back",
-        "back_settings": "Back to settings"
-      },
       "disclosure": {
         "show_advanced": "Show advanced options",
         "hide_advanced": "Hide advanced options"
@@ -2500,16 +2457,12 @@
         "pending_apply": "Saved. Waiting to apply.",
         "retry_apply": "Try applying again",
         "unavailable": "Unavailable",
-        "next_task": "Applies to the next task.",
         "restart_required": "Restart OmniGet to apply."
       },
       "form": {
         "save": "Save changes",
         "discard": "Discard changes",
-        "draft": "Unsaved draft",
-        "unsaved_title": "You have unsaved changes",
-        "stay": "Keep editing",
-        "discard_confirm": "Discard this draft?"
+        "draft": "Unsaved draft"
       },
       "reset": {
         "section_title": "Reset {{name}}?",
@@ -2521,7 +2474,6 @@
         "kept": "Accounts, keys, history, downloads and access grants are kept."
       },
       "dialog": {
-        "confirm": "Confirm",
         "cancel": "Cancel"
       },
       "appearance": {
@@ -2532,8 +2484,6 @@
         "font_hint": "Choose a font installed on this device."
       },
       "connection": {
-        "local": "Local connection",
-        "local_hint": "Choose a server available on this computer.",
         "test": "Test connection",
         "test_cost_notice": "The test sends a request through the selected connection and may use quota or credits.",
         "unknown": "Not tested",
@@ -2543,9 +2493,6 @@
       "downloads": {
         "quality": "Quality",
         "remove": "Remove",
-        "best_available": "Best available",
-        "audio": "Audio",
-        "video": "Video",
         "output": "Files and folders",
         "subtitles": "Subtitles and metadata"
       },
@@ -2553,13 +2500,6 @@
         "routines": "Routines",
         "tasks": "Tasks",
         "usage_performance": "Usage and performance"
-      },
-      "permissions": {
-        "agent_scope": "Applies only to {{name}}.",
-        "inherited": "Inherited from the app policy.",
-        "view_policy": "View app policy",
-        "customize": "Customize for this agent",
-        "use_inherited": "Use inherited policy"
       }
     }
   },
@@ -2996,8 +2936,6 @@
     "desc": "A nickname and an avatar tint, kept on this computer. No account, no e-mail, nothing sent anywhere.",
     "loading": "Reading your profile…",
     "empty_title": "No profile yet",
-    "empty_desc": "This build cannot read the local identity yet. Try again after updating.",
-    "retry": "Try again",
     "nickname_label": "Nickname",
     "nickname_desc": "1 to 32 characters. Other people see it when you share a room.",
     "nickname_placeholder": "Your nickname",
@@ -3075,7 +3013,6 @@
       }
     },
     "observatory": {
-      "title": "Observatory",
       "lede": "Throughput, latency, tokens and cost per agent — plus the context each conversation is holding.",
       "window_1h": "1 h",
       "window_6h": "6 h",
@@ -3144,15 +3081,12 @@
     },
     "title": "LLM",
     "tab": {
-      "chat": "Chat",
       "roster": "Agent team",
       "models": "Models and limits",
       "mcp": "MCP",
       "skills": "Skills",
       "accounts": "Connections",
-      "arena": "Arena",
-      "jobs": "Jobs",
-      "loops": "Loops"
+      "arena": "Arena"
     },
     "rail": {
       "title": "Agents",
@@ -3661,7 +3595,6 @@
       "key_forget": "Forget key",
       "key_saved": "Key saved.",
       "key_missing": "Without a key nothing is sent and pruning stays off.",
-      "not_wired": "The change did not reach the backend.",
       "save_failed": "Could not confirm these settings. Reload to check the saved values."
     },
     "workspace": {
@@ -3707,7 +3640,6 @@
       "loops": "Loops"
     },
     "jobs": {
-      "lede": "Agent runs that work in the background while you do something else.",
       "new_title": "New job",
       "agent": "Agent",
       "prompt": "Prompt",
@@ -3958,7 +3890,6 @@
       "max_minutes": "Max minutes",
       "check_command": "Check command",
       "start": "Start loop",
-      "list_title": "Loops",
       "empty": "No loops yet. Start one above.",
       "rounds": "{{done}} / {{max}} rounds",
       "last_check": "Last check",
@@ -4224,37 +4155,6 @@
           "overwrite": "Replace theirs (backup kept)"
         },
         "beta": "Beta: not verified on this machine",
-        "profile": {
-          "title": "Profiles",
-          "apply": "Apply to my tools",
-          "read_only": {
-            "name": "Read-only",
-            "desc": "Reads and searches the code; no edits and no shell."
-          },
-          "dev": {
-            "name": "Developer",
-            "desc": "Edits files freely, asks before shell commands and web fetches, never reads .env."
-          },
-          "no_network": {
-            "name": "No network",
-            "desc": "Blocks web fetch, web search and network commands."
-          },
-          "autonomous_guarded": {
-            "name": "Autonomous with guard",
-            "desc": "Works on its own; destructive commands, force pushes and secrets stay blocked."
-          },
-          "provider": {
-            "name": "Alternative provider",
-            "desc": "Points each tool at another endpoint, with the key read from an environment variable."
-          },
-          "param": {
-            "protocol": "API protocol",
-            "base_url": "Base URL",
-            "key_env": "Environment variable with the key",
-            "model": "Model",
-            "small_model": "Small/fast model"
-          }
-        },
         "loop": {
           "run": "Run as an OmniGet Loop"
         }
@@ -5634,16 +5534,6 @@
         "import_none": "Nothing besides what the OmniGet installed.",
         "to_stack": "{{name}} is in the stack"
       },
-      "hooks": {
-        "observe": {
-          "title": "Watch this tool from OmniGet",
-          "body": "Adds a small hook that reports sessions, tool calls and permission requests to OmniGet. Permission requests show up in the pet; if nobody answers, the tool asks as usual.",
-          "gate": "Also ask me before every tool call",
-          "revoke": "Stop accepting this tool's reports"
-        },
-        "shim_note": "Hooks for this tool run through omniget-hook-shim",
-        "trust_note": "The tool asks you to trust new project hooks before running them"
-      },
       "plugins": {
         "tab": "Plugins",
         "tab_installs": "Installed by OmniGet",
@@ -6826,7 +6716,6 @@
         "read_only": "Only recall, never save"
       },
       "create": {
-        "open": "Create agent",
         "title": "Create an agent",
         "lede": "Give it a name and a purpose, pick what it may do, and choose the connection it runs on. It gets no code or shell access unless you tick it.",
         "name": "Name",
@@ -7065,10 +6954,7 @@
       "stale_title": "Questions a restart left unanswered",
       "stale_hint": "The app closed while these waited. Nothing ran. Restart the turn to ask again.",
       "dismiss": "Dismiss",
-      "answer_on_card": "Answer it on its card at the top of this page.",
-      "answer_once": "Allow once",
-      "answer_always": "Always allow",
-      "answer_deny": "Deny"
+      "answer_on_card": "Answer it on its card at the top of this page."
     },
     "conversation": {
       "status_working": "Working…",
@@ -7922,7 +7808,6 @@
       "error": "could not read",
       "refresh": "Refresh",
       "open_app": "Open OmniGet",
-      "add_account": "Add account",
       "open_claude": "Open Claude Code",
       "choose": "Accounts",
       "now": "now",
@@ -12321,44 +12206,6 @@
         "workspace": "This workspace"
       }
     },
-    "cords": {
-      "state": {
-        "starting": "Starting",
-        "ready": "Ready",
-        "working": "Working",
-        "needs_you": "Needs you",
-        "done": "Done",
-        "stuck": "Message not sent",
-        "exited": "Stopped",
-        "no_signal": "No signal"
-      },
-      "estimated": "estimated",
-      "waiting_peer": "Waiting for {{name}}",
-      "queued": "{{count}} message(s) waiting",
-      "inbox": {
-        "title": "Needs you",
-        "permission": "Asks permission",
-        "blocked": "Waiting for your answer",
-        "review": "Finished, ready for review",
-        "stuck": "A message was pasted but not sent",
-        "empty": "Nothing needs you"
-      },
-      "ask": {
-        "queued": "Queued",
-        "delivered": "Delivered",
-        "answered": "Answered",
-        "released": "Released (deadlock)",
-        "failed": "Failed"
-      },
-      "test": {
-        "action": "Test cord",
-        "ok": "The cord works",
-        "bridge_off": "The local bridge is off: turn it on in Settings for cords to work",
-        "not_running": "{{name}} is not running",
-        "without_env": "{{name}} was opened before its cords existed: restart it",
-        "missing": "One end of the cord is gone"
-      }
-    },
     "companion": {
       "title": "Omni",
       "settings": "Settings",
@@ -12406,17 +12253,6 @@
         "failed_last": "{{name}} hit an error. Last line: “{{last}}”",
         "manual": "Here is where {{name}} is.",
         "manual_last": "Here is where {{name}} is. Last line: “{{last}}”"
-      },
-      "s": {
-        "review": "Summarize what you changed and why",
-        "tests": "Run the tests and fix any failure",
-        "build": "Build the project and report errors",
-        "need": "Explain what you need from me",
-        "safest": "Go ahead with the safest option",
-        "pause": "Stop and summarize the progress so far",
-        "explain": "Explain the error and propose a fix",
-        "retry": "Retry the last step",
-        "output": "Show the full error output"
       },
       "window": {
         "workspace": "Workspace",
@@ -12735,7 +12571,6 @@
   },
   "tube": {
     "title": "OmniTube",
-    "music_title": "OmniTube Music",
     "settings_title": "OmniTube",
     "settings_desc": "YouTube and YouTube Music client",
     "settings_enable": "Enable OmniTube",
@@ -13940,7 +13775,6 @@
       "takeout": "Takeout mode",
       "takeout_hint": "Uses Telegram's export session, which has higher limits for big downloads. Telegram may ask you to confirm on another device.",
       "preview": "Count",
-      "counting": "Counting…",
       "preview_result": "{{count}} files · {{size}}",
       "stale": "Filters changed, count again",
       "and_more": "and {{count}} more",

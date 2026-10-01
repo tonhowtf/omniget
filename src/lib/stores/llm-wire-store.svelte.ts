@@ -26,7 +26,7 @@ export interface ProbeResult {
   detail: string;
 }
 
-export interface ProbeRound {
+interface ProbeRound {
   provider: string;
   model: string;
   started_at_ms: number;
@@ -34,7 +34,7 @@ export interface ProbeRound {
   cost_usd: number;
 }
 
-export interface ProbeEstimate {
+interface ProbeEstimate {
   cases: number;
   requests: number;
   input_tokens: number;
@@ -52,8 +52,6 @@ export const PROBE_PARAMS = [
 ] as const;
 export type ProbeParam = (typeof PROBE_PARAMS)[number];
 
-/** Mirrors `MAX_PROBE_REQUESTS` / `MAX_OUTPUT_TOKENS` in core/llm/wire_probe.rs. */
-export const MAX_PROBE_REQUESTS = 8;
 export const MAX_OUTPUT_TOKENS = 200;
 
 // ---------------------------------------------------------------- pure helpers
@@ -78,7 +76,7 @@ export function verdictTone(v: Verdict): "ok" | "warn" | "bad" | "muted" {
 }
 
 /** Maps a Rust error string (`ERR_LLM_*: message`) to an i18n key. */
-export function wireErrorKey(err: unknown): string {
+function wireErrorKey(err: unknown): string {
   const text = typeof err === "string" ? err : String((err as Error)?.message ?? err ?? "");
   const code = text.split(":", 1)[0]?.trim() ?? "";
   switch (code) {
@@ -174,20 +172,6 @@ export function isLoading(): boolean {
 /** i18n key, never a raw message. */
 export function getWireError(): string | null {
   return error;
-}
-export function clearWireError(): void {
-  error = null;
-}
-
-/** Test seam; also used when the panel unmounts and the section is closed. */
-export function resetWireStore(): void {
-  round = null;
-  estimateState = null;
-  running = false;
-  loading = false;
-  error = null;
-  loadedOnce = false;
-  inFlight = null;
 }
 
 // -------------------------------------------------------------------- actions

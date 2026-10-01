@@ -17,7 +17,7 @@ export type UpdateItem = {
 
 export type UpdatesList = { items: UpdateItem[]; plan_id: string | null };
 
-export type UpdateRow = SelectItem & { update: UpdateItem };
+type UpdateRow = SelectItem & { update: UpdateItem };
 
 /// Managers in a steady order: the system's own first, then app stores.
 const MANAGER_ORDER = ["winget", "homebrew", "brew", "apt", "dnf", "pacman", "zypper", "flatpak", "snap"];
@@ -28,7 +28,7 @@ function managerRank(m: string): number {
 }
 
 /// "1.2.0 → 1.3.0", or just the new version when the current is unknown.
-export function versionLine(u: Pick<UpdateItem, "current" | "available">): string {
+function versionLine(u: Pick<UpdateItem, "current" | "available">): string {
   const cur = (u.current ?? "").trim();
   const next = (u.available ?? "").trim();
   if (cur && next) return `${cur} → ${next}`;

@@ -6,7 +6,7 @@ import { invoke } from "@tauri-apps/api/core";
 
 export type PluginScope = "user" | "project" | "local";
 
-export interface PluginComponents {
+interface PluginComponents {
   skills?: string[];
   agents?: string[];
   commands?: string[];
@@ -36,7 +36,7 @@ export interface PluginInfo {
   notes?: string[];
 }
 
-export interface ToggleReport {
+interface ToggleReport {
   tx: string;
   file: string;
   plugin: PluginInfo | null;

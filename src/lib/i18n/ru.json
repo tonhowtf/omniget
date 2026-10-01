@@ -1862,21 +1862,16 @@
     "general": {
       "title": "Общие",
       "start_with_system": "Запускать с системой",
-      "start_with_system_desc": "Автоматически запускать OmniGet при старте компьютера",
       "start_minimized": "Запускать только в трей",
-      "start_minimized_desc": "Открывать OmniGet в системном трее без показа окна. Нажмите на значок в трее, чтобы открыть.",
       "exit_on_close": "Quit when the window is closed",
-      "exit_on_close_desc": "Closing the window with X quits OmniGet instead of keeping it in the system tray. Active downloads still ask before quitting.",
       "reset_hints": "Сбросить подсказки",
       "reset_hints_desc": "Показать все скрытые подсказки снова",
       "restore": "Восстановить",
       "hints_restored": "Все подсказки восстановлены",
       "run_in_background": "Запускать агентов в фоне",
-      "run_in_background_desc": "OmniGet запускается скрытым при входе в систему, а закрытие окна оставляет его в трее, поэтому задачи, Loops и рутины продолжают работать, а команда omniget его находит. Отключает «Выходить при закрытии окна».",
       "run_in_background_flatpak": "Flatpak: запуск при входе и запуск из командной строки ещё не проверены."
     },
     "appearance": {
-      "title": "Внешний вид",
       "accessibility_title": "Специальные возможности",
       "reduce_motion": "Меньше движения",
       "reduce_motion_desc": "Заменяет анимации положения и масштаба простыми исчезновениями.",
@@ -1897,8 +1892,7 @@
       "lang_es": "Español",
       "lang_el": "Ελληνικά",
       "lang_fa": "فارسی",
-      "lang_lo": "ລາວ",
-      "preview_pending": "Preview only. Apply appearance to save these changes."
+      "lang_lo": "ລາວ"
     },
     "download": {
       "default_output_dir": "Папка по умолчанию",
@@ -1919,7 +1913,6 @@
       "section_quality": "Качество и формат",
       "section_quality_desc": "Качество видео по умолчанию и предустановки yt-dlp.",
       "section_subtitles": "Субтитры и дополнения",
-      "section_subtitles_desc": "Субтитры, миниатюры и метаданные, сохраняемые вместе с медиафайлами.",
       "section_clipboard_hotkeys": "Буфер обмена и горячие клавиши",
       "section_clipboard_hotkeys_desc": "Распознавание вставки и глобальные сочетания клавиш.",
       "section_per_platform": "Настройки платформ",
@@ -2020,8 +2013,7 @@
       "filename_template": "Шаблон имени файла",
       "filename_template_desc": "Шаблон вывода yt-dlp для скачиваемых файлов",
       "filename_template_preview": "Предпросмотр: {{preview}}",
-      "filename_template_invalid": "Not saved. Enter a filename template containing %(ext)s for the file extension.",
-      "filename_template_save_failed": "Could not save this template. Your edit is still shown."
+      "filename_template_invalid": "Not saved. Enter a filename template containing %(ext)s for the file extension."
     },
     "update_available": "Доступен OmniGet {{version}}",
     "update_button": "обновить сейчас",
@@ -2064,7 +2056,6 @@
       "quality_placeholder": "1080p",
       "audio_only": "Только звук",
       "add": "Добавить правило",
-      "saved": "Правила сохранены",
       "test_title": "Проверить ссылку",
       "test_placeholder": "Вставьте ссылку, чтобы увидеть, какое правило её поймает",
       "test_run": "Проверить",
@@ -2133,21 +2124,17 @@
       "filter_all_files": "Все файлы",
       "set_file_failed": "Не удалось установить файл: {{msg}}",
       "open_folder_failed": "Не удалось открыть папку: {{msg}}",
-      "system_font_suffix": "системный",
       "load_failed": "Could not check installed components. Try again."
     },
     "typography": {
       "section_title": "Типографика",
       "presets_title": "Предустановки",
       "presets_desc": "Проверенные комбинации. Один клик применяет шрифты + межстрочный интервал + отступы.",
-      "modified_indicator": "(изменено вручную)",
       "fonts_title": "Шрифты",
       "fonts_desc": "Выбор для каждого семейства. Список показывает шрифты, встроенные в приложение (системные шрифты пока не поддерживаются).",
-      "reset": "Сбросить",
       "display_label": "Заголовки",
       "body_label": "Основной текст",
       "mono_label": "Моноширинный",
-      "body_sample": "Съешь ещё этих мягких французских булок",
       "line_height_label": "Межстрочный интервал",
       "line_height_desc": "Вертикальное расстояние между строками. Больше = воздушнее, легче читать при долгих сессиях.",
       "spacing_label": "Глобальный отступ",
@@ -2172,8 +2159,7 @@
       "host": "Хост",
       "port": "Порт",
       "username": "Имя пользователя",
-      "password": "Пароль",
-      "save_failed": "Could not save the proxy fields. Your edits are still shown; try again."
+      "password": "Пароль"
     },
     "advanced": {
       "max_concurrent_downloads": "Параллельных загрузок",
@@ -2212,17 +2198,8 @@
       "user_agent_desc": "Отправлять свой User-Agent при скачивании. Оставьте пустым для использования стандартного.",
       "user_agent_placeholder": "User-Agent браузера по умолчанию"
     },
-    "group_general": "Общие",
-    "group_media": "Медиа",
-    "group_integrations": "Интеграции",
-    "group_advanced": "Дополнительно",
     "cat_appearance": "Внешний вид",
-    "cat_typography": "Типографика",
-    "cat_downloads": "Загрузки",
     "cat_network": "Сеть",
-    "cat_advanced": "Дополнительно",
-    "search_placeholder": "Поиск по настройкам…",
-    "drill_back": "Назад",
     "rpc": {
       "title": "Статус в Discord (Rich Presence)",
       "desc": "Показывать вашу активность в профиле Discord. Таймер идёт непрерывно, никогда не сбрасывается.",
@@ -2233,8 +2210,6 @@
       "test_button": "Отправить тест",
       "test_ok": "Подключено к Discord",
       "test_fail": "Не удалось связаться с Discord. Убедитесь, что он запущен.",
-      "saved": "Сохранено",
-      "save": "Сохранить",
       "advanced": "Дополнительно",
       "app_id": "ID приложения",
       "app_id_hint": "ID приложения Discord. Меняйте, только если знаете, что делаете.",
@@ -2270,15 +2245,11 @@
       "rotate_confirm": "Generate a new pairing token? Previously paired browsers will lose access until you pair them again or update their token.",
       "rotate_confirm_action": "Generate new token"
     },
-    "cat_cookies": "Куки",
-    "cat_channels": "Каналы",
-    "cat_ai": "ИИ",
     "ai": {
       "title": "Провайдер ИИ",
       "provider": "Провайдер",
       "provider_desc": "Выберите, куда направлять запросы ИИ. Ваш ключ хранится локально и никогда не записывается в логи.",
       "provider_none": "Выкл.",
-      "provider_local": "Локальный (совместимый с OpenAI)",
       "model": "Модель",
       "model_desc": "Идентификатор модели для выбранного провайдера.",
       "model_placeholder": "например gpt-4o-mini, claude-3-5-sonnet-latest, llama3",
@@ -2287,7 +2258,6 @@
       "key_set": "Ключ сохранён. Оставьте пустым, чтобы не менять.",
       "key_unset": "Ключ пока не сохранён.",
       "local_url": "URL локальной конечной точки",
-      "local_url_desc": "Базовый URL, совместимый с OpenAI (Ollama, LM Studio, …).",
       "save": "Сохранить",
       "test": "Проверить соединение",
       "test_ok": "Соединение с ИИ работает",
@@ -2311,7 +2281,6 @@
       "history_clear_confirm": "Очистить всю историю ИИ?",
       "history_empty": "Пока нет результатов ИИ.",
       "save_test": "Сохранить и проверить",
-      "unsaved": "Настройки не сохранены. Проверка сначала сохранит их; перед созданием краткого содержания сохраните изменения.",
       "saving": "Сохранение…",
       "provider_endpoint": "Custom endpoint (local or remote)",
       "connection_kind": "Connection type: {{kind}}",
@@ -2330,7 +2299,6 @@
       "save_failed": "Could not save AI settings. Your changes are still here; try saving again.",
       "history_load_failed": "Could not load AI history. Your saved results may still be available.",
       "history_clear_failed": "Could not clear AI history. Try again.",
-      "test_effect": "Testing sends a short AI request using the selected connection and model. The provider may charge for it.",
       "summarize_effect": "Fetches subtitles and sends their text to the saved AI connection. If subtitles are unavailable, it may download audio and send it for transcription. Provider charges may apply. The result is saved in history."
     },
     "channels": {
@@ -2450,15 +2418,8 @@
         "login_webview_loading": "Открытие окна входа…"
       }
     },
-    "cat_profile": "Профиль",
-    "cat_world": "Canvas",
     "save_failed": "Could not save this change. Try again.",
-    "retry": "Try again",
     "search": {
-      "clear": "Clear search",
-      "title": "Search settings",
-      "count": "{{count}} results",
-      "empty": "No settings found. Try another word or choose a category.",
       "destination_hint": "Options may require enabling the related feature or choosing a provider first. Nothing was enabled by this search.",
       "back": "Back to results"
     },
@@ -2483,10 +2444,6 @@
         "empty": "Настройки не найдены",
         "empty_hint": "Попробуйте другое слово или выберите категорию."
       },
-      "navigation": {
-        "back": "Назад",
-        "back_settings": "К настройкам"
-      },
       "disclosure": {
         "show_advanced": "Показать дополнительные параметры",
         "hide_advanced": "Скрыть дополнительные параметры"
@@ -2500,16 +2457,12 @@
         "pending_apply": "Сохранено. Ожидает применения.",
         "retry_apply": "Повторить применение",
         "unavailable": "Недоступно",
-        "next_task": "Применится к следующей задаче.",
         "restart_required": "Перезапустите OmniGet для применения."
       },
       "form": {
         "save": "Сохранить изменения",
         "discard": "Отменить изменения",
-        "draft": "Несохранённый черновик",
-        "unsaved_title": "Есть несохранённые изменения",
-        "stay": "Продолжить редактирование",
-        "discard_confirm": "Удалить этот черновик?"
+        "draft": "Несохранённый черновик"
       },
       "reset": {
         "section_title": "Сбросить {{name}}?",
@@ -2521,7 +2474,6 @@
         "kept": "Аккаунты, ключи, история, загрузки и разрешения доступа сохранятся."
       },
       "dialog": {
-        "confirm": "Подтвердить",
         "cancel": "Отмена"
       },
       "appearance": {
@@ -2532,8 +2484,6 @@
         "font_hint": "Выберите шрифт, установленный на этом устройстве."
       },
       "connection": {
-        "local": "Локальное подключение",
-        "local_hint": "Выберите сервер, доступный на этом компьютере.",
         "test": "Проверить подключение",
         "test_cost_notice": "Проверка отправит запрос через выбранное подключение и может расходовать квоту или кредиты.",
         "unknown": "Не проверено",
@@ -2543,9 +2493,6 @@
       "downloads": {
         "quality": "Качество",
         "remove": "Удалить",
-        "best_available": "Лучшее доступное",
-        "audio": "Аудио",
-        "video": "Видео",
         "output": "Файлы и папки",
         "subtitles": "Субтитры и метаданные"
       },
@@ -2553,13 +2500,6 @@
         "routines": "Процедуры",
         "tasks": "Задачи",
         "usage_performance": "Использование и производительность"
-      },
-      "permissions": {
-        "agent_scope": "Применяется только к {{name}}.",
-        "inherited": "Унаследовано из политики приложения.",
-        "view_policy": "Политика приложения",
-        "customize": "Настроить для этого агента",
-        "use_inherited": "Использовать унаследованную политику"
       }
     }
   },
@@ -2996,8 +2936,6 @@
     "desc": "Никнейм и оттенок аватара хранятся на этом компьютере. Без аккаунта, без почты, ничего никуда не отправляется.",
     "loading": "Чтение профиля…",
     "empty_title": "Профиля пока нет",
-    "empty_desc": "Эта сборка пока не умеет читать локальный профиль. Повторите попытку после обновления.",
-    "retry": "Повторить",
     "nickname_label": "Никнейм",
     "nickname_desc": "От 1 до 32 символов. Другие видят его, когда вы делитесь комнатой.",
     "nickname_placeholder": "Ваш никнейм",
@@ -3075,7 +3013,6 @@
       }
     },
     "observatory": {
-      "title": "Обсерватория",
       "lede": "Скорость, задержка, токены и стоимость по каждому агенту — плюс контекст, который держит каждый диалог.",
       "window_1h": "1 ч",
       "window_6h": "6 ч",
@@ -3144,15 +3081,12 @@
     },
     "title": "LLM",
     "tab": {
-      "chat": "Чат",
       "roster": "Команда агентов",
       "models": "Модели и маршрутизация",
       "mcp": "MCP",
       "skills": "Навыки",
       "accounts": "Аккаунты",
-      "arena": "Арена",
-      "jobs": "Задачи",
-      "loops": "Циклы"
+      "arena": "Арена"
     },
     "rail": {
       "title": "Агенты",
@@ -3661,7 +3595,6 @@
       "key_forget": "Забыть ключ",
       "key_saved": "Ключ сохранён.",
       "key_missing": "Без ключа ничего не отправляется, и сокращение остаётся выключенным.",
-      "not_wired": "Изменение не дошло до бэкенда.",
       "save_failed": "Could not confirm these settings. Reload to check the saved values."
     },
     "workspace": {
@@ -3707,7 +3640,6 @@
       "loops": "Циклы"
     },
     "jobs": {
-      "lede": "Запуски агента, которые работают в фоне, пока вы заняты другим.",
       "new_title": "Новая задача",
       "agent": "Агент",
       "prompt": "Запрос",
@@ -3958,7 +3890,6 @@
       "max_minutes": "Максимум минут",
       "check_command": "Команда проверки",
       "start": "Запустить цикл",
-      "list_title": "Циклы",
       "empty": "Циклов пока нет. Запустите один выше.",
       "rounds": "{{done}} / {{max}} кругов",
       "last_check": "Последняя проверка",
@@ -4224,37 +4155,6 @@
           "overwrite": "Replace theirs (backup kept)"
         },
         "beta": "Beta: not verified on this machine",
-        "profile": {
-          "title": "Profiles",
-          "apply": "Apply to my tools",
-          "read_only": {
-            "name": "Read-only",
-            "desc": "Reads and searches the code; no edits and no shell."
-          },
-          "dev": {
-            "name": "Developer",
-            "desc": "Edits files freely, asks before shell commands and web fetches, never reads .env."
-          },
-          "no_network": {
-            "name": "No network",
-            "desc": "Blocks web fetch, web search and network commands."
-          },
-          "autonomous_guarded": {
-            "name": "Autonomous with guard",
-            "desc": "Works on its own; destructive commands, force pushes and secrets stay blocked."
-          },
-          "provider": {
-            "name": "Alternative provider",
-            "desc": "Points each tool at another endpoint, with the key read from an environment variable."
-          },
-          "param": {
-            "protocol": "API protocol",
-            "base_url": "Base URL",
-            "key_env": "Environment variable with the key",
-            "model": "Model",
-            "small_model": "Small/fast model"
-          }
-        },
         "loop": {
           "run": "Run as an OmniGet Loop"
         }
@@ -5634,16 +5534,6 @@
         "import_none": "Nothing besides what the OmniGet installed.",
         "to_stack": "{{name}} is in the stack"
       },
-      "hooks": {
-        "observe": {
-          "title": "Watch this tool from OmniGet",
-          "body": "Adds a small hook that reports sessions, tool calls and permission requests to OmniGet. Permission requests show up in the pet; if nobody answers, the tool asks as usual.",
-          "gate": "Also ask me before every tool call",
-          "revoke": "Stop accepting this tool's reports"
-        },
-        "shim_note": "Hooks for this tool run through omniget-hook-shim",
-        "trust_note": "The tool asks you to trust new project hooks before running them"
-      },
       "plugins": {
         "tab": "Plugins",
         "tab_installs": "Installed by OmniGet",
@@ -6826,7 +6716,6 @@
         "read_only": "Только вспоминать, не сохранять"
       },
       "create": {
-        "open": "Создать бота",
         "title": "Создание бота",
         "lede": "Дайте ему имя и цель, выберите, что ему можно, и подключение, на котором он работает. Доступа к коду и командной оболочке у него нет, пока вы его не отметите.",
         "name": "Имя",
@@ -7065,10 +6954,7 @@
       "stale_title": "Вопросы, оставшиеся без ответа после перезапуска",
       "stale_hint": "Приложение закрылось, пока они ждали. Ничего не выполнилось. Перезапустите ход, чтобы спросить снова.",
       "dismiss": "Скрыть",
-      "answer_on_card": "Ответьте на её карточке вверху этой страницы.",
-      "answer_once": "Разрешить один раз",
-      "answer_always": "Разрешать всегда",
-      "answer_deny": "Запретить"
+      "answer_on_card": "Ответьте на её карточке вверху этой страницы."
     },
     "conversation": {
       "status_working": "Работает…",
@@ -7922,7 +7808,6 @@
       "error": "could not read",
       "refresh": "Refresh",
       "open_app": "Open OmniGet",
-      "add_account": "Add account",
       "open_claude": "Open Claude Code",
       "choose": "Accounts",
       "now": "now",
@@ -12321,44 +12206,6 @@
         "workspace": "This workspace"
       }
     },
-    "cords": {
-      "state": {
-        "starting": "Starting",
-        "ready": "Ready",
-        "working": "Working",
-        "needs_you": "Needs you",
-        "done": "Done",
-        "stuck": "Message not sent",
-        "exited": "Stopped",
-        "no_signal": "No signal"
-      },
-      "estimated": "estimated",
-      "waiting_peer": "Waiting for {{name}}",
-      "queued": "{{count}} message(s) waiting",
-      "inbox": {
-        "title": "Needs you",
-        "permission": "Asks permission",
-        "blocked": "Waiting for your answer",
-        "review": "Finished, ready for review",
-        "stuck": "A message was pasted but not sent",
-        "empty": "Nothing needs you"
-      },
-      "ask": {
-        "queued": "Queued",
-        "delivered": "Delivered",
-        "answered": "Answered",
-        "released": "Released (deadlock)",
-        "failed": "Failed"
-      },
-      "test": {
-        "action": "Test cord",
-        "ok": "The cord works",
-        "bridge_off": "The local bridge is off: turn it on in Settings for cords to work",
-        "not_running": "{{name}} is not running",
-        "without_env": "{{name}} was opened before its cords existed: restart it",
-        "missing": "One end of the cord is gone"
-      }
-    },
     "companion": {
       "title": "Omni",
       "settings": "Settings",
@@ -12406,17 +12253,6 @@
         "failed_last": "{{name}} hit an error. Last line: “{{last}}”",
         "manual": "Here is where {{name}} is.",
         "manual_last": "Here is where {{name}} is. Last line: “{{last}}”"
-      },
-      "s": {
-        "review": "Summarize what you changed and why",
-        "tests": "Run the tests and fix any failure",
-        "build": "Build the project and report errors",
-        "need": "Explain what you need from me",
-        "safest": "Go ahead with the safest option",
-        "pause": "Stop and summarize the progress so far",
-        "explain": "Explain the error and propose a fix",
-        "retry": "Retry the last step",
-        "output": "Show the full error output"
       },
       "window": {
         "workspace": "Workspace",
@@ -12735,7 +12571,6 @@
   },
   "tube": {
     "title": "OmniTube",
-    "music_title": "OmniTube Music",
     "settings_title": "OmniTube",
     "settings_desc": "Клиент YouTube и YouTube Music",
     "settings_enable": "Включить OmniTube",
@@ -13940,7 +13775,6 @@
       "takeout": "Takeout mode",
       "takeout_hint": "Uses Telegram's export session, which has higher limits for big downloads. Telegram may ask you to confirm on another device.",
       "preview": "Count",
-      "counting": "Counting…",
       "preview_result": "{{count}} files · {{size}}",
       "stale": "Filters changed, count again",
       "and_more": "and {{count}} more",

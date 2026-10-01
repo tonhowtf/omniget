@@ -61,7 +61,7 @@ export function secondsToMinutes(s: number | null | undefined): string {
   return Number.isInteger(m) ? String(m) : m.toFixed(1);
 }
 
-export type RuleProblem = "name" | "duration" | "numbers";
+type RuleProblem = "name" | "duration" | "numbers";
 
 /** What is wrong with a rule before saving (empty = ok). */
 export function ruleProblems(r: AutoRule): RuleProblem[] {

@@ -74,7 +74,7 @@ export type Artist = {
   plays: number;
 };
 
-export type LrcWord = { time_ms: number; text: string };
+type LrcWord = { time_ms: number; text: string };
 export type LrcLine = { time_ms: number; text: string; words?: LrcWord[] };
 export type Lyrics = {
   lines: LrcLine[];
@@ -116,7 +116,7 @@ export type Playlist = {
   updated_at: number;
 };
 
-export type TrackMeta = {
+type TrackMeta = {
   title: string;
   artist: string;
   album: string;

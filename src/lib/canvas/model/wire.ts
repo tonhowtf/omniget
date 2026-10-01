@@ -64,7 +64,7 @@ function fillFromWire(f: unknown): Drawing['fillStyle'] | undefined {
 /** Optional wire fields copied verbatim both ways (they have the same name and shape). */
 const PASSTHROUGH = ['rotation', 'cornerRadius', 'textFontSize', 'sourceConnection', 'targetConnection', 'controlPointOffset'] as const;
 
-export function drawingToWire(d: Drawing): WireDrawing {
+function drawingToWire(d: Drawing): WireDrawing {
   const points = d.points && d.points.length >= 2 ? d.points.slice() : [0, 0, d.w, d.h];
   const w: WireDrawing = {
     id: d.id,
@@ -158,7 +158,7 @@ const DRAWING_OPTIONALS = ['color', 'opacity', 'textContent', 'fillStyle', 'stro
  * of the drawing as it is now in the store (so origin/size stay coherent),
  * with `null` for optionals it no longer has.
  */
-export function opToWire(op: Op, store: CanvasStore): Record<string, unknown> | null {
+function opToWire(op: Op, store: CanvasStore): Record<string, unknown> | null {
   switch (op.op) {
     case 'update_node': {
       const patch = nullify(op.patch);
@@ -198,7 +198,7 @@ export function opsToWire(ops: Op[], store: CanvasStore): Record<string, unknown
 }
 
 /** Wire op → local op (drawing updates are merged on the wire shape, then converted back). */
-export function opFromWire(raw: unknown, store: CanvasStore): Op | null {
+function opFromWire(raw: unknown, store: CanvasStore): Op | null {
   const w = raw as Record<string, unknown> & { op?: string };
   if (!w || typeof w.op !== 'string') return null;
   switch (w.op) {

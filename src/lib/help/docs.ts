@@ -1,6 +1,6 @@
 import content from './content.json';
-export type HelpArticle = (typeof content)[number];
-export const helpLocale = (locale: string) => locale.startsWith('pt') ? 'pt' : locale.startsWith('ru') ? 'ru' : 'en';
+type HelpArticle = (typeof content)[number];
+const helpLocale = (locale: string) => locale.startsWith('pt') ? 'pt' : locale.startsWith('ru') ? 'ru' : 'en';
 export function articles(locale: string): HelpArticle[] { return content.filter(a => a.locale === helpLocale(locale)); }
 const normalize = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 export function contentHash(a: HelpArticle): string {

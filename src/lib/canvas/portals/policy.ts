@@ -18,10 +18,10 @@ import type { CanvasEngine } from '../engine.svelte';
 import { closePortal, hidePortal, refreshSnapshot, setPortalBounds, type PortalBounds } from './client';
 
 export const SETTLE_MS = 150;
-export const LIVE_ZOOM_MIN = 0.5;
-export const LIVE_ZOOM_MAX = 2;
-export const UNLOAD_AFTER_MS = 5 * 60_000;
-export const LIVE_SNAPSHOT_EVERY_MS = 10_000;
+const LIVE_ZOOM_MIN = 0.5;
+const LIVE_ZOOM_MAX = 2;
+const UNLOAD_AFTER_MS = 5 * 60_000;
+const LIVE_SNAPSHOT_EVERY_MS = 10_000;
 const COVER_POLL_MS = 300;
 
 export interface Rect {
@@ -54,7 +54,7 @@ export function inside(r: Rect, c: Rect, tol = 0.5): boolean {
 }
 
 /** Pure decision: ids that should be live now. */
-export function decideLive(input: PolicyInput): Set<string> {
+function decideLive(input: PolicyInput): Set<string> {
   if (!input.pageVisible || !input.cameraStill) return new Set();
   if (input.zoom < LIVE_ZOOM_MIN || input.zoom > LIVE_ZOOM_MAX) return new Set();
   const ok = input.candidates.filter(
@@ -71,7 +71,7 @@ export function decideLive(input: PolicyInput): Set<string> {
   );
 }
 
-export interface PortalEntry {
+interface PortalEntry {
   id: string;
   /** Element the page covers (below the portal's toolbar). */
   body: () => HTMLElement | null;
@@ -122,7 +122,7 @@ export function covered(rect: Rect, host: HTMLElement): boolean {
   return false;
 }
 
-export class PortalPolicy {
+class PortalPolicy {
   private tracks = new Map<string, Track>();
   private unloads = new Map<string, ReturnType<typeof setTimeout>>();
   private offFrame: (() => void) | null = null;

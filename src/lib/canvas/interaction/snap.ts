@@ -7,10 +7,6 @@ export function snap(v: number, grid = GRID): number {
   return Math.round(v / grid) * grid;
 }
 
-export function snapRect(r: Rect, grid = GRID): Rect {
-  return { x: snap(r.x, grid), y: snap(r.y, grid), w: Math.max(grid, snap(r.w, grid)), h: Math.max(grid, snap(r.h, grid)) };
-}
-
 export interface Guide {
   axis: 'x' | 'y';
   /** World coordinate of the guide line. */
@@ -19,7 +15,7 @@ export interface Guide {
   to: number;
 }
 
-export interface SnapResult {
+interface SnapResult {
   dx: number;
   dy: number;
   guides: Guide[];

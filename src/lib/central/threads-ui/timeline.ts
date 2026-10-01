@@ -63,7 +63,7 @@ export type Row =
       error: string | null;
     };
 
-export type DeriveOptions = {
+type DeriveOptions = {
   expandedFolds: Set<string>;
   collapsedFolds: Set<string>;
   expandedGroups: Set<string>;
@@ -81,11 +81,11 @@ type Item =
 
 const LIVE_STATES = new Set(["pending", "running"]);
 
-export function isLiveTurn(t: TurnDetail): boolean {
+function isLiveTurn(t: TurnDetail): boolean {
   return LIVE_STATES.has(t.turn.state);
 }
 
-export function turnDurationMs(t: TurnDetail, now = Date.now()): number {
+function turnDurationMs(t: TurnDetail, now = Date.now()): number {
   const start = Date.parse(t.turn.startedAt ?? t.turn.requestedAt);
   const endIso = t.turn.completedAt;
   const end = endIso ? Date.parse(endIso) : now;
@@ -94,7 +94,7 @@ export function turnDurationMs(t: TurnDetail, now = Date.now()): number {
 }
 
 /** One-line plaintext preview of a thought. */
-export function thoughtPreview(text: string): string {
+function thoughtPreview(text: string): string {
   const plain = text
     .replace(/```[\s\S]*?```/g, " ")
     .replace(/[`*_#>~[\]()]/g, "")

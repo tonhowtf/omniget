@@ -23,7 +23,7 @@ export type TranslationBag = Record<string, Record<string, unknown>> | undefined
 // A type alias (not an interface) on purpose: Tauri's `invoke` wants
 // `Record<string, unknown>`, and TypeScript only gives an implicit index
 // signature to object type aliases.
-export type AgentPrompts = {
+type AgentPrompts = {
   omni: string;
   builder: string;
   scout: string;

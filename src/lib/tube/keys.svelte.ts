@@ -33,7 +33,7 @@ function onControl(e: KeyboardEvent): boolean {
   return !!t && (t.tagName === "BUTTON" || t.tagName === "A" || t.getAttribute("role") === "slider" || t.getAttribute("role") === "tab");
 }
 
-export function keyTarget(): "video" | "music" | null {
+function keyTarget(): "video" | "music" | null {
   const onWatch = current().name === "watch";
   if (onWatch && V.vplayer.videoId) return "video";
   if (V.vplayer.videoId && V.vplayer.mini && V.vplayer.active) return "video";
@@ -42,7 +42,7 @@ export function keyTarget(): "video" | "music" | null {
   return null;
 }
 
-export function handleKey(e: KeyboardEvent): boolean {
+function handleKey(e: KeyboardEvent): boolean {
   if (e.defaultPrevented || typing(e)) return false;
   if (e.ctrlKey || e.metaKey) return false;
   if (e.altKey) {

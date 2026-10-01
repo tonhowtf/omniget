@@ -13,7 +13,7 @@
  */
 import { MODE_FRAMES, paintFrame, resolvePreset, type OrbSize, type OrbState } from "thinking-orbs/engine";
 
-export type OrbOptions = {
+type OrbOptions = {
   state: OrbState;
   size?: OrbSize;
   theme: "dark" | "light";

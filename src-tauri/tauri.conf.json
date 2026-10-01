@@ -4,9 +4,9 @@
   "version": "1.0.0",
   "identifier": "wtf.tonho.omniget",
   "build": {
-    "beforeDevCommand": "node scripts/mcp/build-worker.mjs --debug && pnpm dev",
+    "beforeDevCommand": "node browser-extension/sync.mjs && node scripts/mcp/build-worker.mjs --debug && pnpm dev",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "node scripts/mcp/build-worker.mjs && pnpm build",
+    "beforeBuildCommand": "node browser-extension/sync.mjs && node scripts/mcp/build-worker.mjs && pnpm build",
     "frontendDist": "../build"
   },
   "app": {

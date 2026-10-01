@@ -22,7 +22,7 @@ export type PtySessionInfo = {
   foreground: PtyForeground;
 };
 
-export type PtyOpenRequest = {
+type PtyOpenRequest = {
   id?: string;
   cwd?: string | null;
   /** argv; empty opens the default shell. */
@@ -36,7 +36,7 @@ export type PtyOpenRequest = {
   history_cap?: number;
 };
 
-export type PtyAttached = {
+type PtyAttached = {
   info: PtySessionInfo | null;
   /** base64 of the sanitized history. */
   history: string;
@@ -47,8 +47,8 @@ export type PtyAttached = {
 };
 
 export type PtyDataEvent = { id: string; generation: number; seq: number; start: number; data: string };
-export type PtyExitEvent = { id: string; code: number | null; signal: string | null };
-export type PtyActivityEvent = { id: string } & PtyForeground;
+type PtyExitEvent = { id: string; code: number | null; signal: string | null };
+type PtyActivityEvent = { id: string } & PtyForeground;
 
 /** What "add selection to chat" hands the composer. */
 export type TerminalSelection = { text: string; lines: [number, number]; terminal_id: string };
@@ -61,7 +61,6 @@ export const ptyList = () => invoke<PtySessionInfo[]>("pty_list");
 export const ptyAttach = (id: string) => invoke<PtyAttached>("pty_attach", { id });
 export const ptyDetach = (id: string) => invoke<void>("pty_detach", { id });
 export const ptyAck = (id: string, seq: number) => invoke<void>("pty_ack", { id, seq });
-export const ptyClear = (id: string) => invoke<number>("pty_clear", { id });
 
 export function decodeBase64(s: string): Uint8Array {
   const bin = atob(s);
@@ -77,7 +76,7 @@ export function errorCode(e: unknown): string {
 }
 
 // One listener per event for the whole app, dispatched by terminal id.
-export type PtyHandlers = {
+type PtyHandlers = {
   data?: (e: PtyDataEvent) => void;
   exit?: (e: PtyExitEvent) => void;
   activity?: (e: PtyActivityEvent) => void;

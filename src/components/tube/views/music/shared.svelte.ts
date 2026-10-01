@@ -251,7 +251,7 @@ export async function copyLink(url: string): Promise<void> {
 }
 
 /** "Artist A, Artist B" */
-export function artistNames(s: { artists: { name: string }[] }): string {
+function artistNames(s: { artists: { name: string }[] }): string {
   return s.artists.map((a) => a.name).join(", ");
 }
 

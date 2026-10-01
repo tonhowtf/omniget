@@ -5,7 +5,7 @@
 export type TermLod = 'text' | 'mini' | 'card';
 
 /** Canonical agent states, in wire order (AGENT.state). */
-export const AGENT_STATES = [
+const AGENT_STATES = [
   'idle',
   'thinking',
   'working',
@@ -35,7 +35,7 @@ export function agentStateFromName(s: string | null | undefined): AgentStateName
   return (AGENT_STATES as readonly string[]).includes(snake) ? (snake as AgentStateName) : 'unknown';
 }
 
-export class TermLive {
+class TermLive {
   title = $state('');
   cwd = $state('');
   lod = $state<TermLod>('card');
@@ -67,10 +67,3 @@ export function termLive(id: string): TermLive {
   return live;
 }
 
-export function peekTermLive(id: string): TermLive | undefined {
-  return lives.get(id);
-}
-
-export function dropTermLive(id: string): void {
-  lives.delete(id);
-}

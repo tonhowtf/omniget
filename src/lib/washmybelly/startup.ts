@@ -1,7 +1,7 @@
 /// Startup items from `wmb_startup_list` and the pure logic of the screen:
 /// grouping by type, the third-party filter, what a toggle can do.
 
-export type StartupKind =
+type StartupKind =
   | "login_item"
   | "agent"
   | "daemon"
@@ -44,7 +44,7 @@ export type StartupList = {
   notes?: string[];
 };
 
-export type StartupGroup = "login" | "agents" | "services" | "tasks" | "autostart";
+type StartupGroup = "login" | "agents" | "services" | "tasks" | "autostart";
 
 export const GROUP_ORDER: readonly StartupGroup[] = ["login", "agents", "services", "tasks", "autostart"];
 

@@ -24,7 +24,7 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 // ---------------------------------------------------------------------------
 
 /** One sample of an agent's activity. `t_ms` is a Unix epoch in milliseconds. */
-export interface TelemetryPoint {
+interface TelemetryPoint {
   t_ms: number;
   /** Output tokens produced inside this sample. */
   tokens_out: number;
@@ -39,7 +39,7 @@ export interface TelemetryPoint {
 export type AgentState = "idle" | "streaming" | "waiting_tool" | "error";
 
 /** A line in the agent timeline. `Rerouted` is the "trocou para X" of §9.2. */
-export interface AgentEvent {
+interface AgentEvent {
   t_ms: number;
   kind: "turn_started" | "turn_finished" | "rerouted" | "error" | "budget";
   /** Stable code when the event carries one (`ERR_LLM_RATE`, …). */
@@ -107,7 +107,7 @@ export interface CostBucket {
   calls: number;
 }
 
-export interface TelemetrySnapshot {
+interface TelemetrySnapshot {
   ts_ms: number;
   agents: AgentTelemetry[];
   quotas: QuotaStatus[];
@@ -132,7 +132,7 @@ export type WindowKey = keyof typeof WINDOWS;
 /** Hard cap on SVG points, from the budget (§5 of the prompt). */
 export const MAX_POINTS = 200;
 
-export interface Aggregated {
+interface Aggregated {
   /** Bucket start, epoch ms. */
   t_ms: number;
   tokens_out: number;
@@ -228,7 +228,7 @@ export function cacheHitRate(a: Pick<AgentTelemetry, "cache_read_tokens" | "inpu
 }
 
 /** Merge a new sample list into a ring, keeping it sorted and bounded. */
-export function pushHistory(
+function pushHistory(
   ring: readonly TelemetryPoint[],
   incoming: readonly TelemetryPoint[],
   maxPoints = 2880,
@@ -480,18 +480,10 @@ export async function startTelemetry(options: { demo?: boolean } = {}): Promise<
   return () => stopTelemetry();
 }
 
-export function stopTelemetry(): void {
+function stopTelemetry(): void {
   if (unlisten) {
     unlisten();
     unlisten = null;
   }
 }
 
-/** Test seam: drop every piece of state between cases. */
-export function resetTelemetryStore(): void {
-  stopTelemetry();
-  snapshot = EMPTY;
-  loadState = "idle";
-  errorCode = "";
-  demo = false;
-}

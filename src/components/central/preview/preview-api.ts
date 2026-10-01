@@ -28,8 +28,8 @@ export type PreviewState = {
 export type Rect = { x: number; y: number; width: number; height: number; scale?: number };
 
 export type WindowInfo = { id: string; app: string; title: string; pid: number | null; x: number; y: number; width: number; height: number };
-export type WindowList = { windows: WindowInfo[]; permission: boolean; note: string | null };
-export type Captured = { path: string; width: number | null; height: number | null; bytes: number };
+type WindowList = { windows: WindowInfo[]; permission: boolean; note: string | null };
+type Captured = { path: string; width: number | null; height: number | null; bytes: number };
 
 export const EVENT_STATE = "preview://state";
 

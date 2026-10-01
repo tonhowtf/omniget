@@ -8,14 +8,14 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type { DiffOptions, DiffResult } from "$lib/central/vcs";
 import type { AccessMode } from "$lib/central/threads/types";
 
-export const ARENA_EVENT = "central://arena";
+const ARENA_EVENT = "central://arena";
 /** 2 a 5 colunas (roteiro 3.8, S23), o mesmo limite do backend. */
 export const MIN_ENTRIES = 2;
 export const MAX_ENTRIES = 5;
 
-export type EntryStatus = "preparing" | "running" | "testing" | "done" | "failed" | "interrupted";
-export type TestStatus = "none" | "running" | "passed" | "failed" | "error";
-export type ArenaStatus = "running" | "review" | "applied" | "discarded";
+type EntryStatus = "preparing" | "running" | "testing" | "done" | "failed" | "interrupted";
+type TestStatus = "none" | "running" | "passed" | "failed" | "error";
+type ArenaStatus = "running" | "review" | "applied" | "discarded";
 export type ApplyStrategy = "merge" | "squash";
 
 export type EntrySpec = {
@@ -26,7 +26,7 @@ export type EntrySpec = {
   label?: string | null;
 };
 
-export type ArenaCreate = {
+type ArenaCreate = {
   projectId?: string | null;
   workspaceRoot?: string | null;
   title?: string | null;
@@ -142,7 +142,7 @@ export type ApplyResult = {
   tookMs: number;
 };
 
-export type CleanupResult = {
+type CleanupResult = {
   arena: ArenaView;
   archived: string[];
   worktreesRemoved: string[];
@@ -152,9 +152,9 @@ export type CleanupResult = {
   errors: string[];
 };
 
-export type EstimateSource = "history" | "price" | "unknown";
+type EstimateSource = "history" | "price" | "unknown";
 
-export type EntryEstimate = {
+type EntryEstimate = {
   driver: string;
   model: string | null;
   usd: number | null;
@@ -169,7 +169,7 @@ export type ArenaEstimate = {
   unknown: number;
 };
 
-export type CompareCell = {
+type CompareCell = {
   entryId: string;
   /** `=` = não tocou (igual à base). */
   status: "=" | "A" | "M" | "D";
@@ -179,7 +179,7 @@ export type CompareCell = {
   variant: number;
 };
 
-export type CompareFile = {
+type CompareFile = {
   path: string;
   divergent: boolean;
   touchedBy: number;
@@ -196,7 +196,7 @@ export type ArenaCompare = {
   agreed: number;
 };
 
-export type ArenaEventPayload = { arenaId: string; arena?: ArenaView; deleted?: boolean };
+type ArenaEventPayload = { arenaId: string; arena?: ArenaView; deleted?: boolean };
 
 // ── Comandos ────────────────────────────────────────────────────────────
 
@@ -253,7 +253,7 @@ export function arenaError(e: unknown): { code: string | null; message: string }
 
 // ── Helpers puros ───────────────────────────────────────────────────────
 
-export const ACTIVE: EntryStatus[] = ["preparing", "running", "testing"];
+const ACTIVE: EntryStatus[] = ["preparing", "running", "testing"];
 
 export function isActive(e: Pick<ArenaEntry, "status">): boolean {
   return ACTIVE.includes(e.status);

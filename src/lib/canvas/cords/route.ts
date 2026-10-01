@@ -22,7 +22,7 @@ export function portPoint(r: Rect, side: Side): Pt {
   }
 }
 
-export function sideNormal(side: Side): Pt {
+function sideNormal(side: Side): Pt {
   switch (side) {
     case 'top':
       return { x: 0, y: -1 };
@@ -82,7 +82,7 @@ function oppositeOf(s: Side): Side {
   return s === 'top' ? 'bottom' : s === 'bottom' ? 'top' : s === 'left' ? 'right' : 'left';
 }
 
-export interface SampledCord {
+interface SampledCord {
   path: CordPath;
   /** Flat polyline, 33 points. */
   pts: number[];

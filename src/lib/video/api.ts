@@ -33,7 +33,7 @@ import type {
   ServerInfo,
   ShowDetail,
   ShowSummary,
-  SkipSegment,
+  
   SourceInfo,
   SourceRef,
   TranscriptHit,
@@ -93,7 +93,6 @@ export const setWatched = (keys: string[], watched: boolean) => invoke<void>("vi
 export const continueRemove = (key: string) => invoke<void>("video_continue_remove", { key });
 export const history = (limit = 200) => invoke<HistoryEntry[]>("video_history", { limit });
 export const historyClear = () => invoke<void>("video_history_clear");
-export const prefsGet = (scopes: string[]) => invoke<Record<string, Partial<PlayPrefs>>>("video_prefs_get", { scopes });
 export const prefsSet = (scope: string, prefs: Partial<PlayPrefs>) => invoke<void>("video_prefs_set", { scope, prefs });
 export const linkResolve = (url: string) => invoke<PlaybackInfo>("video_link_resolve", { url });
 export const openExternal = (source: SourceRef, player: "mpv" | "iina" | "vlc" | null = null) =>
@@ -190,8 +189,6 @@ export const anilistSearch = (q: string) => invoke<AniMedia[]>("video_anilist_se
 export const anilistMedia = (id: number) => invoke<AniMedia>("video_anilist_media", { id });
 export const anilistList = (status: string | null = null) => invoke<AniMedia[]>("video_anilist_list", { status });
 export const anilistProgress = (mediaId: number, episode: number) => invoke<AniMedia>("video_anilist_progress", { mediaId, episode });
-export const aniskip = (malId: number, episode: number, durationMs: number) =>
-  invoke<SkipSegment[]>("video_aniskip", { malId, episode, durationMs });
 
 // Cast
 export const castDiscover = () => invoke<CastDevice[]>("video_cast_discover");

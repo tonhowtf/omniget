@@ -4,7 +4,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 
-export const COMPANY_EVENT = 'company://changed';
+const COMPANY_EVENT = 'company://changed';
 
 export type Change = { company_id: string; entity: string; id: string };
 

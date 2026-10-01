@@ -4,7 +4,7 @@
  */
 import type { RunState, RunView } from "$lib/stores/llm-jobs-store.svelte";
 
-export type RunStatus = "queued" | "working" | "waiting" | "interrupted" | "failed" | "done" | "cancelled";
+type RunStatus = "queued" | "working" | "waiting" | "interrupted" | "failed" | "done" | "cancelled";
 
 /** A run that ended because someone stopped it, recorded as a failure by the turn. */
 const CANCELLED_ERROR = /\b(ERR_LLM_CANCELLED|EXTERNAL_EXECUTION_CANCELLED|ERR_JOB_CANCELLED)\b|^(job )?cancel+ed\b/i;

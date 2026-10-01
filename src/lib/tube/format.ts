@@ -9,10 +9,6 @@ export function setFormatLocale(l: string | null | undefined) {
   if (l) LOCALE = l;
 }
 
-export function formatLocale(): string {
-  return LOCALE;
-}
-
 /** 75 -> "1:15", 3723 -> "1:02:03". Negative/NaN -> "0:00". */
 export function fmtDuration(s: number | null | undefined): string {
   if (s == null || !Number.isFinite(s) || s < 0) return "0:00";
@@ -119,11 +115,6 @@ export function timeAgo(ms: number | null | undefined, now = Date.now(), locale 
     }
   }
   return "";
-}
-
-/** Seconds -> "1:02" or, for SponsorBlock toasts etc., compact "12s". */
-export function fmtShortSeconds(s: number): string {
-  return s < 60 ? `${Math.round(s)}s` : fmtDuration(s);
 }
 
 /** Bytes -> "1.2 GB". */

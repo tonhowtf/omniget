@@ -45,7 +45,7 @@ export function summaryErrorKey(error: unknown): string | null {
  * Which element a deep link reveals: an exact known setting key wins, then the
  * section, then nothing. Unknown values never select anything.
  */
-export const SUMMARY_SETTING_KEYS: Record<string, "form" | "history"> = {
+const SUMMARY_SETTING_KEYS: Record<string, "form" | "history"> = {
   "settings.ai.summarize_title": "form",
   "settings.ai.history": "history",
 };

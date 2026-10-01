@@ -5,7 +5,7 @@ import * as api from "$lib/tube/api";
 import { patchTubePrefs, tubePrefs } from "$lib/tube/prefs.svelte";
 import type { Item } from "$lib/tube/types";
 
-export type UndoEntry = {
+type UndoEntry = {
   id: number;
   text: string;
   undo: () => void | Promise<void>;

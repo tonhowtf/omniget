@@ -66,7 +66,7 @@ export function dist(a: Pt, b: Pt): number {
 }
 
 /** Squared distance from p to segment ab. */
-export function distToSegmentSq(px: number, py: number, ax: number, ay: number, bx: number, by: number): number {
+function distToSegmentSq(px: number, py: number, ax: number, ay: number, bx: number, by: number): number {
   const dx = bx - ax;
   const dy = by - ay;
   const len = dx * dx + dy * dy;
@@ -110,7 +110,7 @@ export interface Cubic {
   p1: Pt;
 }
 
-export function cubicAt(c: Cubic, t: number): Pt {
+function cubicAt(c: Cubic, t: number): Pt {
   const u = 1 - t;
   const a = u * u * u;
   const b = 3 * u * u * t;
@@ -120,15 +120,6 @@ export function cubicAt(c: Cubic, t: number): Pt {
     x: a * c.p0.x + b * c.c0.x + d * c.c1.x + e * c.p1.x,
     y: a * c.p0.y + b * c.c0.y + d * c.c1.y + e * c.p1.y,
   };
-}
-
-export function cubicTangent(c: Cubic, t: number): Pt {
-  const u = 1 - t;
-  const x =
-    3 * u * u * (c.c0.x - c.p0.x) + 6 * u * t * (c.c1.x - c.c0.x) + 3 * t * t * (c.p1.x - c.c1.x);
-  const y =
-    3 * u * u * (c.c0.y - c.p0.y) + 6 * u * t * (c.c1.y - c.c0.y) + 3 * t * t * (c.p1.y - c.c1.y);
-  return { x, y };
 }
 
 /** Samples a cubic into a flat polyline of `n + 1` points. */

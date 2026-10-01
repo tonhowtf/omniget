@@ -3,7 +3,7 @@
 
 import type { Pt } from '../spatial/geometry';
 
-export const ROPE_SEGMENTS = 12;
+const ROPE_SEGMENTS = 12;
 const GRAVITY = 900; // world units / s²
 const ITERATIONS = 8;
 const SETTLE_EPS = 0.05;

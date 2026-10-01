@@ -30,7 +30,7 @@ export function inview(node: Element, cb: VisibleCb) {
   };
 }
 
-export type FloatOpts = {
+type FloatOpts = {
   /** Element the popup hangs from; null centers it (dialogs). */
   anchor: HTMLElement | null;
   align?: "start" | "end";

@@ -39,7 +39,7 @@ import {
   type Origin,
   type Rect,
 } from './model/types';
-import { nodeKind, onRegistryChange, sizeFor } from './nodes/registry';
+import { onRegistryChange, sizeFor } from './nodes/registry';
 import { canvasPrefs, prefSize, presetAgent, presetData, userPreset } from './prefs.svelte';
 import { GlLayer, onPassesChange, type FrameInfo, type NodeView } from './render/gl-layer';
 import { Selection } from './interaction/selection.svelte';
@@ -56,12 +56,12 @@ export const ENGINE_KEY = Symbol('canvas-engine');
 /** Camera must rest this long before costly swaps (mount terminals, show portals). */
 export const SETTLE_MS = 150;
 /** Soft delete: a removed terminal keeps its PTY this long for undo. */
-export const SOFT_DELETE_MS = 60_000;
-export const MESSAGE_EVENT = 'canvas://message';
-export const ASK_EVENT = 'canvas://ask';
+const SOFT_DELETE_MS = 60_000;
+const MESSAGE_EVENT = 'canvas://message';
+const ASK_EVENT = 'canvas://ask';
 
 /** Modal panels of the canvas (toolbar, node menu, shortcuts). */
-export type CanvasPanel =
+type CanvasPanel =
   | { kind: 'partituras' }
   | { kind: 'import'; id: string; at: { x: number; y: number } }
   | { kind: 'routine'; targetNodeId?: string }
@@ -90,7 +90,7 @@ export interface Draft {
   create?: Rect;
 }
 
-export interface SpawnMenuState {
+interface SpawnMenuState {
   sx: number;
   sy: number;
   wx: number;
@@ -103,7 +103,7 @@ export interface SpawnMenuState {
   free?: boolean;
 }
 
-export interface SpawnOptions {
+interface SpawnOptions {
   agent?: AgentKind;
   rect?: Rect;
   title?: string;
@@ -1291,7 +1291,7 @@ export function useEngine(): CanvasEngine {
 }
 
 /** Best-effort call that tolerates a command not registered yet. */
-export async function tryInvoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T | null> {
+async function tryInvoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T | null> {
   try {
     return await invoke<T>(cmd, args);
   } catch {

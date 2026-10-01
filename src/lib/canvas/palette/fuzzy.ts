@@ -22,7 +22,7 @@ function isBoundary(text: string, i: number): boolean {
 }
 
 /** Subsequence match of one word; returns score and indices, or null. */
-export function matchWord(word: string, folded: string, original: string, loose = true): { score: number; idx: number[] } | null {
+function matchWord(word: string, folded: string, original: string, loose = true): { score: number; idx: number[] } | null {
   if (!word) return { score: 0, idx: [] };
   // Substring first: the best case.
   const sub = folded.indexOf(word);
@@ -64,7 +64,7 @@ export interface Field {
   loose?: boolean;
 }
 
-export interface FuzzyResult {
+interface FuzzyResult {
   score: number;
   /** Matched indices in the first field (the name). */
   nameIdx: number[];

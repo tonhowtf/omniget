@@ -13,9 +13,9 @@
  * The formats are public; this is a fresh implementation, no code was copied.
  */
 
-export type SubscriptionFormat = "freetube" | "newpipe" | "youtube-json" | "csv" | "opml" | "urls";
+type SubscriptionFormat = "freetube" | "newpipe" | "youtube-json" | "csv" | "opml" | "urls";
 
-export interface ImportedChannel {
+interface ImportedChannel {
   /** The URL OmniGet follows. YouTube channels point at their Videos tab. */
   url: string;
   title: string;
@@ -31,12 +31,12 @@ export interface SubscriptionImport {
 const CHANNEL_ID = /^UC[\w-]{22}$/;
 
 /** The Videos tab: a bare channel URL lists its tabs, not its uploads. */
-export function youtubeChannelUrl(channelId: string): string {
+function youtubeChannelUrl(channelId: string): string {
   return `https://www.youtube.com/channel/${channelId}/videos`;
 }
 
 /** Normalises a channel URL from an export; YouTube channel pages get the Videos tab. */
-export function channelUrlFrom(raw: string): string | null {
+function channelUrlFrom(raw: string): string | null {
   const value = raw.trim();
   if (CHANNEL_ID.test(value)) return youtubeChannelUrl(value);
   let url: URL;

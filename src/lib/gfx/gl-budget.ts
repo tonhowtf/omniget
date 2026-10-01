@@ -5,9 +5,9 @@
 // least recently used lease of a lower-or-equal priority is evicted and its
 // owner falls back (xterm to the DOM renderer, for instance).
 
-export type GlOwnerKind = 'canvas' | 'xterm' | 'world' | 'pet' | 'other';
+type GlOwnerKind = 'canvas' | 'xterm' | 'world' | 'pet' | 'other';
 
-export interface GlLeaseRequest {
+interface GlLeaseRequest {
   kind: GlOwnerKind;
   /** Higher survives longer. Canvas L0 = 100, focused xterm = 50, visible xterm = 20. */
   priority: number;
@@ -29,9 +29,9 @@ export interface GlLease {
 }
 
 /** Total contexts we allow ourselves: 16 minus slack for the rest of the app. */
-export const GL_TOTAL_LIMIT = 13;
+const GL_TOTAL_LIMIT = 13;
 /** xterm WebGL addons at most (the focused one and the most recent visible). */
-export const GL_XTERM_LIMIT = 6;
+const GL_XTERM_LIMIT = 6;
 
 interface Entry {
   id: number;
@@ -43,7 +43,7 @@ interface Entry {
   alive: boolean;
 }
 
-export class GlBudget {
+class GlBudget {
   private entries = new Map<number, Entry>();
   private nextId = 1;
   private clock = 0;

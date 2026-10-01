@@ -349,17 +349,6 @@ async fn radio(State(ctx): State<Ctx>, Query(q): Query<HashMap<String, String>>)
         })
         .unwrap_or("audio/mpeg")
         .to_string();
-    let station_name = upstream
-        .headers()
-        .get("icy-name")
-        .and_then(|v| v.to_str().ok())
-        .map(str::to_string);
-    if let Some(name) = station_name {
-        let _ = ctx.app.emit(
-            "music-radio-station",
-            serde_json::json!({ "session": session, "name": name }),
-        );
-    }
     let app = ctx.app.clone();
     let mut demux = IcyDemuxer::new(metaint);
     let mut last_title = String::new();

@@ -3,7 +3,7 @@
 
 export type Severity = "ok" | "warn" | "bad";
 
-export type Factor = {
+type Factor = {
   id: "disk_space" | "temperature" | "battery" | "memory" | "junk" | "login_items" | "privacy";
   penalty: number;
   severity: Severity;
@@ -88,7 +88,7 @@ export type SortDir = "asc" | "desc";
 export const HISTORY = 120;
 
 /// Append a sample, keeping the last `max` (a new array, for Svelte).
-export function pushSample(buf: number[], v: number | null | undefined, max = HISTORY): number[] {
+function pushSample(buf: number[], v: number | null | undefined, max = HISTORY): number[] {
   if (v === null || v === undefined || !Number.isFinite(v)) return buf;
   const next = buf.length >= max ? buf.slice(buf.length - max + 1) : buf.slice();
   next.push(v);
@@ -212,11 +212,6 @@ export function sortProcesses(rows: ProcessRow[], key: SortKey, dir: SortDir): P
 export function toggleSort(cur: { key: SortKey; dir: SortDir }, key: SortKey): { key: SortKey; dir: SortDir } {
   if (cur.key !== key) return { key, dir: key === "name" || key === "user" || key === "pid" ? "asc" : "desc" };
   return { key, dir: cur.dir === "asc" ? "desc" : "asc" };
-}
-
-/// Colour of a score, in step with `ui/HealthRing`.
-export function scoreTone(score: number): "good" | "fair" | "poor" {
-  return score >= 80 ? "good" : score >= 60 ? "fair" : "poor";
 }
 
 /// Error codes the core puts at the start of a refusal (`REFUSED: ...`).

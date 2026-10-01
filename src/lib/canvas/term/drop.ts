@@ -10,7 +10,7 @@ import { terminalIdOf } from './gl-types';
 import { TERM_HEADER_H } from './metrics';
 
 /** Shell-quotes a path only when it needs it. */
-export function quotePath(p: string): string {
+function quotePath(p: string): string {
   return /^[\w@%+=:,./-]+$/.test(p) ? p : `'${p.replace(/'/g, `'\\''`)}'`;
 }
 

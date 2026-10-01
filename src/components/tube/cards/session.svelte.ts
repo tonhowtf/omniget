@@ -7,10 +7,6 @@ export function ensureSession(): Promise<void> {
   return loadSession();
 }
 
-export function refreshSession(): Promise<void> {
-  return loadSession(true);
-}
-
 export function sessionReady(): boolean {
   return shell.loaded;
 }

@@ -7,9 +7,9 @@ import type { Format, SbCategory, SbMode, SbSegment, Storyboard, StreamSet } fro
 
 // ---------------------------------------------------------------- formats
 
-export type CodecFamily = "avc1" | "vp9" | "av01" | "mp4a" | "opus" | "other";
+type CodecFamily = "avc1" | "vp9" | "av01" | "mp4a" | "opus" | "other";
 
-export function codecFamily(f: Pick<Format, "codecs" | "mime">): CodecFamily {
+function codecFamily(f: Pick<Format, "codecs" | "mime">): CodecFamily {
   const c = (f.codecs || "").toLowerCase();
   if (c.startsWith("avc1") || c.startsWith("avc3")) return "avc1";
   if (c.startsWith("vp9") || c.startsWith("vp09")) return "vp9";
@@ -29,7 +29,7 @@ export function isWebKit(ua = typeof navigator !== "undefined" ? navigator.userA
   return /AppleWebKit/.test(ua) && !/Chrome|Chromium|Edg\//.test(ua);
 }
 
-export type Supports = (f: Format) => boolean;
+type Supports = (f: Format) => boolean;
 
 /** MSE support probe; false outside a browser. */
 export const mseSupports: Supports = (f) => {
@@ -45,7 +45,7 @@ export function hasRanges(f: Format): boolean {
   return !!f.init_range && !!f.index_range;
 }
 
-export type LadderPrefs = {
+type LadderPrefs = {
   codec: "auto" | "avc1" | "vp9" | "av01" | string;
   webkit: boolean;
   /** Only formats dash.js can play (init/index ranges present). */
@@ -144,7 +144,7 @@ export function audioTracks(formats: Format[]): AudioTrack[] {
   return [...out.values()].sort((a, b) => Number(b.original) - Number(a.original) || (a.name ?? "").localeCompare(b.name ?? ""));
 }
 
-export type AudioPrefs = {
+type AudioPrefs = {
   quality: "high" | "normal" | "low" | string;
   webkit: boolean;
   /** Track key from `audioTracks` (null = original). */
@@ -241,13 +241,13 @@ export function hlsUrl(set: Pick<StreamSet, "base" | "token" | "session" | "hls"
 // Port of Flow Desktop's externalAudioSync.ts (GPL-3.0): the rules that keep
 // a separate <audio> glued to a video-only <video> without starving either.
 
-export const AUDIO_DRIFT_TOLERANCE_S = 0.5;
-export const AUDIO_RESYNC_MIN_INTERVAL_MS = 1200;
-export const AUDIO_HOLD_RELEASE_DRIFT_S = 0.12;
+const AUDIO_DRIFT_TOLERANCE_S = 0.5;
+const AUDIO_RESYNC_MIN_INTERVAL_MS = 1200;
+const AUDIO_HOLD_RELEASE_DRIFT_S = 0.12;
 
-export type SyncAction = "steady" | "hold" | "resume" | "realign" | "wait";
+type SyncAction = "steady" | "hold" | "resume" | "realign" | "wait";
 
-export type SyncInput = {
+type SyncInput = {
   /** audio.currentTime - video.currentTime; positive = audio ahead. */
   drift: number;
   held: boolean;
@@ -279,7 +279,7 @@ export function trimRate(rate: number, drift: number): number {
 
 // ---------------------------------------------------------------- storyboard
 
-export type SbFrame = { url: string; x: number; y: number; w: number; h: number; sheetW: number; sheetH: number };
+type SbFrame = { url: string; x: number; y: number; w: number; h: number; sheetW: number; sheetH: number };
 
 /**
  * Storyboard tile for time `t` scaled to `boxW` px wide. The sheet URL has
@@ -309,7 +309,7 @@ export function storyboardFrame(sb: Storyboard, t: number, duration: number, box
 
 // ---------------------------------------------------------------- SponsorBlock
 
-export type SbStep = {
+type SbStep = {
   /** Segment to jump over now. */
   skip: SbSegment | null;
   /** Segment to offer a "Skip" button for. */
@@ -318,7 +318,7 @@ export type SbStep = {
   mute: boolean;
 };
 
-export function sbInside(s: SbSegment, t: number): boolean {
+function sbInside(s: SbSegment, t: number): boolean {
   return t >= s.start_s && t < s.end_s - 0.05;
 }
 

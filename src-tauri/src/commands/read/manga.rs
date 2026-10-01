@@ -880,7 +880,6 @@ pub fn enqueue(app: &AppHandle, ids: Vec<i64>) {
                 }
             }
             RUNNING.store(false, Ordering::SeqCst);
-            let _ = app.emit("read-chapter-queue-idle", ());
         });
     }
 }

@@ -27,7 +27,7 @@ import { readTable, toHtml, toMarkdown, toRtf, toTsv } from './tables';
 import { findPaths, type PathMatch } from './links';
 import './rich.css';
 
-export interface RichOptions {
+interface RichOptions {
   /** Folder relative paths (images and links) resolve against. */
   baseDir?: string | null;
   /** ⌘-click / ⌘⇧-click on a real path. */
@@ -82,11 +82,6 @@ async function imageUrl(path: string, base: string | null): Promise<string | nul
   if (imageCache.size > 64) imageCache.delete(imageCache.keys().next().value as string);
   imageCache.set(key, url);
   return url;
-}
-
-/** Drops cached images for a path (a pasted image replaced on disk). */
-export function forgetImage(path: string) {
-  for (const k of [...imageCache.keys()]) if (k.endsWith(`|${path}`)) imageCache.delete(k);
 }
 
 // ---- small DOM helpers ----------------------------------------------------
@@ -452,7 +447,7 @@ function prepLinks(root: HTMLElement) {
 
 // ---- the action -----------------------------------------------------------
 
-export function enhance(root: HTMLElement, opts: RichOptions) {
+function enhance(root: HTMLElement, opts: RichOptions) {
   const base = opts.baseDir ?? null;
   for (const code of Array.from(root.querySelectorAll<HTMLElement>('pre > code'))) {
     const pre = code.parentElement as HTMLElement;

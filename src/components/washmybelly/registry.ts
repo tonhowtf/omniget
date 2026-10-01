@@ -2,18 +2,18 @@ import type { Os } from "$lib/platform";
 
 /// What the person can expect from a module. `beta` and `experimental` get a
 /// discreet badge; a module of another system never renders at all.
-export type ModuleState = "stable" | "beta" | "experimental";
+type ModuleState = "stable" | "beta" | "experimental";
 
-export type Requirement =
+type Requirement =
   | "full_disk_access"
   | "package_manager"
   | "not_flatpak"
   | "gamemode"
   | "battery";
 
-export type ModuleGroup = "see" | "clean" | "protect" | "perform" | "maintain";
+type ModuleGroup = "see" | "clean" | "protect" | "perform" | "maintain";
 
-export type WmbModule = {
+type WmbModule = {
   id: string;
   group: ModuleGroup;
   labelKey: string;
@@ -29,7 +29,7 @@ export type WmbModule = {
 
 /// Screen order. Mirrors `MODULES` in `core/washmybelly/caps.rs`; the
 /// backend's answer wins when both exist.
-export const WMB_MODULES: readonly WmbModule[] = [
+const WMB_MODULES: readonly WmbModule[] = [
   { id: "overview", group: "see", labelKey: "washmybelly.modules.overview", state: "stable", platforms: [], glyph: "gauge", from: "#5AA9FF", to: "#1E6FE8" },
   { id: "disk", group: "see", labelKey: "washmybelly.modules.disk", state: "stable", platforms: [], glyph: "hard-drives", from: "#A3A3A8", to: "#6F6F75" },
   { id: "clean", group: "clean", labelKey: "washmybelly.modules.clean", state: "stable", platforms: [], glyph: "broom", from: "#FF9BC2", to: "#E0527F" },

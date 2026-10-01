@@ -6,7 +6,7 @@ import type { Caps } from "$components/washmybelly/registry";
 
 export type Risk = "read" | "reversible" | "destructive" | "extreme";
 
-export type PlanItemPreview = {
+type PlanItemPreview = {
   id: string;
   label: string;
   detail?: string | null;

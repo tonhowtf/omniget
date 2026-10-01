@@ -25,8 +25,8 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 // ---------------------------------------------------------------------------
 
 export type CliKind = "claude" | "codex";
-export type QuotaSource = "reported" | "estimated";
-export type WindowKind = "five_hour" | "seven_day";
+type QuotaSource = "reported" | "estimated";
+type WindowKind = "five_hour" | "seven_day";
 /**
  * What a turn on this account may touch. `read-only` is the default for every
  * account and the only value the backend ever infers; anything it does not
@@ -35,7 +35,7 @@ export type WindowKind = "five_hour" | "seven_day";
 export type SandboxMode = "read-only" | "write" | "full";
 
 /** Span of each window, in ms. Used for the "runs out at this pace" line. */
-export const WINDOW_SPAN_MS: Record<WindowKind, number> = {
+const WINDOW_SPAN_MS: Record<WindowKind, number> = {
   five_hour: 5 * 3_600_000,
   seven_day: 7 * 86_400_000,
 };
@@ -101,12 +101,12 @@ export interface UsageRow {
   cost_usd: number;
 }
 
-export interface ToolBucket {
+interface ToolBucket {
   tool: string;
   calls: number;
 }
 
-export interface SessionRow {
+interface SessionRow {
   id: string;
   account_id: string;
   project: string;
@@ -135,7 +135,7 @@ export interface CliUsageReport {
 export type LoadState = "idle" | "loading" | "ready" | "unavailable";
 
 /** One line of the switch timeline, from the `llm://rerouted` event (F2). */
-export interface SwitchRow {
+interface SwitchRow {
   at_ms: number;
   agent: string;
   from: string;
@@ -144,7 +144,7 @@ export interface SwitchRow {
 }
 
 /** How many switches the timeline keeps in memory. */
-export const MAX_SWITCHES = 20;
+const MAX_SWITCHES = 20;
 
 // ---------------------------------------------------------------------------
 // Pure helpers (tested in llm-accounts-store.test.ts)
@@ -176,7 +176,7 @@ function clampFraction(v: unknown): number | null {
 }
 
 /** One window off the wire, with every field defended. */
-export function normalizeWindow(raw: unknown, accountId = ""): UsageWindow {
+function normalizeWindow(raw: unknown, accountId = ""): UsageWindow {
   const w = (raw ?? {}) as Partial<UsageWindow>;
   return {
     account_id: w.account_id || accountId,
@@ -194,13 +194,13 @@ export function normalizeWindow(raw: unknown, accountId = ""): UsageWindow {
  * rule the backend applies (`SandboxMode::parse`). The UI must never draw an
  * account as more restricted than it is, and must never invent a write.
  */
-export function normalizeSandbox(raw: unknown): SandboxMode {
+function normalizeSandbox(raw: unknown): SandboxMode {
   // `full` (2.7): the ceiling that lets a turn whose run mode is full_access run.
   return raw === "write" ? "write" : raw === "full" ? "full" : "read-only";
 }
 
 /** A missing field never crashes a meter or a chart. */
-export function normalizeSnapshot(raw: unknown): AccountsSnapshot {
+function normalizeSnapshot(raw: unknown): AccountsSnapshot {
   const r = (raw ?? {}) as Partial<AccountsSnapshot>;
   const accounts = (r.accounts ?? []).map((a) => ({
     ...a,
@@ -229,7 +229,7 @@ export function normalizeSnapshot(raw: unknown): AccountsSnapshot {
   };
 }
 
-export function normalizeReport(raw: unknown): CliUsageReport {
+function normalizeReport(raw: unknown): CliUsageReport {
   const r = (raw ?? {}) as Partial<CliUsageReport>;
   const grid = (r.by_tool_hour ?? []).map((row) =>
     Array.from({ length: 24 }, (_, h) => (Number.isFinite(row?.[h]) ? row[h] : 0)),
@@ -254,7 +254,7 @@ export function normalizeReport(raw: unknown): CliUsageReport {
  * (`reported`); the `estimated` ones only exist after a scan. Merging here
  * keeps the cards honest without making the list command scan.
  */
-export function mergeWindows(
+function mergeWindows(
   accounts: readonly AccountView[],
   windows: readonly UsageWindow[],
 ): AccountView[] {
@@ -290,24 +290,6 @@ export function reorder(chain: readonly string[], id: string, to: number): strin
   const at = Math.max(0, Math.min(out.length, to));
   out.splice(at, 0, id);
   return out;
-}
-
-/**
- * The window under most pressure: what the router and the card headline use.
- * A window with no known ceiling (`used: null`) has no pressure to compare, so
- * it only wins when nothing else is on the table.
- */
-export function worstWindow(windows: readonly UsageWindow[]): UsageWindow | null {
-  let worst: UsageWindow | null = null;
-  for (const w of windows) {
-    if (!worst) {
-      worst = w;
-      continue;
-    }
-    if (w.used === null) continue;
-    if (worst.used === null || w.used > worst.used) worst = w;
-  }
-  return worst;
 }
 
 /**
@@ -365,7 +347,7 @@ export function gridTotal(grid: readonly (readonly number[])[]): number {
 }
 
 /** Newest first, bounded. The timeline holds no history beyond the session. */
-export function pushSwitch(list: readonly SwitchRow[], row: SwitchRow, max = MAX_SWITCHES): SwitchRow[] {
+function pushSwitch(list: readonly SwitchRow[], row: SwitchRow, max = MAX_SWITCHES): SwitchRow[] {
   return [row, ...list].slice(0, max);
 }
 
@@ -484,7 +466,7 @@ export function fakeSnapshot(nowMs: number): AccountsSnapshot {
   };
 }
 
-export function fakeUsage(nowMs: number): CliUsageReport {
+function fakeUsage(nowMs: number): CliUsageReport {
   const base = Math.floor(nowMs / 300_000) * 300_000;
   const rand = rng(31);
   const by_day: UsageRow[] = [];
@@ -615,7 +597,7 @@ export async function startSwitchLog(): Promise<() => void> {
   return () => stopSwitchLog();
 }
 
-export function stopSwitchLog(): void {
+function stopSwitchLog(): void {
   if (unlistenSwitch) {
     unlistenSwitch();
     unlistenSwitch = null;
@@ -758,17 +740,3 @@ export function startAccountsDemo(nowMs = Date.now()): void {
   ];
 }
 
-/** Test seam: drop every piece of state between cases. */
-export function resetAccountsStore(): void {
-  stopSwitchLog();
-  switches = [];
-  snapshot = EMPTY_SNAPSHOT;
-  report = EMPTY_REPORT;
-  detected = [];
-  accountsState = "idle";
-  usageState = "idle";
-  accountsError = "";
-  usageError = "";
-  demo = false;
-  busy = false;
-}

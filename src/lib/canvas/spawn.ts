@@ -22,14 +22,14 @@
 import { invoke } from '@tauri-apps/api/core';
 import type { AgentKind, CanvasNode } from './model/types';
 import { terminalIdOf } from './model/types';
-import { termClose, type TermInfo, type TermOpen } from './term/client';
+import { termClose, type TermInfo, } from './term/client';
 import { gridSizeFor } from './term/metrics';
 
 /** Ollama model used when a node does not name one. */
-export const DEFAULT_OLLAMA_MODEL = 'llama3.2';
+const DEFAULT_OLLAMA_MODEL = 'llama3.2';
 
 /** Command line of each agent preset; the shell preset leaves it empty (login shell). */
-export const AGENT_COMMANDS: Record<AgentKind, string[]> = {
+const AGENT_COMMANDS: Record<AgentKind, string[]> = {
   shell: [],
   claude: ['claude'],
   codex: ['codex'],
@@ -44,7 +44,7 @@ export const AGENT_COMMANDS: Record<AgentKind, string[]> = {
  * is three words), like `maestro::split_command` in Rust. Unbalanced
  * quotes fall back to whitespace.
  */
-export function splitCommand(line: string): string[] {
+function splitCommand(line: string): string[] {
   const out: string[] = [];
   let cur = '';
   let has = false;
@@ -92,7 +92,7 @@ export function agentCommand(node: CanvasNode): string[] {
   return [...(AGENT_COMMANDS[agent] ?? [])];
 }
 
-export function agentOf(node: CanvasNode): AgentKind {
+function agentOf(node: CanvasNode): AgentKind {
   const a = node.data.agent;
   return typeof a === 'string' && a in AGENT_COMMANDS ? (a as AgentKind) : 'shell';
 }
@@ -102,39 +102,9 @@ export function gridFor(w: number, h: number): { cols: number; rows: number } {
   return gridSizeFor(w, h);
 }
 
-function baseEnv(node: CanvasNode, workspaceId: string): Record<string, string> {
-  const env: Record<string, string> = {
-    OMNIGET_CANVAS: '1',
-    OMNIGET_CANVAS_NODE: node.id,
-    OMNIGET_CANVAS_NAME: node.title ?? '',
-    OMNIGET_TERMINAL_ID: terminalIdOf(node),
-  };
-  if (workspaceId) env.OMNIGET_CANVAS_WORKSPACE = workspaceId;
-  const extra = node.data.env;
-  if (extra && typeof extra === 'object') {
-    for (const [k, v] of Object.entries(extra as Record<string, unknown>)) if (typeof v === 'string') env[k] = v;
-  }
-  return env;
-}
-
-/** First request of a node, before role, cords and floor are applied. */
-export function termRequest(node: CanvasNode, workspaceId: string): TermOpen {
-  const { cols, rows } = gridFor(node.w, node.h);
-  return {
-    id: terminalIdOf(node),
-    cwd: typeof node.data.cwd === 'string' && node.data.cwd ? (node.data.cwd as string) : null,
-    command: agentCommand(node),
-    env: baseEnv(node, workspaceId),
-    cols,
-    rows,
-    title: node.title,
-    agent: agentOf(node),
-  };
-}
-
 const inFlight = new Map<string, Promise<TermInfo>>();
 
-export interface OpenOptions {
+interface OpenOptions {
   floorId?: string;
   restore?: boolean;
 }

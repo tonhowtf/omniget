@@ -59,11 +59,6 @@ export function activePreset(s: TubeSettings): PresetId | null {
   return null;
 }
 
-/** Keys a preset touches, to highlight what it changes. */
-export function presetKeys(id: PresetId): (keyof TubeSettings)[] {
-  return Object.keys(PRESETS[id]) as (keyof TubeSettings)[];
-}
-
 /** Number of settings that would change if the preset were applied. */
 export function presetDiff(s: TubeSettings, id: PresetId): number {
   let n = 0;

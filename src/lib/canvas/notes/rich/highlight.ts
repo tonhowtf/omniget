@@ -329,7 +329,7 @@ function tokenizeLang(src: string, L: Lang): Token[] {
 }
 
 /** Tokens for `src` in `lang`; unknown languages come back as one plain token. */
-export function tokenize(src: string, lang: string | null): Token[] {
+function tokenize(src: string, lang: string | null): Token[] {
   const L = lang ? LANGS[lang] : undefined;
   if (!L) return src ? [{ kind: 'plain', text: src }] : [];
   // Very large blocks stay plain: highlighting is a nicety, not worth a stall.

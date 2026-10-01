@@ -9,16 +9,16 @@
 import { Lru } from '$lib/gfx/text';
 import { cellMetrics, TERM_FONT_SIZE } from './metrics';
 
-export const MAX_SLOTS = 8192;
+const MAX_SLOTS = 8192;
 /** Glyphs rasterised per frame across all buckets. */
-export const RASTER_BUDGET = 192;
-export const MIN_FONT_PX = 6;
-export const MAX_FONT_PX = 72;
+const RASTER_BUDGET = 192;
+const MIN_FONT_PX = 6;
+const MAX_FONT_PX = 72;
 const SLOT_CHUNK = 512;
 const LIVE_BUCKETS = 5;
 const ATLAS_WIDTH = 2048;
 
-export interface GlyphInfo {
+interface GlyphInfo {
   text: string;
   bold: boolean;
   italic: boolean;
@@ -30,23 +30,23 @@ export interface GlyphInfo {
 
 const EMOJI_RE = /\p{Extended_Pictographic}|\u{FE0F}/u;
 
-export function isColorGlyph(text: string): boolean {
+function isColorGlyph(text: string): boolean {
   return EMOJI_RE.test(text);
 }
 
 /** Bucket index for an on-screen font size in device pixels. */
-export function bucketIndex(fontPx: number): number {
+function bucketIndex(fontPx: number): number {
   const px = Math.min(MAX_FONT_PX, Math.max(MIN_FONT_PX, fontPx));
   return Math.round(8 * Math.log2(px));
 }
 
-export function bucketFontPx(index: number): number {
+function bucketFontPx(index: number): number {
   return Math.pow(2, index / 8);
 }
 
 type Ctx2D = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
 
-export class GlyphBucket {
+class GlyphBucket {
   readonly fontPx: number;
   readonly cw: number;
   readonly ch: number;
@@ -176,7 +176,7 @@ export class GlyphBucket {
 }
 
 /** Bucket-independent glyph → slot table. Slot 0 is the empty glyph. */
-export class GlyphTable {
+class GlyphTable {
   private slots = new Map<string, number>();
   private infos: (GlyphInfo | null)[] = [null];
   /** Bumped when the table was wiped: every cell texel is stale. */

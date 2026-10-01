@@ -64,7 +64,7 @@ export type Stats = {
   variance: number[];
 };
 
-export type FrameEvent = { t_ms: number; frametime_ms: number };
+type FrameEvent = { t_ms: number; frametime_ms: number };
 
 export type Summary = Stats & {
   session_id: string;
@@ -83,7 +83,7 @@ export type Summary = Stats & {
 
 export type Histogram = { start_ms: number; width_ms: number; counts: number[]; overflow: number };
 
-export type SensorRow = { t_ms: number; cpu_load?: number | null; cpu_temp?: number | null; gpu_load?: number | null; gpu_temp?: number | null };
+type SensorRow = { t_ms: number; cpu_load?: number | null; cpu_temp?: number | null; gpu_load?: number | null; gpu_temp?: number | null };
 
 export type Chart = {
   session_id: string;

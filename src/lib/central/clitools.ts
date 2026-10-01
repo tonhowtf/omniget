@@ -6,18 +6,18 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
-export const PROGRESS_EVENT = "clitools://progress";
+const PROGRESS_EVENT = "clitools://progress";
 
 // ---- tipos (espelham os structs Rust, snake_case) ----
 
 export type ToolStatus = "active" | "maintenance" | "discontinued";
-export type ToolKind = "cli" | "app" | "cli+app";
-export type OwnerMethod =
+type ToolKind = "cli" | "app" | "cli+app";
+type OwnerMethod =
   | "native" | "bun" | "pnpm" | "npm" | "brew" | "pipx" | "uv" | "pip" | "cargo" | "omniget" | "app" | "unknown";
-export type VersionState = "unknown" | "current" | "behind_latest";
+type VersionState = "unknown" | "current" | "behind_latest";
 export type RunState = "running" | "succeeded" | "failed" | "unchanged";
 
-export type CliTool = {
+type CliTool = {
   id: string;
   name: string;
   kind: ToolKind;
@@ -51,7 +51,7 @@ export type CliTool = {
   deprecated: { path: string; note: string }[];
 };
 
-export type CommandSpec = {
+type CommandSpec = {
   program: string;
   args: string[];
   env: Record<string, string>;
@@ -69,7 +69,7 @@ export type Owner = {
   manual: string | null;
 };
 
-export type Detection = {
+type Detection = {
   id: string;
   installed: boolean;
   binary: string | null;
@@ -83,7 +83,7 @@ export type Detection = {
   checked_at: number;
 };
 
-export type RunResult = {
+type RunResult = {
   run_id: string;
   plan_id: string;
   tool_id: string;
@@ -98,7 +98,7 @@ export type RunResult = {
 };
 
 export type ToolRow = { tool: CliTool; detection: Detection | null; last_run: RunResult | null };
-export type ToolList = { tools: ToolRow[]; platform: string; detected: boolean };
+type ToolList = { tools: ToolRow[]; platform: string; detected: boolean };
 
 export type Latest = {
   id: string;
@@ -189,7 +189,7 @@ export type AcpRegistry = {
   agents: AcpAgent[];
 };
 
-export type AuthState = "present" | "absent" | "unknown";
+type AuthState = "present" | "absent" | "unknown";
 export type PathCheck = { path: string; resolved: string | null; exists: boolean | null; note: string | null };
 export type DoctorReport = {
   id: string;

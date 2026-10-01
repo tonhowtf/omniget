@@ -65,18 +65,18 @@ export const MOD_ALT = 2;
 export const MOD_CTRL = 4;
 export const MOD_META = 8;
 
-export interface KeyInput {
+interface KeyInput {
   key: string;
   code?: string;
   mods?: number;
   repeat?: boolean;
 }
-export interface ScrollInput {
+interface ScrollInput {
   lines?: number;
   pages?: number;
   to?: 'top' | 'bottom';
 }
-export interface MouseInput {
+interface MouseInput {
   kind: 'down' | 'up' | 'move' | 'wheel';
   button?: 0 | 1 | 2;
   col: number;
@@ -97,19 +97,19 @@ export interface SearchHit {
   end_col: number;
   end_row: number;
 }
-export interface ScreenSnapshot {
+interface ScreenSnapshot {
   text: string;
   cursor_row: number;
   changed_ms: number;
   alt_screen: boolean;
 }
 
-export interface TermExitEvent {
+interface TermExitEvent {
   id: string;
   code: number | null;
   signal: string | null;
 }
-export interface TermStateEvent {
+interface TermStateEvent {
   id: string;
   state: string;
   source: string;
@@ -118,7 +118,6 @@ export interface TermStateEvent {
   progress: number | null;
 }
 
-export const termOpen = (req: TermOpen) => invoke<TermInfo>('term_open', { req });
 export const termClose = (id: string, deleteHistory = false) => invoke<void>('term_close', { id, deleteHistory });
 export const termList = () => invoke<TermInfo[]>('term_list');
 export const termSubscribe = (channel: Channel<unknown>, visible: Visible[]) =>

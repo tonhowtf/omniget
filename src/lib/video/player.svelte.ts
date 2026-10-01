@@ -169,10 +169,6 @@ export function detach(video: HTMLVideoElement) {
   el = null;
 }
 
-export function videoEl(): HTMLVideoElement | null {
-  return el;
-}
-
 function stopHls() {
   if (hls) {
     hls.destroy();
@@ -898,7 +894,7 @@ export function setSubStyle(patch: { size?: number; bg?: boolean; pos?: number }
 // ---- study: lines, A-B, silence ----
 
 /** Cues used for line navigation: the main subtitle, else the transcript. */
-export function lineCues(): Cue[] {
+function lineCues(): Cue[] {
   return player.cues.length ? player.cues : player.transcript;
 }
 

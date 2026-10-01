@@ -8,7 +8,7 @@
  */
 import type { Component, Policy, Scope } from "./catalog";
 
-export interface StackItem {
+interface StackItem {
   id: string;
   kind: string;
   name: string;

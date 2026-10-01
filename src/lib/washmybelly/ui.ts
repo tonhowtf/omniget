@@ -19,14 +19,14 @@ export type SelectItem = {
   detailIsPath?: boolean;
 };
 
-export type ItemGroup<T extends SelectItem = SelectItem> = {
+type ItemGroup<T extends SelectItem = SelectItem> = {
   key: string;
   items: T[];
   count: number;
   bytes: number;
 };
 
-export const RISK_ORDER: readonly Risk[] = ["read", "reversible", "destructive", "extreme"];
+const RISK_ORDER: readonly Risk[] = ["read", "reversible", "destructive", "extreme"];
 
 /// Groups in first-appearance order (the scan already sorts them the way the
 /// module wants). Items without a group land in `""`.
@@ -58,7 +58,7 @@ export function sumSelected(items: readonly SelectItem[], selected: ReadonlySet<
   return { count, bytes };
 }
 
-export type TriState = "none" | "some" | "all";
+type TriState = "none" | "some" | "all";
 
 /// Checkbox state of a set of items (disabled ones do not count).
 export function selectionState(items: readonly SelectItem[], selected: ReadonlySet<string>): TriState {
@@ -225,7 +225,7 @@ export function freesSpace(kind: string): boolean {
 // ── Execution progress ───────────────────────────────────────────────
 
 export type StepState = "pending" | "active" | "done" | "failed";
-export type ExecStep = { id: "prepare" | "run" | "admin" | "done"; state: StepState };
+type ExecStep = { id: "prepare" | "run" | "admin" | "done"; state: StepState };
 
 /// Steps shown while a plan runs, from the last `washmybelly-progress`
 /// stage (`run`, `admin`, `done`). The admin step exists only when needed.
@@ -249,7 +249,7 @@ export function fraction(done: number, total: number): number {
 
 // ── Receipts ─────────────────────────────────────────────────────────
 
-export type ReceiptLike = { receipt_id: string; created: number };
+type ReceiptLike = { receipt_id: string; created: number };
 
 /// Receipts (newest first) under day headings.
 export function groupByDay<T extends ReceiptLike>(list: readonly T[], now: Date = new Date()): { key: string; bucket: DayBucket; ts: number; items: T[] }[] {

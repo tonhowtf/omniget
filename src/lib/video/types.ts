@@ -7,10 +7,10 @@ export type ServerInfo = { port: number; token: string };
 export type RootKind = "library" | "course";
 export type Root = { path: string; kind: RootKind; added_at: number; online: boolean };
 
-export type MediaKind = "movie" | "episode" | "lesson" | "video";
+type MediaKind = "movie" | "episode" | "lesson" | "video";
 
 export type Chapter = { start_ms: number; end_ms: number; title: string; kind?: SkipKind | null };
-export type SkipKind = "intro" | "outro" | "recap" | "sponsor" | "preview";
+type SkipKind = "intro" | "outro" | "recap" | "sponsor" | "preview";
 
 export type StreamInfo = {
   index: number;
@@ -109,7 +109,7 @@ export type Attachment = { path: string; name: string; kind: "pdf" | "code" | "s
 
 export type Lesson = MediaItem & { number: string; attachments: Attachment[] }; // number "2.10"
 
-export type CourseModule = { index: number; title: string; lessons: Lesson[]; duration_ms: number; watched: number };
+type CourseModule = { index: number; title: string; lessons: Lesson[]; duration_ms: number; watched: number };
 
 export type CourseDetail = { course: CourseSummary; modules: CourseModule[]; loose_attachments: Attachment[] };
 
@@ -125,7 +125,7 @@ export type Home = {
 
 export type PlayMode = "direct" | "remux" | "transcode_audio" | "transcode" | "hls" | "remote";
 
-export type SubtitleTrack = {
+type SubtitleTrack = {
   id: string;
   label: string;
   lang: string;
@@ -212,7 +212,7 @@ export type ScanProgress = { done: number; total: number; current: string; finis
 // ---- sources (W4) ----
 
 export type SourceKind = "jellyfin" | "iptv" | "addon";
-export type SourceStatus = "ok" | "slow" | "down" | "disabled";
+type SourceStatus = "ok" | "slow" | "down" | "disabled";
 export type SourceInfo = {
   id: number;
   kind: SourceKind;

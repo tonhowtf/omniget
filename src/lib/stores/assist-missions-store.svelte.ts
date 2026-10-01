@@ -14,7 +14,7 @@ import { listen } from "@tauri-apps/api/event";
 
 // ── Types ──────────────────────────────────────────────────────────────
 
-export type MissionState =
+type MissionState =
   | "draft"
   | "queued"
   | "running"
@@ -26,18 +26,14 @@ export type MissionState =
   | "failed"
   | "cancelled";
 
-export const MISSION_STATES: MissionState[] = [
-  "draft", "queued", "running", "verifying", "succeeded", "partial", "blocked", "paused", "failed", "cancelled",
-];
-
-export interface MissionBudget {
+interface MissionBudget {
   usd: number | null;
   tokens: number | null;
   turns: number | null;
   max_minutes: number | null;
 }
 
-export interface MissionSpent {
+interface MissionSpent {
   usd_known: number;
   unknown_cost_calls: number;
   tokens: number;
@@ -92,10 +88,10 @@ export interface Mission {
   finished_ms: number | null;
 }
 
-export type Completion = "auto" | "human";
+type Completion = "auto" | "human";
 
 /** Required criteria per state, from the same verdict the detail counts. */
-export interface VerdictCounts {
+interface VerdictCounts {
   passed: boolean;
   failing: number;
   missing: number;
@@ -116,7 +112,7 @@ export type CriterionKind = "command" | "artifact" | "tool_result" | "rubric" | 
 export const CRITERION_KINDS: CriterionKind[] = ["command", "artifact", "tool_result", "rubric", "human"];
 export type Severity = "required" | "advisory";
 export type Origin = "user" | "preset" | "proposed" | "import";
-export type Acceptance = "auto" | "human" | "single_review";
+type Acceptance = "auto" | "human" | "single_review";
 
 export interface Criterion {
   id: string;
@@ -131,7 +127,7 @@ export interface Criterion {
 
 export type CriterionStatus = "pass" | "fail" | "unknown" | "missing" | "stale" | "awaiting_human";
 
-export interface VerdictCriterion {
+interface VerdictCriterion {
   id: string;
   title: string;
   kind: CriterionKind;
@@ -154,9 +150,9 @@ export interface Verdict {
   completion: Completion;
 }
 
-export type TaskState = "pending" | "claimed" | "running" | "done" | "failed" | "cancelled" | "skipped" | "blocked";
+type TaskState = "pending" | "claimed" | "running" | "done" | "failed" | "cancelled" | "skipped" | "blocked";
 
-export interface MissionTask {
+interface MissionTask {
   id: string;
   position: number;
   title: string;
@@ -188,7 +184,7 @@ export interface Receipt {
   invalidated_reason: string | null;
 }
 
-export interface MissionEffect {
+interface MissionEffect {
   key: string;
   task_id: string | null;
   kind: string;
@@ -199,7 +195,7 @@ export interface MissionEffect {
   updated_ms: number;
 }
 
-export interface MissionEvent {
+interface MissionEvent {
   event_id: string;
   seq: number;
   kind: string;
@@ -208,7 +204,7 @@ export interface MissionEvent {
   ts_ms: number;
 }
 
-export interface BudgetPool {
+interface BudgetPool {
   spent: { usd: number; turns: number; input_tokens: number; output_tokens: number; unknown_cost_turns: number };
   in_flight: number;
   reserved_usd: number;
@@ -247,7 +243,7 @@ export interface NewBudget {
   max_minutes?: number | null;
 }
 
-export interface NewMission {
+interface NewMission {
   objective: string;
   bot_id?: string | null;
   room_id?: string | null;
@@ -268,7 +264,7 @@ export interface LogPage {
   clipped: boolean;
 }
 
-export interface PresetBot {
+interface PresetBot {
   key: string;
   name: string;
   role: string;
@@ -288,7 +284,7 @@ export interface Preset {
   workspace: "project" | "none";
 }
 
-export interface AppliedPreset {
+interface AppliedPreset {
   preset: Preset;
   bots: { key: string; bot_id: string }[];
   room: { id: string; title: string } | null;
@@ -296,7 +292,7 @@ export interface AppliedPreset {
   workspace: string;
 }
 
-export interface MissionEventPayload {
+interface MissionEventPayload {
   mission_id: string;
   state: MissionState;
   revision: number;
@@ -333,7 +329,7 @@ export function isFinal(state: MissionState): boolean {
   return state === "succeeded" || state === "failed" || state === "cancelled";
 }
 
-export function isWorking(state: MissionState): boolean {
+function isWorking(state: MissionState): boolean {
   return state === "queued" || state === "running" || state === "verifying";
 }
 
@@ -398,7 +394,7 @@ export function criterionStatusKey(status: CriterionStatus): string {
   return `mission.status.${status}`;
 }
 
-export function criterionTone(status: CriterionStatus): Tone {
+function criterionTone(status: CriterionStatus): Tone {
   switch (status) {
     case "pass":
       return "green";
@@ -422,7 +418,7 @@ export function criterionExecutable(c: Pick<Criterion, "kind" | "origin">): bool
   return c.origin === "user" || c.origin === "preset";
 }
 
-export interface VerdictRow extends VerdictCriterion {
+interface VerdictRow extends VerdictCriterion {
   tone: Tone;
   statusKey: string;
   origin: Origin | null;
@@ -505,7 +501,7 @@ export function rowVerdictLines(summary: string, counts?: VerdictCounts | null):
   return out;
 }
 
-export function formatUsd(v: number): string {
+function formatUsd(v: number): string {
   if (v > 0 && v < 0.01) return `$${v.toFixed(4)}`;
   return `$${v.toFixed(2)}`;
 }
@@ -549,13 +545,13 @@ export function parseBudgetField(raw: string | number | null | undefined, intege
   return integer ? Math.round(n) : n;
 }
 
-export type ActionPlan =
+type ActionPlan =
   | { kind: "command"; command: string; args: Record<string, unknown>; confirm: boolean }
   | { kind: "route"; route: string; confirm: boolean }
   | { kind: "local"; local: "edit_criteria" | "edit_context" | "edit_form"; confirm: boolean }
   | { kind: "unknown"; confirm: boolean };
 
-export function blockedTaskId(tasks: Pick<MissionTask, "id" | "state">[]): string | null {
+function blockedTaskId(tasks: Pick<MissionTask, "id" | "state">[]): string | null {
   return tasks.find((t) => t.state === "blocked")?.id ?? null;
 }
 
@@ -666,7 +662,7 @@ export function specSummary(c: Pick<Criterion, "kind" | "spec">): string {
 // ── Backend default texts, localized where known (tested) ──────────────
 
 /** Presets the backend ships (`packs/presets.rs`); their texts have i18n keys. */
-export const KNOWN_PRESETS = ["dev-review", "research-sources", "reading-curation"];
+const KNOWN_PRESETS = ["dev-review", "research-sources", "reading-curation"];
 /** Preset criterion ids whose default title has an i18n key. */
 const KNOWN_PRESET_CRITERIA = ["tests", "review", "answer", "accept", "round", "fit"];
 
@@ -707,7 +703,7 @@ export function taskTitleLine(title: string): I18nLine | null {
 }
 
 /** The last segment of a relative or absolute path (`out/hello.md` → `hello.md`). */
-export function pathName(p: string): string {
+function pathName(p: string): string {
   const parts = p.trim().split(/[\\/]+/).filter(Boolean);
   return parts[parts.length - 1] ?? "";
 }
@@ -761,7 +757,7 @@ export function minutesUsed(spent: Pick<MissionSpent, "active_ms" | "active_sinc
   return Math.round((((spent.active_ms ?? 0) + live) / 60_000) * 10) / 10;
 }
 
-export type BudgetRevision = { budget: NewBudget; error: null } | { budget: null; error: string };
+type BudgetRevision = { budget: NewBudget; error: null } | { budget: null; error: string };
 
 /**
  * The inline "raise the limits" form → the `budget` argument. Blank keeps
@@ -861,7 +857,7 @@ export interface MissionAsk {
 }
 
 /** The job fields that tie a question to a mission. */
-export interface MissionJobRef {
+interface MissionJobRef {
   id: string;
   conversation_id: string;
   request_id: string | null;
@@ -884,13 +880,6 @@ export function missionAsks(asks: MissionAsk[], jobs: MissionJobRef[], mission: 
     jobs.filter((j) => j.request_id && jobOfMission(j, mission, jobIds)).map((j) => j.request_id as string),
   );
   return asks.filter((a) => requests.has(a.request_id));
-}
-
-/** True when this question belongs to a mission conversation (the chat must not drop it). */
-export function askBelongsToMission(ask: Pick<MissionAsk, "request_id">, jobs: MissionJobRef[], missions: Pick<Mission, "conversation_id">[]): boolean {
-  const job = jobs.find((j) => j.request_id === ask.request_id);
-  if (!job) return false;
-  return missions.some((m) => jobOfMission(job, m));
 }
 
 export function shortTime(ms: number | null | undefined): string {

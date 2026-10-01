@@ -11,7 +11,7 @@ import { claim, register, setMeta, setPlaybackState } from "./media-session";
 import { tubePrefs } from "./prefs.svelte";
 import type { Lyrics, QueuePage, SongItem, StreamSet } from "./types";
 
-export type RepeatMode = "off" | "all" | "one";
+type RepeatMode = "off" | "all" | "one";
 
 export const mplayer = $state({
   queue: [] as SongItem[],

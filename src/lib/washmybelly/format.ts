@@ -60,7 +60,7 @@ export function middle(s: string, max: number): string {
 }
 
 /// Seconds since the epoch (what the core stores) to a Date.
-export function fromSecs(ts: number): Date {
+function fromSecs(ts: number): Date {
   return new Date(ts * 1000);
 }
 
@@ -123,7 +123,7 @@ export function formatPercent(v: number | null | undefined, digits = 0): string 
 
 /// Error codes the core puts in front of a message (`CHANGED: …`). The
 /// screen turns known codes into a friendly sentence and keeps the rest.
-export const KNOWN_CODES = [
+const KNOWN_CODES = [
   "CHANGED",
   "PROTECTED",
   "EXPIRED",
@@ -141,7 +141,7 @@ export const KNOWN_CODES = [
   "NOT_READY",
 ] as const;
 
-export type ExplainedDetail = { code: string | null; key: string | null; text: string };
+type ExplainedDetail = { code: string | null; key: string | null; text: string };
 
 /// `"CHANGED: the file was modified after the scan"` →
 /// `{ code: "CHANGED", key: "washmybelly.ui.reason.changed", text: "the file…" }`.

@@ -6,7 +6,7 @@ import type { ProjectRow, ThreadRow } from "$lib/central/threads/types";
 /** Priority order: approval, input, working, failed, ready (unseen), idle. */
 export type SidebarStatus = "approval" | "input" | "working" | "failed" | "done" | "idle";
 
-export const STATUS_RANK: Record<SidebarStatus, number> = {
+const STATUS_RANK: Record<SidebarStatus, number> = {
   approval: 0,
   input: 1,
   working: 2,
@@ -16,7 +16,7 @@ export const STATUS_RANK: Record<SidebarStatus, number> = {
 };
 
 /** Completed since the user last opened it. A never visited thread reads as seen. */
-export function hasUnseenCompletion(t: ThreadRow): boolean {
+function hasUnseenCompletion(t: ThreadRow): boolean {
   if (t.activeTurnId) return false;
   if (!t.lastVisitedAt || !t.latestTurnId) return false;
   return t.updatedAt > t.lastVisitedAt && t.turnCount > 0;
@@ -43,7 +43,7 @@ export function recedes(t: ThreadRow, status: SidebarStatus, selected: boolean):
   return status === "idle";
 }
 
-export function isSnoozed(t: ThreadRow, now = Date.now()): boolean {
+function isSnoozed(t: ThreadRow, now = Date.now()): boolean {
   return !!t.snoozedUntil && Date.parse(t.snoozedUntil) > now;
 }
 
@@ -59,7 +59,7 @@ export function isExternalHarness(t: ThreadRow): boolean {
 
 export type Section = { key: "pinned" | "active" | "snoozed" | "archived"; threads: ThreadRow[] };
 
-export type ProjectGroup = { project: ProjectRow | null; projectId: string; sections: Section[]; count: number };
+type ProjectGroup = { project: ProjectRow | null; projectId: string; sections: Section[]; count: number };
 
 function byPriorityThenRecent(a: ThreadRow, b: ThreadRow): number {
   const ra = STATUS_RANK[sidebarStatus(a)];
@@ -71,7 +71,7 @@ function byPriorityThenRecent(a: ThreadRow, b: ThreadRow): number {
   return (b.latestUserMessageAt ?? b.updatedAt).localeCompare(a.latestUserMessageAt ?? a.updatedAt);
 }
 
-export function matchesQuery(t: ThreadRow, project: ProjectRow | undefined, q: string): boolean {
+function matchesQuery(t: ThreadRow, project: ProjectRow | undefined, q: string): boolean {
   if (!q) return true;
   const s = q.toLowerCase();
   return (

@@ -7,9 +7,9 @@
 //   header  u32 magic 'OGT1', u32 frame_seq, u16 n_sections
 //   section u16 slot, u8 kind, u8 flags, u32 len, payload[len]
 
-export const MAGIC = 0x3154474f; // bytes 'O','G','T','1' read as LE u32
-export const HEADER_LEN = 10;
-export const SECTION_HEADER_LEN = 8;
+const MAGIC = 0x3154474f; // bytes 'O','G','T','1' read as LE u32
+const HEADER_LEN = 10;
+const SECTION_HEADER_LEN = 8;
 
 export const KIND_FULL = 0;
 export const KIND_ROWS = 1;
@@ -29,8 +29,6 @@ export const SLOT_GLOBAL = 0xffff;
 /** STYLES section flag: clear the table before adding. */
 export const STYLES_RESET = 1;
 
-// Colour u32: kind in the top byte.
-export const COLOR_DEFAULT = 0;
 export const COLOR_PALETTE = 1;
 export const COLOR_RGB = 2;
 export const COLOR_SWAPPED = 3;
@@ -50,36 +48,22 @@ export const SF_LINK = 1 << 9;
 export const MODE_ALT_SCREEN = 1 << 0;
 /** META modes bit: the process is running (not a mode of the terminal). */
 export const META_ALIVE = 1 << 13;
-export const MODE_BRACKETED_PASTE = 1 << 1;
-export const MODE_MOUSE_CLICK = 1 << 2;
-export const MODE_MOUSE_DRAG = 1 << 3;
-export const MODE_MOUSE_MOTION = 1 << 4;
-export const MODE_MOUSE_SGR = 1 << 5;
-export const MODE_APP_CURSOR = 1 << 6;
-export const MODE_APP_KEYPAD = 1 << 7;
-export const MODE_FOCUS_REPORT = 1 << 8;
-export const MODE_SYNC = 1 << 9;
-export const MODE_ALT_SCROLL = 1 << 10;
-export const MODE_CURSOR_VISIBLE = 1 << 11;
-export const MODE_KITTY_KEYBOARD = 1 << 12;
-export const MODE_ALIVE = 1 << 13;
+const MODE_MOUSE_CLICK = 1 << 2;
+const MODE_MOUSE_DRAG = 1 << 3;
+const MODE_MOUSE_MOTION = 1 << 4;
 export const MOUSE_MODES = MODE_MOUSE_CLICK | MODE_MOUSE_DRAG | MODE_MOUSE_MOTION;
 
 // CURSOR.flags bits.
 export const CF_VISIBLE = 1 << 0;
 export const CF_BLINK = 1 << 1;
 
-export const CURSOR_BLOCK = 0;
-export const CURSOR_UNDERLINE = 1;
-export const CURSOR_BAR = 2;
-export const CURSOR_HOLLOW = 3;
 export const CURSOR_HIDDEN = 4;
 
 // SEL range kinds.
 export const SEL_SELECTION = 0;
 export const SEL_MATCH = 1;
 
-export class WireError extends Error {
+class WireError extends Error {
   constructor(code: string) {
     super(code);
     this.name = 'WireError';
@@ -142,7 +126,7 @@ export function decodeFrame(bytes: Uint8Array): WireFrame {
 const utf8 = new TextDecoder('utf-8');
 
 /** Reads `u16 len` + UTF-8 bytes; returns the string and the next offset. */
-export function readStr16(frame: WireFrame, off: number, end: number): [string, number] {
+function readStr16(frame: WireFrame, off: number, end: number): [string, number] {
   if (off + 2 > end) return ['', end];
   const len = frame.view.getUint16(off, true);
   const start = off + 2;
@@ -156,7 +140,7 @@ export function readStr16(frame: WireFrame, off: number, end: number): [string, 
  * Receives one decoded row. `runsOff` points at the first run; each run is
  * `u16 style_id, u16 n_cells, u32 cp[n_cells]`.
  */
-export type RowVisitor = (y: number, nRuns: number, runsOff: number) => void;
+type RowVisitor = (y: number, nRuns: number, runsOff: number) => void;
 
 /** Walks `count` ROW records from `off` (bounded by `end`) and returns the end offset. */
 export function walkRows(frame: WireFrame, off: number, end: number, count: number, visit: RowVisitor): number {
@@ -182,7 +166,7 @@ export function walkRows(frame: WireFrame, off: number, end: number, count: numb
   return p;
 }
 
-export interface FullHeader {
+interface FullHeader {
   cols: number;
   rows: number;
   generation: number;
@@ -207,7 +191,7 @@ export function readRowsHeader(frame: WireFrame, s: WireSection): [number, numbe
   return [frame.view.getUint16(s.off, true), s.off + 2];
 }
 
-export interface ScrollOp {
+interface ScrollOp {
   top: number;
   /** Exclusive. */
   bottom: number;
@@ -219,7 +203,7 @@ export function readScroll(frame: WireFrame, s: WireSection): ScrollOp {
   return { top: v.getUint16(s.off, true), bottom: v.getUint16(s.off + 2, true), delta: v.getInt16(s.off + 4, true) };
 }
 
-export interface WireStyle {
+interface WireStyle {
   id: number;
   fg: number;
   bg: number;
@@ -228,7 +212,7 @@ export interface WireStyle {
   link: number;
 }
 
-export const STYLE_RECORD_LEN = 20;
+const STYLE_RECORD_LEN = 20;
 
 /** STYLES (slot 0xFFFF): `u16 count` then `{u16 id, u32 fg, u32 bg, u32 ul_color, u16 flags, u32 link_id}`. */
 export function forEachStyle(frame: WireFrame, s: WireSection, fn: (st: WireStyle) => void): void {
@@ -308,7 +292,7 @@ export function readAgent(frame: WireFrame, s: WireSection): AgentInfo {
   };
 }
 
-export interface MiniHeader {
+interface MiniHeader {
   cols: number;
   rows: number;
   /** One byte per cell, row-major, viewing the frame's buffer: 0 empty, 255 default fg, else xterm-256 index. */
@@ -334,7 +318,7 @@ export interface SelRange {
   block: boolean;
 }
 
-export const SEL_RECORD_LEN = 10; // the contract text says 12; the encoder writes 10
+const SEL_RECORD_LEN = 10; // the contract text says 12; the encoder writes 10
 
 /** SEL: `u16 count` then `{u8 kind, u8 block, u16 start_x, u16 start_y, u16 end_x, u16 end_y}`. */
 export function readSel(frame: WireFrame, s: WireSection): SelRange[] {

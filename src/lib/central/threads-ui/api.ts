@@ -12,36 +12,36 @@ import {
   vcsCheckpointCapture,
   vcsCheckpointDelete,
   vcsCheckpointList,
-  vcsCommit,
+  
   vcsDiffFull,
   vcsDiffTurn,
-  vcsPrCreate,
+  
   vcsPrView,
-  vcsPush,
+  
   vcsRestoreTurn,
   vcsStatus,
   vcsWorktreeCreate,
-  type CommitResult,
+  
   type DiffOptions,
   type DiffResult,
-  type PrCreateResult,
+  
   type PrInfo,
-  type PrRequest,
-  type PushResult,
+  
+  
   type RepoStatus,
   type WorktreeInfo,
 } from "$lib/central/vcs";
 import type {
-  CheckpointRow,
-  CommitMessage,
-  ExternalImport,
-  InstanceLimitsView,
+  
+  
+  
+  
   RevertOutcome,
-  UsageRow,
+  
 } from "$lib/central/threads/types";
 
 /** Command names of the thread glue (t2-glue). Change here only. */
-export const GLUE = {
+const GLUE = {
   checkpoints: "threads_checkpoints",
   diff: "threads_diff",
   revertToTurn: "threads_revert_to_turn",
@@ -65,7 +65,7 @@ export const GLUE = {
 const missing = new Set<string>();
 const present = new Set<string>();
 
-export function isMissingCommand(e: unknown): boolean {
+function isMissingCommand(e: unknown): boolean {
   const s = typeof e === "string" ? e : e instanceof Error ? e.message : String(e);
   return /command\s+\S+\s+not\s+found|unknown command|not allowed\. (command|plugin)/i.test(s);
 }
@@ -88,11 +88,11 @@ async function tryGlue<T>(name: string, args: Record<string, unknown>): Promise<
 }
 
 /** True once we know the host has no thread-level glue for checkpoints. */
-export function glueMissing(): boolean {
+function glueMissing(): boolean {
   return missing.has(GLUE.diff);
 }
 
-export type DiffScope = { kind: "turn"; turn: number } | { kind: "total" };
+type DiffScope = { kind: "turn"; turn: number } | { kind: "total" };
 
 export async function threadDiff(threadId: string, cwd: string, scope: DiffScope, options?: DiffOptions): Promise<DiffResult> {
   const glued = await tryGlue<DiffResult>(GLUE.diff, {
@@ -139,45 +139,13 @@ export async function threadTerminalCwd(_threadId: string, fallbackCwd: string):
 }
 
 /** PTY session of the thread (id `thr-<thread>-<n>`, cwd = the thread folder). */
-export type ThreadTerminal = { id: string; title: string; cwd: string | null; alive: boolean; cols: number; rows: number };
+type ThreadTerminal = { id: string; title: string; cwd: string | null; alive: boolean; cols: number; rows: number };
 
-export function threadTerminalOpen(
+function threadTerminalOpen(
   threadId: string,
   opts: { terminalId?: string; newTab?: boolean; cols?: number; rows?: number } = {},
 ): Promise<ThreadTerminal> {
   return invoke<ThreadTerminal>(GLUE.terminalOpen, { threadId, ...opts });
-}
-
-export function threadTerminalClose(threadId: string, terminalId: string): Promise<void> {
-  return invoke<void>(GLUE.terminalClose, { threadId, terminalId });
-}
-
-export const threadCheckpoints = (threadId: string) => invoke<CheckpointRow[]>(GLUE.checkpoints, { threadId });
-export const threadWorktreeCancel = (threadId: string) => invoke<boolean>(GLUE.worktreeCancel, { threadId });
-export const threadGitStatus = (threadId: string) => invoke<RepoStatus>(GLUE.gitStatus, { threadId });
-export const threadCommitMessage = (threadId: string) => invoke<CommitMessage>(GLUE.gitCommitMessage, { threadId });
-export const threadPrCreate = (
-  threadId: string,
-  pr: { title?: string; body?: string; base?: string; draft?: boolean } = {},
-) => invoke<PrCreateResult>(GLUE.gitPrCreate, { threadId, ...pr });
-export const threadPrRefresh = (threadId: string) => invoke<PrInfo | null>(GLUE.gitPrRefresh, { threadId });
-export const threadUsage = (threadId: string) => invoke<UsageRow[]>(GLUE.usage, { threadId });
-export const threadLimits = () => invoke<InstanceLimitsView[]>(GLUE.limits);
-export const threadImportExternal = (tool: string, sessionId: string) =>
-  invoke<ExternalImport>(GLUE.importExternal, { tool, sessionId });
-export const threadResumeExternal = (threadId: string, instanceId?: string, driver?: string) =>
-  invoke<string>(GLUE.resumeExternal, { threadId, instanceId: instanceId ?? null, driver: driver ?? null });
-
-export async function threadGitCommit(threadId: string, cwd: string, message?: string): Promise<CommitResult> {
-  return (await tryGlue<CommitResult>(GLUE.gitCommit, { threadId, message: message ?? null })) ?? vcsCommit(cwd, message);
-}
-
-export async function threadGitPush(threadId: string, cwd: string): Promise<PushResult> {
-  return (await tryGlue<PushResult>(GLUE.gitPush, { threadId })) ?? vcsPush(cwd);
-}
-
-export async function threadGitPr(threadId: string, cwd: string, request: PrRequest): Promise<PrCreateResult> {
-  return (await tryGlue<PrCreateResult>(GLUE.gitPr, { threadId, request })) ?? vcsPrCreate(cwd, request);
 }
 
 // ── Checkpoints when the glue is absent ──────────────────────────────────

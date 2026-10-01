@@ -10,7 +10,7 @@
  * Keep this file in step with the Rust side; a mismatch is a silent bug.
  */
 
-export type ProviderId = string;
+type ProviderId = string;
 
 export interface ModelRef {
   provider: ProviderId;
@@ -40,7 +40,7 @@ export interface Usage {
   cost_usd?: number | null;
 }
 
-export type FinishReason =
+type FinishReason =
   | "stop"
   | "length"
   | "tool_use"
@@ -92,7 +92,7 @@ export type AgentRole =
   | "advisor"
   | { custom: string };
 
-export type CandidateRuntime =
+type CandidateRuntime =
   | { runtime: "native"; provider: ProviderId }
   | { runtime: "cli"; account_id: string };
 
@@ -102,11 +102,11 @@ export type Candidate = CandidateRuntime & {
   min_context?: number;
 };
 
-export type ModelPolicy =
+type ModelPolicy =
   | { policy: "fixed"; model: ModelRef }
   | { policy: "route"; chain: Candidate[] };
 
-export type ToolSource =
+type ToolSource =
   | { source: "internal"; name: string }
   | { source: "mcp"; server: string; tool: string }
   | { source: "skill"; name: string };
@@ -121,12 +121,12 @@ export interface Budget {
   max_tool_calls_per_turn?: number;
 }
 
-export type RuntimeKind =
+type RuntimeKind =
   | { kind: "native" }
   | { kind: "cli"; cli: string; account: string }
   | { kind: "acp"; command: string; args?: string[] };
 
-export interface Skin {
+interface Skin {
   id: string;
   /** RGB 0–255, same shape as the profile skin tint. */
   tint: [number, number, number];
@@ -156,9 +156,9 @@ export interface ToolCallView {
 }
 
 /** Who wrote a message. Direct chats: the user or the conversation's bot. */
-export type AuthorKind = "user" | "bot" | "system";
+type AuthorKind = "user" | "bot" | "system";
 
-export interface MessageAuthor {
+interface MessageAuthor {
   kind: AuthorKind;
   /** The bot that wrote it (rooms have several). */
   botId?: string | null;
@@ -249,11 +249,11 @@ export function modelLabel(policy: ModelPolicy | null | undefined): string {
   return first ? `${candidateProvider(first)}/${first.model}` : "";
 }
 
-export function candidateProvider(candidate: Candidate): string {
+function candidateProvider(candidate: Candidate): string {
   return candidate.runtime === "native" ? candidate.provider : candidate.account_id;
 }
 
-export function modelRefLabel(ref: ModelRef | null | undefined): string {
+function modelRefLabel(ref: ModelRef | null | undefined): string {
   return ref ? `${ref.provider}/${ref.model}` : "";
 }
 
@@ -270,10 +270,9 @@ export function agentTint(agent: AgentDef | null | undefined): [number, number, 
   return agent?.skin?.tint ?? [110, 139, 255];
 }
 
-
 // ── Rooms (core/assist/groups) ──────────────────────────────────────────
 
-export interface RoomMember {
+interface RoomMember {
   bot: string;
   role: string;
 }
@@ -389,58 +388,6 @@ export function handleOf(name: string): string {
     else if (/\s/.test(c) && !out.endsWith("-")) out += "-";
   }
   return out.replace(/^-+|-+$/g, "");
-}
-
-/** One character folded like `tasks::fold_char`: lowercase, accents off. */
-function foldChar(c: string): string {
-  return c.normalize("NFD").charAt(0).toLowerCase();
-}
-
-/**
- * Mirror of `tasks::mentions`: members mentioned in `text`, in order, no
- * repeats. `@` followed by an id, a handle (what the autocomplete inserts) or
- * the display name shown in the room ("@Companheiro de leitura"), compared
- * without case or accents; the longest match wins; it must end at a word
- * boundary.
- */
-export function mentionedMembers(text: string, members: { id: string; name: string }[]): string[] {
-  const out: string[] = [];
-  const chars = [...text];
-  const isWord = (c: string | undefined) => !!c && /[\p{L}\p{N}_-]/u.test(c);
-  const matchAt = (start: number, candidate: string): number | null => {
-    const cand = [...candidate].map(foldChar);
-    if (cand.length === 0 || start + cand.length > chars.length) return null;
-    for (let k = 0; k < cand.length; k++) if (foldChar(chars[start + k]) !== cand[k]) return null;
-    return isWord(chars[start + cand.length]) ? null : cand.length;
-  };
-  let i = 0;
-  while (i < chars.length) {
-    if (chars[i] === "@" && (i === 0 || !/[\p{L}\p{N}]/u.test(chars[i - 1]))) {
-      const start = i + 1;
-      let best: { len: number; id: string } | null = null;
-      for (const m of members) {
-        for (const cand of [m.id, handleOf(m.name), m.name.trim()]) {
-          const len = matchAt(start, cand);
-          if (len !== null && (!best || len > best.len)) best = { len, id: m.id };
-        }
-      }
-      if (best) {
-        if (!out.includes(best.id)) out.push(best.id);
-        i = start + best.len;
-      } else i = start;
-    } else i += 1;
-  }
-  return out;
-}
-
-/** Mirror of `tasks::route`: who answers a user message in a room. */
-export function routeTargets(room: Room, text: string, names: Record<string, string>): string[] {
-  const members = room.members.map((m) => ({ id: m.bot, name: names[m.bot] ?? "" }));
-  const mentioned = mentionedMembers(text, members);
-  if (mentioned.length > 0) return mentioned;
-  if (room.mention_policy === "mentions_only") return [];
-  const fallback = room.coordinator ?? room.default_bot ?? room.members[0]?.bot ?? null;
-  return fallback ? [fallback] : [];
 }
 
 /** The `@query` being typed right before the caret, for autocomplete. */

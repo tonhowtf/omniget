@@ -70,7 +70,7 @@ export type GenericDownloadItem = BaseItem & {
   command?: CommandRecord | null;
 };
 
-export type GenericProgressExtra = {
+type GenericProgressExtra = {
   stream?: StreamInfo | null;
   fragmentIndex?: number | null;
   fragmentCount?: number | null;
@@ -209,7 +209,7 @@ export function getDownloads(): Map<number, DownloadItem> {
   return downloads;
 }
 
-export type DownloadCounts = {
+type DownloadCounts = {
   active: number;
   queued: number;
   badge: number;
@@ -232,7 +232,7 @@ export function getCounts(): DownloadCounts {
   return { active, queued, badge: active + queued, paused, finished };
 }
 
-export type DownloadAggregate = {
+type DownloadAggregate = {
   batchId: number;
   outcome: "idle" | "working" | "complete" | "stopped";
   activeCount: number;
@@ -462,37 +462,6 @@ export function syncQueueState(items: QueueItemInfo[]) {
     }
   }
 
-  flushNow();
-}
-
-export function removeDownload(id: number) {
-  const item = downloads.get(id);
-  if (item) {
-    downloads.delete(id);
-    clearSpeedHistory(id);
-    if (item.kind === "generic") {
-      suppressedGenericIds.add(id);
-    }
-    flushNow();
-  }
-}
-
-export function markGenericComplete(id: number, success: boolean, error?: string, filePath?: string, fileCount?: number, totalBytes?: number | null) {
-  const item = downloads.get(id);
-  if (!item || item.kind !== "generic") return;
-
-  downloads.set(id, {
-    ...item,
-    percent: success ? 100 : item.percent,
-    status: (success ? "complete" : "error") as DownloadStatus,
-    error,
-    filePath,
-    fileCount,
-    totalBytes: totalBytes ?? item.totalBytes,
-    speed: 0,
-    lastUpdateAt: Date.now(),
-  });
-  clearSpeedHistory(id);
   flushNow();
 }
 

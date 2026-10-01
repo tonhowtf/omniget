@@ -10,7 +10,7 @@ import { invoke } from "@tauri-apps/api/core";
 
 // ------------------------------------------------------------------ tipos
 
-export type CatalogKind =
+type CatalogKind =
   | "agent"
   | "command"
   | "skill"
@@ -30,7 +30,7 @@ export type SortKey = "relevance" | "name" | "stars" | "updated";
 export type Scope = "project" | "global" | "local" | "managed";
 export type Policy = "rename" | "skip" | "overwrite";
 
-export interface ItemSource {
+interface ItemSource {
   id: string;
   repo?: string | null;
   commit?: string | null;
@@ -128,7 +128,7 @@ export interface CatalogMeta {
   [k: string]: unknown;
 }
 
-export interface FileContent {
+interface FileContent {
   encoding: "utf8" | "base64";
   content: string;
   sha256: string;
@@ -143,7 +143,7 @@ export interface ItemFiles {
   files: Record<string, FileContent>;
 }
 
-export interface RegistryPage {
+interface RegistryPage {
   items: CatalogItem[];
   next_cursor?: string | null;
   count: number;
@@ -179,7 +179,7 @@ export interface UserSource {
   error?: string | null;
 }
 
-export interface CollectionItem {
+interface CollectionItem {
   item_id: string;
   position: number;
   targets: string[];
@@ -199,7 +199,7 @@ export interface Collection {
   items: CollectionItem[];
 }
 
-export interface CollectionImport {
+interface CollectionImport {
   collection: Collection;
   missing: string[];
   changed: string[];
@@ -212,7 +212,6 @@ export type Compat =
   | { status: "converted" }
   | { status: "degraded"; lost: string[] }
   | { status: "unsupported"; reason: string };
-export type CompatStatus = Compat["status"];
 
 export interface TargetAdapter {
   id: string;
@@ -229,7 +228,7 @@ export interface TargetAdapter {
   [k: string]: unknown;
 }
 
-export interface ScopeInfo {
+interface ScopeInfo {
   scope: Scope;
   available: boolean;
   reason?: string | null;
@@ -269,7 +268,7 @@ export interface Component {
   [k: string]: unknown;
 }
 
-export interface ComponentMeta {
+interface ComponentMeta {
   id: string;
   kind: string;
   name: string;
@@ -281,9 +280,9 @@ export interface ComponentMeta {
   origin_tool: string;
 }
 
-export type UnitStatus = "new" | "update" | "installed" | "unsupported" | "conflict" | "error";
+type UnitStatus = "new" | "update" | "installed" | "unsupported" | "conflict" | "error";
 
-export interface PlannedFile {
+interface PlannedFile {
   target: string;
   component_id: string;
   path: string;
@@ -315,7 +314,7 @@ export interface PlanUnit {
   error?: string | null;
 }
 
-export interface FilePlan {
+interface FilePlan {
   path: string;
   action: "create" | "replace" | "merge" | "unchanged" | "link" | string;
   /** Destino do symlink quando `action === "link"` (skills em `.agents/skills`). */
@@ -342,7 +341,7 @@ export interface InstallPlan {
   warnings: string[];
 }
 
-export interface WrittenFile {
+interface WrittenFile {
   path: string;
   type: "created" | "merged" | "linked";
   /** Destino do link quando `type === "linked"`. */
@@ -375,7 +374,7 @@ export interface ApplyReport {
   notes: string[];
 }
 
-export interface UninstallReport {
+interface UninstallReport {
   tx: string;
   install_id: string;
   removed: string[];
@@ -392,7 +391,7 @@ export interface DriftItem {
   detail: string[];
 }
 
-export interface RestoreReport {
+interface RestoreReport {
   tx: string;
   restored: string[];
   removed: string[];
@@ -427,7 +426,7 @@ export const KIND_TABS: (CatalogKind | "all")[] = [
 export const EXTRA_KINDS: CatalogKind[] = ["rule", "sandbox"];
 
 /** Glyph (static/icons) and gradient for each kind: chunky filled tiles. */
-export const KIND_STYLE: Record<string, { glyph: string; from: string; to: string }> = {
+const KIND_STYLE: Record<string, { glyph: string; from: string; to: string }> = {
   agent: { glyph: "robot", from: "#5E5CE6", to: "#3634A3" },
   command: { glyph: "terminal-window", from: "#48484A", to: "#1C1C1E" },
   skill: { glyph: "magic-wand", from: "#FF9F0A", to: "#E0600B" },
@@ -451,8 +450,6 @@ export function kindStyle(kind: string) {
 
 /** Kinds whose content is a folder (tree explorer instead of a single file). */
 export const FOLDER_KINDS = new Set(["skill", "mod", "plugin", "template", "sandbox"]);
-/** Kinds whose entry is JSON (tree viewer). */
-export const JSON_KINDS = new Set(["mcp", "hook", "setting", "statusline"]);
 
 // ------------------------------------------------------------------ catalog_*
 
@@ -570,7 +567,7 @@ export function agentkitParsePreview(args: {
   });
 }
 
-export interface PlanArgs {
+interface PlanArgs {
   components?: Component[];
   catalogIds?: string[];
   targets: string[];
@@ -656,7 +653,7 @@ export function resolveComponent(id: string): Promise<Component> {
  */
 const compatById = new Map<string, Record<string, Compat>>();
 
-export function rememberCompat(id: string, compat: Record<string, Compat> | undefined | null) {
+function rememberCompat(id: string, compat: Record<string, Compat> | undefined | null) {
   if (compat && Object.keys(compat).length) compatById.set(id, compat);
 }
 
@@ -713,22 +710,6 @@ export function loadKindMatrix(): Promise<void> {
   return kindMatrixPromise;
 }
 
-/** Exact compat of one item (backend `agentkit_compat`: fetch + parse + convert dry-run). */
-export interface CompatRow {
-  id: string;
-  name: string;
-  installed: boolean;
-  beta: boolean;
-  enabled_by_default: boolean;
-  tier: number;
-  compat: Compat;
-}
-export async function agentkitCompat(itemId: string, projectDir?: string | null): Promise<CompatRow[]> {
-  const r = await invoke<{ targets: CompatRow[] }>("agentkit_compat", { itemId, projectDir: projectDir || null });
-  rememberCompat(itemId, Object.fromEntries(r.targets.map((x) => [x.id, x.compat])));
-  return r.targets;
-}
-
 const READS_KEY: Record<string, string> = {
   rule: "rules",
   agent: "agents",
@@ -742,7 +723,7 @@ const READS_KEY: Record<string, string> = {
 };
 
 /** One `(kind, tool)` pair, following the backend resolution order. */
-export function kindCompat(kind: string, origin: string, t: TargetAdapter): Compat {
+function kindCompat(kind: string, origin: string, t: TargetAdapter): Compat {
   const measured = kindMatrix[kind]?.[t.id];
   if (measured && !(kind === "mcp" && origin !== "claude")) return measured;
   if (kind === "mcp") {
@@ -759,7 +740,7 @@ export function kindCompat(kind: string, origin: string, t: TargetAdapter): Comp
     : { status: "unsupported", reason: `${t.name} has no ${kind}` };
 }
 
-export function approxCompat(kind: string, origin: string, targets: TargetAdapter[]): Record<string, Compat> {
+function approxCompat(kind: string, origin: string, targets: TargetAdapter[]): Record<string, Compat> {
   const out: Record<string, Compat> = {};
   for (const t of targets) out[t.id] = kindCompat(kind, origin || "claude", t);
   return out;
@@ -771,8 +752,6 @@ export function kindsWorkingIn(toolIds: string[], targets: TargetAdapter[], kind
   if (!sel.length) return kinds;
   return kinds.filter((k) => sel.every((t) => kindCompat(k, "claude", t).status !== "unsupported"));
 }
-
-export const COMPAT_ORDER: CompatStatus[] = ["native", "converted", "degraded", "unsupported"];
 
 // ------------------------------------------------------------------ helpers puros
 
@@ -850,7 +829,7 @@ export function formatBytes(n: number): string {
 }
 
 /** ~4 chars per token, the same approximation the original site used. */
-export function approxTokens(text: string): number {
+function approxTokens(text: string): number {
   return Math.ceil(text.length / 4);
 }
 
@@ -876,19 +855,6 @@ export interface Heading {
   level: number;
   text: string;
   line: number;
-}
-
-/** ATX headings outside code fences. */
-export function headingsOf(md: string): Heading[] {
-  const out: Heading[] = [];
-  let fence = false;
-  md.split("\n").forEach((l, i) => {
-    if (/^\s*(```|~~~)/.test(l)) fence = !fence;
-    if (fence) return;
-    const m = /^(#{1,6})\s+(.+?)\s*#*\s*$/.exec(l);
-    if (m) out.push({ level: m[1].length, text: m[2].replace(/[`*_]/g, ""), line: i });
-  });
-  return out;
 }
 
 export interface Slide {
@@ -956,26 +922,6 @@ export function buildTree(paths: { path: string; size?: number }[]): TreeNode[] 
   };
   sort(root);
   return root.children;
-}
-
-export function languageOfPath(p: string): string {
-  const ext = p.split(".").pop()?.toLowerCase() ?? "";
-  return (
-    {
-      md: "markdown",
-      mdx: "markdown",
-      json: "json",
-      jsonc: "json",
-      toml: "toml",
-      yaml: "yaml",
-      yml: "yaml",
-      py: "python",
-      sh: "bash",
-      js: "javascript",
-      mjs: "javascript",
-      ts: "typescript",
-    } as Record<string, string>
-  )[ext] ?? "text";
 }
 
 /** FilePlan → the diff viewer's FileDiff shape. */

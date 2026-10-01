@@ -13,7 +13,7 @@ const MAX_CHUNKS = 96;
  * reader it uses) only calls `slice().arrayBuffer()`, `size`, `name` and
  * `type`, so a duck-typed object is enough.
  */
-export class RemoteFile {
+class RemoteFile {
   name: string;
   type: string;
   size: number;
@@ -147,7 +147,7 @@ function clean(root: Element) {
 }
 
 /** Strips anything executable from an (X)HTML or SVG resource. */
-export function sanitizeMarkup(data: string, type: string): string {
+function sanitizeMarkup(data: string, type: string): string {
   const isXml = /xml|svg/.test(type);
   const parser = new DOMParser();
   let doc = parser.parseFromString(data, (isXml ? type.split(";")[0] : "text/html") as DOMParserSupportedType);
@@ -166,7 +166,7 @@ export function sanitizeMarkup(data: string, type: string): string {
 }
 
 /** Hooks the book's resource loader: no scripts, sanitized markup. */
-export function guardBook(book: any) {
+function guardBook(book: any) {
   const t: EventTarget | undefined = book?.transformTarget;
   if (!t) return;
   t.addEventListener("load", (e: Event) => {

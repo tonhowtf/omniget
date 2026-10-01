@@ -14,7 +14,7 @@ export const THREADS = [
   { key: 'green', color: '#22C55E' },
 ] as const;
 
-export type ThreadKey = (typeof THREADS)[number]['key'];
+type ThreadKey = (typeof THREADS)[number]['key'];
 
 export interface ChatAttachment {
   id: string;
@@ -46,7 +46,7 @@ export interface ThreadInfo {
   lastTs?: string;
 }
 
-export interface HistoryPage {
+interface HistoryPage {
   nodeId: string;
   thread: number;
   entries: ChatEntry[];
@@ -74,7 +74,7 @@ export interface ChatStateEvent {
   unreadCount: number;
 }
 
-export const CHAT_STATE_EVENT = 'canvas://chat-state';
+const CHAT_STATE_EVENT = 'canvas://chat-state';
 
 export function onChatState(cb: (e: ChatStateEvent) => void): Promise<UnlistenFn> {
   return listen<ChatStateEvent>(CHAT_STATE_EVENT, (e) => cb(e.payload));
@@ -116,7 +116,7 @@ export interface ChatEvent {
   message: ChatEntry;
 }
 
-export const CHAT_EVENT = 'canvas://chat';
+const CHAT_EVENT = 'canvas://chat';
 
 export const chatHistory = (
   workspaceId: string,
@@ -152,7 +152,7 @@ export const chatSend = (
 export const chatClear = (workspaceId: string, nodeId: string, thread: number) =>
   invoke<ChatEntry>('canvas_chat_clear', { workspaceId, nodeId, thread });
 
-export interface ChatRemoved {
+interface ChatRemoved {
   removed: string[];
   attachmentsRemoved: number;
   remaining: number;
@@ -166,7 +166,7 @@ export interface ChatRemovedEvent {
   cleared: boolean;
 }
 
-export const CHAT_REMOVED_EVENT = 'canvas://chat-removed';
+const CHAT_REMOVED_EVENT = 'canvas://chat-removed';
 
 /** Delete Message: one entry (and its unused attachment files). */
 export const chatDeleteEntry = (workspaceId: string, nodeId: string, entryId: string, thread?: number) =>

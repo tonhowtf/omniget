@@ -153,16 +153,6 @@ export function applyOp(doc: DocState, op: Op): Op | null {
   }
 }
 
-/** Applies a list and returns the inverse list (already reversed, ready to apply). */
-export function applyOps(doc: DocState, ops: Op[]): Op[] {
-  const inverse: Op[] = [];
-  for (const op of ops) {
-    const inv = applyOp(doc, op);
-    if (inv) inverse.push(inv);
-  }
-  return inverse.reverse();
-}
-
 /** Ops that remove nodes together with every cord touching them (cords first). */
 export function removeNodesOps(doc: DocState, ids: Iterable<string>): Op[] {
   const set = new Set(ids);
@@ -172,38 +162,6 @@ export function removeNodesOps(doc: DocState, ids: Iterable<string>): Op[] {
   }
   for (const id of set) if (doc.nodes.has(id)) ops.push({ op: 'remove_node', id });
   return ops;
-}
-
-/**
- * Collapses a sequence of ops into the minimum that reaches the same state,
- * merging consecutive update_node patches of the same record (used when a
- * drag of many frames becomes one history entry and one patch).
- */
-export function squashOps(ops: Op[]): Op[] {
-  const out: Op[] = [];
-  const lastUpdate = new Map<string, number>();
-  for (const op of ops) {
-    if (op.op === 'update_node' || op.op === 'update_connection' || op.op === 'update_drawing') {
-      const key = recordKey(op);
-      const idx = lastUpdate.get(key);
-      if (idx !== undefined) {
-        const prev = out[idx] as typeof op;
-        const merged: Record<string, unknown> = { ...prev.patch, ...op.patch };
-        const a = (prev.patch as { data?: unknown }).data;
-        const b = (op.patch as { data?: unknown }).data;
-        if (a && b && typeof a === 'object' && typeof b === 'object') merged.data = { ...a, ...b };
-        out[idx] = { ...prev, patch: merged } as Op;
-        continue;
-      }
-      lastUpdate.set(key, out.length);
-      out.push(op);
-    } else {
-      // Anything else breaks the merge window for its record.
-      lastUpdate.delete(recordKey(op));
-      out.push(op);
-    }
-  }
-  return out;
 }
 
 /** Stamps a snapshot of maps into a DocState. */

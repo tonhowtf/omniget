@@ -63,7 +63,7 @@ export type IntegratePreview = {
   worktree_dirty: string[];
 };
 
-export type IntegrateOutcome = {
+type IntegrateOutcome = {
   status: "merged" | "up_to_date" | "conflict" | "failed";
   strategy: "merge" | "squash";
   target_branch: string;
@@ -73,7 +73,7 @@ export type IntegrateOutcome = {
   clean: boolean;
 };
 
-export type WalkthroughStop = { title: string; hunks: string[]; importance: "critical" | "normal" | "context"; prose: string };
+type WalkthroughStop = { title: string; hunks: string[]; importance: "critical" | "normal" | "context"; prose: string };
 export type Walkthrough = {
   key: string;
   title: string;

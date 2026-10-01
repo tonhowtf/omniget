@@ -1,4 +1,4 @@
-export type HistoryGame = {
+type HistoryGame = {
   gameId?: number;
   queueId?: number;
   gameMode?: string;
@@ -6,7 +6,7 @@ export type HistoryGame = {
   participants?: { stats?: { kills?: number; deaths?: number; assists?: number; win?: boolean } }[];
 };
 
-export type HistorySummary = {
+type HistorySummary = {
   total: number;
   counted: number;
   wins: number;
@@ -20,7 +20,7 @@ export type HistorySummary = {
 /// averaging, so it is listed but kept out of the aggregates.
 const REMAKE_SECONDS = 180;
 
-export function isRemake(game: HistoryGame): boolean {
+function isRemake(game: HistoryGame): boolean {
   return (game.gameDuration ?? 0) < REMAKE_SECONDS;
 }
 

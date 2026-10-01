@@ -8,7 +8,7 @@ import { t } from "$lib/i18n";
 import { showToast } from "$lib/stores/toast-store.svelte";
 import type { MenuItem } from "$components/music/ContextMenu.svelte";
 import { albumKey } from "./library";
-import { library, patchTracksLocal, removeTracksLocal, trackById } from "./library-store.svelte";
+import { patchTracksLocal, removeTracksLocal, trackById } from "./library-store.svelte";
 import { enqueue, playTracks } from "./player-store.svelte";
 import type { Playlist, Track } from "./types";
 
@@ -75,7 +75,7 @@ export async function loadPlaylists() {
   }
 }
 
-export async function addToPlaylist(playlistId: number, ids: number[]) {
+async function addToPlaylist(playlistId: number, ids: number[]) {
   await invoke("music_playlist_add", { id: playlistId, trackIds: ids });
   const pl = ui.playlists.find((p) => p.id === playlistId);
   showToast("success", tr("music.toast.added_to_playlist", { name: pl?.name ?? "" }));
@@ -124,7 +124,7 @@ export function removeTracks(ids: number[], deleteFiles: boolean) {
 }
 
 /** The right-click menu for one or more tracks, the same everywhere. */
-export function trackMenu(ids: number[], extra: MenuItem[] = []): MenuItem[] {
+function trackMenu(ids: number[], extra: MenuItem[] = []): MenuItem[] {
   const tracks = ids.map((id) => trackById(id)).filter(Boolean) as Track[];
   if (!tracks.length) return [];
   const first = tracks[0];
@@ -172,12 +172,3 @@ export function showTrackMenu(e: MouseEvent, ids: number[], extra: MenuItem[] = 
   openMenu(e, trackMenu(ids, extra));
 }
 
-/** Tracks for a set of ids in library order, skipping missing ones. */
-export function tracksFor(ids: number[]): Track[] {
-  return ids.map((id) => trackById(id)).filter(Boolean) as Track[];
-}
-
-export function libraryEmpty(): boolean {
-  const l = library();
-  return l.loaded && l.tracks.length === 0;
-}

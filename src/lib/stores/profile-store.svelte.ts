@@ -12,7 +12,7 @@
  */
 import { invoke } from "@tauri-apps/api/core";
 
-export interface ProfileSkin {
+interface ProfileSkin {
   id: string;
   /** RGB, 0–255. */
   tint: [number, number, number];
@@ -32,7 +32,7 @@ export const NICKNAME_MAX = 32;
 /** Art variant shipped before the F5 placeholder set lands. */
 export const DEFAULT_SKIN_ID = "omni-default";
 
-export interface SkinTint {
+interface SkinTint {
   /** Tint name; also the i18n suffix (`profile.tint.<id>`). */
   id: string;
   hex: string;
@@ -134,7 +134,7 @@ export function formatFingerprint(fingerprint: string, group = 4): string {
 }
 
 /** Maps a backend `ERR_*` code to an i18n key. */
-export function profileErrorKey(err: unknown): string {
+function profileErrorKey(err: unknown): string {
   const code = String(err ?? "");
   if (code.includes("ERR_PROFILE_NICKNAME")) return "profile.err_nickname";
   if (code.includes("ERR_PROFILE_STORE")) return "profile.err_store";
@@ -145,7 +145,7 @@ export function profileErrorKey(err: unknown): string {
 }
 
 /** `ERR_STUB` means "core not wired yet", not a real failure. */
-export function isUnavailable(err: unknown): boolean {
+function isUnavailable(err: unknown): boolean {
   return String(err ?? "").includes("ERR_STUB");
 }
 
@@ -249,12 +249,3 @@ export async function copyFingerprint(): Promise<boolean> {
   }
 }
 
-/** Test seam: drops the cached profile so a fresh `loadProfile` runs. */
-export function resetProfileStore(): void {
-  profile = null;
-  loading = false;
-  errorKey = null;
-  available = true;
-  loadedOnce = false;
-  inFlight = null;
-}

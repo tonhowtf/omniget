@@ -10,7 +10,7 @@ import { invoke } from "@tauri-apps/api/core";
 
 export type Severity = "info" | "low" | "medium" | "high" | "critical";
 export type GuardLevel = "ok" | "warn" | "block";
-export type GuardValidator =
+type GuardValidator =
   | "structural"
   | "integrity"
   | "semantic"
@@ -20,7 +20,7 @@ export type GuardValidator =
   | "config"
   | "skillspector";
 
-export type GuardKind =
+type GuardKind =
   | "agent"
   | "command"
   | "skill"
@@ -38,7 +38,7 @@ export type GuardKind =
   | "script"
   | "other";
 
-export interface GuardFinding {
+interface GuardFinding {
   code: string;
   validator: GuardValidator;
   severity: Severity;
@@ -53,7 +53,7 @@ export interface GuardFinding {
   downgraded: boolean;
 }
 
-export interface GuardCommand {
+interface GuardCommand {
   file: string;
   /** hook | mcp | statusline | setting | inline | script | fence | agent_prompt */
   origin: string;
@@ -68,7 +68,7 @@ export interface GuardCommand {
   auto_runs: boolean;
 }
 
-export interface GuardValidatorSummary {
+interface GuardValidatorSummary {
   validator: GuardValidator;
   score: number;
   errors: number;
@@ -76,7 +76,7 @@ export interface GuardValidatorSummary {
   infos: number;
 }
 
-export interface GuardFileDigest {
+interface GuardFileDigest {
   path: string;
   sha256: string;
   size: number;
@@ -103,7 +103,7 @@ export interface GuardReport {
   scanned_at: string;
 }
 
-export interface GuardProvenance {
+interface GuardProvenance {
   repo?: string | null;
   url?: string | null;
   commit?: string | null;
@@ -112,7 +112,7 @@ export interface GuardProvenance {
   version?: string | null;
 }
 
-export interface GuardOptions {
+interface GuardOptions {
   block_below?: number;
   warn_below?: number;
   strict?: boolean;
@@ -130,7 +130,7 @@ export interface GuardRule {
   pt: string;
 }
 
-export interface DocStat {
+interface DocStat {
   path: string;
   kind: string;
   name: string;
@@ -144,7 +144,7 @@ export interface DocStat {
   modified?: string;
 }
 
-export interface HookStat {
+interface HookStat {
   file: string;
   event: string;
   matcher?: string;
@@ -160,7 +160,7 @@ export interface HookStat {
   tokens: number;
 }
 
-export interface McpStat {
+interface McpStat {
   file: string;
   name: string;
   description?: string;
@@ -217,26 +217,6 @@ export function guardScanComponent(args: {
   });
 }
 
-export function guardScanPath(
-  path: string,
-  opts: { kind?: string | null; originTool?: string | null; options?: GuardOptions | null } = {},
-): Promise<GuardReport[]> {
-  return invoke<GuardReport[]>("guard_scan_path", {
-    path,
-    kind: opts.kind ?? null,
-    originTool: opts.originTool ?? null,
-    options: opts.options ?? null,
-  });
-}
-
-export function guardScanPaths(
-  paths: string[],
-  originTool: string | null = null,
-  options: GuardOptions | null = null,
-): Promise<GuardReport[]> {
-  return invoke<GuardReport[]>("guard_scan_paths", { paths, originTool, options });
-}
-
 export function guardScanInstalled(args: {
   targetId: string;
   scope: string;
@@ -275,9 +255,9 @@ export function guardRules(): Promise<GuardRule[]> {
 
 // ------------------------------------------------------------------ helpers
 
-export const SEVERITY_ORDER: Severity[] = ["critical", "high", "medium", "low", "info"];
+const SEVERITY_ORDER: Severity[] = ["critical", "high", "medium", "low", "info"];
 
-export function severityRank(s: Severity): number {
+function severityRank(s: Severity): number {
   return 4 - SEVERITY_ORDER.indexOf(s);
 }
 

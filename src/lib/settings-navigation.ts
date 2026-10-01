@@ -6,10 +6,10 @@
 export type SettingsCategory = "general" | "appearance" | "downloads" | "ai" | "integrations" | "advanced";
 
 export const SETTINGS_CATEGORIES: readonly SettingsCategory[] = ["general", "appearance", "downloads", "ai", "integrations", "advanced"];
-export const DEFAULT_SETTINGS_CATEGORY: SettingsCategory = "downloads";
+const DEFAULT_SETTINGS_CATEGORY: SettingsCategory = "downloads";
 
 /** Section ids per category, in render order. Each becomes `settings-group-<id>`. */
-export const SETTINGS_SECTIONS: Record<SettingsCategory, readonly string[]> = {
+const SETTINGS_SECTIONS: Record<SettingsCategory, readonly string[]> = {
   general: ["language", "startup", "profile", "guidance", "limits-strip", "usage-tray"],
   appearance: ["theme", "accessibility", "typography"],
   downloads: ["files", "quality", "presets", "subtitles", "clipboard", "cookies", "channels", "rules", "sites", "templates"],
@@ -282,7 +282,7 @@ function sectionFromHash(hash: string): string | null {
   return /^[a-z][a-z0-9-]*$/.test(raw) ? raw : null;
 }
 
-export type SettingsLocation = {
+type SettingsLocation = {
   tab: SettingsCategory;
   section: string | null;
   setting: string | null;
@@ -367,11 +367,6 @@ export function settingsHref(tab: SettingsCategory, section?: string | null, set
   return `/settings?${params}`;
 }
 
-export function parseSettingsSection(params: URLSearchParams, allowed: readonly string[]): string | null {
-  const value = params.get("section");
-  return value !== null && allowed.includes(value) ? value : null;
-}
-
 function oneOf<T extends string>(value: string | null, allowed: readonly T[]): T | null {
   return value !== null && (allowed as readonly string[]).includes(value) ? (value as T) : null;
 }
@@ -416,7 +411,7 @@ function prefersReducedMotion(): boolean {
 
 const FOCUSABLE = "button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex='-1'])";
 
-export type FocusWhenReadyOptions = {
+type FocusWhenReadyOptions = {
   timeoutMs?: number;
   /** Focus the first enabled control inside the target (a `data-setting-key` row). */
   preferControl?: boolean;
@@ -589,7 +584,7 @@ export function focusWhenReady(selector: string, opts: FocusWhenReadyOptions = {
 }
 
 /** Asks collapsed disclosure regions (SettingGroup advanced) around `node` to open. */
-export function revealAncestors(node: HTMLElement): boolean {
+function revealAncestors(node: HTMLElement): boolean {
   let revealed = false;
   let current: HTMLElement | null = node;
   while (current) {

@@ -92,19 +92,19 @@ async function call<T>(cmd: string, args: Record<string, unknown>): Promise<T> {
 export const filesList = (workspaceId: string, root: string, dir = '', showHidden = false) =>
   call<FileEntry[]>('canvas_files_list', { workspaceId, root, dir, showHidden });
 
-export const filesRead = (workspaceId: string, root: string, path: string) =>
+const filesRead = (workspaceId: string, root: string, path: string) =>
   call<FileText>('canvas_files_read', { workspaceId, root, path });
 
-export const filesWrite = (workspaceId: string, root: string, path: string, text: string, ifRevision?: string) =>
+const filesWrite = (workspaceId: string, root: string, path: string, text: string, ifRevision?: string) =>
   call<FileText>('canvas_files_write', { workspaceId, root, path, text, ifRevision: ifRevision ?? null });
 
-export const filesCreate = (workspaceId: string, root: string, path: string, dir = false) =>
+const filesCreate = (workspaceId: string, root: string, path: string, dir = false) =>
   call<FileEntry>('canvas_files_create', { workspaceId, root, path, dir });
 
-export const filesRename = (workspaceId: string, root: string, from: string, to: string) =>
+const filesRename = (workspaceId: string, root: string, from: string, to: string) =>
   call<string>('canvas_files_rename', { workspaceId, root, from, to });
 
-export const filesDelete = (workspaceId: string, root: string, path: string) =>
+const filesDelete = (workspaceId: string, root: string, path: string) =>
   call<string>('canvas_files_delete', { workspaceId, root, path });
 
 export const filesSearch = (workspaceId: string, root: string, query: string, content = false, showHidden = false) =>
@@ -116,7 +116,7 @@ export const filesGitStatus = (workspaceId: string, root: string) =>
 export const filesGitDiff = (workspaceId: string, root: string, path?: string) =>
   call<DiffResult>('canvas_files_git_diff', { workspaceId, root, path: path ?? null });
 
-export type GitAction =
+type GitAction =
   | 'status'
   | 'branches'
   | 'commit'
@@ -140,7 +140,7 @@ export type GitAction =
   | 'conflict'
   | 'removeLock';
 
-export interface GitOpArgs {
+interface GitOpArgs {
   message?: string;
   /** Relative to the tree root. */
   paths?: string[];
@@ -160,7 +160,7 @@ export interface ConflictView {
   incoming?: string;
 }
 
-export interface GitOpResult {
+interface GitOpResult {
   action: GitAction;
   ok: boolean;
   output: string;
@@ -238,11 +238,11 @@ export function isRemoteEnv(env: unknown): boolean {
   return k !== '' && k !== 'local' && k !== 'tmux' && k !== 'local-tmux';
 }
 
-export const filesRemote = <T>(workspaceId: string, args: Record<string, unknown>) =>
+const filesRemote = <T>(workspaceId: string, args: Record<string, unknown>) =>
   call<T>('canvas_files_remote', { workspaceId, args });
 
 /** One file API over a local root or a remote environment. */
-export interface FileSource {
+interface FileSource {
   remote: boolean;
   list(dir?: string, showHidden?: boolean): Promise<FileEntry[]>;
   read(path: string): Promise<FileText>;

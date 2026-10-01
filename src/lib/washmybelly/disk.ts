@@ -36,7 +36,7 @@ export type UsageTree = UsageNode & {
   scanned_at: number;
 };
 
-export type LargeFile = {
+type LargeFile = {
   id: string;
   label: string;
   detail: string | null;
@@ -49,7 +49,7 @@ export type LargeFile = {
 
 export type LargeFiles = { items: LargeFile[]; total_bytes: number; plan_id: string | null; scanned: number };
 
-export type DiskHealth = {
+type DiskHealth = {
   id: string | null;
   name: string | null;
   bus: string | null;
@@ -67,8 +67,8 @@ export type DiskHealth = {
 export type Health = { disks: DiskHealth[]; reason?: string };
 
 /// Apple system palette, one hue per top-level child; depth only lightens.
-export const PALETTE = ["#0A84FF", "#FF9F0A", "#30D158", "#BF5AF2", "#FF375F", "#64D2FF", "#FFD60A", "#5E5CE6", "#AC8E68", "#FF6961"];
-export const OTHER_COLOR = "#8E8E93";
+const PALETTE = ["#0A84FF", "#FF9F0A", "#30D158", "#BF5AF2", "#FF375F", "#64D2FF", "#FFD60A", "#5E5CE6", "#AC8E68", "#FF6961"];
+const OTHER_COLOR = "#8E8E93";
 
 export function colorFor(index: number, node: UsageNode): string {
   if (node.kind === "other") return OTHER_COLOR;
@@ -219,7 +219,7 @@ export function arcPath(a0: number, a1: number, r0: number, r1: number): string 
 
 // ── Breadcrumb ─────────────────────────────────────────────────────────
 
-export type Crumb = { name: string; path: string };
+type Crumb = { name: string; path: string };
 
 /// Crumbs from the scanned root down to `path`.
 export function crumbs(root: string, path: string, rootName: string): Crumb[] {

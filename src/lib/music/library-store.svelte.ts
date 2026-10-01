@@ -89,7 +89,7 @@ export function patchTracksLocal(ids: number[], patch: Partial<Track>) {
 }
 
 /** Re-reads a few rows from Rust (after analysis or tag edits), batched. */
-export function refreshTracks(ids: number[]) {
+function refreshTracks(ids: number[]) {
   for (const id of ids) pendingRefresh.add(id);
   if (refreshTimer) return;
   refreshTimer = setTimeout(async () => {

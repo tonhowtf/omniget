@@ -18,12 +18,10 @@ export interface AtlasFrame {
 
 export type Dir8 = 'S' | 'SW' | 'W' | 'NW' | 'N' | 'SE' | 'E' | 'NE';
 
-export const DIRS: Dir8[] = ['S', 'SW', 'W', 'NW', 'N', 'NE', 'E', 'SE'];
-
 /** The three directions that exist only as a horizontal mirror of another. */
-export const MIRRORED: Record<string, 'SW' | 'W' | 'NW'> = { SE: 'SW', E: 'W', NE: 'NW' };
+const MIRRORED: Record<string, 'SW' | 'W' | 'NW'> = { SE: 'SW', E: 'W', NE: 'NW' };
 
-export interface AtlasClip {
+interface AtlasClip {
   fps: number;
   loop: boolean;
   /** Unique directions only; the mirrored ones resolve through `mirrorOf`. */
@@ -31,7 +29,7 @@ export interface AtlasClip {
   mirrorOf: Record<string, string>;
 }
 
-export interface AtlasTile {
+interface AtlasTile {
   frame: string;
   height: number;
   occludes: boolean;
@@ -156,15 +154,6 @@ export function getFrame(atlas: AtlasData, id: string): AtlasFrame {
   return f;
 }
 
-/** Texture coordinates of a frame inside its page. */
-export function frameUV(
-  f: AtlasFrame,
-  pageW: number,
-  pageH: number,
-): { u0: number; v0: number; u1: number; v1: number } {
-  return { u0: f.x / pageW, v0: f.y / pageH, u1: (f.x + f.w) / pageW, v1: (f.y + f.h) / pageH };
-}
-
 /**
  * Frame list for a direction. The three mirrored directions come back with
  * `flip: true` over the source direction — mirroring lives in the batcher.
@@ -185,9 +174,3 @@ export function resolveDir(
   return { frames: clip.dirs[src], flip: true, fps: clip.fps, loop: clip.loop };
 }
 
-/** Bytes of GPU memory the atlas pages take as RGBA8 (no mipmaps). */
-export function atlasTextureBytes(pageSizes: Array<{ w: number; h: number }>): number {
-  let total = 0;
-  for (const p of pageSizes) total += p.w * p.h * 4;
-  return total;
-}

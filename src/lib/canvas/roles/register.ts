@@ -8,7 +8,7 @@
 import { onRoleEvent, type RoleEvent } from './client';
 import { roles } from './store.svelte';
 
-export interface RolesHost {
+interface RolesHost {
   workspaceId(): string;
   /** Reopen the terminal of a node (same terminal id, new launch). */
   restart(nodeId: string, ev: RoleEvent): void;

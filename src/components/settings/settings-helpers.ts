@@ -19,18 +19,6 @@ export async function saveSettings(partial: Record<string, unknown>): Promise<Ap
   }
 }
 
-
-export async function chooseCookieFile() {
-  const selected = await open({
-    title: get(t)("settings.cookies.import_file_dialog_title"),
-    filters: [{ name: "Cookies", extensions: ["txt"] }],
-    multiple: false,
-  });
-  if (selected && typeof selected === "string") {
-    await saveSettings({ download: { cookie_file: selected } });
-  }
-}
-
 export async function chooseFolder() {
   const tt = get(t);
   const selected = await open({
@@ -40,11 +28,6 @@ export async function chooseFolder() {
   if (selected) {
     await saveSettings({ download: { default_output_dir: selected } });
   }
-}
-
-/** Core modes (system/light/dark) and named themes both go through mode/preset. */
-export async function changeTheme(value: string) {
-  await saveSettings({ appearance: { theme: value } });
 }
 
 /** The store applies the confirmed language through the layout's locale applier. */
@@ -94,12 +77,6 @@ export async function loadDeps(): Promise<DependencyStatus[]> {
   }
 }
 
-export const CORE_THEMES = [
-  { id: "system", labelKey: "settings.appearance.theme_system", colors: null as string[] | null },
-  { id: "light", labelKey: "design.light", label: "Light", colors: ["#F6F4F0", "#1E1C19", "#FF9D24"] },
-  { id: "dark", labelKey: "design.dark", label: "Dark", colors: ["#1B1B1D", "#F4F2EE", "#FF9D24"] },
-];
-
 export const MORE_THEMES = [
   { id: "catppuccin-latte", label: "Catppuccin Latte", colors: ["#eff1f5", "#4c4f69", "#1e66f5"] },
   { id: "catppuccin-frappe", label: "Catppuccin Frappé", colors: ["#303446", "#c6d0f5", "#8caaee"] },
@@ -114,7 +91,5 @@ export const MORE_THEMES = [
   { id: "eink-sepia", label: "E-ink Sepia", colors: ["#f0e6d2", "#3f2e20", "#7a4a22"] },
   { id: "eink-night", label: "E-ink Night", colors: ["#0a0a0a", "#d4d4d0", "#b0b0ab"] },
 ];
-
-export const MORE_THEME_IDS = new Set(MORE_THEMES.map((t) => t.id));
 
 export { getSettings, updateSettings };

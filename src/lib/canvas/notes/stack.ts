@@ -8,7 +8,7 @@ import type { CanvasStore } from '../model/store.svelte';
 import { newId, type CanvasNode, type Op, type Rect } from '../model/types';
 import { stackIdOf } from './api';
 
-export interface StackData {
+interface StackData {
   name?: string;
   hasCustomName?: boolean;
   tabs: string[];
@@ -16,7 +16,7 @@ export interface StackData {
   uniformColor?: string;
 }
 
-export const STACK_SIZE = { w: 280, h: 240 };
+const STACK_SIZE = { w: 280, h: 240 };
 
 export function stackData(node: CanvasNode): StackData {
   const d = (node.data ?? {}) as Partial<StackData>;
@@ -54,7 +54,7 @@ export function frontPage(store: CanvasStore, stack: CanvasNode): CanvasNode | u
  * one fichário: with `store`, it leaves the stack it was in (an unnamed stack
  * left empty goes away).
  */
-export function addToStackOps(stack: CanvasNode, notes: CanvasNode[], index?: number, store?: CanvasStore): Op[] {
+function addToStackOps(stack: CanvasNode, notes: CanvasNode[], index?: number, store?: CanvasStore): Op[] {
   const d = stackData(stack);
   const ids = notes.map((n) => n.id).filter((id) => id !== stack.id);
   if (!ids.length) return [];
@@ -230,11 +230,6 @@ export function ensureStackController(engine: CanvasEngine): void {
     window.removeEventListener('pointerdown', onDown, true);
     window.removeEventListener('pointerup', onUp, true);
   });
-}
-
-export function disposeStackController(engine: CanvasEngine): void {
-  controllers.get(engine)?.();
-  controllers.delete(engine);
 }
 
 function fileMoved(engine: CanvasEngine, ids: string[]): void {

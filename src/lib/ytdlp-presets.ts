@@ -2,7 +2,7 @@ import type { AppSettings } from "$lib/stores/settings-store.svelte";
 
 export type YtdlpPresetId = "fast" | "quality" | "compact" | "music_only";
 
-export type YtdlpPreset = {
+type YtdlpPreset = {
   id: YtdlpPresetId;
   labelKey: string;
   descKey: string;

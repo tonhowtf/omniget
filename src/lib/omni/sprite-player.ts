@@ -29,37 +29,26 @@ import {
 } from '$lib/gfx/atlas';
 
 /** Frames per second the pet is never allowed to exceed. */
-export const MAX_FPS = 12;
+const MAX_FPS = 12;
 
 /** How many times a non-resting clip loops before the pet settles down. */
-export const PLAY_CYCLES = 2;
+const PLAY_CYCLES = 2;
 
 /** The clip the pet falls back to, drawn as a single static frame. */
-export const REST_CLIP = 'idle';
+const REST_CLIP = 'idle';
 
 /**
  * Clips that hold their last frame instead of returning to `idle`: a pet that
  * woke up two seconds after falling asleep reads as a bug.
  */
-export const HOLD_CLIPS: readonly string[] = ['sleep', 'sit'];
+const HOLD_CLIPS: readonly string[] = ['sleep', 'sit'];
 
 /** The pet is a front view; the world's other seven directions are unused. */
-export const PET_DIR: Dir8 = 'S';
+const PET_DIR: Dir8 = 'S';
 
-/** Clips the pet knows, in the order `animation_to_clip` (Rust) produces them. */
-export const PET_CLIPS: readonly string[] = [
-  'idle',
-  'walk',
-  'sit',
-  'wave',
-  'work',
-  'sleep',
-  'talk',
-];
+const ERR_PET_CLIP = 'ERR_PET_CLIP';
 
-export const ERR_PET_CLIP = 'ERR_PET_CLIP';
-
-export class PetClipError extends Error {
+class PetClipError extends Error {
   readonly code = ERR_PET_CLIP;
   constructor(message: string) {
     super(message);
@@ -93,12 +82,12 @@ export function animId(clip: string, sheet = 'omni'): string {
 }
 
 /** Milliseconds per frame for a clip's fps, capped at `MAX_FPS`. */
-export function delayFor(fps: number): number {
+function delayFor(fps: number): number {
   const capped = Math.min(fps > 0 ? fps : MAX_FPS, MAX_FPS);
   return Math.ceil(1000 / capped);
 }
 
-export function isHoldClip(clip: string): boolean {
+function isHoldClip(clip: string): boolean {
   return HOLD_CLIPS.includes(clip);
 }
 
@@ -203,7 +192,7 @@ export function advance(state: PlayerState, atlas: AtlasData, nowMs: number, she
 }
 
 /** Frame id currently on screen. */
-export function currentFrameId(state: PlayerState): string {
+function currentFrameId(state: PlayerState): string {
   return state.frames[state.index] ?? state.frames[0];
 }
 

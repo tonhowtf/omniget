@@ -1862,21 +1862,16 @@
     "general": {
       "title": "Geral",
       "start_with_system": "Iniciar com o sistema",
-      "start_with_system_desc": "Abrir o OmniGet automaticamente ao ligar o computador",
       "start_minimized": "Iniciar apenas na bandeja",
-      "start_minimized_desc": "Abrir o OmniGet apenas na bandeja do sistema, sem mostrar a janela. Clique no ícone da bandeja para abrir.",
       "exit_on_close": "Quit when the window is closed",
-      "exit_on_close_desc": "Closing the window with X quits OmniGet instead of keeping it in the system tray. Active downloads still ask before quitting.",
       "reset_hints": "Restaurar dicas",
       "reset_hints_desc": "Mostrar todas as dicas novamente",
       "restore": "Restaurar",
       "hints_restored": "Todas as dicas foram restauradas",
       "run_in_background": "Rodar agentes em segundo plano",
-      "run_in_background_desc": "O OmniGet abre escondido quando você entra no computador, e fechar a janela o deixa na bandeja, então jobs, Loops e rotinas continuam rodando e o comando omniget o encontra. Desliga “Sair ao fechar a janela”.",
       "run_in_background_flatpak": "Flatpak: abrir ao entrar no computador e ser aberto pela linha de comando ainda não foram verificados."
     },
     "appearance": {
-      "title": "Aparência",
       "accessibility_title": "Accessibility",
       "reduce_motion": "Reduce motion",
       "reduce_motion_desc": "Turns position and scale animations into simple fades.",
@@ -1897,8 +1892,7 @@
       "lang_es": "Español",
       "lang_el": "Ελληνικά",
       "lang_fa": "فارسی",
-      "lang_lo": "ລາວ",
-      "preview_pending": "Somente prévia. Aplique a aparência para salvar estas alterações."
+      "lang_lo": "ລາວ"
     },
     "download": {
       "default_output_dir": "Pasta padrão",
@@ -1919,7 +1913,6 @@
       "section_quality": "Quality & format",
       "section_quality_desc": "Default video quality and yt-dlp presets.",
       "section_subtitles": "Subtitles & extras",
-      "section_subtitles_desc": "Subtitles, thumbnails, and metadata saved alongside media.",
       "section_clipboard_hotkeys": "Clipboard & hotkeys",
       "section_clipboard_hotkeys_desc": "Paste detection and global shortcuts.",
       "section_per_platform": "Per-platform options",
@@ -2020,8 +2013,7 @@
       "filename_template": "Template de nome",
       "filename_template_desc": "Template yt-dlp para nome dos arquivos baixados",
       "filename_template_preview": "Preview: {{preview}}",
-      "filename_template_invalid": "Não salvo. Informe um modelo de nome que contenha %(ext)s para a extensão do arquivo.",
-      "filename_template_save_failed": "Não foi possível salvar este modelo. Sua edição continua visível."
+      "filename_template_invalid": "Não salvo. Informe um modelo de nome que contenha %(ext)s para a extensão do arquivo."
     },
     "update_available": "OmniGet {{version}} está disponível",
     "update_button": "atualizar agora",
@@ -2064,7 +2056,6 @@
       "quality_placeholder": "1080p",
       "audio_only": "Só áudio",
       "add": "Adicionar regra",
-      "saved": "Regras salvas",
       "test_title": "Testar um link",
       "test_placeholder": "Cole um link para ver qual regra o pega",
       "test_run": "Testar",
@@ -2133,21 +2124,17 @@
       "filter_all_files": "Todos os arquivos",
       "set_file_failed": "Falha ao definir arquivo: {{msg}}",
       "open_folder_failed": "Falha ao abrir pasta: {{msg}}",
-      "system_font_suffix": "sistema",
       "load_failed": "Não foi possível verificar os componentes instalados. Tente novamente."
     },
     "typography": {
       "section_title": "Tipografia",
       "presets_title": "Presets",
       "presets_desc": "Combinações testadas. Um clique aplica fontes + line-height + espaçamento.",
-      "modified_indicator": "(modificado manualmente)",
       "fonts_title": "Fontes",
       "fonts_desc": "Escolha individual de família. A lista contém fontes empacotadas no app (não inclui fontes do sistema operacional ainda).",
-      "reset": "Restaurar",
       "display_label": "Display",
       "body_label": "Body",
       "mono_label": "Mono",
-      "body_sample": "Aqui jaz a velha tipografia",
       "line_height_label": "Line-height",
       "line_height_desc": "Espaço vertical entre linhas. Maior = mais arejado e fácil de ler em sessões longas.",
       "spacing_label": "Espaçamento global",
@@ -2172,8 +2159,7 @@
       "host": "Host",
       "port": "Porta",
       "username": "Usuário",
-      "password": "Senha",
-      "save_failed": "Não foi possível salvar os campos do proxy. Suas edições continuam visíveis; tente novamente."
+      "password": "Senha"
     },
     "advanced": {
       "max_concurrent_downloads": "Downloads simultâneos",
@@ -2212,17 +2198,8 @@
       "user_agent_desc": "Envia um User-Agent personalizado nos downloads. Deixe vazio para usar o padrão.",
       "user_agent_placeholder": "User-Agent padrão do navegador"
     },
-    "group_general": "General",
-    "group_media": "Media",
-    "group_integrations": "Integrations",
-    "group_advanced": "Advanced",
     "cat_appearance": "Aparência",
-    "cat_typography": "Tipografia",
-    "cat_downloads": "Downloads",
     "cat_network": "Rede",
-    "cat_advanced": "Avancado",
-    "search_placeholder": "Buscar configurações...",
-    "drill_back": "Back",
     "rpc": {
       "title": "Discord Rich Presence",
       "desc": "Mostra sua atividade no perfil do Discord. O timer não reseta ao trocar de atividade.",
@@ -2233,8 +2210,6 @@
       "test_button": "Enviar teste",
       "test_ok": "Conectado ao Discord",
       "test_fail": "Não foi possível conectar ao Discord. Verifique se ele está aberto.",
-      "saved": "Salvo",
-      "save": "Salvar",
       "advanced": "Avançado",
       "app_id": "Application ID",
       "app_id_hint": "ID da aplicação Discord. Mude apenas se souber o que está fazendo.",
@@ -2270,15 +2245,11 @@
       "rotate_confirm": "Gerar um novo token de pareamento? Navegadores já pareados perderão acesso até você pareá-los novamente ou atualizar o token.",
       "rotate_confirm_action": "Gerar novo token"
     },
-    "cat_cookies": "Cookies",
-    "cat_channels": "Canais",
-    "cat_ai": "IA",
     "ai": {
       "title": "Provedor de IA",
       "provider": "Provedor",
       "provider_desc": "Escolha para onde vão os pedidos de IA. Sua chave fica salva localmente e nunca é registrada.",
       "provider_none": "Desligado",
-      "provider_local": "Local (compatível com OpenAI)",
       "model": "Modelo",
       "model_desc": "O identificador do modelo para o provedor escolhido.",
       "model_placeholder": "ex.: gpt-4o-mini, claude-3-5-sonnet-latest, llama3",
@@ -2287,7 +2258,6 @@
       "key_set": "Uma chave está salva. Deixe em branco para mantê-la.",
       "key_unset": "Nenhuma chave salva ainda.",
       "local_url": "URL do endpoint local",
-      "local_url_desc": "URL base compatível com OpenAI (Ollama, LM Studio, …).",
       "save": "Salvar",
       "test": "Testar conexão",
       "test_ok": "Conexão de IA funcionando",
@@ -2311,7 +2281,6 @@
       "history_clear_confirm": "Limpar todo o histórico de IA?",
       "history_empty": "Nenhum resultado de IA ainda.",
       "save_test": "Salvar e testar",
-      "unsaved": "Estas configurações ainda não foram salvas. O teste salvará as alterações antes de executar; salve-as antes de resumir.",
       "saving": "Salvando…",
       "provider_endpoint": "Endpoint personalizado (local ou remoto)",
       "connection_kind": "Tipo de conexão: {{kind}}",
@@ -2330,7 +2299,6 @@
       "save_failed": "Não foi possível salvar as configurações de IA. Suas alterações foram mantidas; tente salvar novamente.",
       "history_load_failed": "Não foi possível carregar o histórico de IA. Seus resultados salvos podem continuar disponíveis.",
       "history_clear_failed": "Não foi possível limpar o histórico de IA. Tente novamente.",
-      "test_effect": "O teste envia uma requisição curta de IA usando a conexão e o modelo selecionados. O provedor pode cobrar por ela.",
       "summarize_effect": "Busca legendas e envia seu texto à conexão de IA salva. Se não houver legendas, pode baixar áudio e enviá-lo para transcrição. Pode haver cobrança do provedor. O resultado é salvo no histórico."
     },
     "channels": {
@@ -2450,15 +2418,8 @@
         "login_webview_loading": "Abrindo janela de login..."
       }
     },
-    "cat_profile": "Perfil",
-    "cat_world": "Canvas",
     "save_failed": "Não foi possível salvar esta alteração. Tente novamente.",
-    "retry": "Tentar novamente",
     "search": {
-      "clear": "Limpar busca",
-      "title": "Buscar configurações",
-      "count": "{{count}} resultados",
-      "empty": "Nenhuma configuração encontrada. Tente outra palavra ou escolha uma categoria.",
       "destination_hint": "Algumas opções exigem ativar o recurso relacionado ou escolher um provedor primeiro. Esta busca não ativou nenhum recurso.",
       "back": "Voltar aos resultados"
     },
@@ -2483,10 +2444,6 @@
         "empty": "Nenhuma configuração encontrada",
         "empty_hint": "Tente outra palavra ou escolha uma categoria."
       },
-      "navigation": {
-        "back": "Voltar",
-        "back_settings": "Voltar às configurações"
-      },
       "disclosure": {
         "show_advanced": "Mostrar opções avançadas",
         "hide_advanced": "Ocultar opções avançadas"
@@ -2500,16 +2457,12 @@
         "pending_apply": "Salvo. Aguardando aplicação.",
         "retry_apply": "Tentar aplicar novamente",
         "unavailable": "Indisponível",
-        "next_task": "Vale para a próxima tarefa.",
         "restart_required": "Reinicie o OmniGet para aplicar."
       },
       "form": {
         "save": "Salvar alterações",
         "discard": "Descartar alterações",
-        "draft": "Rascunho não salvo",
-        "unsaved_title": "Há alterações não salvas",
-        "stay": "Continuar editando",
-        "discard_confirm": "Descartar este rascunho?"
+        "draft": "Rascunho não salvo"
       },
       "reset": {
         "section_title": "Restaurar {{name}}?",
@@ -2521,7 +2474,6 @@
         "kept": "Contas, chaves, histórico, downloads e autorizações de acesso serão preservados."
       },
       "dialog": {
-        "confirm": "Confirmar",
         "cancel": "Cancelar"
       },
       "appearance": {
@@ -2532,8 +2484,6 @@
         "font_hint": "Escolha uma fonte instalada neste dispositivo."
       },
       "connection": {
-        "local": "Conexão local",
-        "local_hint": "Escolha um servidor disponível neste computador.",
         "test": "Testar conexão",
         "test_cost_notice": "O teste envia uma solicitação pela conexão selecionada e pode consumir cota ou créditos.",
         "unknown": "Não testada",
@@ -2543,9 +2493,6 @@
       "downloads": {
         "quality": "Qualidade",
         "remove": "Remover",
-        "best_available": "Melhor disponível",
-        "audio": "Áudio",
-        "video": "Vídeo",
         "output": "Arquivos e pastas",
         "subtitles": "Legendas e metadados"
       },
@@ -2553,13 +2500,6 @@
         "routines": "Rotinas",
         "tasks": "Tarefas",
         "usage_performance": "Uso e desempenho"
-      },
-      "permissions": {
-        "agent_scope": "Vale apenas para {{name}}.",
-        "inherited": "Herdada da política do aplicativo.",
-        "view_policy": "Ver política do aplicativo",
-        "customize": "Personalizar para este agente",
-        "use_inherited": "Usar política herdada"
       }
     }
   },
@@ -2996,8 +2936,6 @@
     "desc": "Um apelido e uma cor de avatar, guardados neste computador. Sem conta, sem e-mail, nada sai daqui.",
     "loading": "Lendo o seu perfil…",
     "empty_title": "Ainda sem perfil",
-    "empty_desc": "Esta versão ainda não consegue ler a identidade local. Tente de novo depois de atualizar.",
-    "retry": "Tentar de novo",
     "nickname_label": "Apelido",
     "nickname_desc": "De 1 a 32 caracteres. É o que as outras pessoas veem quando você compartilha uma sala.",
     "nickname_placeholder": "Seu apelido",
@@ -3075,7 +3013,6 @@
       }
     },
     "observatory": {
-      "title": "Observatório",
       "lede": "Vazão, latência, tokens e custo por agente — e quanto de contexto cada conversa está segurando.",
       "window_1h": "1 h",
       "window_6h": "6 h",
@@ -3144,15 +3081,12 @@
     },
     "title": "LLM",
     "tab": {
-      "chat": "Conversa",
       "roster": "Equipe de agentes",
       "models": "Modelos e limites",
       "mcp": "MCP",
       "skills": "Skills",
       "accounts": "Conexões",
-      "arena": "Arena",
-      "jobs": "Jobs",
-      "loops": "Loops"
+      "arena": "Arena"
     },
     "rail": {
       "title": "Agentes",
@@ -3661,7 +3595,6 @@
       "key_forget": "Esquecer chave",
       "key_saved": "Chave salva.",
       "key_missing": "Sem chave nada é enviado e a poda fica desligada.",
-      "not_wired": "A mudança não chegou ao backend.",
       "save_failed": "Não foi possível confirmar estas configurações. Recarregue para verificar os valores salvos."
     },
     "workspace": {
@@ -3707,7 +3640,6 @@
       "loops": "Loops"
     },
     "jobs": {
-      "lede": "Execuções de agentes que trabalham em segundo plano enquanto você faz outra coisa.",
       "new_title": "Novo job",
       "agent": "Agente",
       "prompt": "Prompt",
@@ -3958,7 +3890,6 @@
       "max_minutes": "Máx. de minutos",
       "check_command": "Comando de verificação",
       "start": "Iniciar loop",
-      "list_title": "Loops",
       "empty": "Nenhum loop ainda. Inicie um acima.",
       "rounds": "{{done}} / {{max}} rodadas",
       "last_check": "Última verificação",
@@ -4224,37 +4155,6 @@
           "overwrite": "Substituir o que existe (com backup)"
         },
         "beta": "Beta: não verificado nesta máquina",
-        "profile": {
-          "title": "Perfis",
-          "apply": "Aplicar nas minhas ferramentas",
-          "read_only": {
-            "name": "Somente leitura",
-            "desc": "Lê e pesquisa o código; não edita nem roda comandos."
-          },
-          "dev": {
-            "name": "Desenvolvimento",
-            "desc": "Edita arquivos livremente, pergunta antes de rodar comandos e de acessar a web, nunca lê o .env."
-          },
-          "no_network": {
-            "name": "Sem rede",
-            "desc": "Bloqueia acesso à web, busca na web e comandos de rede."
-          },
-          "autonomous_guarded": {
-            "name": "Autônomo com guarda",
-            "desc": "Trabalha sozinho; comandos destrutivos, push forçado e segredos continuam bloqueados."
-          },
-          "provider": {
-            "name": "Provedor alternativo",
-            "desc": "Aponta cada ferramenta para outro endereço, com a chave lida de uma variável de ambiente."
-          },
-          "param": {
-            "protocol": "Protocolo da API",
-            "base_url": "Endereço base",
-            "key_env": "Variável de ambiente com a chave",
-            "model": "Modelo",
-            "small_model": "Modelo pequeno/rápido"
-          }
-        },
         "loop": {
           "run": "Rodar como Loop do OmniGet"
         }
@@ -5634,16 +5534,6 @@
         "import_none": "Nada além do que o OmniGet instalou.",
         "to_stack": "{{name}} está na stack"
       },
-      "hooks": {
-        "observe": {
-          "title": "Acompanhar esta ferramenta pelo OmniGet",
-          "body": "Adiciona um hook pequeno que avisa o OmniGet das sessões, das ferramentas usadas e dos pedidos de permissão. Os pedidos aparecem no pet; se ninguém responder, a ferramenta pergunta como sempre.",
-          "gate": "Também me perguntar antes de cada ferramenta",
-          "revoke": "Parar de aceitar os avisos desta ferramenta"
-        },
-        "shim_note": "Os hooks desta ferramenta rodam pelo omniget-hook-shim",
-        "trust_note": "A ferramenta pede para você confiar nos hooks novos do projeto antes de rodar"
-      },
       "plugins": {
         "tab": "Plugins",
         "tab_installs": "Instalados pelo OmniGet",
@@ -6826,7 +6716,6 @@
         "read_only": "Só consultar, nunca salvar"
       },
       "create": {
-        "open": "Criar agente",
         "title": "Criar um agente",
         "lede": "Dê um nome e uma finalidade, escolha o que ele pode fazer e a conexão em que roda. Ele não recebe acesso a código nem a terminal, a menos que você marque.",
         "name": "Nome",
@@ -7065,10 +6954,7 @@
       "stale_title": "Perguntas que um reinício deixou sem resposta",
       "stale_hint": "O app fechou enquanto elas esperavam. Nada rodou. Reinicie o turno para perguntar de novo.",
       "dismiss": "Descartar",
-      "answer_on_card": "Responda no cartão dela, no topo desta página.",
-      "answer_once": "Permitir uma vez",
-      "answer_always": "Sempre permitir",
-      "answer_deny": "Negar"
+      "answer_on_card": "Responda no cartão dela, no topo desta página."
     },
     "conversation": {
       "status_working": "Trabalhando…",
@@ -7922,7 +7808,6 @@
       "error": "não deu para ler",
       "refresh": "Atualizar",
       "open_app": "Abrir o OmniGet",
-      "add_account": "Adicionar conta",
       "open_claude": "Abrir Claude Code",
       "choose": "Contas",
       "now": "agora",
@@ -12321,44 +12206,6 @@
         "workspace": "Este workspace"
       }
     },
-    "cords": {
-      "state": {
-        "starting": "Iniciando",
-        "ready": "Pronto",
-        "working": "Trabalhando",
-        "needs_you": "Precisa de você",
-        "done": "Concluído",
-        "stuck": "Mensagem não enviada",
-        "exited": "Parado",
-        "no_signal": "Sem sinal"
-      },
-      "estimated": "estimado",
-      "waiting_peer": "Esperando {{name}}",
-      "queued": "{{count}} mensagem(ns) esperando",
-      "inbox": {
-        "title": "Precisa de você",
-        "permission": "Pede permissão",
-        "blocked": "Esperando sua resposta",
-        "review": "Terminou, pronto para revisar",
-        "stuck": "Uma mensagem foi colada mas não enviada",
-        "empty": "Nada precisa de você"
-      },
-      "ask": {
-        "queued": "Na fila",
-        "delivered": "Entregue",
-        "answered": "Respondido",
-        "released": "Liberado (impasse)",
-        "failed": "Falhou"
-      },
-      "test": {
-        "action": "Testar corda",
-        "ok": "A corda funciona",
-        "bridge_off": "A ponte local está desligada: ligue nas Configurações para as cordas funcionarem",
-        "not_running": "{{name}} não está rodando",
-        "without_env": "{{name}} foi aberto antes das cordas existirem: reinicie",
-        "missing": "Uma ponta da corda sumiu"
-      }
-    },
     "companion": {
       "title": "Omni",
       "settings": "Ajustes",
@@ -12406,17 +12253,6 @@
         "failed_last": "{{name}} encontrou um erro. Última linha: “{{last}}”",
         "manual": "Veja onde {{name}} está.",
         "manual_last": "Veja onde {{name}} está. Última linha: “{{last}}”"
-      },
-      "s": {
-        "review": "Resuma o que você mudou e por quê",
-        "tests": "Rode os testes e corrija o que falhar",
-        "build": "Compile o projeto e mostre os erros",
-        "need": "Explique o que você precisa de mim",
-        "safest": "Siga com a opção mais segura",
-        "pause": "Pare e resuma o progresso até aqui",
-        "explain": "Explique o erro e proponha uma correção",
-        "retry": "Tente o último passo de novo",
-        "output": "Mostre a saída completa do erro"
       },
       "window": {
         "workspace": "Workspace",
@@ -12735,7 +12571,6 @@
   },
   "tube": {
     "title": "OmniTube",
-    "music_title": "OmniTube Music",
     "settings_title": "OmniTube",
     "settings_desc": "Cliente de YouTube e YouTube Music",
     "settings_enable": "Ativar OmniTube",
@@ -13940,7 +13775,6 @@
       "takeout": "Modo takeout",
       "takeout_hint": "Usa a sessão de exportação do Telegram, que tem limites maiores para downloads grandes. O Telegram pode pedir confirmação em outro aparelho.",
       "preview": "Contar",
-      "counting": "Contando…",
       "preview_result": "{{count}} arquivos · {{size}}",
       "stale": "Os filtros mudaram, conte de novo",
       "and_more": "e mais {{count}}",

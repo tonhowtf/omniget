@@ -10,22 +10,8 @@
 //   onfocusrequest?: () => void, onexit?: () => void   (Esc back to the canvas)
 
 import type { Component } from 'svelte';
-import type { CanvasNode } from '../model/types';
-import type { Lod } from '../lod';
 
-export interface NodeComponentProps {
-  node: CanvasNode;
-  selected?: boolean;
-  focused?: boolean;
-  zoom?: number;
-  lod?: Lod;
-  workspaceId?: string;
-  onpatch?: (patch: Partial<CanvasNode>) => void;
-  onfocusrequest?: () => void;
-  onexit?: () => void;
-}
-
-export interface NodeKindDef {
+interface NodeKindDef {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   component: Component<any>;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -57,21 +43,9 @@ export function nodeKind(kind: string): NodeKindDef | undefined {
   return kinds.get(kind) ?? kinds.get('unknown');
 }
 
-export function hasNodeKind(kind: string): boolean {
-  return kinds.has(kind);
-}
-
-export function registeredKinds(): string[] {
-  return Array.from(kinds.keys());
-}
-
 export function onRegistryChange(fn: () => void): () => void {
   listeners.add(fn);
   return () => listeners.delete(fn);
-}
-
-export function registryVersion(): number {
-  return version;
 }
 
 /** Default sizes when a kind has not registered yet. */

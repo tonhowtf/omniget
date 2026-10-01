@@ -1,6 +1,6 @@
 use serde::Serialize;
 use std::time::{SystemTime, UNIX_EPOCH};
-use tauri::{AppHandle, Emitter};
+use tauri::AppHandle;
 use tauri_plugin_notification::NotificationExt;
 
 use crate::core::channels::{self, ChannelFollow};
@@ -136,14 +136,6 @@ async fn handle_new_videos(app: &AppHandle, ch: &ChannelFollow, videos: Vec<NewV
         .title(ch.title.clone())
         .body(format!("{} new video(s)", videos.len()))
         .show();
-
-    let payload = ChannelNewVideos {
-        channel_id: ch.id.clone(),
-        channel_title: ch.title.clone(),
-        auto_download: ch.auto_download,
-        videos,
-    };
-    let _ = app.emit("channel-new-videos", &payload);
 }
 
 // Forces an immediate poll of one channel, ignoring its interval. Returns the

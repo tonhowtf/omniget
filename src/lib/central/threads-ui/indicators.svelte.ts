@@ -9,7 +9,7 @@ import type { PrInfo } from "$lib/central/vcs";
 
 type Layout = { tabs?: { panes?: string[] }[] };
 
-export function terminalIdsOf(threadId: string): string[] {
+function terminalIdsOf(threadId: string): string[] {
   try {
     const raw = localStorage.getItem(`omniget.central.terminal.${threadId}`);
     if (!raw) return [];

@@ -1,7 +1,7 @@
 /// Trackers tab: the hosts file block (`hosts.status`, `hosts.preview`,
 /// `hosts.plan` screen actions).
 
-export type HostsList = { id: string; name: string; license: string; source_url: string; domains: number };
+type HostsList = { id: string; name: string; license: string; source_url: string; domains: number };
 
 export type HostsPrefs = { lists: string[]; whitelist: string[]; extra: string[] };
 
@@ -43,7 +43,7 @@ export type HostsPlan = HostsPreview & {
 
 /// Same rules as the core's `normalize_domain`, so the screen can refuse a
 /// typo before the backend drops it silently.
-export function normalizeDomain(raw: string): string | null {
+function normalizeDomain(raw: string): string | null {
   let d = raw.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "").replace(/\.$/, "");
   if (d.startsWith("*.")) d = d.slice(2);
   if (d.length < 4 || d.length > 253 || !d.includes(".")) return null;
@@ -56,7 +56,7 @@ export function normalizeDomain(raw: string): string | null {
 
 /// Split free text (spaces, commas, new lines) into valid domains; returns
 /// what was accepted and what was not.
-export function parseDomains(text: string): { ok: string[]; bad: string[] } {
+function parseDomains(text: string): { ok: string[]; bad: string[] } {
   const ok: string[] = [];
   const bad: string[] = [];
   for (const tok of text.split(/[\s,;]+/)) {
@@ -85,11 +85,6 @@ export function toggleList(lists: readonly string[], id: string, on: boolean): s
   if (on) set.add(id);
   else set.delete(id);
   return [...set];
-}
-
-export function samePrefs(a: HostsPrefs, b: HostsPrefs): boolean {
-  const eq = (x: readonly string[], y: readonly string[]) => x.length === y.length && [...x].sort().every((v, i) => v === [...y].sort()[i]);
-  return eq(a.lists, b.lists) && eq(a.whitelist, b.whitelist) && eq(a.extra, b.extra);
 }
 
 /// Lines of the preview that belong to the OmniGet block (to tint them).

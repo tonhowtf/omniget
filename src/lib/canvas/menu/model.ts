@@ -30,7 +30,7 @@ export interface MenuEntry {
   sepBefore?: boolean;
 }
 
-export interface MenuContext {
+interface MenuContext {
   /** Node the menu is about (node menu). */
   nodeId?: string;
   /** Canvas point for Add/Paste. */
@@ -42,7 +42,7 @@ export interface MenuContext {
   free?: boolean;
 }
 
-export const SPAWN_AGENTS: Array<{ id: string; label: string; kind: string; agent: AgentKind }> = [
+const SPAWN_AGENTS: Array<{ id: string; label: string; kind: string; agent: AgentKind }> = [
   { id: 'shell', label: 'Terminal', kind: 'terminal', agent: 'shell' },
   { id: 'claude', label: 'Claude Code', kind: 'agent', agent: 'claude' },
   { id: 'codex', label: 'Codex', kind: 'agent', agent: 'codex' },
@@ -223,7 +223,7 @@ export function viewMenu(engine: CanvasEngine): MenuEntry[] {
 }
 
 /** Workspace menu (the sidebar item of the current workspace). */
-export function workspaceMenu(engine: CanvasEngine): MenuEntry[] {
+function workspaceMenu(engine: CanvasEngine): MenuEntry[] {
   const ws = workspaces.byId(engine.store.workspaceId);
   return [
     e('copyPath', 'canvas.menu.copyPath', 'Copy Path', async () => {
@@ -253,7 +253,7 @@ export function workspaceMenu(engine: CanvasEngine): MenuEntry[] {
  * View → Reset Focus: clears a stuck tool, gesture, focus or menu without
  * touching the document (Maestri troubleshooting).
  */
-export function resetFocus(engine: CanvasEngine): void {
+function resetFocus(engine: CanvasEngine): void {
   if (engine.tools.busy) engine.tools.cancel();
   engine.tools.spaceHeld = false;
   engine.tools.setCursor('');

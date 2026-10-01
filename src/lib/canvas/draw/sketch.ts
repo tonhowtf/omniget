@@ -3,7 +3,7 @@
 // drawing, so a shape never "boils" between frames or sessions.
 
 /** Mulberry32: tiny seeded PRNG, returns 0..1. */
-export function prng(seed: number): () => number {
+function prng(seed: number): () => number {
   let s = seed >>> 0 || 1;
   return () => {
     s = (s + 0x6d2b79f5) >>> 0;
@@ -19,7 +19,7 @@ export function randomSeed(): number {
 }
 
 /** One wobbly line from a to b as a polyline (flat). */
-export function roughLine(
+function roughLine(
   x0: number,
   y0: number,
   x1: number,

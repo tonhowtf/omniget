@@ -3,8 +3,8 @@ import type { Risk } from "./api";
 /// Privacy settings tab: the catalog compiled from privacy.sexy
 /// (`wmb_privacy_catalog`) and the pure logic the screen needs.
 
-export type PrivacyState = "applied" | "not_applied" | "unknown";
-export type Recommend = "standard" | "strict" | null;
+type PrivacyState = "applied" | "not_applied" | "unknown";
+type Recommend = "standard" | "strict" | null;
 export type Preset = "standard" | "strict";
 
 export type PrivacyItem = {
@@ -29,7 +29,7 @@ export type PrivacyCatalog = {
   license: string;
 };
 
-export type CategoryGroup = {
+type CategoryGroup = {
   category: string;
   items: PrivacyItem[];
   applied: number;
@@ -49,7 +49,7 @@ export function isExtreme(it: PrivacyItem): boolean {
   return it.risk === "extreme";
 }
 
-export function inPreset(it: PrivacyItem, preset: Preset): boolean {
+function inPreset(it: PrivacyItem, preset: Preset): boolean {
   if (isExtreme(it)) return false;
   return preset === "standard" ? it.recommend === "standard" : it.recommend === "standard" || it.recommend === "strict";
 }

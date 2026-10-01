@@ -9,7 +9,7 @@ import type { Book } from "./types";
 
 const KEY = "omniget.read.downloads.v1";
 
-export type ReadDownload = {
+type ReadDownload = {
   id: number;
   url: string;
   title: string;

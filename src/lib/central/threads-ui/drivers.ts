@@ -51,11 +51,6 @@ export function driverName(driver: string, inst?: InstanceView | null): string {
   return inst?.instance.label ?? NAMES[driver] ?? driver.charAt(0).toUpperCase() + driver.slice(1);
 }
 
-export function driverInitial(driver: string): string {
-  const n = NAMES[driver] ?? driver;
-  return n.charAt(0).toUpperCase();
-}
-
 /** Model hints per driver (the field stays free text). */
 export const MODEL_HINTS: Record<string, string[]> = {
   claude: ["sonnet", "opus", "haiku", "claude-sonnet-4-5", "claude-opus-4-1"],

@@ -13,24 +13,20 @@ import { roughPolygon, roughPolyline } from './sketch';
 import { freehandTriangles, polylineTriangles } from './stroke';
 import { fillTriangles } from './triangulate';
 
-export interface TriRun {
+interface TriRun {
   /** Flat x,y per vertex (triangle list), world units. */
   tris: number[];
   color: Rgba;
 }
 
 /** Tools drawn as a freehand stroke through their points. */
-export const FREEHAND_TOOLS = new Set(['pen', 'brush', 'smartDraw', 'smart', 'highlighter']);
+const FREEHAND_TOOLS = new Set(['pen', 'brush', 'smartDraw', 'smart', 'highlighter']);
 
 /** Ink used by drawings saved without a colour (set from the theme by the mesh pass). */
 let defaultInk: Rgba = [0.55, 0.57, 0.6, 1];
 
 export function setDefaultInk(c: Rgba): void {
   defaultInk = c;
-}
-
-export function drawingInk(): Rgba {
-  return defaultInk;
 }
 
 function segmentsToTris(segs: number[], width: number): number[] {

@@ -2,7 +2,7 @@
 // of each), the same list the player's quality menu shows, plus audio-only.
 import type { Format, StreamSet } from "$lib/tube/types";
 
-export type VideoOption = {
+type VideoOption = {
   key: string;
   label: string;
   height: number;

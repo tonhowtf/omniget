@@ -1,8 +1,8 @@
-export type ScoutedPlayer = { puuid?: string; isAlly?: boolean; gameName?: string };
-export type PremadeGroup = { label?: string; puuids?: (string | null)[] };
-export type ScoutReport = { privateProfile?: boolean } | null | undefined;
+type ScoutedPlayer = { puuid?: string; isAlly?: boolean; gameName?: string };
+type PremadeGroup = { label?: string; puuids?: (string | null)[] };
+type ScoutReport = { privateProfile?: boolean } | null | undefined;
 
-export type MarkedPlayers = { ally: string[]; enemy: string[] };
+type MarkedPlayers = { ally: string[]; enemy: string[] };
 
 /// Players the user already wrote a note about. An empty or whitespace-only note
 /// is not a mark: it is a note the user started and abandoned.

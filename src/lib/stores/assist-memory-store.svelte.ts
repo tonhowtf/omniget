@@ -12,14 +12,14 @@ import { invoke } from "@tauri-apps/api/core";
 // ── Wire types ──────────────────────────────────────────────────────────
 
 export type MemoryKind = "declared" | "observation" | "inference" | "temporary" | "procedural";
-export type MemoryStatus = "active" | "superseded" | "retracted" | "expired";
+type MemoryStatus = "active" | "superseded" | "retracted" | "expired";
 
-export type MemoryScope =
+type MemoryScope =
   | { kind: "user" }
   | { kind: "bot"; bot: string }
   | { kind: "room"; conversation: string };
 
-export interface MemorySource {
+interface MemorySource {
   kind: string;
   id?: string | null;
   conversation?: string | null;
@@ -48,7 +48,7 @@ export interface MemoryItem {
   updated_ms: number;
 }
 
-export interface MemoryScopeSummary {
+interface MemoryScopeSummary {
   scope: MemoryScope;
   scope_key: string;
   active: number;
@@ -66,7 +66,7 @@ export interface ImportReport {
   rejected: string[];
 }
 
-export interface BackupsInfo {
+interface BackupsInfo {
   count: number;
   newest_ms: number | null;
 }
@@ -96,7 +96,7 @@ export function groupByKind(items: MemoryItem[]): { kind: MemoryKind; items: Mem
 }
 
 /** i18n key for an error string (`ERR_CODE: …`). */
-export function memoryErrorKey(err: unknown): string {
+function memoryErrorKey(err: unknown): string {
   const s = String((err as { message?: string })?.message ?? err ?? "");
   const code = s.split(":")[0]?.trim();
   switch (code) {
@@ -150,14 +150,6 @@ export function getMemoryErrorKey(): string | null {
 
 export function getBackups(): BackupsInfo | null {
   return state.backups;
-}
-
-export function resetMemoryStore(): void {
-  state.byScope = {};
-  state.scopes = [];
-  state.loading = false;
-  state.errorKey = null;
-  state.backups = null;
 }
 
 /** Loads the given scopes (active only unless `includeInactive`). */
@@ -328,9 +320,9 @@ export interface MemoryEntity {
   note?: string | null;
 }
 
-export type RecallArm = "semantic" | "keyword" | "graph" | "temporal";
+type RecallArm = "semantic" | "keyword" | "graph" | "temporal";
 
-export interface RecallWhy {
+interface RecallWhy {
   arms: RecallArm[];
   semantic?: number | null;
   keyword_rank?: number | null;
@@ -342,7 +334,7 @@ export interface RecallWhy {
   occurred_end?: number | null;
 }
 
-export interface RecallHit extends MemoryItem {
+interface RecallHit extends MemoryItem {
   score: number;
   why: RecallWhy;
 }
@@ -354,7 +346,7 @@ export interface RecallResult {
   semantic: boolean;
 }
 
-export interface RetainReport {
+interface RetainReport {
   extracted: number;
   created: string[];
   reinforced: string[];

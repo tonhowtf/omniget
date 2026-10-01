@@ -11,7 +11,7 @@ export type RunMode = "approval_required" | "auto_edits" | "auto" | "full_access
 export const RUN_MODES: RunMode[] = ["approval_required", "auto_edits", "auto", "full_access"];
 
 /** The chat's default when a conversation never chose. */
-export const CHAT_DEFAULT: RunMode = "auto_edits";
+const CHAT_DEFAULT: RunMode = "auto_edits";
 
 let modes = $state<Record<string, RunMode>>({});
 

@@ -76,9 +76,9 @@ export type ListFilter = {
   model?: string | null;
 };
 
-export type ListPage = { total: number; sessions: SessionMeta[] };
+type ListPage = { total: number; sessions: SessionMeta[] };
 
-export type SessionPage = {
+type SessionPage = {
   meta: SessionMeta;
   turns: Turn[];
   first_index: number;
@@ -89,7 +89,7 @@ export type SessionPage = {
   resume_command: string | null;
 };
 
-export type SearchQuery = {
+type SearchQuery = {
   text: string;
   tool?: string | null;
   account?: string | null;
@@ -102,7 +102,7 @@ export type SearchQuery = {
   in_tools?: boolean | null;
 };
 
-export type HitField = "title" | "project" | "text" | "tool_name" | "tool_input" | "tool_result";
+type HitField = "title" | "project" | "text" | "tool_name" | "tool_input" | "tool_result";
 
 export type Hit = {
   tool: string;
@@ -127,7 +127,7 @@ export type SearchResult = {
   truncated: boolean;
 };
 
-export type CostSource = "recorded" | "computed" | "mixed" | "unknown";
+type CostSource = "recorded" | "computed" | "mixed" | "unknown";
 
 export type SessionAnalysis = {
   meta: SessionMeta;
@@ -166,7 +166,7 @@ export type SessionAnalysis = {
 
 export type GroupBy = "day" | "week" | "month" | "model" | "tool" | "project" | "account" | "hour" | "session";
 
-export type UsageBucket = {
+type UsageBucket = {
   key: string;
   usage: TokenUsage;
   total_tokens: number;
@@ -350,7 +350,7 @@ export type ActiveSession = {
   pending_tool: boolean;
 };
 
-export type RefreshStats = {
+type RefreshStats = {
   sources: number;
   sessions_seen: number;
   full_reads: number;

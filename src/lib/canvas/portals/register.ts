@@ -6,7 +6,7 @@ import { DEFAULT_SIZES, ICONS, MIN_SIZES, registerNodeKind } from '../nodes/regi
 
 let done = false;
 
-export function registerPortalNodes(): void {
+function registerPortalNodes(): void {
   if (done) return;
   done = true;
   registerNodeKind('portal', {

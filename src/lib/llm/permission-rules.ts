@@ -1,5 +1,5 @@
 export type PermissionRuleAction = "allow" | "ask" | "deny";
-export type PermissionRuleDraft = {
+type PermissionRuleDraft = {
   tool: string;
   pattern: string;
   action: PermissionRuleAction;

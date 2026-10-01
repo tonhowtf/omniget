@@ -14,7 +14,7 @@ import { applyWireOps, drawingFromWire, opsToWire, type WireDrawing } from './wi
 
 export type SyncMode = 'connecting' | 'rust' | 'memory';
 
-export const PATCH_EVENT = 'canvas://patch';
+const PATCH_EVENT = 'canvas://patch';
 const LOCAL_WORKSPACE = 'local';
 const LOCAL_FLOOR = 'ground';
 const CAMERA_DEBOUNCE_MS = 2000;

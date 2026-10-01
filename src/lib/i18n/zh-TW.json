@@ -1862,21 +1862,16 @@
     "general": {
       "title": "一般",
       "start_with_system": "與系統一同啟動",
-      "start_with_system_desc": "當系統啟動時自動啟動 OmniGet",
       "start_minimized": "僅工作列啟動",
-      "start_minimized_desc": "在系統工作列中開啟 OmniGet 而不顯示視窗。點擊工作列圖示開啟。",
       "exit_on_close": "Quit when the window is closed",
-      "exit_on_close_desc": "Closing the window with X quits OmniGet instead of keeping it in the system tray. Active downloads still ask before quitting.",
       "reset_hints": "重置提示",
       "reset_hints_desc": "重新显示所有已关闭的提示",
       "restore": "恢复",
       "hints_restored": "All hints restored",
       "run_in_background": "在背景執行代理",
-      "run_in_background_desc": "登入時 OmniGet 會隱藏啟動，關閉視窗後仍留在系統匣中，因此工作、Loop 與例行工作會繼續執行，omniget 指令也找得到它。會關閉「關閉視窗時結束」。",
       "run_in_background_flatpak": "Flatpak：登入時啟動以及從命令列啟動尚未驗證。"
     },
     "appearance": {
-      "title": "外觀",
       "accessibility_title": "Accessibility",
       "reduce_motion": "Reduce motion",
       "reduce_motion_desc": "Turns position and scale animations into simple fades.",
@@ -1897,8 +1892,7 @@
       "lang_es": "Español",
       "lang_el": "Ελληνικά",
       "lang_fa": "فارسی",
-      "lang_lo": "ລາວ",
-      "preview_pending": "Preview only. Apply appearance to save these changes."
+      "lang_lo": "ລາວ"
     },
     "download": {
       "default_output_dir": "預設資料夾",
@@ -1919,7 +1913,6 @@
       "section_quality": "Quality & format",
       "section_quality_desc": "Default video quality and yt-dlp presets.",
       "section_subtitles": "Subtitles & extras",
-      "section_subtitles_desc": "Subtitles, thumbnails, and metadata saved alongside media.",
       "section_clipboard_hotkeys": "Clipboard & hotkeys",
       "section_clipboard_hotkeys_desc": "Paste detection and global shortcuts.",
       "section_per_platform": "Per-platform options",
@@ -2020,8 +2013,7 @@
       "filename_template": "檔名範本",
       "filename_template_desc": "下載檔案使用的 yt-dlp 輸出範本",
       "filename_template_preview": "預覽: {{preview}}",
-      "filename_template_invalid": "Not saved. Enter a filename template containing %(ext)s for the file extension.",
-      "filename_template_save_failed": "Could not save this template. Your edit is still shown."
+      "filename_template_invalid": "Not saved. Enter a filename template containing %(ext)s for the file extension."
     },
     "update_available": "OmniGet {{version}} 可供更新",
     "update_button": "立即更新",
@@ -2064,7 +2056,6 @@
       "quality_placeholder": "1080p",
       "audio_only": "僅音訊",
       "add": "新增規則",
-      "saved": "規則已儲存",
       "test_title": "測試連結",
       "test_placeholder": "貼上連結，看看哪條規則會命中",
       "test_run": "測試",
@@ -2133,21 +2124,17 @@
       "filter_all_files": "所有檔案",
       "set_file_failed": "設定檔案失敗：{{msg}}",
       "open_folder_failed": "開啟資料夾失敗：{{msg}}",
-      "system_font_suffix": "系統",
       "load_failed": "Could not check installed components. Try again."
     },
     "typography": {
       "section_title": "排版",
       "presets_title": "預設組合",
       "presets_desc": "經測試的組合。一鍵套用字型 + 行高 + 間距。",
-      "modified_indicator": "（手動修改）",
       "fonts_title": "字型",
       "fonts_desc": "依字族分別選擇。清單顯示應用程式內建的字型（系統字型尚未支援）。",
-      "reset": "重設",
       "display_label": "Display",
       "body_label": "Body",
       "mono_label": "Mono",
-      "body_sample": "敏捷的棕色狐狸",
       "line_height_label": "行高",
       "line_height_desc": "行間垂直間距。值越大越寬鬆,長時間閱讀更輕鬆。",
       "spacing_label": "全域間距",
@@ -2172,8 +2159,7 @@
       "host": "主機",
       "port": "連接埠",
       "username": "使用者名稱",
-      "password": "密碼",
-      "save_failed": "Could not save the proxy fields. Your edits are still shown; try again."
+      "password": "密碼"
     },
     "advanced": {
       "max_concurrent_downloads": "同時下載數",
@@ -2212,17 +2198,8 @@
       "user_agent_desc": "為下載傳送自訂 User-Agent。留空則使用預設值。",
       "user_agent_placeholder": "瀏覽器預設 User-Agent"
     },
-    "group_general": "General",
-    "group_media": "Media",
-    "group_integrations": "Integrations",
-    "group_advanced": "Advanced",
     "cat_appearance": "Appearance",
-    "cat_typography": "排版",
-    "cat_downloads": "下载",
     "cat_network": "网络",
-    "cat_advanced": "高级",
-    "search_placeholder": "搜尋設定...",
-    "drill_back": "Back",
     "rpc": {
       "title": "Discord Rich Presence",
       "desc": "在 Discord 個人資料上顯示您的活動。切換活動時計時器不會重置。",
@@ -2233,8 +2210,6 @@
       "test_button": "傳送測試",
       "test_ok": "已連線到 Discord",
       "test_fail": "無法連線到 Discord。請確認 Discord 已執行。",
-      "saved": "已儲存",
-      "save": "儲存",
       "advanced": "進階",
       "app_id": "應用程式 ID",
       "app_id_hint": "Discord 應用程式 ID。除非您知道在做什麼，否則請勿變更。",
@@ -2270,15 +2245,11 @@
       "rotate_confirm": "Generate a new pairing token? Previously paired browsers will lose access until you pair them again or update their token.",
       "rotate_confirm_action": "Generate new token"
     },
-    "cat_cookies": "Cookies",
-    "cat_channels": "頻道",
-    "cat_ai": "AI",
     "ai": {
       "title": "AI 提供者",
       "provider": "提供者",
       "provider_desc": "選擇 AI 請求的目的地。金鑰僅在本機儲存，絕不記錄。",
       "provider_none": "關閉",
-      "provider_local": "本機（相容 OpenAI）",
       "model": "模型",
       "model_desc": "所選提供者的模型識別碼。",
       "model_placeholder": "例如 gpt-4o-mini、claude-3-5-sonnet-latest、llama3",
@@ -2287,7 +2258,6 @@
       "key_set": "已儲存金鑰。留空以保留。",
       "key_unset": "尚未儲存金鑰。",
       "local_url": "本機端點 URL",
-      "local_url_desc": "相容 OpenAI 的基礎 URL（Ollama、LM Studio 等）。",
       "save": "儲存",
       "test": "測試連線",
       "test_ok": "AI 連線正常",
@@ -2311,7 +2281,6 @@
       "history_clear_confirm": "清除所有 AI 紀錄？",
       "history_empty": "尚無 AI 結果。",
       "save_test": "儲存並測試",
-      "unsaved": "這些設定尚未儲存。測試前會先儲存；摘要前請先儲存設定。",
       "saving": "正在儲存…",
       "provider_endpoint": "Custom endpoint (local or remote)",
       "connection_kind": "Connection type: {{kind}}",
@@ -2330,7 +2299,6 @@
       "save_failed": "Could not save AI settings. Your changes are still here; try saving again.",
       "history_load_failed": "Could not load AI history. Your saved results may still be available.",
       "history_clear_failed": "Could not clear AI history. Try again.",
-      "test_effect": "Testing sends a short AI request using the selected connection and model. The provider may charge for it.",
       "summarize_effect": "Fetches subtitles and sends their text to the saved AI connection. If subtitles are unavailable, it may download audio and send it for transcription. Provider charges may apply. The result is saved in history."
     },
     "channels": {
@@ -2450,15 +2418,8 @@
         "login_webview_loading": "正在開啟登入視窗..."
       }
     },
-    "cat_profile": "Profile",
-    "cat_world": "Canvas",
     "save_failed": "Could not save this change. Try again.",
-    "retry": "Try again",
     "search": {
-      "clear": "Clear search",
-      "title": "Search settings",
-      "count": "{{count}} results",
-      "empty": "No settings found. Try another word or choose a category.",
       "destination_hint": "Options may require enabling the related feature or choosing a provider first. Nothing was enabled by this search.",
       "back": "Back to results"
     },
@@ -2483,10 +2444,6 @@
         "empty": "找不到設定",
         "empty_hint": "請換個詞搜尋，或選擇分類。"
       },
-      "navigation": {
-        "back": "返回",
-        "back_settings": "返回設定"
-      },
       "disclosure": {
         "show_advanced": "顯示進階選項",
         "hide_advanced": "隱藏進階選項"
@@ -2500,16 +2457,12 @@
         "pending_apply": "已儲存，等待套用。",
         "retry_apply": "重新套用",
         "unavailable": "無法使用",
-        "next_task": "將套用至下一個工作。",
         "restart_required": "重新啟動 OmniGet 以套用。"
       },
       "form": {
         "save": "儲存變更",
         "discard": "捨棄變更",
-        "draft": "尚未儲存的草稿",
-        "unsaved_title": "有尚未儲存的變更",
-        "stay": "繼續編輯",
-        "discard_confirm": "要捨棄此草稿嗎？"
+        "draft": "尚未儲存的草稿"
       },
       "reset": {
         "section_title": "要重設{{name}}嗎？",
@@ -2521,7 +2474,6 @@
         "kept": "帳號、金鑰、歷史記錄、下載和存取授權都會保留。"
       },
       "dialog": {
-        "confirm": "確認",
         "cancel": "取消"
       },
       "appearance": {
@@ -2532,8 +2484,6 @@
         "font_hint": "選擇已安裝在此裝置上的字型。"
       },
       "connection": {
-        "local": "本機連線",
-        "local_hint": "選擇此電腦上可用的伺服器。",
         "test": "測試連線",
         "test_cost_notice": "測試會透過所選連線傳送請求，可能消耗配額或點數。",
         "unknown": "尚未測試",
@@ -2543,9 +2493,6 @@
       "downloads": {
         "quality": "畫質",
         "remove": "移除",
-        "best_available": "最佳可用畫質",
-        "audio": "音訊",
-        "video": "影片",
         "output": "檔案與資料夾",
         "subtitles": "字幕與中繼資料"
       },
@@ -2553,13 +2500,6 @@
         "routines": "例行工作",
         "tasks": "工作",
         "usage_performance": "使用情況與效能"
-      },
-      "permissions": {
-        "agent_scope": "僅適用於{{name}}。",
-        "inherited": "繼承自應用程式原則。",
-        "view_policy": "檢視應用程式原則",
-        "customize": "為此代理程式自訂",
-        "use_inherited": "使用繼承的原則"
       }
     }
   },
@@ -2996,8 +2936,6 @@
     "desc": "A nickname and an avatar tint, kept on this computer. No account, no e-mail, nothing sent anywhere.",
     "loading": "Reading your profile…",
     "empty_title": "No profile yet",
-    "empty_desc": "This build cannot read the local identity yet. Try again after updating.",
-    "retry": "Try again",
     "nickname_label": "Nickname",
     "nickname_desc": "1 to 32 characters. Other people see it when you share a room.",
     "nickname_placeholder": "Your nickname",
@@ -3075,7 +3013,6 @@
       }
     },
     "observatory": {
-      "title": "Observatory",
       "lede": "Throughput, latency, tokens and cost per agent — plus the context each conversation is holding.",
       "window_1h": "1 h",
       "window_6h": "6 h",
@@ -3144,15 +3081,12 @@
     },
     "title": "LLM",
     "tab": {
-      "chat": "Chat",
       "roster": "Roster",
       "models": "Models & Routing",
       "mcp": "MCP",
       "skills": "Skills",
       "accounts": "Accounts",
-      "arena": "Arena",
-      "jobs": "Jobs",
-      "loops": "Loops"
+      "arena": "Arena"
     },
     "rail": {
       "title": "Agents",
@@ -3661,7 +3595,6 @@
       "key_forget": "Forget key",
       "key_saved": "Key saved.",
       "key_missing": "Without a key nothing is sent and pruning stays off.",
-      "not_wired": "The change did not reach the backend.",
       "save_failed": "Could not confirm these settings. Reload to check the saved values."
     },
     "workspace": {
@@ -3707,7 +3640,6 @@
       "loops": "循環"
     },
     "jobs": {
-      "lede": "Agent runs that work in the background while you do something else.",
       "new_title": "New job",
       "agent": "Agent",
       "prompt": "Prompt",
@@ -3958,7 +3890,6 @@
       "max_minutes": "Max minutes",
       "check_command": "Check command",
       "start": "Start loop",
-      "list_title": "Loops",
       "empty": "No loops yet. Start one above.",
       "rounds": "{{done}} / {{max}} rounds",
       "last_check": "Last check",
@@ -4224,37 +4155,6 @@
           "overwrite": "Replace theirs (backup kept)"
         },
         "beta": "Beta: not verified on this machine",
-        "profile": {
-          "title": "Profiles",
-          "apply": "Apply to my tools",
-          "read_only": {
-            "name": "Read-only",
-            "desc": "Reads and searches the code; no edits and no shell."
-          },
-          "dev": {
-            "name": "Developer",
-            "desc": "Edits files freely, asks before shell commands and web fetches, never reads .env."
-          },
-          "no_network": {
-            "name": "No network",
-            "desc": "Blocks web fetch, web search and network commands."
-          },
-          "autonomous_guarded": {
-            "name": "Autonomous with guard",
-            "desc": "Works on its own; destructive commands, force pushes and secrets stay blocked."
-          },
-          "provider": {
-            "name": "Alternative provider",
-            "desc": "Points each tool at another endpoint, with the key read from an environment variable."
-          },
-          "param": {
-            "protocol": "API protocol",
-            "base_url": "Base URL",
-            "key_env": "Environment variable with the key",
-            "model": "Model",
-            "small_model": "Small/fast model"
-          }
-        },
         "loop": {
           "run": "Run as an OmniGet Loop"
         }
@@ -5634,16 +5534,6 @@
         "import_none": "Nothing besides what the OmniGet installed.",
         "to_stack": "{{name}} is in the stack"
       },
-      "hooks": {
-        "observe": {
-          "title": "Watch this tool from OmniGet",
-          "body": "Adds a small hook that reports sessions, tool calls and permission requests to OmniGet. Permission requests show up in the pet; if nobody answers, the tool asks as usual.",
-          "gate": "Also ask me before every tool call",
-          "revoke": "Stop accepting this tool's reports"
-        },
-        "shim_note": "Hooks for this tool run through omniget-hook-shim",
-        "trust_note": "The tool asks you to trust new project hooks before running them"
-      },
       "plugins": {
         "tab": "Plugins",
         "tab_installs": "Installed by OmniGet",
@@ -6826,7 +6716,6 @@
         "read_only": "只回想，從不儲存"
       },
       "create": {
-        "open": "建立機器人",
         "title": "建立機器人",
         "lede": "為它取名並設定用途，挑選它可以做的事，再選擇它執行的連線。除非你勾選，否則它不會取得程式碼或 shell 權限。",
         "name": "名稱",
@@ -7065,10 +6954,7 @@
       "stale_title": "重新啟動後未回答的問題",
       "stale_hint": "這些問題等待時應用程式關閉了。沒有執行任何動作。請重新開始這一輪以再次詢問。",
       "dismiss": "忽略",
-      "answer_on_card": "請在本頁頂端它的卡片上回答。",
-      "answer_once": "允許一次",
-      "answer_always": "一律允許",
-      "answer_deny": "拒絕"
+      "answer_on_card": "請在本頁頂端它的卡片上回答。"
     },
     "conversation": {
       "status_working": "處理中…",
@@ -7922,7 +7808,6 @@
       "error": "could not read",
       "refresh": "Refresh",
       "open_app": "Open OmniGet",
-      "add_account": "Add account",
       "open_claude": "Open Claude Code",
       "choose": "Accounts",
       "now": "now",
@@ -12321,44 +12206,6 @@
         "workspace": "This workspace"
       }
     },
-    "cords": {
-      "state": {
-        "starting": "Starting",
-        "ready": "Ready",
-        "working": "Working",
-        "needs_you": "Needs you",
-        "done": "Done",
-        "stuck": "Message not sent",
-        "exited": "Stopped",
-        "no_signal": "No signal"
-      },
-      "estimated": "estimated",
-      "waiting_peer": "Waiting for {{name}}",
-      "queued": "{{count}} message(s) waiting",
-      "inbox": {
-        "title": "Needs you",
-        "permission": "Asks permission",
-        "blocked": "Waiting for your answer",
-        "review": "Finished, ready for review",
-        "stuck": "A message was pasted but not sent",
-        "empty": "Nothing needs you"
-      },
-      "ask": {
-        "queued": "Queued",
-        "delivered": "Delivered",
-        "answered": "Answered",
-        "released": "Released (deadlock)",
-        "failed": "Failed"
-      },
-      "test": {
-        "action": "Test cord",
-        "ok": "The cord works",
-        "bridge_off": "The local bridge is off: turn it on in Settings for cords to work",
-        "not_running": "{{name}} is not running",
-        "without_env": "{{name}} was opened before its cords existed: restart it",
-        "missing": "One end of the cord is gone"
-      }
-    },
     "companion": {
       "title": "Omni",
       "settings": "Settings",
@@ -12406,17 +12253,6 @@
         "failed_last": "{{name}} hit an error. Last line: “{{last}}”",
         "manual": "Here is where {{name}} is.",
         "manual_last": "Here is where {{name}} is. Last line: “{{last}}”"
-      },
-      "s": {
-        "review": "Summarize what you changed and why",
-        "tests": "Run the tests and fix any failure",
-        "build": "Build the project and report errors",
-        "need": "Explain what you need from me",
-        "safest": "Go ahead with the safest option",
-        "pause": "Stop and summarize the progress so far",
-        "explain": "Explain the error and propose a fix",
-        "retry": "Retry the last step",
-        "output": "Show the full error output"
       },
       "window": {
         "workspace": "Workspace",
@@ -12735,7 +12571,6 @@
   },
   "tube": {
     "title": "OmniTube",
-    "music_title": "OmniTube Music",
     "settings_title": "OmniTube",
     "settings_desc": "YouTube 與 YouTube Music 用戶端",
     "settings_enable": "啟用 OmniTube",
@@ -13940,7 +13775,6 @@
       "takeout": "Takeout 模式",
       "takeout_hint": "使用 Telegram 的匯出工作階段，大量下載時限制較寬鬆。Telegram 可能會要求你在另一台裝置上確認。",
       "preview": "計算",
-      "counting": "正在計算…",
       "preview_result": "{{count}} 個檔案 · {{size}}",
       "stale": "篩選條件已變更，請重新計算",
       "and_more": "還有 {{count}} 個",

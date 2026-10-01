@@ -4,7 +4,6 @@
 import { invoke } from '@tauri-apps/api/core';
 
 export const EVENT_ROUTINE = 'canvas://routine';
-export const EVENT_NOTIFY = 'canvas://notify';
 
 export type Schedule =
   | { kind: 'once'; at: string }
@@ -14,9 +13,9 @@ export type Schedule =
 
 export type End = { kind: 'never' } | { kind: 'afterCount'; count: number } | { kind: 'onDate'; date: string };
 
-export type RunCode = 'sentToTerminal' | 'terminalNotRunning' | 'reminder' | 'skippedByScript' | 'skippedWhileBusy' | 'failed';
+type RunCode = 'sentToTerminal' | 'terminalNotRunning' | 'reminder' | 'skippedByScript' | 'skippedWhileBusy' | 'failed';
 
-export interface RunRecord {
+interface RunRecord {
   at: string;
   status: 'fired' | 'skipped' | 'failed' | 'reminded';
   /** Maestri's result code. */
@@ -49,7 +48,7 @@ export interface Routine {
   history: RunRecord[];
 }
 
-export interface RoutineInput {
+interface RoutineInput {
   id?: string;
   name: string;
   workspaceId: string;
@@ -62,15 +61,6 @@ export interface RoutineInput {
   skipIfBusy?: boolean;
   notify?: boolean;
   enabled?: boolean;
-}
-
-export interface NotifyEvent {
-  workspaceId: string;
-  floorId?: string;
-  nodeId?: string;
-  name?: string;
-  message: string;
-  source: 'maestro' | 'routine';
 }
 
 export const listRoutines = (workspaceId?: string) =>

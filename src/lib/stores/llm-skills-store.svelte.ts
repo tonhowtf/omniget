@@ -27,7 +27,7 @@ import { invoke } from "@tauri-apps/api/core";
  * externally tagged object (`{ git: "https://…" }`) or an internally tagged
  * one (`{ source: "git", url: "https://…" }`). All three are handled.
  */
-export type SkillSource = string | Record<string, unknown>;
+type SkillSource = string | Record<string, unknown>;
 
 export interface SkillManifest {
   name: string;
@@ -71,7 +71,7 @@ export type SkillScan =
     }
   | { status: "failed"; reason: string };
 
-export interface SkillScanIssue {
+interface SkillScanIssue {
   id?: string;
   severity?: string;
   category?: string | null;
@@ -86,7 +86,7 @@ export interface SkillScanIssue {
  * **not** installed — it sits in quarantine until the user confirms or
  * discards it.
  */
-export interface InstallOutcome {
+interface InstallOutcome {
   manifest: SkillManifest;
   scan?: SkillScan | null;
   needs_confirm?: string | null;
@@ -124,14 +124,14 @@ export interface SkillCatalogEntry {
   license?: string | null;
 }
 
-export type InstallKind = "dir" | "zip" | "git" | "catalog";
+type InstallKind = "dir" | "zip" | "git" | "catalog";
 
 // ── Pure helpers (tested) ───────────────────────────────────────────────
 
 const KNOWN_SOURCES: InstallKind[] = ["dir", "zip", "git", "catalog"];
 
 /** Normalises any of the three serde shapes to `dir | zip | git | catalog`. */
-export function sourceKind(source: SkillSource | null | undefined): InstallKind | null {
+function sourceKind(source: SkillSource | null | undefined): InstallKind | null {
   if (!source) return null;
   if (typeof source === "string") {
     const key = source.toLowerCase();
@@ -223,7 +223,7 @@ export function scanScore(scan: SkillScan | null | undefined): number | null {
  * failed scan are both false: neither is evidence of risk, and neither is
  * evidence of safety.
  */
-export function isScanHighRisk(scan: SkillScan | null | undefined): boolean {
+function isScanHighRisk(scan: SkillScan | null | undefined): boolean {
   if (!scan || scan.status !== "scanned") return false;
   if ((scan.recommendation ?? "").toUpperCase() === "DO_NOT_INSTALL") return true;
   const score = scanScore(scan);
@@ -287,7 +287,7 @@ export function isInstalled(installed: SkillManifest[], entry: SkillCatalogEntry
  * `ERR_SKILL_*` constants of `core/skills/mod.rs`; the command sends them as
  * `"CODE: message"`, so a substring match is enough.
  */
-export function skillErrorKey(err: unknown): string {
+function skillErrorKey(err: unknown): string {
   const code = String(err ?? "");
   if (code.includes("ERR_SKILL_GIT")) return "llm.skills.err_git";
   if (code.includes("ERR_SKILL_ZIP")) return "llm.skills.err_zip";
@@ -621,7 +621,7 @@ export async function removeSkill(name: string): Promise<boolean> {
 
 // ── Version state (hash on disk vs recorded at install) ────────────────
 
-export interface SkillDependency { raw: string; kind: string; server?: string; tool?: string; name?: string }
+interface SkillDependency { raw: string; kind: string; server?: string; tool?: string; name?: string }
 
 /** `llm_skills_status`: what is on disk against what OmniGet recorded. */
 export interface SkillVersionStatus {
@@ -674,21 +674,3 @@ export async function repairSkill(name: string, how: "accept" | "reinstall"): Pr
   }
 }
 
-/** Test seam: drops every bit of state. */
-export function resetSkillsStore(): void {
-  skills = [];
-  catalog = [];
-  loading = false;
-  available = true;
-  busy = null;
-  errorKey = null;
-  lastInstalled = null;
-  pending = null;
-  scannerAvailable = null;
-  loadedOnce = false;
-  catalogLoadedOnce = false;
-  scannerLoadedOnce = false;
-  inFlight = null;
-  versionStatus = {};
-  statusInFlight = null;
-}

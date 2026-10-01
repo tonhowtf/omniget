@@ -32,17 +32,14 @@ export interface PendingAsk {
  * (`fs.read`, `mcp:files:read`); anything longer is a malformed payload, not a
  * name, and is clipped rather than allowed to paint over the desktop.
  */
-export const TOOL_NAME_MAX = 64;
+const TOOL_NAME_MAX = 64;
 
 /**
  * How many questions the queue holds. A turn that asks more than this is
  * either looping or hostile; the oldest are what the user is actually looking
  * at, so the *newest* beyond the bound are dropped and the head keeps moving.
  */
-export const ASK_QUEUE_MAX = 16;
-
-/** The empty queue, shared so `=== EMPTY_QUEUE` is a valid "nothing pending". */
-export const EMPTY_QUEUE: readonly PendingAsk[] = Object.freeze([]);
+const ASK_QUEUE_MAX = 16;
 
 function cleanId(raw: unknown, max: number): string | null {
   if (typeof raw !== 'string') return null;
@@ -65,7 +62,7 @@ function cleanId(raw: unknown, max: number): string | null {
  *
  * Accepts the snake_case the Rust side emits.
  */
-export function sanitizeAsk(raw: unknown): PendingAsk | null {
+function sanitizeAsk(raw: unknown): PendingAsk | null {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
   const o = raw as Record<string, unknown>;
   const requestId = cleanId(o.request_id ?? o.requestId, 128);
@@ -84,7 +81,7 @@ export function sanitizeAsk(raw: unknown): PendingAsk | null {
  * Append an ask. FIFO, and idempotent on `tool_call_id`: the same question
  * re-emitted (a replayed event, a second listener) must not queue twice.
  */
-export function pushAsk(queue: readonly PendingAsk[], ask: PendingAsk): PendingAsk[] {
+function pushAsk(queue: readonly PendingAsk[], ask: PendingAsk): PendingAsk[] {
   if (queue.some((q) => q.toolCallId === ask.toolCallId)) return [...queue];
   if (queue.length >= ASK_QUEUE_MAX) return [...queue];
   return [...queue, ask];
@@ -130,7 +127,7 @@ export function acceptAsk(queue: readonly PendingAsk[], raw: unknown): PendingAs
  * `llm://turn` carries `{ request_id, event: { type, ... } }`; the pet only
  * needs to know which types are terminal.
  */
-export const TERMINAL_TURN_EVENTS = ['finished', 'error'] as const;
+const TERMINAL_TURN_EVENTS = ['finished', 'error'] as const;
 
 /**
  * Read `{ request_id, event }` off `llm://turn` and say whether it ends a turn.

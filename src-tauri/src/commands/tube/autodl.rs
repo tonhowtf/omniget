@@ -10,7 +10,7 @@ use std::hash::{Hash, Hasher};
 use std::time::Duration;
 
 use omniget_core::core::tube::{AutoRule, Format, FormatKind, Item, StorageStats, VideoItem};
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Manager};
 use tauri_plugin_notification::NotificationExt;
 use unicode_normalization::UnicodeNormalization;
 
@@ -515,12 +515,6 @@ fn notify_new(app: &AppHandle, sub: &SubRow, name: Option<&str>, new: &[VideoIte
         .show();
 }
 
-#[derive(Clone, serde::Serialize)]
-struct NewVideosEvent {
-    channel_id: String,
-    video_ids: Vec<String>,
-}
-
 /// Checks due channels, then enqueues what the enabled rules pick. Returns
 /// how many downloads entered the queue.
 async fn run_round(app: &AppHandle, force: bool) -> Result<u32, String> {
@@ -549,13 +543,6 @@ async fn run_round(app: &AppHandle, force: bool) -> Result<u32, String> {
         match local::check_channel(sub).await {
             Ok(checked) => {
                 if !checked.new.is_empty() {
-                    let _ = app.emit(
-                        "tube-new-videos",
-                        NewVideosEvent {
-                            channel_id: sub.channel_id.clone(),
-                            video_ids: checked.new.iter().map(|v| v.id.clone()).collect(),
-                        },
-                    );
                     // The first fetch of a channel is its back catalog, not news.
                     if sub.notify && sub.last_checked_ms.is_some() {
                         notify_new(app, sub, checked.name.as_deref(), &checked.new);
@@ -732,9 +719,6 @@ async fn enqueue_matches(app: &AppHandle, rules: &[AutoRule]) -> Result<u32, Str
             }
             Err(e) => tracing::warn!("[tube] auto-download enqueue failed: {e}"),
         }
-    }
-    if enqueued > 0 {
-        let _ = app.emit("tube-autodl-queued", enqueued);
     }
     Ok(enqueued)
 }

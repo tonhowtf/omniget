@@ -10,10 +10,10 @@ import { termHub } from './hub';
 import { termLive, type TermLod } from './state.svelte';
 import type { Visible, WireLod } from './client';
 
-export const TEXT_ENTER_PX = 7.5;
-export const TEXT_LEAVE_PX = 6.5;
-export const CARD_ENTER_W = 140;
-export const CARD_LEAVE_W = 170;
+const TEXT_ENTER_PX = 7.5;
+const TEXT_LEAVE_PX = 6.5;
+const CARD_ENTER_W = 140;
+const CARD_LEAVE_W = 170;
 
 const WIRE: Record<TermLod, WireLod> = { text: 0, mini: 1, card: 2 };
 
@@ -38,11 +38,7 @@ export function focusedTerm(): string | null {
   return focusedId;
 }
 
-export function lodOf(id: string): TermLod | undefined {
-  return lods.get(id);
-}
-
-export interface TermNodeLod {
+interface TermNodeLod {
   node: NodeView;
   termId: string;
   lod: TermLod;

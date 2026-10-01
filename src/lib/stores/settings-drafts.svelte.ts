@@ -12,7 +12,7 @@ import { isApiError } from "./settings-v3-types";
  * draft per id survives tab changes inside Settings; nothing goes to
  * localStorage, so a secret typed into a draft lives only in this WebView.
  */
-export type SettingsDraft<T extends Record<string, unknown>> = {
+type SettingsDraft<T extends Record<string, unknown>> = {
   readonly value: T;
   readonly dirty: boolean;
   readonly saving: boolean;
@@ -22,7 +22,7 @@ export type SettingsDraft<T extends Record<string, unknown>> = {
   discard(): void;
 };
 
-export type SettingsDraftOptions<T extends Record<string, unknown>> = {
+type SettingsDraftOptions<T extends Record<string, unknown>> = {
   id: string;
   read: (s: AppSettings) => T;
   toPatch: (draft: T) => Record<string, unknown>;

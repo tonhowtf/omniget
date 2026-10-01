@@ -56,7 +56,7 @@ export interface Ranked {
   nameIdx: number[];
 }
 
-export interface RemoteNode {
+interface RemoteNode {
   node: CanvasNode;
   workspaceId: string;
   floorId: string;
@@ -273,7 +273,7 @@ const AGENTS: Array<{ agent: AgentKind; label: string }> = [
   { agent: 'ollama', label: 'Ollama' },
 ];
 
-export interface ActionHooks {
+interface ActionHooks {
   toggleSidebar?: () => void;
   newWorkspace?: () => void;
   newFloor?: () => void;
@@ -524,7 +524,3 @@ export function rank(items: PaletteItem[], query: string, limit = 80): Ranked[] 
   return unique.slice(0, limit);
 }
 
-/** Terminal id for Ask/Check on a (possibly remote) node. */
-export function terminalOf(node: CanvasNode): string {
-  return terminalIdOf(node);
-}

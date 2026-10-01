@@ -37,7 +37,7 @@ export type ShortcutRule = {
   when?: string;
 };
 
-export type CommandInfo = {
+type CommandInfo = {
   id: string;
   group: ShortcutGroup;
   /** Tratado pelo próprio componente (composer, gaveta de aprovação,
@@ -200,17 +200,9 @@ export function loadUserRules(): ShortcutRule[] {
   }
 }
 
-export function saveUserRules(rules: ShortcutRule[]) {
-  try {
-    localStorage.setItem(USER_KEY, JSON.stringify(rules.slice(0, 256)));
-  } catch {
-    /* storage desligado */
-  }
-}
-
 // ── Gramática de tecla ───────────────────────────────────────────────────
 
-export type ParsedKey = {
+type ParsedKey = {
   key: string;
   mod: boolean;
   ctrl: boolean;
@@ -232,7 +224,7 @@ const KEY_ALIASES: Record<string, string> = {
 };
 
 /** `mod+shift+[` → ParsedKey; `+` final é a própria tecla mais. */
-export function parseKey(spec: string): ParsedKey | null {
+function parseKey(spec: string): ParsedKey | null {
   let s = spec.trim().toLowerCase();
   if (!s) return null;
   let plusKey = false;
@@ -286,10 +278,10 @@ function eventKey(key: string): string {
   return KEY_ALIASES[k] ?? k;
 }
 
-export type KeyEventLike = Pick<KeyboardEvent, "key" | "code" | "metaKey" | "ctrlKey" | "shiftKey" | "altKey">;
+type KeyEventLike = Pick<KeyboardEvent, "key" | "code" | "metaKey" | "ctrlKey" | "shiftKey" | "altKey">;
 
 /** O evento casa com a tecla? Modificadores exatos (salvo `?`, que já implica ⇧). */
-export function matchKey(p: ParsedKey, e: KeyEventLike, isMac: boolean): boolean {
+function matchKey(p: ParsedKey, e: KeyEventLike, isMac: boolean): boolean {
   const wantMeta = p.meta || (p.mod && isMac);
   const wantCtrl = p.ctrl || (p.mod && !isMac);
   if (e.metaKey !== wantMeta || e.ctrlKey !== wantCtrl || e.altKey !== p.alt) return false;
@@ -304,7 +296,7 @@ export function matchKey(p: ParsedKey, e: KeyEventLike, isMac: boolean): boolean
 
 // ── Gramática de `when` ──────────────────────────────────────────────────
 
-export type WhenNode =
+type WhenNode =
   | { t: "id"; name: string }
   | { t: "lit"; value: boolean }
   | { t: "not"; a: WhenNode }
@@ -314,7 +306,7 @@ export type WhenNode =
 const whenCache = new Map<string, WhenNode | null>();
 
 /** `a && !(b || c)`; identificadores, `!`, `&&`, `||`, parênteses, true/false. */
-export function parseWhen(src: string): WhenNode | null {
+function parseWhen(src: string): WhenNode | null {
   if (whenCache.has(src)) return whenCache.get(src)!;
   const result = parseWhenUncached(src);
   whenCache.set(src, result);
@@ -371,7 +363,7 @@ function parseWhenUncached(src: string): WhenNode | null {
   return root && i === tokens.length ? root : null;
 }
 
-export function evalWhen(node: WhenNode, ctx: Partial<WhenContext>): boolean {
+function evalWhen(node: WhenNode, ctx: Partial<WhenContext>): boolean {
   switch (node.t) {
     case "lit":
       return node.value;
@@ -387,7 +379,7 @@ export function evalWhen(node: WhenNode, ctx: Partial<WhenContext>): boolean {
 }
 
 /** `when` ausente = sempre; `when` inválido = nunca. */
-export function whenHolds(when: string | undefined, ctx: Partial<WhenContext>): boolean {
+function whenHolds(when: string | undefined, ctx: Partial<WhenContext>): boolean {
   if (!when || !when.trim()) return true;
   const n = parseWhen(when);
   return n ? evalWhen(n, ctx) : false;

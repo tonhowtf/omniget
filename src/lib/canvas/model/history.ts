@@ -6,7 +6,7 @@
 import { recordKey } from './ops';
 import type { Op, Origin } from './types';
 
-export const HISTORY_LIMIT = 200;
+const HISTORY_LIMIT = 200;
 
 export interface HistoryEntry {
   seq: number;
@@ -18,7 +18,7 @@ export interface HistoryEntry {
   selectionAfter?: string[];
 }
 
-export interface UndoStep {
+interface UndoStep {
   /** Ops to apply now. */
   ops: Op[];
   /** Records left alone because an agent changed them later. */

@@ -69,7 +69,7 @@ void main() {
 /** Floats per instance: rect(4) style(4) fill(4) stroke(4). */
 const STRIDE = 16;
 
-export interface SdfShape {
+interface SdfShape {
   /** Centre in CSS px. */
   cx: number;
   cy: number;

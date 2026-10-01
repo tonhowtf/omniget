@@ -3,7 +3,7 @@
 import { getSettings, updateSettings } from "$lib/stores/settings-store.svelte";
 import type { TubeSettings } from "./types";
 
-export const TUBE_DEFAULTS: TubeSettings = {
+const TUBE_DEFAULTS: TubeSettings = {
   enabled: true,
   look: "classic",
   start_face: "video",

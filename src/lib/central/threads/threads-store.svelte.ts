@@ -35,9 +35,9 @@ import type {
   UserInputRow,
 } from "./types";
 
-export const THREADS_EVENT = "threads://event";
-export const FIRST_PAGE = 10;
-export const NEXT_PAGE = 20;
+const THREADS_EVENT = "threads://event";
+const FIRST_PAGE = 10;
+const NEXT_PAGE = 20;
 
 function statusOf(t: ThreadRow): ThreadStatus {
   if (t.pendingApprovalCount > 0) return "approval";

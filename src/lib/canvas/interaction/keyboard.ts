@@ -59,7 +59,7 @@ export type Command =
   /** R / ⇧R with drawings selected: turn them 15° clockwise / back (M-C5). */
   | { cmd: 'rotate'; deg: number };
 
-export interface KeyLike {
+interface KeyLike {
   key: string;
   code?: string;
   metaKey: boolean;
@@ -68,7 +68,7 @@ export interface KeyLike {
   shiftKey: boolean;
 }
 
-export interface KeyContext {
+interface KeyContext {
   hasSelection: boolean;
   /** The selection is only drawings: arrows move them (Maestri) instead of moving the focus. */
   drawingsOnly?: boolean;

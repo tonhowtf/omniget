@@ -46,7 +46,7 @@ export type ContinuationKind =
   | "music_playlist"
   | "music_library";
 
-export type TubeAction =
+type TubeAction =
   | "like"
   | "dislike"
   | "remove_like"
@@ -64,7 +64,7 @@ export type TubeAction =
   | "library_add"
   | "library_remove";
 
-export type ActionTarget = {
+type ActionTarget = {
   video_id?: string | null;
   channel_id?: string | null;
   playlist_id?: string | null;
@@ -76,7 +76,7 @@ export type ActionTarget = {
   avatar?: string | null;
 };
 
-export type DownloadRequest = {
+type DownloadRequest = {
   video_id: string;
   title: string;
   /** null = best by the user's quality setting */

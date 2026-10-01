@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 
-export type MeetingStatus =
+type MeetingStatus =
   | "recording"
   | "bot_live"
   | "queued"
@@ -10,13 +10,13 @@ export type MeetingStatus =
   | "ready"
   | "failed";
 
-export type MeetingSource =
+type MeetingSource =
   | { kind: "capture"; mic: boolean; system: boolean }
   | { kind: "file"; path: string }
   | { kind: "teams"; url: string }
   | { kind: "bot"; platform: string; meeting_url: string; native_id: string };
 
-export interface ActionItem {
+interface ActionItem {
   task: string;
   owner?: string;
   due?: string;
@@ -78,12 +78,12 @@ export interface MeetingSettings {
   bot_name: string;
 }
 
-export interface MeetingSettingsView extends MeetingSettings {
+interface MeetingSettingsView extends MeetingSettings {
   vexa_key_set: boolean;
   teams_webhook_set: boolean;
 }
 
-export interface WhisperModel {
+interface WhisperModel {
   id: string;
   size_mb: number;
   note: string;
@@ -226,7 +226,7 @@ export function agentPrompt(markdown: string, instruction: string): string {
 
 // ---------------------------------------------------------------- Teams (Microsoft Graph)
 
-export interface TeamsAccount {
+interface TeamsAccount {
   name: string;
   upn: string;
   id: string;

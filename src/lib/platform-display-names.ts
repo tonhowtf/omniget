@@ -1,4 +1,4 @@
-export const PLATFORM_DISPLAY_NAMES: Record<string, string> = {
+const PLATFORM_DISPLAY_NAMES: Record<string, string> = {
   bilibili: "Bilibili (哔哩哔哩)",
   douyin: "Douyin (抖音)",
   kuaishou: "Kuaishou (快手)",

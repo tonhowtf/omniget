@@ -8,7 +8,7 @@
  */
 import type { TranslationBag } from "./tray-strings";
 
-export const USAGE_TRAY_MENU_KEYS = [
+const USAGE_TRAY_MENU_KEYS = [
   "accounts",
   "no_accounts",
   "icon_shows",

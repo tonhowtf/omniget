@@ -5,9 +5,9 @@
 
 import { invoke } from "@tauri-apps/api/core";
 
-export type RouteKind = "direct" | "socks5" | "http" | "mt_proxy" | "shadowsocks" | "trojan";
+type RouteKind = "direct" | "socks5" | "http" | "mt_proxy" | "shadowsocks" | "trojan";
 
-export type RouteSource =
+type RouteSource =
   | { type: "direct" }
   | { type: "manual" }
   | { type: "link" }
@@ -56,7 +56,7 @@ export interface NetOpts {
   connect_timeout_secs: number;
 }
 
-export interface SubscriptionEntry {
+interface SubscriptionEntry {
   url: string;
   name: string;
   updated_at: number;
@@ -82,7 +82,7 @@ export interface NetStatus {
 
 export type StepState = "ok" | "warn" | "fail" | "skip";
 
-export interface DoctorStep {
+interface DoctorStep {
   id: string;
   state: StepState;
   hint: string;
@@ -103,7 +103,7 @@ export interface AddLinksResult {
 /** Protocols only a full proxy core (Clash/mihomo, v2rayN) can speak. */
 export const NEEDS_CLASH = new Set(["vmess", "vless", "hysteria2", "hy2", "hysteria", "tuic", "ssr", "wireguard", "anytls"]);
 
-export const RESCUE_LIST = "telegram-rescue";
+const RESCUE_LIST = "telegram-rescue";
 
 // ---- connection layer ----
 
@@ -189,7 +189,7 @@ export interface ChatPageOffset {
   peer_hash: number;
 }
 
-export interface ChatPage {
+interface ChatPage {
   chats: TelegramChat[];
   next_offset: ChatPageOffset | null;
 }
@@ -352,7 +352,7 @@ export interface StreamInfo {
   container?: string | null;
 }
 
-export interface PlaybackState {
+interface PlaybackState {
   position_sec: number;
   duration_sec: number;
   finished: boolean;
@@ -373,7 +373,6 @@ export interface PlaybackEntry extends PlaybackState {
 export type ExternalPlayer = "default" | "vlc" | "iina" | "mpv";
 
 export const MEDIA_TYPES = ["video", "photo", "document", "audio", "gif", "round_video", "voice"] as const;
-export type MediaType = (typeof MEDIA_TYPES)[number];
 
 /** Filters shared by auto-save rules and the whole-chat download. Sizes in bytes. */
 export interface MediaFilter {
@@ -455,7 +454,7 @@ export interface ChatDownloadPreview {
   sample: (TelegramMediaItem & { path?: string; exists?: boolean })[];
 }
 
-export interface UploadArgs {
+interface UploadArgs {
   paths: string[];
   caption?: string;
   asDocument?: boolean;
@@ -463,7 +462,7 @@ export interface UploadArgs {
   groupAlbums?: boolean;
 }
 
-export interface CloneOptions {
+interface CloneOptions {
   delay_ms: number;
   batch_size: number;
   limit: number | null;
@@ -662,7 +661,7 @@ export interface TranscribeProgress {
   total: number;
 }
 
-export interface MediaSearch {
+interface MediaSearch {
   query?: string;
   mediaType?: string | null;
   fromDate?: number;
@@ -672,7 +671,7 @@ export interface MediaSearch {
   limit?: number;
 }
 
-export interface TranscriptSegment {
+interface TranscriptSegment {
   start: number;
   end: number;
   text: string;
@@ -926,7 +925,7 @@ export function sourceInfo(s: RouteSource): { key: string; value: string } {
   }
 }
 
-export function hostOf(url: string): string {
+function hostOf(url: string): string {
   try {
     return new URL(url).host || url;
   } catch {
@@ -934,6 +933,3 @@ export function hostOf(url: string): string {
   }
 }
 
-export function isLocalSource(s: RouteSource): boolean {
-  return s.type === "local_app" || s.type === "clash" || s.type === "system" || s.type === "env";
-}

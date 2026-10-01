@@ -7,7 +7,7 @@
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type { ThreadsEventEnvelope } from "$lib/central/threads/types";
 
-export type ChipKind = "file" | "skill" | "pr" | "terminal" | "review" | "attachment" | "command";
+type ChipKind = "file" | "skill" | "pr" | "terminal" | "review" | "attachment" | "command";
 
 export type Chip = {
   id: string;
@@ -33,7 +33,7 @@ export type QueuedMessage = {
 
 export type PanelTab = "diff" | "terminal" | "files" | "plan" | "tasks" | "pr";
 
-export type PanelState = { open: boolean; tab: PanelTab | null; touched: number; diffScope: "turn" | "total"; diffTurn: number | null; reveal: string | null };
+type PanelState = { open: boolean; tab: PanelTab | null; touched: number; diffScope: "turn" | "total"; diffTurn: number | null; reveal: string | null };
 
 export type UndoToast = { id: number; message: string; undo: () => void | Promise<void> };
 

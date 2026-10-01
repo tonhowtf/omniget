@@ -22,11 +22,6 @@ function selected(engine: CanvasEngine): { nodeIds: string[]; drawingIds: string
   };
 }
 
-export function canCopy(engine: CanvasEngine): boolean {
-  const s = selected(engine);
-  return s.nodeIds.length + s.drawingIds.length > 0;
-}
-
 /** Copies (or cuts) the selection. Memory mode (no Rust store) does nothing. */
 export async function copySelection(engine: CanvasEngine, cut = false): Promise<boolean> {
   const sel = selected(engine);

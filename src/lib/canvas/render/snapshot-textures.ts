@@ -15,33 +15,11 @@ interface Entry {
 }
 
 const snapshots = new Map<string, Entry>();
-let revision = 0;
 const listeners = new Set<() => void>();
 
-export function setSnapshot(nodeId: string, source: Source): void {
-  const prev = snapshots.get(nodeId);
-  snapshots.set(nodeId, { source, version: (prev?.version ?? 0) + 1 });
-  revision++;
-  for (const l of listeners) l();
-}
-
-export function clearSnapshot(nodeId: string): void {
-  if (!snapshots.delete(nodeId)) return;
-  revision++;
-  for (const l of listeners) l();
-}
-
-export function hasSnapshot(nodeId: string): boolean {
-  return snapshots.has(nodeId);
-}
-
-export function onSnapshotsChange(fn: () => void): () => void {
+function onSnapshotsChange(fn: () => void): () => void {
   listeners.add(fn);
   return () => listeners.delete(fn);
-}
-
-export function snapshotsRevision(): number {
-  return revision;
 }
 
 export function createSnapshotPass(engine: CanvasEngine): GlPass {

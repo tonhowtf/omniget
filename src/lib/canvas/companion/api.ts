@@ -8,7 +8,7 @@ import { invoke } from '@tauri-apps/api/core';
 export const EVENT_COMPANION = 'canvas://companion';
 export const EVENT_COMPANION_DISMISS = 'canvas://companion-dismiss';
 
-export type CompanionKind = 'done' | 'blocked' | 'failed' | 'manual';
+type CompanionKind = 'done' | 'blocked' | 'failed' | 'manual';
 export type ModelMode = 'auto' | 'local' | 'cheap' | 'heuristic';
 
 export interface CompanionEntry {
@@ -35,7 +35,7 @@ export interface CompanionEntry {
   i18n?: EntryI18n | null;
 }
 
-export interface EntryI18n {
+interface EntryI18n {
   summary?: { key: string; vars?: Record<string, unknown> };
   suggestions?: Array<{ key?: string; text: string }>;
 }

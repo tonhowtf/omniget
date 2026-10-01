@@ -9,7 +9,7 @@ import type { Track } from "./types";
 
 const KEY = "omniget.music.downloads.v1";
 
-export type MusicDownload = {
+type MusicDownload = {
   id: number;
   url: string;
   title: string;

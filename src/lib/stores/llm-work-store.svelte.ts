@@ -38,9 +38,9 @@ import {
   freshNotifications,
   notificationKey,
   rememberSeen,
-  summarize,
+  
   type WorkItem,
-  type WorkSummary,
+  
 } from "$lib/llm/work";
 
 const SEEN_KEY = "omniget.llm.work.notified";
@@ -105,10 +105,6 @@ export function getWorkItems(): WorkItem[] {
     incidents: getBudgetIncidents() ?? [],
     now,
   });
-}
-
-export function getWorkSummary(): WorkSummary {
-  return summarize(getWorkItems());
 }
 
 /** What could not be read, so the list never looks complete when it is not. */

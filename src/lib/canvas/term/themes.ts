@@ -2,7 +2,7 @@
 // follows the app's CSS tokens (see $components/central/terminal/theme);
 // the others are fixed schemes (iTerm2 / Ghostty classics).
 
-export interface TermScheme {
+interface TermScheme {
   background: string;
   foreground: string;
   cursor: string;
@@ -11,7 +11,7 @@ export interface TermScheme {
   ansi: string[];
 }
 
-export const TERM_SCHEMES: Record<string, TermScheme> = {
+const TERM_SCHEMES: Record<string, TermScheme> = {
   dark: {
     background: '#1c1c1e',
     foreground: '#f5f5f7',
@@ -121,11 +121,6 @@ export function schemeTheme(id: string | null | undefined): Record<string, strin
 /** Ids of the user's own schemes (`~/.omniget/terminal/themes`), loaded by `loadUserSchemes`. */
 const userIds = new Set<string>();
 let userKey = '';
-
-/** Every scheme id: built-in first, then the user's folder. */
-export function termThemeIds(): string[] {
-  return [...TERM_THEME_IDS, ...[...userIds].filter((id) => !TERM_THEME_IDS.includes(id))];
-}
 
 /**
  * Reads the user's Ghostty themes through Rust and merges them into

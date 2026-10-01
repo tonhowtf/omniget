@@ -18,7 +18,7 @@ export function registerStatusSurface(path: string): () => void {
 }
 
 /** A status for `path` itself or for one of its prefixes (e.g. "proxy" covers "proxy.host"). */
-export function hasStatusSurface(path: string): boolean {
+function hasStatusSurface(path: string): boolean {
   for (const surface of surfaces.keys()) {
     if (path === surface || path.startsWith(`${surface}.`)) return true;
   }

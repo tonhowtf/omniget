@@ -1,4 +1,4 @@
-export type CommandPaletteItem = {
+type CommandPaletteItem = {
   id: string;
   label: string;
   group: string;

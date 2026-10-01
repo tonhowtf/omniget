@@ -2,8 +2,8 @@
 // calibration scene, canvas sprite pass). Pure: typed arrays only.
 
 /** x, y, u, v, r, g, b, a */
-export const FLOATS_PER_VERTEX = 8;
-export const VERTS_PER_QUAD = 4;
+const FLOATS_PER_VERTEX = 8;
+const VERTS_PER_QUAD = 4;
 export const FLOATS_PER_QUAD = FLOATS_PER_VERTEX * VERTS_PER_QUAD;
 export const INDICES_PER_QUAD = 6;
 
@@ -23,7 +23,7 @@ export interface Quad {
   alpha?: number;
 }
 
-export function unpackTint(tint: number): [number, number, number] {
+function unpackTint(tint: number): [number, number, number] {
   return [((tint >> 16) & 0xff) / 255, ((tint >> 8) & 0xff) / 255, (tint & 0xff) / 255];
 }
 

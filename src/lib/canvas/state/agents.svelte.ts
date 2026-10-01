@@ -29,8 +29,8 @@ export interface AgentSignal {
   lastLine?: string;
 }
 
-export const TERM_STATE_EVENT = 'term://state';
-export const NODE_STATE_EVENT = 'canvas://node-state';
+const TERM_STATE_EVENT = 'term://state';
+const NODE_STATE_EVENT = 'canvas://node-state';
 
 /** Munder Difflin palette, one channel per question (estudo 97 §4). */
 export const STATE_COLORS: Record<AgentState, number> = {

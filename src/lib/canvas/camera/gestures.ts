@@ -6,7 +6,7 @@
 // - Mouse wheel = pan (⇧ = horizontal); Ctrl/⌥ + wheel = zoom; ⌘ + wheel
 //   switches workspaces unless ⌘ is the zoom modifier.
 
-export interface GestureHandlers {
+interface GestureHandlers {
   /** Screen-pixel pan delta (positive = content moves right/down). */
   pan(dx: number, dy: number): void;
   /** Multiplicative zoom anchored at a point in element coordinates. */

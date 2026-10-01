@@ -6,7 +6,7 @@ import { ERR, RenderError } from './types';
 
 export type GL = WebGLRenderingContext | WebGL2RenderingContext;
 
-export const GL_ATTRIBUTES: WebGLContextAttributes = {
+const GL_ATTRIBUTES: WebGLContextAttributes = {
   alpha: true,
   antialias: false,
   depth: false,
@@ -61,7 +61,7 @@ export function linkProgram(gl: GL, vsSrc: string, fsSrc: string): WebGLProgram 
   return prog;
 }
 
-export const SPRITE_VS2 = `#version 300 es
+const SPRITE_VS2 = `#version 300 es
 in vec2 aPos; in vec2 aUV; in vec4 aColor;
 uniform vec2 uRes;
 out vec2 vUV; out vec4 vColor;
@@ -71,7 +71,7 @@ void main() {
   vUV = aUV; vColor = aColor;
 }`;
 
-export const SPRITE_FS2 = `#version 300 es
+const SPRITE_FS2 = `#version 300 es
 precision mediump float;
 in vec2 vUV; in vec4 vColor;
 uniform sampler2D uTex;

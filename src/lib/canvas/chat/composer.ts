@@ -6,7 +6,7 @@
 
 import type { CanvasNode, Connection } from '../model/types';
 
-export type MentionKind = 'agent' | 'note' | 'portal' | 'file' | 'action' | 'floor' | 'workspace' | 'other';
+type MentionKind = 'agent' | 'note' | 'portal' | 'file' | 'action' | 'floor' | 'workspace' | 'other';
 
 export interface MentionTarget {
   id: string;
@@ -23,7 +23,7 @@ export interface MentionTarget {
 }
 
 /** Workspace/floor context for the non-node mentions (floors, workspaces, actions). */
-export interface MentionContext {
+interface MentionContext {
   workspaceId?: string;
   floorId?: string;
   workspaces?: Array<{ id: string; name: string; floors?: Array<{ id: string; name: string }> }>;
@@ -41,8 +41,8 @@ export interface Draft {
 }
 
 /** Maestri: more than 800 characters or more than 2 lines becomes a pill. */
-export const PILL_MIN_CHARS = 800;
-export const PILL_MIN_LINES = 3;
+const PILL_MIN_CHARS = 800;
+const PILL_MIN_LINES = 3;
 
 const DRAFT_PREFIX = 'omniget.canvas.composer.draft:';
 
@@ -72,7 +72,7 @@ export function saveDraft(workspaceId: string, nodeId: string, d: Draft): void {
   }
 }
 
-export function kindOfNode(n: CanvasNode): MentionKind {
+function kindOfNode(n: CanvasNode): MentionKind {
   switch (n.kind) {
     case 'terminal':
     case 'agent':
@@ -113,7 +113,7 @@ function detailOf(n: CanvasNode): string | undefined {
 }
 
 /** Everything tied to `nodeId` by a cord (either direction), minus itself. */
-export function connectedTargets(nodeId: string, nodes: CanvasNode[], connections: Connection[]): MentionTarget[] {
+function connectedTargets(nodeId: string, nodes: CanvasNode[], connections: Connection[]): MentionTarget[] {
   const ids = new Set<string>();
   for (const c of connections) {
     if (c.from === nodeId) ids.add(c.to);
@@ -224,7 +224,7 @@ export function mentionToken(t: MentionTarget): string {
   return /\s/.test(t.name) ? `@"${t.name}"` : `@${t.name}`;
 }
 
-export function shouldPill(text: string): boolean {
+function shouldPill(text: string): boolean {
   return text.length > PILL_MIN_CHARS || text.split('\n').length >= PILL_MIN_LINES;
 }
 
@@ -277,7 +277,7 @@ export function prunePastes(d: Draft): Draft {
   return { text: d.text, pastes: d.pastes.filter((p) => d.text.includes(pillLabel(p))) };
 }
 
-export function nextPasteNumber(d: Draft): number {
+function nextPasteNumber(d: Draft): number {
   return d.pastes.reduce((m, p) => Math.max(m, p.n), 0) + 1;
 }
 

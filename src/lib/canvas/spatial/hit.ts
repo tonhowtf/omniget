@@ -19,9 +19,9 @@ export type Hit =
 export type ResizeHandle = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw';
 
 /** Header strip height in screen pixels (the Maestri keeps it grabbable at any zoom). */
-export const HEADER_PX = 28;
+const HEADER_PX = 28;
 /** Terminal chrome height in world units (term/metrics TERM_HEADER_H). */
-export const TERMINAL_HEADER = 30;
+const TERMINAL_HEADER = 30;
 
 /** Height of the grab strip of a node, in world units, at this zoom. */
 export function headerWorld(kind: string, h: number, zoom: number): number {
@@ -29,8 +29,8 @@ export function headerWorld(kind: string, h: number, zoom: number): number {
   if (kind === 'text') return 0;
   return Math.min(h, Math.min(56, HEADER_PX / zoom));
 }
-export const TOLERANCE_PX = 6;
-export const PORT_PX = 9;
+const TOLERANCE_PX = 6;
+const PORT_PX = 9;
 
 const LINEAR_DRAWINGS = new Set(['pen', 'brush', 'smartDraw', 'smart', 'highlighter', 'arrow', 'line']);
 
@@ -58,7 +58,7 @@ export function drawingHit(d: Drawing, x: number, y: number, tol: number): boole
   return distToPolyline(x, y, [...poly, poly[0], poly[1]]) <= lw;
 }
 
-export interface HitOptions {
+interface HitOptions {
   zoom: number;
   /** Nodes whose ports are showing (selected/hovered); ports hit first. */
   portsFor?: Iterable<string>;
@@ -128,7 +128,7 @@ export function hitTest(store: CanvasStore, x: number, y: number, opts: HitOptio
   return { type: 'none' };
 }
 
-export function resizeHandleAt(
+function resizeHandleAt(
   r: { x: number; y: number; w: number; h: number },
   x: number,
   y: number,

@@ -8,7 +8,7 @@ import { stackIdOf, isNoteFile } from '../notes/api';
 import type { CanvasNode } from '../model/types';
 import { baseName, IMAGE_RE, joinPath, VIDEO_RE, type FileEditorData } from './api';
 
-export const EDITOR_SIZE = { w: 600, h: 480 };
+const EDITOR_SIZE = { w: 600, h: 480 };
 
 function onFloor(engine: CanvasEngine): CanvasNode[] {
   return engine.store.nodes.filter((n) => !stackIdOf(n));

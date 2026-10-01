@@ -4,9 +4,9 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 
-export const WORKSPACES_EVENT = 'canvas://workspaces';
+const WORKSPACES_EVENT = 'canvas://workspaces';
 
-export interface FloorMeta {
+interface FloorMeta {
   id: string;
   name: string;
   color?: string;
@@ -38,7 +38,7 @@ export interface WorkspaceSummary {
   panels?: { lifted?: string | null; docked?: Array<{ nodeId: string; edge: 'left' | 'right'; width: number }> } | null;
 }
 
-export interface WorkspaceInput {
+interface WorkspaceInput {
   name: string;
   icon?: string;
   color?: string;

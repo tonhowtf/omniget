@@ -8,7 +8,7 @@
  * what was left at its default.
  */
 
-export type DownloadMode = "auto" | "audio" | "mute";
+type DownloadMode = "auto" | "audio" | "mute";
 
 /** The `then` part of a rule as `preview_rule_match` returns it. */
 export type RuleThen = {
@@ -18,7 +18,7 @@ export type RuleThen = {
   // subtitles/tags stay schema only: no Home control applies them yet.
 };
 
-export type HomeDownloadChoice = {
+type HomeDownloadChoice = {
   outputDir: string;
   /** The user picked a folder for this link. */
   outputDirExplicit: boolean;
@@ -30,7 +30,7 @@ export type HomeDownloadChoice = {
   formatId: string | null;
 };
 
-export type RuleOptions = {
+type RuleOptions = {
   outputDir: string;
   mode: DownloadMode;
   quality: string;

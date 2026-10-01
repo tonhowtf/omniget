@@ -36,7 +36,7 @@ import {
 } from './wire';
 import type { AgentInfo, MetaInfo } from './wire';
 
-export interface CellStyle {
+interface CellStyle {
   fg: number;
   bg: number;
   ul: number;
@@ -77,8 +77,8 @@ export class StyleTable {
 }
 
 /** Upper bound so a corrupt frame cannot allocate gigabytes. */
-export const MAX_COLS = 1000;
-export const MAX_ROWS = 500;
+const MAX_COLS = 1000;
+const MAX_ROWS = 500;
 
 export class TermGrid {
   cols = 0;

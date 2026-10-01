@@ -16,7 +16,7 @@ import {
   type Revision,
   type SettingsPublicV3,
   type SettingsSecretOperations,
-  type SettingsSection,
+  
   type SettingsSnapshot,
   type TypographySettings,
 } from "./settings-v3-types";
@@ -40,25 +40,25 @@ export type AppSettings = SettingsPublicV3;
 type Patch = Record<string, unknown>;
 
 export type FieldState = "idle" | "saving" | "saved" | "failed" | "pendingApply";
-export type FieldStatus = { state: FieldState; error?: string; effectId?: EffectId };
-export type SettingsLoadState =
+type FieldStatus = { state: FieldState; error?: string; effectId?: EffectId };
+type SettingsLoadState =
   | { kind: "loading" }
   | { kind: "ready"; loadStatus: LoadStatus }
   | { kind: "failed"; code: string };
-export type AppearanceMigrationState = "unknown" | "importing" | "done" | "failed";
+type AppearanceMigrationState = "unknown" | "importing" | "done" | "failed";
 
 // ---------------------------------------------------------------------------
 // Appearance: one authority for theme, preset, typography and motion.
 // ---------------------------------------------------------------------------
 
 export const OMNIGET_PRESET = "omniget-desktop";
-export const WORKSPACE_PRESET_IDS = [
+const WORKSPACE_PRESET_IDS = [
   "amber-minimal", "orange-soft", "claude-amber", "amber-hearth", "amber-slate", "orange-vivid",
 ] as const;
 const WORKSPACE_PRESETS = new Set<string>(WORKSPACE_PRESET_IDS);
 const MODES = new Set<string>(["system", "light", "dark"]);
 
-export type AppearancePresentation = {
+type AppearancePresentation = {
   mode: AppearanceMode;
   preset: string;
   /** Named theme id ("Mais estilos") when the preset is one, else null. */
@@ -80,7 +80,7 @@ const TYPOGRAPHY_DEFAULTS: TypographySettings = {
  * The single spacing base. `src/app.css` declares the same values on :root
  * (guarded by a test), so scale 1 removes the inline overrides without a jump.
  */
-export const SPACING_BASE_PX: Readonly<Record<string, number>> = {
+const SPACING_BASE_PX: Readonly<Record<string, number>> = {
   "--space-1": 4,
   "--space-2": 8,
   "--space-3": 12,
@@ -106,7 +106,7 @@ function quoteFamily(name: string): string {
 }
 
 /** Font stack for a chosen family. Custom families are preserved as typed. */
-export function resolveFontStack(kind: "display" | "body" | "mono", family: string): string {
+function resolveFontStack(kind: "display" | "body" | "mono", family: string): string {
   const name = family.trim();
   if (kind === "mono") {
     if (name === "ui-monospace" || name === "" || name === "System" || name === "system-ui") return UI_MONOSPACE_STACK;
@@ -172,7 +172,7 @@ function applyAccessibility(a: AppSettings["accessibility"]) {
 }
 
 /** Mode/preset of the confirmed document; before the import only the legacy theme counts. */
-export function resolveAppearance(appearance: AppSettings["appearance"] | undefined): { mode: AppearanceMode; preset: string; namedTheme: string | null } {
+function resolveAppearance(appearance: AppSettings["appearance"] | undefined): { mode: AppearanceMode; preset: string; namedTheme: string | null } {
   const legacy = typeof appearance?.theme === "string" ? appearance.theme : "system";
   const migrated = (appearance?.migration_version ?? 0) >= 1;
   let mode: AppearanceMode;
@@ -429,7 +429,7 @@ async function importAppearance(): Promise<void> {
 const PRIMARY_LOCALES = new Set(["en", "pt", "es", "fr", "it", "ru", "el", "fa", "lo", "ja"]);
 
 /** Maps an OS/browser language tag to one of the 12 catalogs; fallback "en". */
-export function detectInstallLocale(tag: string | null | undefined): string {
+function detectInstallLocale(tag: string | null | undefined): string {
   if (!tag) return "en";
   const parts = tag.trim().replace(/_/g, "-").toLowerCase().split("-").filter(Boolean);
   const primary = parts[0] ?? "";
@@ -656,20 +656,6 @@ export async function saveSettingsForm(
   return enqueue({ kind: "patch", mode: "form", patch: copy, secretOperations, waiters: [] });
 }
 
-/** Explicit retry of failed autosave intents under `prefix`, with the current revision. */
-export async function retryFailedSettings(prefix: string): Promise<AppSettings | null> {
-  const patch: Patch = {};
-  for (const [path, value] of failedIntents) {
-    if (path !== prefix && !path.startsWith(`${prefix}.`) && prefix !== "") continue;
-    const keys = path.split(".");
-    let node = patch;
-    for (const key of keys.slice(0, -1)) node = (node[key] = isPlainObject(node[key]) ? node[key] : {}) as Patch;
-    node[keys[keys.length - 1]] = value;
-  }
-  if (Object.keys(patch).length === 0) return null;
-  return updateSettings(patch);
-}
-
 export async function resetSettings(scope: ResetScope = { kind: "app" }): Promise<AppSettings> {
   // Queued edits of the previous generation must not re-apply values after the reset.
   const superseded = new Error("settings_superseded");
@@ -693,7 +679,7 @@ export async function retrySettingsEffect(effectId: EffectId): Promise<void> {
 }
 
 /** A first read still unanswered after this long is shown as a failure (with retry). */
-export const SETTINGS_READ_TIMEOUT_MS = 15000;
+const SETTINGS_READ_TIMEOUT_MS = 15000;
 
 /** Reads the confirmed document; a late read never rolls back a newer confirmation. */
 export async function loadSettings(): Promise<AppSettings> {
@@ -778,7 +764,7 @@ function scheduleRefresh() {
 }
 
 /** Handles a `settings-v3-changed` payload: coalesced re-read, stale revisions ignored. */
-export function handleSettingsChanged(payload: { revision?: unknown } | null | undefined): void {
+function handleSettingsChanged(payload: { revision?: unknown } | null | undefined): void {
   const revision = payload?.revision;
   if (!isRevision(revision)) return;
   if (confirmedRevision !== null && compareRevision(revision, confirmedRevision) < 0) return;

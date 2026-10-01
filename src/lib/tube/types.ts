@@ -87,7 +87,7 @@ export type PlaylistItem = {
   is_music: boolean;
 };
 
-export type AlbumRef = { id: string; name: string };
+type AlbumRef = { id: string; name: string };
 
 export type SongItem = {
   kind: "song";
@@ -116,7 +116,7 @@ export type AlbumItem = {
   explicit: boolean;
 };
 
-export type ArtistItem = {
+type ArtistItem = {
   kind: "artist";
   id: string;
   name: string;
@@ -136,7 +136,7 @@ export type Item = VideoItem | ShortItem | ChannelItem | PlaylistItem | SongItem
 
 export type Nav = { browse_id: string; params?: string | null };
 
-export type ShelfKind = "grid" | "row" | "shorts" | "quick_picks" | "carousel" | "list" | "moods";
+type ShelfKind = "grid" | "row" | "shorts" | "quick_picks" | "carousel" | "list" | "moods";
 
 export type Shelf = {
   id: string;
@@ -151,7 +151,7 @@ export type Shelf = {
 
 export type Chip = { label: string; token?: string | null; selected: boolean };
 
-export type PageHeader = { title: string; subtitle?: string | null; description?: string | null; thumbs: Thumb[] };
+type PageHeader = { title: string; subtitle?: string | null; description?: string | null; thumbs: Thumb[] };
 
 export type Page = {
   header?: PageHeader | null;
@@ -219,8 +219,8 @@ export type CommentsPage = {
   continuation?: string | null;
 };
 
-export type ChannelTabId = "home" | "videos" | "shorts" | "streams" | "playlists" | "podcasts" | "releases" | "community";
-export type ChannelTab = { id: ChannelTabId | string; title: string; params?: string | null; selected: boolean };
+type ChannelTabId = "home" | "videos" | "shorts" | "streams" | "playlists" | "podcasts" | "releases" | "community";
+type ChannelTab = { id: ChannelTabId | string; title: string; params?: string | null; selected: boolean };
 export type ChannelPage = { channel: ChannelItem; banner: Thumb[]; tabs: ChannelTab[]; page: Page };
 
 export type PlaylistPage = {
@@ -276,11 +276,11 @@ export type QueuePage = {
   related_browse_id?: string | null;
 };
 
-export type LyricLine = { start_ms?: number | null; text: string };
+type LyricLine = { start_ms?: number | null; text: string };
 export type Lyrics = { source: "youtube" | "lrclib" | string; synced: boolean; lines: LyricLine[]; footer?: string | null };
 
-export type FormatKind = "video" | "audio" | "muxed";
-export type ByteRange = { start: number; end: number };
+type FormatKind = "video" | "audio" | "muxed";
+type ByteRange = { start: number; end: number };
 export type Format = {
   itag: number;
   kind: FormatKind;
@@ -337,7 +337,7 @@ export type SbCategory =
   | "poi_highlight"
   | "exclusive_access"
   | "chapter";
-export type SbAction = "skip" | "mute" | "full" | "poi" | "chapter";
+type SbAction = "skip" | "mute" | "full" | "poi" | "chapter";
 export type SbSegment = {
   uuid: string;
   category: SbCategory;

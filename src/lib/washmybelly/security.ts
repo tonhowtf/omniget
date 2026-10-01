@@ -14,7 +14,7 @@ export type SecurityClass =
   | "missing"
   | "unknown";
 
-export type PersistenceKind =
+type PersistenceKind =
   | "launch_agent"
   | "launch_daemon"
   | "background_task"

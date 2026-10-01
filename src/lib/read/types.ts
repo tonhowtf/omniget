@@ -1,10 +1,10 @@
 // Shapes returned by the `read_*` Tauri commands (src-tauri/src/commands/read).
 
-export type BookFormat =
+type BookFormat =
   | "epub" | "kepub" | "mobi" | "azw3" | "fb2" | "fbz" | "pdf"
   | "cbz" | "cbr" | "cb7" | "cbt" | "txt" | "md" | "html" | "djvu" | "folder";
 
-export type ReadStatus = "unread" | "want" | "reading" | "finished" | "abandoned";
+type ReadStatus = "unread" | "want" | "reading" | "finished" | "abandoned";
 
 export type Book = {
   id: number;
@@ -173,7 +173,7 @@ export type Catalog = {
   enabled: boolean;
 };
 
-export type ShareConfig = { enabled: boolean; port: number; username: string; password: string };
+type ShareConfig = { enabled: boolean; port: number; username: string; password: string };
 
 export type ReadStatusInfo = {
   port: number;
@@ -278,5 +278,5 @@ export type ChapterOpen = {
   start_page: number;
 };
 
-export const COMIC_FORMATS: BookFormat[] = ["cbz", "cbr", "cb7", "cbt", "folder"];
+const COMIC_FORMATS: BookFormat[] = ["cbz", "cbr", "cb7", "cbt", "folder"];
 export const isComic = (b: Pick<Book, "format">) => COMIC_FORMATS.includes(b.format);

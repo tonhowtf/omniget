@@ -43,7 +43,7 @@ import { diagnoseConnectionError } from "$lib/llm/connection-setup";
 
 // ── Frame scheduler (seam: vitest runs in node, with no rAF) ────────────
 
-export type FrameScheduler = (run: () => void) => () => void;
+type FrameScheduler = (run: () => void) => () => void;
 
 function defaultScheduler(run: () => void): () => void {
   if (typeof requestAnimationFrame === "function") {
@@ -70,11 +70,6 @@ function defaultScheduler(run: () => void): () => void {
 }
 
 let scheduler: FrameScheduler = defaultScheduler;
-
-/** Test seam. `null` restores the real one. */
-export function setFrameScheduler(next: FrameScheduler | null): void {
-  scheduler = next ?? defaultScheduler;
-}
 
 // ── State ───────────────────────────────────────────────────────────────
 
@@ -168,7 +163,7 @@ export function isHistoryLoading(id: string | null): boolean { return id ? histo
 export async function retryConversationHistory(id: string): Promise<void> { await loadHistory(id); }
 
 /** Maps a backend error to an i18n key. */
-export function llmErrorKey(err: unknown): string {
+function llmErrorKey(err: unknown): string {
   const code = String(err ?? "");
   if (code.includes("ERR_LLM_BUDGET")) return "llm.err.budget";
   const diagnosis = diagnoseConnectionError(err, "api");
@@ -345,7 +340,7 @@ export function rewindConversation(id: string, userMessagesKept: number): void {
   conversation.updatedAtMs = Date.now();
 }
 
-export function deleteConversation(id: string): void {
+function deleteConversation(id: string): void {
   conversations = conversations.filter((c) => c.id !== id);
   queue = queue.filter((q) => q.conversationId !== id);
   if (id in conversationDrafts) {
@@ -390,7 +385,7 @@ export function getToolAsk(conversationId: string | null = activeConversationId)
 }
 
 /** Questions kept for turns the chat does not drive (see `heldAsks`). */
-export function getHeldAsks(): ToolAsk[] {
+function getHeldAsks(): ToolAsk[] {
   const now = Date.now();
   return heldAsks.filter((a) => now - a.receivedMs < HELD_ASK_TTL_MS);
 }
@@ -406,7 +401,7 @@ function conversationAsk(conversationId: string): ToolAsk | null {
 }
 
 /** Entry point for `llm://tool-ask`; exported so tests can feed it. */
-export function handleToolAsk(ask: ToolAsk): void {
+function handleToolAsk(ask: ToolAsk): void {
   if (turn && turn.requestId === ask.request_id) {
     toolAsk = ask;
     return;
@@ -421,23 +416,9 @@ export function handleToolAsk(ask: ToolAsk): void {
 }
 
 /** Someone answered a question (here, the pet, Activity, Missions): drop it everywhere. */
-export function handleToolResolved(toolCallId: string): void {
+function handleToolResolved(toolCallId: string): void {
   heldAsks = heldAsks.filter((a) => a.tool_call_id !== toolCallId);
   if (toolAsk?.tool_call_id === toolCallId) toolAsk = null;
-}
-
-export function isTurnRunning(): boolean {
-  return turn !== null;
-}
-
-/** Events waiting for the next frame. 0 at rest. */
-export function pendingEventCount(): number {
-  return pending.length;
-}
-
-/** 1 while a frame is scheduled, 0 at rest. The budget says 0 with no turn. */
-export function scheduledFrameCount(): number {
-  return frameCancel ? 1 : 0;
 }
 
 function enqueue(event: TurnEvent): void {
@@ -446,7 +427,7 @@ function enqueue(event: TurnEvent): void {
 }
 
 /** Drains the buffer in arrival order. Exported so tests can step the clock. */
-export function flushPending(): void {
+function flushPending(): void {
   frameCancel = null;
   if (pending.length === 0) return;
   const batch = pending;
@@ -455,7 +436,7 @@ export function flushPending(): void {
 }
 
 /** Entry point for both the Tauri event and the fake turn. */
-export function handleTurnEvent(requestId: string, event: TurnEvent): void {
+function handleTurnEvent(requestId: string, event: TurnEvent): void {
   if (!turn || turn.requestId !== requestId) return;
   enqueue(event);
 }
@@ -781,39 +762,6 @@ export async function answerTool(toolCallId: string, allow: boolean, always = fa
   if (toolAsk?.tool_call_id === toolCallId) toolAsk = null;
 }
 
-/** Test seam: drops every bit of state and every resource. */
-export function resetLlmStore(): void {
-  stopTurn();
-  startingRequestId = null;
-  agents = [];
-  rosterAvailable = true;
-  conversationsError = null;
-  conversations = [];
-  activeConversationId = null;
-  conversationDrafts = {};
-  submittedDrafts = {};
-  rosterLoadError = null;
-  conversationListLoadError = null;
-  historyLoadErrors = {};
-  historyLoading = {};
-  toolAsk = null;
-  heldAsks = [];
-  errorKey = null;
-  lastAsk = null;
-  queue = [];
-  outcomes = {};
-  runUpdates = {};
-  rooms = [];
-  roomLive = {};
-  roomActivity = {};
-  draining = false;
-  if (roomUnlisten) roomUnlisten();
-  roomUnlisten = null;
-  rosterLoadedOnce = false;
-  rosterInFlight = null;
-  idCounter = 0;
-}
-
 // ── Saved chats (backend JSONL, lazily loaded) ──────────────────────────
 
 interface ConversationInfoWire {
@@ -887,7 +835,7 @@ function partsText(parts: ContentPart[]): string {
 }
 
 /** Backend `Message`s → bubbles. Tool results fold into the call before them. */
-export function historyToChat(messages: Message[], prefix: string): ChatMessage[] {
+function historyToChat(messages: Message[], prefix: string): ChatMessage[] {
   const out: ChatMessage[] = [];
   messages.forEach((message, i) => {
     if (message.role === "system" || message.role === "tool") return;
@@ -934,7 +882,7 @@ export function getQueue(conversationId?: string | null): QueuedMessage[] {
   return conversationId ? queue.filter((q) => q.conversationId === conversationId) : queue;
 }
 
-export function enqueueMessage(conversationId: string, text: string): QueuedMessage {
+function enqueueMessage(conversationId: string, text: string): QueuedMessage {
   const item: QueuedMessage = { id: nextId("queued"), conversationId, text, state: "waiting" };
   queue = [...queue, item];
   return item;
@@ -960,7 +908,7 @@ function scheduleDrain(): void {
 }
 
 /** Sends the oldest waiting message once no turn is running. Exported for tests. */
-export async function drainQueue(): Promise<void> {
+async function drainQueue(): Promise<void> {
   if (draining || turn || startingRequestId) return;
   const next = queue.find((q) => q.state === "waiting");
   if (!next) return;
@@ -985,7 +933,7 @@ export async function drainQueue(): Promise<void> {
 // ── Status of the work (composer) ───────────────────────────────────────
 
 /** Entry point of `assist://run`; exported so tests can feed it. */
-export function handleRunUpdate(update: RunUpdate): void {
+function handleRunUpdate(update: RunUpdate): void {
   const conversationId = update.conversation_id;
   runUpdates = { ...runUpdates, [conversationId]: update };
   const terminal: Partial<Record<RunUpdate["state"], TurnStatus>> = {
@@ -1087,7 +1035,7 @@ export function getRooms(): Room[] {
   return rooms;
 }
 
-export function getRoom(id: string | null | undefined): Room | null {
+function getRoom(id: string | null | undefined): Room | null {
   if (!id) return null;
   return rooms.find((r) => r.id === id) ?? null;
 }
@@ -1145,7 +1093,7 @@ export async function loadRooms(): Promise<void> {
   }
 }
 
-export function roomMessageToChat(m: RoomMessageWire): ChatMessage {
+function roomMessageToChat(m: RoomMessageWire): ChatMessage {
   return {
     id: m.id,
     role: m.author === "user" ? "user" : "assistant",
@@ -1163,7 +1111,7 @@ export function roomMessageToChat(m: RoomMessageWire): ChatMessage {
   };
 }
 
-export async function loadRoom(id: string): Promise<void> {
+async function loadRoom(id: string): Promise<void> {
   try {
     const answer = await invoke<{
       room: Room;
@@ -1251,7 +1199,7 @@ export async function deleteRoom(id: string): Promise<boolean> {
  * member only; none → coordinator or default bot); here the message shows
  * at once and is rolled back if the backend refused it, so the draft stays.
  */
-export async function sendRoomMessage(roomId: string, text: string): Promise<boolean> {
+async function sendRoomMessage(roomId: string, text: string): Promise<boolean> {
   const conversation = conversations.find((c) => c.id === roomId);
   if (!conversation) return false;
   const optimisticId = nextId("msg");
@@ -1318,7 +1266,7 @@ export async function cancelRoom(roomId: string): Promise<boolean> {
 }
 
 /** A streaming event of a room member's turn; exported for tests. */
-export function handleRoomTurnEvent(requestId: string, event: TurnEvent): void {
+function handleRoomTurnEvent(requestId: string, event: TurnEvent): void {
   const live = roomLive[requestId];
   if (!live) return;
   if (event.type === "text_delta") {
@@ -1330,7 +1278,7 @@ export function handleRoomTurnEvent(requestId: string, event: TurnEvent): void {
 }
 
 /** `assist://group` payload; exported for tests. */
-export function handleRoomEvent(payload: { room_id?: string; kind?: string }): void {
+function handleRoomEvent(payload: { room_id?: string; kind?: string }): void {
   const id = payload?.room_id;
   if (!id) return;
   if (payload.kind === "deleted") {

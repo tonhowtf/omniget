@@ -674,7 +674,7 @@ pub async fn read_annotations(book_id: Option<i64>) -> Result<Vec<Annotation>, S
 }
 
 #[tauri::command]
-pub async fn read_annotation_save(app: AppHandle, a: Annotation) -> Result<Annotation, String> {
+pub async fn read_annotation_save(_app: AppHandle, a: Annotation) -> Result<Annotation, String> {
     let saved = blocking(move || {
         let now = db::now_ms();
         let id = db::with(|c| {
@@ -708,13 +708,12 @@ pub async fn read_annotation_save(app: AppHandle, a: Annotation) -> Result<Annot
         Ok(row)
     })
     .await?;
-    let _ = app.emit("read-annotations-changed", saved.book_id);
     Ok(saved)
 }
 
 #[tauri::command]
-pub async fn read_annotation_delete(app: AppHandle, id: i64) -> Result<(), String> {
-    let book = blocking(move || {
+pub async fn read_annotation_delete(_app: AppHandle, id: i64) -> Result<(), String> {
+    let _book = blocking(move || {
         let book: Option<i64> = db::with(|c| {
             c.query_row("SELECT book_id FROM annotations WHERE id = ?1", [id], |r| {
                 r.get(0)
@@ -728,7 +727,6 @@ pub async fn read_annotation_delete(app: AppHandle, id: i64) -> Result<(), Strin
         Ok(book)
     })
     .await?;
-    let _ = app.emit("read-annotations-changed", book);
     Ok(())
 }
 

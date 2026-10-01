@@ -6,11 +6,11 @@
  */
 
 /** Below this share of the window gone, a forecast is noise. */
-export const MIN_SHOWN = 0.03;
+const MIN_SHOWN = 0.03;
 /** Within this much of the tick, the window reads as "on pace". */
-export const ON_PACE = 0.03;
+const ON_PACE = 0.03;
 
-export type Pace = {
+type Pace = {
   /** Share of the window's time gone, 0..1: where the "on pace" tick sits. */
   expected: number;
   /** `used - expected`: positive = ahead of pace (spending too fast). */
@@ -20,7 +20,7 @@ export type Pace = {
 };
 
 /** What a window needs for a pace; `LimitWindow` fits. */
-export type Paced = { used: number | null; resets_at: number | null; span_ms?: number | null };
+type Paced = { used: number | null; resets_at: number | null; span_ms?: number | null };
 
 /**
  * Share of the window's time already gone, 0..1, when the reset and the

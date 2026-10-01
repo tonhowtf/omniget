@@ -6,14 +6,14 @@
 
 import { pointAtLength, arcLengths } from '../spatial/geometry';
 
-export const MAX_ENVELOPES = 16;
-export const ENVELOPE_SPEED = 230;
-export const MIN_FLIGHT_S = 0.8;
-export const MAX_FLIGHT_S = 2.0;
-export const ARRIVAL_S = 0.34;
+const MAX_ENVELOPES = 16;
+const ENVELOPE_SPEED = 230;
+const MIN_FLIGHT_S = 0.8;
+const MAX_FLIGHT_S = 2.0;
+const ARRIVAL_S = 0.34;
 
 /** Speech-act colours (0xRRGGBB). */
-export const KIND_COLORS: Record<string, number> = {
+const KIND_COLORS: Record<string, number> = {
   ask: 0x6cb8e6,
   request: 0x6cb8e6,
   query: 0xb48ee0,
@@ -40,7 +40,7 @@ export function kindColor(kind: string): number {
   return KIND_COLORS[kind] ?? 0xf3e9d2;
 }
 
-export interface Envelope {
+interface Envelope {
   id: string;
   kind: string;
   color: number;
@@ -54,7 +54,7 @@ export interface Envelope {
   toNode: string;
 }
 
-export interface EnvelopeFrame {
+interface EnvelopeFrame {
   x: number;
   y: number;
   angle: number;

@@ -114,7 +114,7 @@ const ALIASES: Record<string, string> = {
   cpp: "c", scss: "css", xml: "html", markdown: "", ini: "toml", powershell: "bash", dockerfile: "bash", makefile: "bash",
 };
 
-export function langFor(language: string): Lang | null {
+function langFor(language: string): Lang | null {
   const key = ALIASES[language] ?? language;
   return LANGS[key] ?? null;
 }

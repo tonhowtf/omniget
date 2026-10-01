@@ -5,7 +5,7 @@
 
 import type { Chip } from "./ui-state.svelte";
 
-export type TriggerKind = "command" | "skill" | "file" | "pr";
+type TriggerKind = "command" | "skill" | "file" | "pr";
 export type Trigger = { kind: TriggerKind; query: string; start: number; end: number };
 
 /** Looks only at the token before the caret (T3 `detectComposerTrigger`). */
@@ -96,7 +96,7 @@ export function attachmentsOf(chips: Chip[]): { kind: "file"; name: string; path
   return chips.filter((c) => c.kind === "attachment" && c.path).map((c) => ({ kind: "file" as const, name: c.label, path: c.path! }));
 }
 
-export type SlashCommand = { name: string; descKey: string; only?: "empty" };
+type SlashCommand = { name: string; descKey: string; only?: "empty" };
 
 /** Built-in commands handled by the UI (never sent to the driver). */
 export const BUILTIN_COMMANDS: SlashCommand[] = [

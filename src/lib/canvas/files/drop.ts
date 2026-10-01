@@ -44,7 +44,7 @@ export function attachFileDrop(engine: CanvasEngine, root: HTMLElement): () => v
   };
 }
 
-export async function dropPaths(engine: CanvasEngine, paths: string[], at: { x: number; y: number }): Promise<void> {
+async function dropPaths(engine: CanvasEngine, paths: string[], at: { x: number; y: number }): Promise<void> {
   const dirs = await invoke<boolean[]>('canvas_files_kind', { paths }).catch(() => paths.map(() => false));
   const ids: string[] = [];
   paths.forEach((path, i) => {

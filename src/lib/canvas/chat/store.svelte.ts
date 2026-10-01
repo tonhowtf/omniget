@@ -18,7 +18,7 @@ import {
 } from './client';
 
 /** A request to show one entry (palette chat search): ChatFace scrolls it to the centre and marks `term`. */
-export interface ChatFocusRequest {
+interface ChatFocusRequest {
   thread: number;
   entryId?: string;
   term?: string;
@@ -26,7 +26,7 @@ export interface ChatFocusRequest {
 }
 import type { UnlistenFn } from '@tauri-apps/api/event';
 
-export class NodeChat {
+class NodeChat {
   readonly nodeId: string;
   workspaceId = $state('');
   thread = $state(0);

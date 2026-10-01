@@ -9,7 +9,7 @@ import { listen } from '@tauri-apps/api/event';
 import { getSettings, loadSettings } from '$lib/stores/settings-store.svelte';
 import type { AgentKind } from './model/types';
 
-export const CANVAS_SETTINGS_EVENT = 'canvas://settings';
+const CANVAS_SETTINGS_EVENT = 'canvas://settings';
 export const GRID = 20;
 
 export interface AgentPreset {
@@ -59,7 +59,7 @@ export interface CanvasPrefs {
   skills?: { roots: Record<string, string> };
 }
 
-export const CANVAS_PREFS_DEFAULTS: CanvasPrefs = {
+const CANVAS_PREFS_DEFAULTS: CanvasPrefs = {
   background: 'grid',
   zoom_step: 0.1,
   zoom_modifier: 'alt',
@@ -115,7 +115,7 @@ export function canvasPrefs(): CanvasPrefs {
 }
 
 /** `"340x220"` → `{w, h}` snapped to the grid; empty/invalid → null. */
-export function parseSize(s: string | undefined | null): { w: number; h: number } | null {
+function parseSize(s: string | undefined | null): { w: number; h: number } | null {
   const m = /^\s*(\d+(?:\.\d+)?)\s*[x×X]\s*(\d+(?:\.\d+)?)\s*$/.exec(s ?? '');
   if (!m) return null;
   const snap = (v: number) => Math.max(1, Math.round(v / GRID)) * GRID;

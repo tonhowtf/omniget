@@ -1,5 +1,5 @@
 export const CDRAGON = "https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1";
-export const RAW_CDRAGON = "https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default";
+const RAW_CDRAGON = "https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default";
 
 // The client returns icon paths rooted at /lol-game-data/assets; the public
 // mirror serves the same files lowercased under its own prefix.

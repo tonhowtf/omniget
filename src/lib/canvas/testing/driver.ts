@@ -19,7 +19,7 @@ import { describe, findPath, menus } from '../menu/model';
 
 type Args = Record<string, unknown>;
 
-export interface CanvasDriver {
+interface CanvasDriver {
   run(op: string, args: Args): Promise<unknown>;
   nodeRect(id: string): { x: number; y: number; w: number; h: number } | null;
 }

@@ -9,7 +9,7 @@
 // Colours are CSS custom properties with fallbacks (`var(--text, #222)`) so
 // the diagram follows the theme; `resolveVars` bakes them for Copy as Image.
 
-export type MermaidKind = 'flowchart' | 'sequence' | 'pie';
+type MermaidKind = 'flowchart' | 'sequence' | 'pie';
 
 export interface Rendered {
   kind: MermaidKind;
@@ -41,7 +41,7 @@ export function esc(s: string): string {
 }
 
 /** Rough text width at FONT px (no DOM needed; CJK counts double). */
-export function textWidth(s: string, size = FONT): number {
+function textWidth(s: string, size = FONT): number {
   let w = 0;
   for (const ch of s) {
     const code = ch.codePointAt(0) ?? 0;
@@ -279,13 +279,13 @@ function parseGroup(c: Cursor, nodes: Map<string, FNode>, counter: { n: number }
   return ids;
 }
 
-export interface FlowGraph {
+interface FlowGraph {
   dir: 'TB' | 'BT' | 'LR' | 'RL';
   nodes: Map<string, FNode>;
   edges: FEdge[];
 }
 
-export function parseFlowchart(src: string): FlowGraph {
+function parseFlowchart(src: string): FlowGraph {
   const lines = cleanLines(src);
   const head = /^(?:graph|flowchart)\s*(TB|TD|BT|LR|RL)?\s*;?\s*(.*)$/i.exec(lines[0] ?? '');
   const d = (head?.[1] ?? 'TB').toUpperCase();
@@ -357,7 +357,7 @@ function sizeNode(n: FNode) {
 }
 
 /** Longest-path ranks with back edges (cycles) ignored; barycenter ordering. */
-export function layoutFlow(g: FlowGraph) {
+function layoutFlow(g: FlowGraph) {
   const nodes = [...g.nodes.values()].sort((a, b) => a.seen - b.seen);
   nodes.forEach(sizeNode);
   const out = new Map<string, string[]>();
@@ -621,7 +621,7 @@ type SStep =
   | { t: 'else'; label: string }
   | { t: 'close' };
 
-export function parseSequence(src: string): { parts: SPart[]; steps: SStep[]; title: string } {
+function parseSequence(src: string): { parts: SPart[]; steps: SStep[]; title: string } {
   const lines = cleanLines(src).slice(1);
   const parts: SPart[] = [];
   const byId = new Map<string, SPart>();
@@ -804,7 +804,7 @@ function byIdX(parts: SPart[], id: string): number {
 // ---------------------------------------------------------------------------
 // Pie
 
-export function parsePie(src: string): { title: string; showData: boolean; slices: { label: string; value: number }[] } {
+function parsePie(src: string): { title: string; showData: boolean; slices: { label: string; value: number }[] } {
   const lines = cleanLines(src);
   const head = /^pie\b\s*(showData)?\s*(?:title\s+(.*))?$/i.exec(lines[0] ?? '');
   let title = head?.[2] ?? '';

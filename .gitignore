@@ -283,3 +283,7 @@ skills-lock.json
 
 # Local release output (scripts/release-local.mjs)
 /dist-release/
+
+# Copied from chrome/ by `pnpm extension:sync`; only the Firefox manifest is versioned
+/browser-extension/firefox/*
+!/browser-extension/firefox/manifest.json

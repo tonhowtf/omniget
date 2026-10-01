@@ -6,7 +6,7 @@ import { invoke } from '@tauri-apps/api/core';
 export const EVENT_FLOOR_PROGRESS = 'canvas://floor-progress';
 export const EVENT_FLOORS = 'canvas://floors';
 
-export type FloorMode = 'clone' | 'worktree' | 'plain';
+type FloorMode = 'clone' | 'worktree' | 'plain';
 export type HookKind = 'setup' | 'run' | 'teardown';
 
 export interface FloorView {
@@ -28,7 +28,7 @@ export interface FloorView {
   missing: boolean;
 }
 
-export interface CreateFloorInput {
+interface CreateFloorInput {
   name: string;
   branch?: string;
   existingBranch?: boolean;
@@ -39,7 +39,7 @@ export interface CreateFloorInput {
   runSetup?: boolean;
 }
 
-export interface HookCommand {
+interface HookCommand {
   id: string;
   command: string;
   name?: string;
@@ -63,7 +63,7 @@ export interface HookRun {
   durationMs: number;
 }
 
-export interface CreateResult {
+interface CreateResult {
   floor: FloorView;
   setup: HookRun[];
   warnings?: string[];
@@ -77,7 +77,7 @@ export interface FloorProgress {
   message?: string;
 }
 
-export interface FileStat {
+interface FileStat {
   path: string;
   added: number | null;
   deleted: number | null;
@@ -100,7 +100,7 @@ export interface LandPreview {
   blocker?: string;
 }
 
-export interface LandOptions {
+interface LandOptions {
   into?: string;
   deleteBranch?: boolean;
   keepFloor?: boolean;
@@ -117,19 +117,19 @@ export interface LandOutcome {
   teardown?: HookRun[];
 }
 
-export interface DiscardOptions {
+interface DiscardOptions {
   keepBranch?: boolean;
   force?: boolean;
 }
 
-export interface DiscardOutcome {
+interface DiscardOutcome {
   removed: boolean;
   branchKept?: string;
   branchDeleted?: string;
   teardown?: HookRun[];
 }
 
-export type EnvKind = 'local' | 'tmux' | 'ssh' | 'docker' | 'sandbox' | 'custom' | 'wsl';
+type EnvKind = 'local' | 'tmux' | 'ssh' | 'docker' | 'sandbox' | 'custom' | 'wsl';
 
 export interface EnvRecord {
   kind: EnvKind;
@@ -143,13 +143,13 @@ export interface EnvRecord {
   persistent?: boolean;
 }
 
-export interface EnvCheck {
+interface EnvCheck {
   name: string;
   ok: boolean;
   detail?: string;
 }
 
-export interface EnvTest {
+interface EnvTest {
   ok: boolean;
   output: string;
   checks?: EnvCheck[];
@@ -205,7 +205,7 @@ export interface SshHost {
 /** Hosts of `~/.ssh/config` for the SSH picker. */
 export const sshHosts = () => invoke<SshHost[]>('canvas_env_ssh_hosts');
 
-export interface EnvFiles {
+interface EnvFiles {
   remote: boolean;
   env?: string;
   root?: string;
@@ -218,12 +218,6 @@ export const envFiles = (nodeId: string, dir: string | null, query: string) =>
 
 /** Local files for a terminal: copied to `/tmp/omniget-drops/` on a remote one; the paths to type. */
 export const envDrop = (nodeId: string, paths: string[]) => invoke<string[]>('canvas_env_drop', { nodeId, paths });
-
-export interface SpawnContext {
-  command: string[];
-  cwd: string | null;
-  env: Record<string, string>;
-}
 
 export const listFloors = (workspaceId: string) => invoke<FloorView[]>('canvas_floor_list', { workspaceId });
 
@@ -246,21 +240,6 @@ export const getHooks = (workspaceId: string) => invoke<FloorHooks>('canvas_floo
 
 export const setHooks = (workspaceId: string, hooks: FloorHooks) =>
   invoke<FloorHooks>('canvas_floor_hooks_set', { workspaceId, hooks });
-
-export const updateFloor = (workspaceId: string, floorId: string, name?: string, color?: string | null) =>
-  invoke<void>('canvas_floor_update', { workspaceId, floorId, name: name ?? null, color });
-
-export const fetchFromGround = (workspaceId: string, floorId: string, branch: string) =>
-  invoke<string>('canvas_floor_fetch', { workspaceId, floorId, branch });
-
-/** Call before `term_open` for a terminal on a floor or in a remote workspace. */
-export const spawnContext = (
-  workspaceId: string,
-  floorId: string,
-  cwd: string | undefined,
-  command: string[],
-  env: Record<string, string>,
-) => invoke<SpawnContext>('canvas_floor_spawn_context', { workspaceId, floorId, cwd: cwd ?? null, command, env });
 
 export const getEnv = (workspaceId: string) => invoke<EnvRecord>('canvas_env_get', { workspaceId });
 export const setEnv = (workspaceId: string, env: EnvRecord) => invoke<EnvRecord>('canvas_env_set', { workspaceId, env });

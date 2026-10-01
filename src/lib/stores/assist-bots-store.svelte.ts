@@ -14,7 +14,7 @@ export type Capability = "memory" | "web" | "reading" | "project_code" | "delega
 export const CAPABILITIES: Capability[] = ["memory", "web", "reading", "project_code", "delegate"];
 export type MemoryPolicy = "remember" | "ask" | "read_only";
 
-export interface BotProfile {
+interface BotProfile {
   bot_id: string;
   purpose: string;
   instructions: string;
@@ -45,9 +45,9 @@ export interface Fix {
   target?: string;
 }
 
-export type CapState = "available" | "partial" | "missing" | "not_requested";
+type CapState = "available" | "partial" | "missing" | "not_requested";
 
-export interface CapabilityStatus {
+interface CapabilityStatus {
   id: Capability;
   requested: boolean;
   state: CapState;
@@ -58,7 +58,7 @@ export interface CapabilityStatus {
   fix?: Fix;
 }
 
-export type BindingState =
+type BindingState =
   | "ready"
   | "drift"
   | "removed"
@@ -68,7 +68,7 @@ export type BindingState =
   | "runtime_unsupported"
   | "not_projected";
 
-export interface DepStatus {
+interface DepStatus {
   raw: string;
   kind: string;
   satisfied: boolean | null;
@@ -121,7 +121,7 @@ export interface SkillRead {
   at: number;
 }
 
-export interface NewBot {
+interface NewBot {
   name: string;
   purpose: string;
   instructions: string;
@@ -154,11 +154,6 @@ export function validateNewBot(bot: NewBot): string | null {
   if (!bot.connection_agent_id) return "assist.bots.create.err_connection";
   if (bot.purpose.length > 2000) return "assist.bots.create.err_purpose_long";
   return null;
-}
-
-/** Only the capability the bot asked for AND the backend reports as offered counts. */
-export function isReallyAvailable(status: CapabilityStatus | undefined): boolean {
-  return !!status && (status.state === "available" || status.state === "partial");
 }
 
 export function capStateKey(s: CapabilityStatus): string {
@@ -203,7 +198,7 @@ export function bindingTone(state: BindingState): "good" | "warn" | "bad" {
   return "warn";
 }
 
-export type FixKind = "command" | "route" | "local";
+type FixKind = "command" | "route" | "local";
 
 /** What a fix button does: run a command here, open a page, or change a local toggle. */
 export function fixPlan(fix: Fix): { kind: FixKind; labelKey: string; route?: string } {

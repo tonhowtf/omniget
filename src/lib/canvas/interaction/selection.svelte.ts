@@ -5,7 +5,7 @@
 
 import { emit } from '@tauri-apps/api/event';
 
-export const SELECTION_EVENT = 'canvas://selection';
+const SELECTION_EVENT = 'canvas://selection';
 
 export class Selection {
   /** Node and drawing ids (UUIDs never collide across kinds). */

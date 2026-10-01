@@ -2,9 +2,9 @@
 // 80 ms of samples, decay v·e^(−t/325 ms), stop below 10 px/s. Never added to
 // wheel/trackpad scrolling, which already carries the system momentum.
 
-export const VELOCITY_WINDOW_MS = 80;
-export const DECAY_MS = 325;
-export const STOP_SPEED = 10;
+const VELOCITY_WINDOW_MS = 80;
+const DECAY_MS = 325;
+const STOP_SPEED = 10;
 
 export class VelocityTracker {
   private samples: Array<{ x: number; y: number; t: number }> = [];

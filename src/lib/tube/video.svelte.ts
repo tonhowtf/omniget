@@ -44,7 +44,7 @@ import type { Caption, ChannelRef, Format, SbSegment, StreamSet, VideoItem, Watc
 
 export type PlayMode = "dash" | "direct" | "muxed" | "hls";
 
-export type SbToast = { seg: SbSegment; undone: boolean; left: number; hold: boolean };
+type SbToast = { seg: SbSegment; undone: boolean; left: number; hold: boolean };
 
 export const vplayer = $state({
   /** Why each playback mode failed for the current video, newest last (diagnostics). */
@@ -269,7 +269,7 @@ export function closeMini(): void {
 }
 
 /** Unload everything. */
-export function stopVideo() {
+function stopVideo() {
   report();
   loadSeq++;
   teardown();
@@ -1112,7 +1112,7 @@ export function hasPrev(): boolean {
   return !!pl && pl.items.findIndex((x) => x.id === vplayer.videoId) > 0;
 }
 
-export function setTheater(on: boolean) {
+function setTheater(on: boolean) {
   vplayer.theater = on;
   persist();
 }
@@ -1189,7 +1189,7 @@ function channelOf(): ChannelRef | null {
   return a ? { id: "", name: a } : null;
 }
 
-export function thumbOf(w = 320): string {
+function thumbOf(w = 320): string {
   const s = vplayer.streams;
   const t = s ? thumbUrl(s.thumbs, w) : "";
   return t || (vplayer.videoId ? videoThumb(vplayer.videoId) : "");

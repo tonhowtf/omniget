@@ -7,7 +7,7 @@
  * an `$effect` and return the cleanup so the toolbar empties on navigation.
  */
 
-export type ToolbarSegment = {
+type ToolbarSegment = {
   id: string;
   label: string;
   count?: number;
@@ -28,7 +28,7 @@ export type ToolbarAction = {
   showLabel?: boolean;
 };
 
-export type ToolbarState = {
+type ToolbarState = {
   segments?: ToolbarSegment[];
   activeSegment?: string;
   onSegment?: (id: string) => void;
@@ -53,7 +53,7 @@ export function setToolbar(next: ToolbarState): () => void {
   };
 }
 
-export function clearToolbar(): void {
+function clearToolbar(): void {
   owner = null;
   state = {};
 }

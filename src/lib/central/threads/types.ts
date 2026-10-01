@@ -6,19 +6,13 @@
 import type { PrInfo, SetupSnapshot } from "$lib/central/vcs";
 
 export type AccessMode = "approval-required" | "auto-accept-edits" | "auto" | "full-access";
-export type InteractionMode = "default" | "plan";
+type InteractionMode = "default" | "plan";
 export type ApprovalDecision = "accept" | "acceptForSession" | "acceptAlways" | "decline" | "cancel";
-export type SessionState = "starting" | "ready" | "running" | "waiting" | "stopped" | "error";
+type SessionState = "starting" | "ready" | "running" | "waiting" | "stopped" | "error";
 export type ThreadStatus = "approval" | "input" | "running" | "error" | "idle";
 export type TurnState = "pending" | "running" | "completed" | "failed" | "interrupted" | "cancelled";
 
-export type ItemType =
-  | "user_message" | "assistant_message" | "reasoning" | "plan" | "command_execution"
-  | "file_change" | "mcp_tool_call" | "dynamic_tool_call" | "collab_agent_tool_call"
-  | "web_search" | "image_view" | "review_entered" | "review_exited" | "context_compaction"
-  | "error" | "unknown";
-
-export type RequestType =
+type RequestType =
   | "command_execution_approval" | "file_read_approval" | "file_change_approval"
   | "apply_patch_approval" | "exec_command_approval" | "mcp_elicitation_approval"
   | "permission_approval" | "tool_user_input" | "dynamic_tool_call" | "auth_tokens_refresh"
@@ -39,7 +33,7 @@ export type TokenUsage = {
   usageStatus?: string;
 };
 
-export type RequestDetail = {
+type RequestDetail = {
   toolName?: string;
   command?: string;
   cwd?: string;
@@ -51,9 +45,9 @@ export type RequestDetail = {
   input?: unknown;
 };
 
-export type ApprovalOption = { id: string; label: string; decision?: ApprovalDecision };
+type ApprovalOption = { id: string; label: string; decision?: ApprovalDecision };
 
-export type UserInputQuestion = {
+type UserInputQuestion = {
   id: string;
   header: string;
   question: string;
@@ -62,7 +56,7 @@ export type UserInputQuestion = {
   multiSelect: boolean;
 };
 
-export type PlanStep = { step: string; status: string };
+type PlanStep = { step: string; status: string };
 
 // ── Read side (projections) ──────────────────────────────────────────────
 
@@ -75,10 +69,10 @@ export type ProjectRow = {
 };
 
 /** `pending|preparing|ready|failed|removed` (absent = the thread has no worktree). */
-export type WorktreeState = "pending" | "preparing" | "ready" | "failed" | "removed";
+type WorktreeState = "pending" | "preparing" | "ready" | "failed" | "removed";
 
 /** A read-only thread mirroring a session of a CLI run outside OmniGet. */
-export type ExternalLink = {
+type ExternalLink = {
   tool: string;
   sessionId: string;
   source?: string | null;
@@ -124,7 +118,7 @@ export type ThreadRow = {
   status: ThreadStatus;
 };
 
-export type TurnRow = {
+type TurnRow = {
   turnId: string;
   threadId: string;
   ordinal: number;
@@ -215,7 +209,7 @@ export type UsageRow = {
 };
 
 /** One file of a turn's numstat. */
-export type CheckpointFile = {
+type CheckpointFile = {
   path: string;
   status: "added" | "deleted" | "modified" | "renamed" | "binary";
   additions: number;
@@ -250,7 +244,7 @@ export type RevertOutcome = {
 
 export type CommitMessage = { subject: string; body: string; source: "model" | "heuristic"; files: number };
 
-export type LimitWindowView = {
+type LimitWindowView = {
   id: string;
   label: string;
   usedPercent: number | null;
@@ -281,7 +275,7 @@ export type ExternalImport = {
 /** `mcp_thread_get`: the embedded OmniGet MCP of one thread. */
 export type McpThreadState = { threadId: string; enabled: boolean; sessions: number; calls: number };
 
-export type ProviderSessionRow = {
+type ProviderSessionRow = {
   threadId: string;
   instanceId: string;
   driver: string;
@@ -336,7 +330,7 @@ export type Activity = {
 };
 
 /** Persisted domain events: `{type, payload}`. */
-export type DomainEvent =
+type DomainEvent =
   | { type: "project.created"; payload: { projectId: string; title: string; workspaceRoot: string; createdAt: string } }
   | { type: "project.meta-updated"; payload: { projectId: string; title?: string | null; workspaceRoot?: string | null; updatedAt: string } }
   | { type: "project.deleted"; payload: { projectId: string; deletedAt: string } }
@@ -516,7 +510,7 @@ export type ThreadCommand =
 
 // ── Drivers ──────────────────────────────────────────────────────────────
 
-export type DriverCapabilities = {
+type DriverCapabilities = {
   rollback: boolean;
   fork: boolean;
   interrupt: boolean;
@@ -530,7 +524,7 @@ export type DriverCapabilities = {
   rateLimits: boolean;
 };
 
-export type DriverInstance = {
+type DriverInstance = {
   id: string;
   driver: string;
   label: string;

@@ -6,7 +6,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { InstallPlan } from "$lib/central/catalog";
 
-export type RunnerKind = "agent" | "account" | "acp" | "tool";
+type RunnerKind = "agent" | "account" | "acp" | "tool";
 
 export interface RunnerSpec {
   kind: RunnerKind;
@@ -91,7 +91,7 @@ export interface PlaybookStep {
   prompt: string;
 }
 
-export interface Playbook {
+interface Playbook {
   name: string;
   description: string;
   source?: string | null;
@@ -123,12 +123,12 @@ export interface PlaybookRun {
   error: string | null;
 }
 
-export interface Detected {
+interface Detected {
   id: string;
   evidence: string;
 }
 
-export interface StackReport {
+interface StackReport {
   root: string;
   languages: Detected[];
   frameworks: Detected[];
@@ -178,7 +178,7 @@ export const runLoopPrepare = (a: {
   scope?: string | null;
 }) => invoke<{ loop: LoopPlan; plan: InstallPlan | null }>("run_loop_prepare", a);
 
-export interface LoopStart {
+interface LoopStart {
   runner: RunnerSpec;
   name: string;
   prompt: string;

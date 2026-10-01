@@ -6,11 +6,11 @@
 import { listen } from '@tauri-apps/api/event';
 import { loadTranslations, locale } from '$lib/i18n';
 
-export const EVENT_LANGUAGE = 'app://language';
+const EVENT_LANGUAGE = 'app://language';
 
 let started = false;
 
-export async function applyLanguage(language: string): Promise<void> {
+async function applyLanguage(language: string): Promise<void> {
   const lang = language.trim();
   if (!lang) return;
   try {
@@ -21,7 +21,7 @@ export async function applyLanguage(language: string): Promise<void> {
   locale.set(lang);
 }
 
-export function followAppLanguage(): void {
+function followAppLanguage(): void {
   if (started || typeof window === 'undefined') return;
   started = true;
   void listen<{ language?: string }>(EVENT_LANGUAGE, (e) => {

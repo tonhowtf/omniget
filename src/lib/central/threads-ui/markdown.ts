@@ -6,7 +6,7 @@
 import { escapeHtml, renderSafeMarkdownSync } from "$lib/llm/markdown";
 
 /** Index where the still-growing tail starts (0 = everything is tail). */
-export function stableSplit(text: string): number {
+function stableSplit(text: string): number {
   let inFence = false;
   let fenceMark = "";
   let lastBoundary = 0;
@@ -42,7 +42,7 @@ export function looksLikePath(s: string): boolean {
 }
 
 /** Marks path-like `<code>` as file chips (data-path) — runs on sanitised HTML. */
-export function linkFileChips(html: string): string {
+function linkFileChips(html: string): string {
   return html.replace(/<code>([^<]{1,240})<\/code>/g, (whole, inner: string) => {
     const raw = inner.replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"');
     if (!looksLikePath(raw)) return whole;

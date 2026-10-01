@@ -66,7 +66,7 @@ const CATEGORY_COLOR: Record<string, string> = {
   privacy: "var(--danger, #ff453a)",
 };
 
-export function categoryColor(id: string): string {
+function categoryColor(id: string): string {
   return CATEGORY_COLOR[id] ?? "#98989d";
 }
 
@@ -85,7 +85,7 @@ function orderOf(id: string): number {
 }
 
 /// Why an item is left unticked, in words the screen can translate.
-export type RunningReason =
+type RunningReason =
   | { kind: "in_use"; who: string }
   | { kind: "close"; app: string }
   | { kind: "lock" };
@@ -115,7 +115,7 @@ const APP_NAMES: Record<string, string> = {
   explorer: "Explorer",
 };
 
-export function prettyApp(name: string): string {
+function prettyApp(name: string): string {
   const known = APP_NAMES[name.toLowerCase()];
   if (known) return known;
   return name.length ? name[0].toUpperCase() + name.slice(1) : name;
@@ -128,7 +128,7 @@ export function defaultJunkSelection(items: readonly JunkItem[]): Set<string> {
 }
 
 /// Items that cannot be picked on the screen: an app holds them.
-export function isBlocked(item: JunkItem): boolean {
+function isBlocked(item: JunkItem): boolean {
   return !!item.running;
 }
 
@@ -172,12 +172,6 @@ export function selectedByCategory(items: readonly JunkItem[], selected: Readonl
   return m;
 }
 
-export function sameSet(a: ReadonlySet<string>, b: ReadonlySet<string>): boolean {
-  if (a.size !== b.size) return false;
-  for (const x of a) if (!b.has(x)) return false;
-  return true;
-}
-
 /// Items of the list, grouped by category in summary order. `label` and
 /// `hint` come from the caller (they need the translator).
 export function junkRows(
@@ -217,7 +211,7 @@ export function pruneSelection(selected: ReadonlySet<string>, items: readonly { 
 
 // ── Project artifacts ────────────────────────────────────────────────
 
-export type ArtifactItem = {
+type ArtifactItem = {
   id: string;
   label: string;
   detail?: string | null;
@@ -226,7 +220,7 @@ export type ArtifactItem = {
   risk: Risk;
 };
 
-export type ArtifactProject = { path: string; kind: string; kinds: string[]; bytes: number; age_days: number };
+type ArtifactProject = { path: string; kind: string; kinds: string[]; bytes: number; age_days: number };
 
 export type ArtifactScan = {
   items: ArtifactItem[];
@@ -238,7 +232,7 @@ export type ArtifactScan = {
 };
 
 /// The folder an artifact item points at (`dev_artifacts:<kind>:<path>`).
-export function artifactPath(id: string): string {
+function artifactPath(id: string): string {
   const m = /^dev_artifacts:[^:]+:(.+)$/.exec(id);
   return m ? m[1] : id;
 }
@@ -250,7 +244,7 @@ function isInside(child: string, parent: string): boolean {
 }
 
 /// Each item's project: the deepest project folder that holds it.
-export function projectOf(id: string, projects: readonly ArtifactProject[]): ArtifactProject | null {
+function projectOf(id: string, projects: readonly ArtifactProject[]): ArtifactProject | null {
   const path = artifactPath(id);
   let best: ArtifactProject | null = null;
   for (const p of projects) {
@@ -287,7 +281,7 @@ export function artifactRows(scan: Pick<ArtifactScan, "items" | "projects">): Se
 
 // ── Duplicates ───────────────────────────────────────────────────────
 
-export type DupFile = { path: string; mtime: number; keep: boolean };
+type DupFile = { path: string; mtime: number; keep: boolean };
 export type DupGroup = { hash: string; size: number; files: DupFile[]; wasted: number };
 
 export type DupScan = {
@@ -303,7 +297,7 @@ export type DupScan = {
 };
 
 export const trashId = (path: string) => `duplicates:trash:${path}`;
-export const cloneId = (path: string) => `duplicates:clone:${path}`;
+const cloneId = (path: string) => `duplicates:clone:${path}`;
 
 /// Which file each group keeps (group hash → path), as the scan chose.
 export function initialKeeps(groups: readonly DupGroup[]): Map<string, string> {
@@ -379,7 +373,7 @@ export function dupPlanIds(groups: readonly DupGroup[], selected: ReadonlySet<st
 }
 
 /// Whether a group still keeps the file the scan chose (clones point at it).
-export function keepsOriginal(g: DupGroup, keeps: ReadonlyMap<string, string>): boolean {
+function keepsOriginal(g: DupGroup, keeps: ReadonlyMap<string, string>): boolean {
   const orig = g.files.find((f) => f.keep)?.path;
   return !!orig && keeps.get(g.hash) === orig;
 }

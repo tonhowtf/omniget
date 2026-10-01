@@ -19,7 +19,7 @@ export interface MinimapTransform {
   oy: number;
 }
 
-export function minimapTransform(engine: CanvasEngine, w = MINIMAP_W, h = MINIMAP_H): MinimapTransform {
+function minimapTransform(engine: CanvasEngine, w = MINIMAP_W, h = MINIMAP_H): MinimapTransform {
   const view = engine.camera.viewRect();
   const content = engine.contentBounds();
   const u = union(content ? [content, view] : [view])!;

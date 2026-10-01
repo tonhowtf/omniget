@@ -20,7 +20,7 @@ export function isMac(): boolean {
 }
 
 /** `⌘` no macOS, `Ctrl` no resto. */
-export function modKey(): string {
+function modKey(): string {
   return isMac() ? "⌘" : "Ctrl";
 }
 

@@ -1,11 +1,11 @@
 /// What the user can expect from a feature. `experimental` and `beta` are marked
 /// in the UI with a discreet badge; `unavailable` renders an explanation of why
 /// instead of a broken control.
-export type FeatureState = "stable" | "beta" | "experimental" | "unavailable";
+type FeatureState = "stable" | "beta" | "experimental" | "unavailable";
 
 export type Platform = "windows" | "macos" | "linux";
 
-export type Feature = {
+type Feature = {
   id: string;
   /// i18n key for the human-readable name.
   labelKey: string;
@@ -21,7 +21,7 @@ export type Feature = {
 
 /// Single place that records what each league surface needs to work, so a
 /// disabled control can always explain itself instead of silently failing.
-export const LEAGUE_FEATURES: readonly Feature[] = [
+const LEAGUE_FEATURES: readonly Feature[] = [
   { id: "scouting", labelKey: "league.scout_title", state: "stable", platforms: ["windows", "macos"], requiresClient: true },
   { id: "analysis", labelKey: "league.win_title", state: "stable", platforms: ["windows", "macos"], requiresClient: true },
   { id: "build-reference", labelKey: "league.meta_reference", state: "beta", platforms: ["windows", "macos", "linux"] },

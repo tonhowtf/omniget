@@ -17,15 +17,15 @@ export interface DockedPanel {
   width: number;
 }
 
-export interface PanelsState {
+interface PanelsState {
   lifted?: string | null;
   docked?: DockedPanel[];
 }
 
 /** Height of the bar drawn above a raised node (title, dock, put back). */
-export const PANEL_BAR_H = 32;
-export const DOCK_DEFAULT_W = 520;
-export const DOCK_MIN_W = 280;
+const PANEL_BAR_H = 32;
+const DOCK_DEFAULT_W = 520;
+const DOCK_MIN_W = 280;
 /** Within this distance of the default width, a resize snaps back to it. */
 const DOCK_SNAP_BACK = 30;
 

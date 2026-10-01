@@ -4,7 +4,7 @@
 
 import type { Risk } from "./api";
 
-export type TweakState = "applied" | "not_applied" | "partial" | "unknown";
+type TweakState = "applied" | "not_applied" | "partial" | "unknown";
 
 export type TweakItem = {
   id: string;

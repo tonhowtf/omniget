@@ -8,13 +8,13 @@
 /** Canonical decimal u64 ("0" or digits without a leading zero). Compare with BigInt. */
 export type Revision = string;
 /** Opaque UUID; never an absolute path. */
-export type RecoveryId = string;
+type RecoveryId = string;
 
 export type SettingsSection =
   | "general" | "appearance" | "downloads"
   | "ai" | "integrations" | "advanced";
 
-export type SecretOperation =
+type SecretOperation =
   | { op: "keep" }
   | { op: "set"; value: string }
   | { op: "remove" };
@@ -24,11 +24,11 @@ export type SettingsSecretOperations = {
   twitterManualCookie?: SecretOperation;
 };
 
-export type FieldErrorCode =
+type FieldErrorCode =
   | "unknown_field" | "protected_field" | "invalid_type"
   | "out_of_range" | "invalid_enum" | "invalid_value"
   | "conflict" | "required";
-export type FieldError = { path: string; code: FieldErrorCode };
+type FieldError = { path: string; code: FieldErrorCode };
 
 export type LoadStatus =
   | { kind: "absent" }
@@ -44,7 +44,7 @@ export type EffectId =
   | "network.proxy" | "downloads.segments" | "downloads.queue"
   | "shortcuts.registration" | "app.autostart" | "integrations.rpc"
   | "llm.pruning" | "llm.watchdog" | "llm.jobs" | "bridge.lifecycle";
-export type EffectState = "queued" | "applying" | "failed" | "restart_required";
+type EffectState = "queued" | "applying" | "failed" | "restart_required";
 export type PendingEffect = {
   id: EffectId;
   targetRevision: Revision;
@@ -62,7 +62,7 @@ export type ReadySnapshot = {
   pendingEffects: PendingEffect[];
   fieldErrors: [];
 };
-export type FailedSnapshot = {
+type FailedSnapshot = {
   settings: null;
   revision: Revision | null;
   loadStatus: Extract<LoadStatus, { kind: "failed" }>;

@@ -2,9 +2,9 @@ import type { ProcessRow } from "./monitor";
 
 /// Game mode screen logic: pure, tested in game.test.ts.
 
-export type GameBackend = "feral_gamemode" | "portal" | "native" | "windows" | "macos" | "none";
+type GameBackend = "feral_gamemode" | "portal" | "native" | "windows" | "macos" | "none";
 
-export type GameActive = {
+type GameActive = {
   pid: number;
   name: string;
   method: string;
@@ -79,7 +79,7 @@ const NOT_GAMES = [
 
 const HELPER_HINTS = ["helper", "renderer", "gpu process", "crashpad", "webview", "updater", "daemon", "agent", "service", "worker"];
 
-export function isHelper(name: string): boolean {
+function isHelper(name: string): boolean {
   const n = name.toLowerCase();
   if (NOT_GAMES.includes(n) || NOT_GAMES.includes(n.replace(/\.exe$/, ""))) return true;
   return HELPER_HINTS.some((h) => n.includes(h));

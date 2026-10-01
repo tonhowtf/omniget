@@ -26,8 +26,8 @@ export type HoldState = {
 
 export type Conflict = { a: string; b: string; keep: string; disable: string[]; action: string };
 export type Scheme = { guid: string; name: string; active: boolean };
-export type ChargeLimit = { battery: string; end: number; start?: number };
-export type CpuKnobs = {
+type ChargeLimit = { battery: string; end: number; start?: number };
+type CpuKnobs = {
   driver?: string | null;
   governor?: string | null;
   governors: string[];
@@ -90,7 +90,7 @@ export type Battery = {
 export const HOLD_CHOICES = [30, 60, 120] as const;
 
 /// Profiles of the power-profiles API, in the order the desktop shows them.
-export const PROFILE_ORDER = ["power-saver", "balanced", "performance"] as const;
+const PROFILE_ORDER = ["power-saver", "balanced", "performance"] as const;
 
 export function remainingSecs(until: number | null | undefined, nowMs: number): number {
   if (!until) return 0;

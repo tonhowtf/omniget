@@ -2,9 +2,9 @@
 // linhas numeradas, pareamento para a vista dividida, dobra de contexto e o
 // mini hunk de um comentário de revisão.
 
-import type { FileDiff, ReviewComment } from "$lib/central/vcs";
+import type { ReviewComment } from "$lib/central/vcs";
 
-export type LineKind = "ctx" | "add" | "del";
+type LineKind = "ctx" | "add" | "del";
 
 export type DiffLine = {
   kind: LineKind;
@@ -94,9 +94,9 @@ export type Row =
   | { t: "note"; fileIndex: number; text: string };
 
 /** Contexto mantido de cada lado de um trecho dobrado. */
-export const FOLD_KEEP = 3;
+const FOLD_KEEP = 3;
 /** Trechos de contexto maiores que isto dobram. */
-export const FOLD_MIN = FOLD_KEEP * 2 + 4;
+const FOLD_MIN = FOLD_KEEP * 2 + 4;
 
 type Block = { kind: "ctx"; lines: DiffLine[] } | { kind: "chg"; dels: DiffLine[]; adds: DiffLine[] };
 
@@ -236,6 +236,3 @@ export function reviewCommentToPrompt(c: ReviewComment): string {
   return c.text.trim() ? `${head}\n${code}\n${c.text.trim()}` : `${head}\n${code}`;
 }
 
-export function statsOf(f: FileDiff): { add: number; del: number } {
-  return { add: f.additions, del: f.deletions };
-}

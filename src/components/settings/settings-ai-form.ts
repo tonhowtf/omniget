@@ -1,4 +1,4 @@
-export type AiProvider = "none" | "openai" | "anthropic" | "local";
+type AiProvider = "none" | "openai" | "anthropic" | "local";
 
 export type AiConfigView = {
   provider: AiProvider;
@@ -40,7 +40,7 @@ export function providerForKind(kind: string, kinds: readonly Pick<AiKind, "id" 
   return kind === "openai" ? "openai" : "local";
 }
 
-export function aiSettingsPayload(draft: AiSettingsDraft) {
+function aiSettingsPayload(draft: AiSettingsDraft) {
   return {
     provider: draft.provider,
     kind: draft.provider === "none" ? null : draft.kind || null,
@@ -85,28 +85,8 @@ export function clearSavedAiSettingsDraft(savedDraft: AiSettingsDraft): void {
   }
 }
 
-/**
- * Provider switch: only the draft fields the new provider no longer shows are
- * cleared. A pending "remove saved key" is dropped with its hidden field, so a
- * saved key is never deleted by a control the user can no longer see.
- */
-export function switchAiProvider(draft: AiSettingsDraft, next: AiProvider): AiSettingsDraft {
-  if (next === draft.provider) return { ...draft };
-  const out = { ...draft, provider: next };
-  if (next === "openai" || next === "anthropic") out.localBaseUrl = "";
-  if (next !== "openai" && next !== "local") {
-    out.openaiKey = "";
-    out.removeOpenaiKey = false;
-  }
-  if (next !== "anthropic") {
-    out.anthropicKey = "";
-    out.removeAnthropicKey = false;
-  }
-  return out;
-}
-
 export type AiInvoke = <T>(command: string, args?: Record<string, unknown>) => Promise<T>;
-export type AiConnectionStatus = "unknown" | "verified" | "error";
+type AiConnectionStatus = "unknown" | "verified" | "error";
 
 // Result of the last explicit test, bound to the saved connection it ran on.
 // Any later save makes it "unknown" again: a filled form is never "verified".
@@ -119,10 +99,6 @@ function fingerprint(config: AiConfigView): string {
 export function aiConnectionStatus(saved: AiConfigView | null): AiConnectionStatus {
   if (!saved || saved.provider === "none" || !lastTest || lastTest.fingerprint !== fingerprint(saved)) return "unknown";
   return lastTest.ok ? "verified" : "error";
-}
-
-export function resetAiConnectionStatus(): void {
-  lastTest = null;
 }
 
 /** Local read only: never contacts the provider. */
@@ -138,7 +114,7 @@ export async function saveAiConnection(invoke: AiInvoke, draft: AiSettingsDraft)
   return result;
 }
 
-export type AiTestOutcome =
+type AiTestOutcome =
   | { kind: "save_failed"; error: unknown }
   | { kind: "ok"; saved: AiConfigView | null }
   | { kind: "test_failed"; saved: AiConfigView | null; error: unknown };

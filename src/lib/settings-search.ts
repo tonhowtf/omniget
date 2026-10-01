@@ -53,9 +53,9 @@ function buildIndex(): SettingSearchEntry[] {
   return entries;
 }
 
-export const SETTINGS_SEARCH_INDEX: SettingSearchEntry[] = buildIndex();
+const SETTINGS_SEARCH_INDEX: SettingSearchEntry[] = buildIndex();
 
-export function normalizeSettingsQuery(text: string): string {
+function normalizeSettingsQuery(text: string): string {
   return text.normalize("NFD").replace(/[̀-ͯ]/g, "").toLocaleLowerCase().trim();
 }
 

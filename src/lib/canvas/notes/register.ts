@@ -15,7 +15,7 @@ const TREE_ICON = 'M3 6h6l2 2h10v11H3z';
 
 let done = false;
 
-export function registerNotesAndFiles(): void {
+function registerNotesAndFiles(): void {
   if (done) return;
   done = true;
   registerNodeKind('note', {

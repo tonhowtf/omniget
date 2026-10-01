@@ -53,13 +53,6 @@ export function withAlpha(c: Rgba, a: number): Rgba {
   return [c[0], c[1], c[2], c[3] * a];
 }
 
-/** Reads a CSS custom property from the document root (theme tokens). */
-export function themeColor(name: string, fallback: string): string {
-  if (typeof document === 'undefined') return fallback;
-  const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-  return v || fallback;
-}
-
 /** True when the app background is dark (measured on the --bg token, not the OS setting). */
 export function prefersDark(): boolean {
   if (typeof document === 'undefined') return true;

@@ -2,7 +2,7 @@
 
 export const EQ_FREQS = [31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000] as const;
 
-export type EqPreset = { id: string; gains: number[] };
+type EqPreset = { id: string; gains: number[] };
 
 export const EQ_PRESETS: EqPreset[] = [
   { id: "flat", gains: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },

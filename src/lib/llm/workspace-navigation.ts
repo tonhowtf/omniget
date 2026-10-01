@@ -8,7 +8,7 @@
  */
 export const LLM_SETTINGS_HREF = '/settings?tab=ai';
 
-export const LLM_DESTINATIONS = [
+const LLM_DESTINATIONS = [
   { id: 'threads', href: '/llm/threads', primary: true, routes: ['/llm/threads'], tools: [] },
   { id: 'work', href: '/llm/work', primary: true, routes: ['/llm/work', '/llm/jobs', '/llm/loops', '/llm/missions', '/llm/arena', '/llm/summaries'], tools: [
     { href: '/llm/work', key: 'llm.work.nav' }, { href: '/llm/jobs', key: 'settings.rebrand.llm.tasks' }, { href: '/llm/loops', key: 'settings.rebrand.llm.routines' },

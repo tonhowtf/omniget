@@ -18,7 +18,7 @@ export function marqueeRect(m: MarqueeState): Rect {
   return rectFromPoints(m.start, m.end);
 }
 
-export function marqueeContains(m: MarqueeState): boolean {
+function marqueeContains(m: MarqueeState): boolean {
   const ltr = m.end.x >= m.start.x;
   return m.invert ? !ltr : ltr;
 }

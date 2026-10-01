@@ -12,7 +12,7 @@ export type SessionMeta = {
   artwork?: string | null;
 };
 
-export type SessionHandlers = {
+type SessionHandlers = {
   play: () => void;
   pause: () => void;
   next?: (() => void) | null;
@@ -33,10 +33,6 @@ const claimers = new Map<Owner, (mine: boolean) => void>();
 export function register(owner: Owner, pause: () => void, active: (mine: boolean) => void) {
   yielders.set(owner, pause);
   claimers.set(owner, active);
-}
-
-export function currentOwner(): Owner | null {
-  return session.owner;
 }
 
 /** `owner` starts playing: pause everyone else. */

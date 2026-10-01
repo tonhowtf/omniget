@@ -5,7 +5,7 @@ import type { Rect } from '../model/types';
 import { boundsOf, distToPolyline, simplify } from '../spatial/geometry';
 import { ellipsePolygon, rectPolygon, trianglePolygon } from './shapes';
 
-export type Recognized =
+type Recognized =
   | { kind: 'line'; x0: number; y0: number; x1: number; y1: number }
   | { kind: 'rect' | 'ellipse' | 'triangle'; rect: Rect };
 

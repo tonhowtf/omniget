@@ -4,7 +4,7 @@
 
 import type { Album, Artist, LrcLine, Track } from "./types";
 
-export function albumArtistOf(t: Track): string {
+function albumArtistOf(t: Track): string {
   return (t.album_artist || t.artist || "").trim();
 }
 

@@ -6,7 +6,7 @@ import { invoke } from '@tauri-apps/api/core';
 import type { WorkspaceSummary } from './palette/workspaces.svelte';
 
 /** Runtime and extra fields the backend adds to a workspace summary. */
-export interface WorkspaceExtra {
+interface WorkspaceExtra {
   ide?: string;
   jumpNumber?: number | null;
   syncAgentFiles?: boolean;
@@ -18,9 +18,7 @@ export interface WorkspaceExtra {
 
 export type Ws = WorkspaceSummary & WorkspaceExtra;
 
-export const asWs = (w: WorkspaceSummary): Ws => w as Ws;
-
-export interface WsSection {
+interface WsSection {
   /** Divider label (Maestri "Group"); '' for workspaces outside any group. */
   group: string;
   /** Items in sidebar order: plain rows and folders (Maestri "Folder"). */
@@ -95,7 +93,7 @@ export function numberOf(targets: Map<number, Ws>, id: string): number | undefin
 
 // ---- icons -----------------------------------------------------------
 
-export type WsIcon = { kind: 'text'; text: string } | { kind: 'image'; revision: string };
+type WsIcon = { kind: 'text'; text: string } | { kind: 'image'; revision: string };
 
 const EMOJI = /\p{Extended_Pictographic}/u;
 

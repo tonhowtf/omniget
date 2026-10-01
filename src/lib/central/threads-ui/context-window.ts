@@ -20,7 +20,7 @@ const WINDOWS: [RegExp, number][] = [
   [/llama|mistral|gemma|phi/i, 128_000],
 ];
 
-export function windowForModel(model: string | null | undefined, driver?: string | null): number | null {
+function windowForModel(model: string | null | undefined, driver?: string | null): number | null {
   const key = `${model ?? ""} ${driver ?? ""}`;
   for (const [re, n] of WINDOWS) if (re.test(key)) return n;
   if (driver === "claude") return 200_000;
@@ -29,7 +29,7 @@ export function windowForModel(model: string | null | undefined, driver?: string
   return null;
 }
 
-export type ContextFill = { used: number; max: number | null; estimated: boolean };
+type ContextFill = { used: number; max: number | null; estimated: boolean };
 
 /** Prompt side of the last request ≈ what sits in the context now. */
 export function contextFromUsage(u: UsageRow | null, model: string | null, driver: string | null): ContextFill | null {

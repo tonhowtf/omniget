@@ -10,8 +10,8 @@
 import { ANIMATION_CLIP, type Mood } from './pet-state';
 import { asEntry, entrySuggestions, entrySummary } from '$lib/canvas/companion/api';
 
-export const BALLOON_TEXT_MAX = 110;
-export const BALLOON_CHIP_MAX = 42;
+const BALLOON_TEXT_MAX = 110;
+const BALLOON_CHIP_MAX = 42;
 
 export interface CompanionBalloon {
   id: string;

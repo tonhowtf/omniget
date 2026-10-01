@@ -3,7 +3,7 @@
  * components so the odds can be tested without a client.
  */
 
-export const LANES = ["TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY"] as const;
+const LANES = ["TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY"] as const;
 export type Lane = (typeof LANES)[number];
 
 /** Champion classes as the client tags them in `roles`. */

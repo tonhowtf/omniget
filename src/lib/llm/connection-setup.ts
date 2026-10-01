@@ -58,7 +58,7 @@ export async function testConnection(agentId: string, signal: AbortSignal): Prom
   } finally { clearTimeout(timeout); stop(); signal.removeEventListener('abort', cancel); }
 }
 
-export interface ConnectionDraft {
+interface ConnectionDraft {
   version: 1; mode: 'subscription' | 'api' | 'local'; step: number;
   cli: string; account: string; name: string; provider: string; models: string[];
   model: string; loginOpened: boolean; agentId: string; attempt: string; credentialId: string;
@@ -87,7 +87,6 @@ export function parseConnectionDraft(raw: unknown): ConnectionDraft | null {
     model: String(r.model), loginOpened: r.loginOpened, agentId: String(r.agentId), attempt: String(r.attempt), credentialId: String(r.credentialId) };
 }
 
-
 export const CONNECTION_TOKEN_LIMIT = 8192;
 /** A resumed setup must not silently claim an externally edited agent as its own. */
 export function connectionMatchesIntent(agent: AgentDef, expected: AgentDef): boolean {
@@ -99,7 +98,7 @@ export function connectionMatchesIntent(agent: AgentDef, expected: AgentDef): bo
 }
 
 /** What went wrong with a connection, in terms a person can act on. */
-export type ConnectionProblem =
+type ConnectionProblem =
   | 'missing_executable' | 'login_expired' | 'credential_invalid' | 'model_unavailable'
   | 'local_service_down' | 'rate_limited' | 'network' | 'cancelled' | 'no_answer' | 'unknown';
 
@@ -115,7 +114,7 @@ export interface ConnectionDiagnosis {
 }
 
 /** Masks API keys, bearer tokens and long opaque strings before an error is shown or kept. */
-export function sanitizeError(text: string): string {
+function sanitizeError(text: string): string {
   return text
     .replace(/(bearer\s+)[A-Za-z0-9._~+/=-]{8,}/gi, '$1•••')
     .replace(/\b(sk|pk|rk|xai|gsk|key|tok|ghp|github_pat|AIza)[-_A-Za-z0-9]{12,}/g, '•••')

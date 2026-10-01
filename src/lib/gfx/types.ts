@@ -6,8 +6,6 @@
 /** Measured machine tier (docs/llm-world-execution-plan.md §1.2/§1.3). */
 export type Tier = 0 | 1 | 2 | 3;
 
-export type BackendName = 'gl2' | 'gl1' | 'canvas2d';
-
 /** Error codes the UI can map, in the mould of StreamError::code(). */
 export const ERR = {
   NO_WEBGL: 'ERR_WORLD_NO_WEBGL',
@@ -43,9 +41,3 @@ export interface TextStyle {
   maxWidth?: number;
 }
 
-export interface CalibrationResult {
-  tier: Tier;
-  medianMs: number;
-  backend: BackendName | 'none';
-  contextLostDuring: boolean;
-}

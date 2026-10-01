@@ -89,20 +89,20 @@ function pack(c: Rgba): number {
 }
 
 /** Per-terminal appearance (node `data.appearance`); absent fields follow the global settings. */
-export interface TermAppearance {
+interface TermAppearance {
   theme?: string;
   customThemeId?: string;
   fontSize?: number;
   fontFamily?: string;
 }
 
-export function appearanceOf(node: { data?: unknown } | null | undefined): TermAppearance {
+function appearanceOf(node: { data?: unknown } | null | undefined): TermAppearance {
   const a = (node?.data as { appearance?: unknown } | null | undefined)?.appearance;
   return a && typeof a === 'object' ? (a as TermAppearance) : {};
 }
 
 /** Scheme id a terminal draws with: its own choice, else Settings → Canvas → Terminal theme. */
-export function themeIdOf(node: { data?: unknown } | null | undefined): string {
+function themeIdOf(node: { data?: unknown } | null | undefined): string {
   const a = appearanceOf(node);
   const own = a.theme === 'custom' ? a.customThemeId : a.theme;
   if (own && own !== 'system' && own !== 'default') return own;
@@ -178,7 +178,7 @@ interface GridGpu {
 }
 
 /** Where a terminal was drawn last frame, in CSS px of the canvas (for input/hit mapping). */
-export interface TermLayout {
+interface TermLayout {
   /** Top-left of cell (0,0), canvas CSS px. */
   x: number;
   y: number;
@@ -195,7 +195,7 @@ export function termLayout(id: string): TermLayout | undefined {
   return layouts.get(id);
 }
 
-export class TermPass implements GlPass {
+class TermPass implements GlPass {
   readonly id = 'terminals';
   readonly order = 45;
   private gl: WebGL2RenderingContext | null = null;

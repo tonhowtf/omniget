@@ -521,10 +521,6 @@ pub async fn read_import_mihon(app: AppHandle, path: String) -> Result<MihonImpo
         })
         .await?;
         imported += 1;
-        let _ = app.emit(
-            "read-import-progress",
-            serde_json::json!({ "done": imported, "title": m.title }),
-        );
         // MangaDex rate limit.
         tokio::time::sleep(std::time::Duration::from_millis(400)).await;
     }

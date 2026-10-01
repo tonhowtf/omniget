@@ -2,7 +2,7 @@ import { addLog } from "./debug-store.svelte";
 
 export type ToastType = "success" | "error" | "info";
 
-export type ToastItem = {
+type ToastItem = {
   id: number;
   type: ToastType;
   message: string;

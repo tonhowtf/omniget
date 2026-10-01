@@ -21,7 +21,7 @@ import {
 } from "./library-store.svelte";
 import type { Station, Track } from "./types";
 
-export type Repeat = "off" | "all" | "one";
+type Repeat = "off" | "all" | "one";
 export type RgMode = "off" | "track" | "album" | "auto";
 export type VisualizerMode = "bars" | "wave" | "circle" | "off";
 
@@ -210,7 +210,7 @@ function useAlbumGain(t: Track): boolean {
 }
 
 /** ReplayGain linear factor for a track, with clipping prevention. */
-export function replayGainFor(t: Track): number {
+function replayGainFor(t: Track): number {
   if (prefs.rgMode === "off") return 1;
   const album = useAlbumGain(t);
   const gain = (album ? t.rg_album_gain : null) ?? t.rg_track_gain;

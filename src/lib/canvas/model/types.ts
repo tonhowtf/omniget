@@ -2,7 +2,7 @@
 // "Documento do canvas"). Enums are open on read: an unknown kind renders as a
 // plain box and is written back untouched. Optionals are omitted, never null.
 
-export type NodeKind =
+type NodeKind =
   | 'terminal'
   | 'agent'
   | 'note'
@@ -41,23 +41,7 @@ export interface CanvasNode {
   data: Record<string, unknown>;
 }
 
-export interface TerminalData {
-  terminalId: string;
-  agent: AgentKind;
-  roleId?: string;
-  cwd?: string;
-  command?: string[] | string;
-  botId?: string;
-  [k: string]: unknown;
-}
-
-export interface PortalData {
-  url?: string;
-  portalKind: 'web' | 'ios' | 'android';
-  [k: string]: unknown;
-}
-
-export type ConnectionKind = 'ask' | 'message' | 'handoff' | 'spawn' | 'note' | 'portal' | (string & {});
+type ConnectionKind = 'ask' | 'message' | 'handoff' | 'spawn' | 'note' | 'portal' | (string & {});
 
 export interface Connection {
   id: string;
@@ -70,7 +54,7 @@ export interface Connection {
   label?: string;
 }
 
-export type DrawingKind =
+type DrawingKind =
   | 'pen'
   | 'highlighter'
   | 'rect'
@@ -85,12 +69,12 @@ export type DrawingKind =
 /** `cross` is the front's name of the wire's `crossHatch`; `solid` is a light tint kept for old drawings. */
 export type FillStyle = 'none' | 'solid' | 'hachure' | 'cross' | 'tint' | 'solidOpaque';
 
-export type StrokePattern = 'solid' | 'dashed' | 'dotted';
+type StrokePattern = 'solid' | 'dashed' | 'dotted';
 
-export type DrawingEdge = 'top' | 'bottom' | 'left' | 'right' | (string & {});
+type DrawingEdge = 'top' | 'bottom' | 'left' | 'right' | (string & {});
 
 /** Arrow end attached to the edge of another drawing (Maestri `sourceConnection`). */
-export interface DrawingAnchor {
+interface DrawingAnchor {
   drawingId: string;
   edge: DrawingEdge;
 }
@@ -207,15 +191,6 @@ export interface PatchEvent {
   seq: number;
   ops: Op[];
   origin: Origin;
-}
-
-/** Message between agents travelling along a cord (`canvas://message`). */
-export interface MessageEvent {
-  id: string;
-  from: string;
-  to: string;
-  kind: string;
-  state?: string;
 }
 
 export interface Rect {

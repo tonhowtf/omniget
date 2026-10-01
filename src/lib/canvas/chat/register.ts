@@ -7,7 +7,7 @@
 
 import { chats, startChatEvents } from './store.svelte';
 
-export interface ChatHost {
+interface ChatHost {
   /** Focused node id, or null. */
   focused(): string | null;
   /** Whether a node id is a terminal/agent node. */

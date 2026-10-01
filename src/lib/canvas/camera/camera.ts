@@ -5,7 +5,7 @@
 import { MAX_ZOOM, MIN_ZOOM, type CameraState, type Rect } from '../model/types';
 
 /** How far past the limits a live gesture may stretch (rubber band). */
-export const RUBBER = 0.1;
+const RUBBER = 0.1;
 
 export function clampZoom(z: number, rubber = false): number {
   const lo = rubber ? MIN_ZOOM * (1 - RUBBER) : MIN_ZOOM;

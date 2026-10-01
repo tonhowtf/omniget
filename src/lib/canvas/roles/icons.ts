@@ -1,7 +1,7 @@
 // Role icons: a named stroke icon (24×24) or, for anything else, the string
 // itself (an emoji). Names match the built-ins of core::canvas::roles.
 
-export const ROLE_ICONS: Record<string, string> = {
+const ROLE_ICONS: Record<string, string> = {
   crown: 'M3 8l4 4 5-7 5 7 4-4-2 11H5z',
   hammer: 'M14 6l4 4 M4 20l9-9 M11 4l6 6 3-3-6-6z',
   eye: 'M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z',

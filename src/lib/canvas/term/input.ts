@@ -38,7 +38,7 @@ import { resolvePath, smartClean, tokenAt } from './text';
 
 export { resolvePath, smartClean, tokenAt };
 
-export const IS_MAC = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+const IS_MAC = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 
 /** Keys that never produce text and always go to Rust through keydown. */
 const NAMED_KEYS = new Set([
@@ -59,7 +59,7 @@ const NAMED_KEYS = new Set([
   'Clear',
 ]);
 
-export function modsOf(e: { shiftKey: boolean; altKey: boolean; ctrlKey: boolean; metaKey: boolean }): number {
+function modsOf(e: { shiftKey: boolean; altKey: boolean; ctrlKey: boolean; metaKey: boolean }): number {
   return (e.shiftKey ? MOD_SHIFT : 0) | (e.altKey ? MOD_ALT : 0) | (e.ctrlKey ? MOD_CTRL : 0) | (e.metaKey ? MOD_META : 0);
 }
 
@@ -67,7 +67,7 @@ function isFunctionKey(key: string): boolean {
   return /^F([1-9]|1\d|2[0-4])$/.test(key);
 }
 
-export type KeyRoute =
+type KeyRoute =
   | 'terminal'
   | 'text'
   | 'app'
@@ -96,7 +96,7 @@ function fontKey(e: { key: string; code?: string }): 'font-up' | 'font-down' | '
  * Where a keydown goes. Pure, so the reserved-shortcut rules are testable.
  * `optionAsMeta` = Option sends ESC-prefixed keys instead of composing characters.
  */
-export function routeKey(
+function routeKey(
   e: { key: string; code?: string; shiftKey: boolean; altKey: boolean; ctrlKey: boolean; metaKey: boolean; isComposing?: boolean; keyCode?: number },
   isMac: boolean,
   hasSelection: boolean,
@@ -169,7 +169,7 @@ export interface TermInputHandle {
   destroy(): void;
 }
 
-export interface TermInputOptions {
+interface TermInputOptions {
   id: string;
   /** Called when the user leaves the terminal with the keyboard (Cmd+Esc). */
   onUnfocus?: () => void;
@@ -179,10 +179,6 @@ export interface TermInputOptions {
 }
 
 let focused: string | null = null;
-
-export function focusedTerminal(): string | null {
-  return focused;
-}
 
 async function copySelection(id: string): Promise<void> {
   const text = await termCopy(id);
@@ -424,7 +420,7 @@ function rowCells(id: string, row: number): string[] {
   return out;
 }
 
-export interface CellPos {
+interface CellPos {
   col: number;
   row: number;
   /** Which half of the cell was hit (selection anchoring). */
@@ -436,7 +432,7 @@ export interface CellPos {
  * the cell size comes from what the pass actually drew (bucket-snapped), so
  * hits match the pixels even when the grid is not an exact fit.
  */
-export function cellAt(id: string, body: HTMLElement, clientX: number, clientY: number): CellPos {
+function cellAt(id: string, body: HTMLElement, clientX: number, clientY: number): CellPos {
   const r = body.getBoundingClientRect();
   const layout = termLayout(id);
   let cw: number;

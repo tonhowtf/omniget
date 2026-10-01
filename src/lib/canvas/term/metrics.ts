@@ -6,13 +6,13 @@ import { canvasPrefs } from '../prefs.svelte';
 
 /** Base font size of a terminal in world units (CSS px at zoom 1). */
 export const TERM_FONT_SIZE = 13;
-export const TERM_LINE_HEIGHT = 1.25;
+const TERM_LINE_HEIGHT = 1.25;
 /** Height of the DOM chrome (title bar) on top of the body, world units. */
 export const TERM_HEADER_H = 30;
 /** Inner padding around the body, world units. */
-export const TERM_PAD = 6;
+const TERM_PAD = 6;
 
-export interface CellMetrics {
+interface CellMetrics {
   font: string;
   /** Cell size in world units at TERM_FONT_SIZE. */
   w: number;

@@ -7,10 +7,9 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 
 export const EVENT_STATE = 'canvas://portal-state';
-export const EVENT_DRIVE = 'canvas://portal-drive';
-export const EVENT_CLOSED = 'canvas://portal-closed';
+const EVENT_DRIVE = 'canvas://portal-drive';
+const EVENT_CLOSED = 'canvas://portal-closed';
 
-export type PortalKind = 'web' | 'ios' | 'android';
 export type StorageScope = 'isolated' | 'workspace' | 'global';
 
 export interface PortalState {
@@ -51,7 +50,7 @@ export interface PortalBounds {
   zoom?: number;
 }
 
-export interface OpenArgs {
+interface OpenArgs {
   nodeId: string;
   workspaceId: string;
   url?: string;
@@ -76,10 +75,6 @@ export function setPortalBounds(nodeId: string, bounds: PortalBounds): Promise<v
 
 export function hidePortal(nodeId: string): Promise<void> {
   return invoke('canvas_portal_set_visible', { nodeId, visible: false });
-}
-
-export function hideAllPortals(): Promise<void> {
-  return invoke('canvas_portal_set_visible', { visible: false });
 }
 
 export function navigatePortal(
@@ -181,10 +176,6 @@ export function portalState(nodeId: string): PortalState | undefined {
   return states.get(nodeId);
 }
 
-export function lastDrive(nodeId: string): PortalDrive | undefined {
-  return drives.get(nodeId);
-}
-
 export function onPortalState(fn: (s: PortalState) => void): () => void {
   start();
   handlers.state.add(fn);
@@ -205,7 +196,7 @@ export function onPortalClosed(fn: (nodeId: string) => void): () => void {
 
 // ---- presets -------------------------------------------------------------
 
-export interface DevicePreset {
+interface DevicePreset {
   id: string;
   /** i18n key under canvas.portal.device.* */
   key: string;

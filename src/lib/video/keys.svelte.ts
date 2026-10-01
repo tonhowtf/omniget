@@ -36,7 +36,7 @@ export type KeyAction =
   | "prev"
   | "shortcuts";
 
-export const DEFAULT_KEYS: Record<KeyAction, string> = {
+const DEFAULT_KEYS: Record<KeyAction, string> = {
   toggle: " ",
   toggle_alt: "k",
   back10: "j",

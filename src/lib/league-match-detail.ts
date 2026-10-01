@@ -1,4 +1,4 @@
-export type MatchTeam = {
+type MatchTeam = {
   teamId?: number;
   towerKills?: number;
   inhibitorKills?: number;
@@ -8,7 +8,7 @@ export type MatchTeam = {
   bans?: { championId?: number; pickTurn?: number }[];
 };
 
-export type TeamObjectives = {
+type TeamObjectives = {
   teamId: number;
   towers: number;
   inhibitors: number;

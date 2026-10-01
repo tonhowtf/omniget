@@ -3,7 +3,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import type { CanvasNode } from '../model/types';
 
-export interface EmbeddedRole {
+interface EmbeddedRole {
   id: string;
   name: string;
   prompt: string;
@@ -23,7 +23,7 @@ export interface Permissions {
   allowEvaluate?: boolean;
 }
 
-export interface SetupSpec {
+interface SetupSpec {
   setup?: string;
   run?: string;
   teardown?: string;
@@ -91,7 +91,7 @@ export interface PartituraSummary {
 
 export type RoleAction = 'keepMine' | 'useTheirs' | 'rename';
 
-export interface RolePlan {
+interface RolePlan {
   role: EmbeddedRole;
   status: 'new' | 'same' | 'conflict';
   matchedBy?: 'id' | 'name';
@@ -99,7 +99,7 @@ export interface RolePlan {
   defaultAction: RoleAction;
 }
 
-export interface CommandLine {
+interface CommandLine {
   nodeId: string;
   title?: string;
   agent: string;
@@ -123,7 +123,7 @@ export interface ImportPreview {
   chatTranscripts?: number;
 }
 
-export interface ExportOptions {
+interface ExportOptions {
   name: string;
   summary?: string;
   icon?: string;
@@ -132,7 +132,7 @@ export interface ExportOptions {
   blankNotes?: boolean;
 }
 
-export interface SaveRequest {
+interface SaveRequest {
   selection: { nodeIds: string[]; drawingIds?: string[] };
   options: ExportOptions;
   scope?: string;
@@ -145,7 +145,7 @@ export interface SaveRequest {
   includeChat?: boolean;
 }
 
-export interface StampOptions {
+interface StampOptions {
   commands?: Record<string, string | null>;
   roles?: Record<string, RoleAction>;
   applyHooks?: boolean;
@@ -160,15 +160,13 @@ export interface ImportResult {
   roles: EmbeddedRole[];
 }
 
-export interface LibraryImport {
+interface LibraryImport {
   added: string[];
   skipped: string[];
 }
 
 export const listPartituras = (scope?: string, query?: string) =>
   invoke<PartituraSummary[]>('canvas_partitura_list', { scope: scope ?? null, query: query || null });
-
-export const getPartitura = (id: string) => invoke<LibraryPartitura>('canvas_partitura_get', { id });
 
 export const savePartitura = (workspaceId: string, floorId: string, request: SaveRequest) =>
   invoke<LibraryPartitura>('canvas_partitura_save', { workspaceId, floorId, request });

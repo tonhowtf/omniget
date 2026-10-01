@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 
 use rusqlite::{params, OptionalExtension, Row};
 use serde::Serialize;
-use tauri::{AppHandle, Emitter};
+use tauri::AppHandle;
 
 use omniget_core::core::video::{notes_md, subs};
 
@@ -136,13 +136,6 @@ pub async fn video_transcript(key: String, media_id: Option<i64>) -> Result<Vec<
 
 const CHUNK_S: u64 = 600;
 
-#[derive(Serialize, Clone)]
-struct TranscribeProgress {
-    key: String,
-    done: usize,
-    total: usize,
-}
-
 /// Whisper-style request asking for segments. `None` when the provider
 /// can't do `verbose_json`, so the caller falls back to plain text.
 async fn transcribe_segments(chunk: &Path) -> Option<(String, Vec<Cue>)> {
@@ -218,7 +211,7 @@ pub async fn video_transcribe(
 }
 
 async fn transcribe_in(
-    app: &AppHandle,
+    _app: &AppHandle,
     key: &str,
     input: &str,
     work: &Path,
@@ -268,7 +261,7 @@ async fn transcribe_in(
     if chunks.is_empty() {
         return Err("This video has no audio".into());
     }
-    let total = chunks.len();
+    let _total = chunks.len();
     let mut all = Vec::new();
     let mut lang = String::new();
     for (i, chunk) in chunks.iter().enumerate() {
@@ -298,14 +291,6 @@ async fn transcribe_in(
                 });
             }
         }
-        let _ = app.emit(
-            "video-transcribe-progress",
-            TranscribeProgress {
-                key: key.to_string(),
-                done: i + 1,
-                total,
-            },
-        );
     }
     let k = key.to_string();
     let c2 = all.clone();

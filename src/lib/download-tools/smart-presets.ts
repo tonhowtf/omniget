@@ -22,7 +22,7 @@ const KEY = "omniget.download-tools.smart-mode.v1";
 
 export const HEIGHTS: (number | null)[] = [null, 2160, 1440, 1080, 720, 480, 360];
 
-export function defaultState(): SmartState {
+function defaultState(): SmartState {
   return {
     activeId: "video",
     presets: [

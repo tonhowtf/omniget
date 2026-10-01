@@ -5,8 +5,8 @@
 import type { CameraState } from '../model/types';
 
 const RHO = 1.4;
-export const MIN_FLIGHT_MS = 250;
-export const MAX_FLIGHT_MS = 700;
+const MIN_FLIGHT_MS = 250;
+const MAX_FLIGHT_MS = 700;
 
 export interface Flight {
   /** Camera at progress t (0..1, already eased by the caller if wanted). */

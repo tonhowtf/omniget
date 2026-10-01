@@ -4,7 +4,7 @@
 
 import type { ActivityRow, ApprovalRow } from "$lib/central/threads/types";
 
-export type WorkKind =
+type WorkKind =
   | "command"
   | "read"
   | "edit"
@@ -21,7 +21,7 @@ export type WorkKind =
   | "compaction"
   | "other";
 
-export type WorkStatus = "running" | "done" | "failed" | "declined" | "stopped";
+type WorkStatus = "running" | "done" | "failed" | "declined" | "stopped";
 
 export type WorkEntry = {
   id: string;
@@ -89,7 +89,7 @@ const PATH_KEYS = ["path", "file_path", "filePath", "relativePath", "filename", 
 const NEST_KEYS = ["item", "result", "input", "data", "changes", "files", "edits", "patch", "patches", "operations", "output"];
 
 /** Bounded recursive scan for path-like fields (depth ≤ 4, ≤ 12 files). */
-export function collectPaths(v: unknown, out: string[] = [], depth = 0): string[] {
+function collectPaths(v: unknown, out: string[] = [], depth = 0): string[] {
   if (depth > 4 || out.length >= 12 || v == null) return out;
   if (Array.isArray(v)) {
     for (const x of v) {
@@ -130,7 +130,7 @@ function unwrapShell(argv: string[]): string {
   return argv.join(" ");
 }
 
-export function programName(command: string): string {
+function programName(command: string): string {
   const first = command.trim().replace(/^(sudo|env|time|npx|pnpm exec)\s+/, "").split(/\s+/)[0] ?? "";
   return first.split(/[\\/]/).at(-1) ?? first;
 }
@@ -313,7 +313,7 @@ function statusOf(a: ActivityRow): WorkStatus {
 }
 
 /** Output text that says the tool failed even when the provider said "completed". */
-export function looksLikeFailure(text: string | null): boolean {
+function looksLikeFailure(text: string | null): boolean {
   if (!text) return false;
   const tail = text.slice(-2000);
   return /command not found|ENOENT|no such file or directory|is not recognized as the name of a cmdlet|exit code [1-9]\d*|Traceback \(most recent call last\)/i.test(tail);

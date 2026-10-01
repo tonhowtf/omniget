@@ -4,8 +4,8 @@ import { queueDataReady } from '../stores/download-listener';
  * `data-agent-readiness` (loading|error|ready); until one settles (ready, which
  * includes an empty result, or error), their data is not ready.
  */
-export const FETCHED_DATA_ROUTES: readonly string[] = ['/music', '/about/changelog'];
-export function routeDataReady(pathname: string, surfaceStates: readonly (string | null)[]): boolean {
+const FETCHED_DATA_ROUTES: readonly string[] = ['/music', '/about/changelog'];
+function routeDataReady(pathname: string, surfaceStates: readonly (string | null)[]): boolean {
  const path = pathname.replace(/\/+$/, '') || '/';
  if (path === '/downloads') return queueDataReady();
  if (FETCHED_DATA_ROUTES.includes(path)) return surfaceStates.some(s => s === 'ready' || s === 'error');

@@ -37,19 +37,6 @@ export interface RoleInput {
   agent?: AgentKind;
 }
 
-export interface RoleLaunch {
-  roleId: string;
-  roleName: string;
-  cwd?: string | null;
-  projectDir?: string | null;
-  roleDir: string;
-  args: string[];
-  env: Record<string, string>;
-  initialPrompt?: string;
-  systemPrompt?: string;
-  mode: string;
-}
-
 export interface RoleEvent {
   workspaceId: string;
   floorId: string;
@@ -59,19 +46,15 @@ export interface RoleEvent {
   restart: boolean;
 }
 
-export const ROLE_EVENT = 'canvas://role';
+const ROLE_EVENT = 'canvas://role';
 
 export const rolesList = (workspaceId: string) => invoke<RoleInfo[]>('canvas_roles_list', { workspaceId });
-export const rolesGet = (workspaceId: string, roleId: string) =>
-  invoke<Role | null>('canvas_roles_get', { workspaceId, roleId });
 export const rolesSave = (workspaceId: string, scope: RoleScope, input: RoleInput) =>
   invoke<Role>('canvas_roles_save', { workspaceId, scope, input });
 export const rolesDelete = (workspaceId: string, roleId: string, scope: RoleScope, force = false) =>
   invoke<void>('canvas_roles_delete', { workspaceId, roleId, scope, force });
 export const rolesAssign = (workspaceId: string, nodeId: string, roleId: string | null) =>
   invoke<Role | null>('canvas_roles_assign', { workspaceId, nodeId, roleId });
-export const rolesLaunch = (workspaceId: string, roleId: string, agent: AgentKind, cwd?: string | null) =>
-  invoke<RoleLaunch>('canvas_roles_launch', { workspaceId, roleId, agent, cwd: cwd ?? null });
 export const rolesDiscover = (workspaceId: string, dir?: string) =>
   invoke<Role[]>('canvas_roles_discover', { workspaceId, dir: dir ?? null });
 export const rolesImport = (workspaceId: string, names: string[], dir?: string) =>

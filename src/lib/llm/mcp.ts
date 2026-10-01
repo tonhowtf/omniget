@@ -16,7 +16,7 @@ import type { AgentDef, GrantMode, ToolGrant } from "./types";
 
 // ── Wire contract ───────────────────────────────────────────────────────
 
-export type McpTransport =
+type McpTransport =
   | {
       kind: "stdio";
       command: string;
@@ -67,7 +67,7 @@ export interface McpServerRow {
   last_error?: { code: string; message: string } | null;
 }
 
-export const MCP_ERROR_KEYS: Record<string, string> = {
+const MCP_ERROR_KEYS: Record<string, string> = {
   ERR_MCP_SPAWN: "llm.mcp.err.spawn",
   ERR_MCP_PROTO: "llm.mcp.err.proto",
   ERR_MCP_TIMEOUT: "llm.mcp.err.timeout",
@@ -95,7 +95,7 @@ export function mcpErrorKey(err: unknown): string {
  * `core::mcp::types::valid_id` enforces. If these drift, the form accepts a
  * config the registry then refuses.
  */
-export const ID_RE = /^[a-z0-9_-]{1,64}$/;
+const ID_RE = /^[a-z0-9_-]{1,64}$/;
 
 /** Turns a display name into a usable id. Never empty. */
 export function slugifyId(name: string): string {
@@ -314,13 +314,6 @@ export function applyGrant(
   );
   if (mode === null) return rest;
   return [...rest, { source: "mcp", server, tool, mode }];
-}
-
-/** How many tools of a server an agent may actually run (`auto` or `ask`). */
-export function grantedCount(agent: AgentDef | null | undefined, server: string): number {
-  return (agent?.tools ?? []).filter(
-    (g) => g.source === "mcp" && g.server === server && g.mode !== "deny",
-  ).length;
 }
 
 // ── Registry shown in the tab (same five servers as the core fixtures) ───

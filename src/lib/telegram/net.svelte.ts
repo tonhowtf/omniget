@@ -74,7 +74,7 @@ export function isScanning(): boolean {
   return netState.scanning || netState.status?.phase === "scanning";
 }
 
-export function workingRoutes(s: NetStatus | null): RouteView[] {
+function workingRoutes(s: NetStatus | null): RouteView[] {
   return (s?.routes ?? []).filter((r) => r.health.ok === true);
 }
 

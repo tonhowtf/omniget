@@ -6,9 +6,9 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type { StatsKind } from "$lib/central/guard";
 
-export const UPDATES_EVENT = "clitools://updates";
+const UPDATES_EVENT = "clitools://updates";
 
-export type ConfigEntry = {
+type ConfigEntry = {
   scope: "global" | "project" | "local" | string;
   key: string;
   stat_kind: StatsKind | null;
@@ -38,7 +38,7 @@ export type ConfigFiles = {
   total_bytes: number;
 };
 
-export type Changelog = {
+type Changelog = {
   tag: string;
   name: string | null;
   url: string;

@@ -46,7 +46,7 @@ const ALLOWED_ATTRS: Record<string, Set<string>> = {
 };
 
 /** Only http(s) and mailto survive; `javascript:`, `data:` and friends do not. */
-export function isSafeUrl(url: string): boolean {
+function isSafeUrl(url: string): boolean {
   const trimmed = (url ?? "").trim();
   if (!trimmed) return false;
   // Relative links inside the app are fine; a scheme must be one of three.
@@ -69,7 +69,7 @@ function hasDom(): boolean {
   return typeof document !== "undefined" && typeof document.createElement === "function";
 }
 
-export interface SanitizeOptions {
+interface SanitizeOptions {
   /**
    * Keep `<img>` (canvas notes). Remote http(s) and inline raster `data:`
    * images keep `src`; a local path moves to `data-local-src` so the webview
@@ -82,7 +82,7 @@ export interface SanitizeOptions {
 const SAFE_DATA_IMAGE = /^data:image\/(png|jpe?g|gif|webp|avif|bmp);base64,[a-z0-9+/=\s]+$/i;
 
 /** Where an `<img src>` may point: remote, inline raster, or a local path. */
-export function imageSource(src: string): { kind: "remote" | "data" | "local"; value: string } | null {
+function imageSource(src: string): { kind: "remote" | "data" | "local"; value: string } | null {
   const v = (src ?? "").trim();
   if (!v || v.startsWith("//")) return null;
   if (/^https?:/i.test(v)) return { kind: "remote", value: v };
@@ -103,7 +103,7 @@ export function imageSource(src: string): { kind: "remote" | "data" | "local"; v
 }
 
 /** Allowlist pass over already-parsed HTML. Returns escaped text without a DOM. */
-export function sanitizeHtml(html: string, opts: SanitizeOptions = {}): string {
+function sanitizeHtml(html: string, opts: SanitizeOptions = {}): string {
   if (!hasDom()) return escapeHtml(html);
   const template = document.createElement("template");
   template.innerHTML = html;

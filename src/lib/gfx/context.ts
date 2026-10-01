@@ -2,12 +2,12 @@
 // The webview reclaims WebGL after inactivity in Tauri (pixijs#11731), so the
 // renderer drops the context on purpose when the route hides and rebuilds it on wake.
 
-export type ContextState = 'new' | 'live' | 'sleeping' | 'lost' | 'restoring' | 'destroyed';
+type ContextState = 'new' | 'live' | 'sleeping' | 'lost' | 'restoring' | 'destroyed';
 
-export type ContextEvent = 'init' | 'sleep' | 'wake' | 'lost' | 'restored' | 'destroy';
+type ContextEvent = 'init' | 'sleep' | 'wake' | 'lost' | 'restored' | 'destroy';
 
 /** Pure transition table; every backend and the tests share it. */
-export function nextState(state: ContextState, event: ContextEvent): ContextState {
+function nextState(state: ContextState, event: ContextEvent): ContextState {
   if (event === 'destroy') return 'destroyed';
   if (state === 'destroyed') return 'destroyed';
   switch (event) {
@@ -26,27 +26,7 @@ export function nextState(state: ContextState, event: ContextEvent): ContextStat
   }
 }
 
-/**
- * WEBGL_lose_context.restoreContext() is asynchronous: the context object stays
- * lost for a few frames, and a canvas never hands out a second context, so
- * rebuilding immediately fails with a null createShader. Polls until the same
- * context reports itself alive again.
- */
-export async function waitForRestore(
-  gl: WebGLRenderingContext | WebGL2RenderingContext | null,
-  timeoutMs = 2000,
-  stepMs = 16,
-): Promise<boolean> {
-  if (!gl) return false;
-  const deadline = Date.now() + timeoutMs;
-  while (gl.isContextLost()) {
-    if (Date.now() >= deadline) return false;
-    await new Promise((r) => setTimeout(r, stepMs));
-  }
-  return true;
-}
-
-export interface ContextCallbacks {
+interface ContextCallbacks {
   onLost?: () => void;
   onRestored?: () => void;
 }

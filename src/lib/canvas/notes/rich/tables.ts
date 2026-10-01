@@ -4,7 +4,7 @@
 // Pure string builders live here (tested); the clipboard write is in
 // `clipboard.ts`.
 
-export interface TableData {
+interface TableData {
   header: string[];
   rows: string[][];
   align: ('left' | 'center' | 'right' | null)[];

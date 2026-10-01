@@ -2,9 +2,9 @@ import { invoke } from "@tauri-apps/api/core";
 import { getVersion } from "@tauri-apps/api/app";
 
 export type LogLevel = "info" | "warn" | "error";
-export type LogCategory = "download" | "network" | "auth" | "system";
+type LogCategory = "download" | "network" | "auth" | "system";
 
-export type DebugLogEntry = {
+type DebugLogEntry = {
   id: number;
   timestamp: number;
   level: LogLevel;
