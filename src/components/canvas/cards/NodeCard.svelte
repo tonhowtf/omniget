@@ -4,6 +4,9 @@
   import { agentStates, stateCss, type AgentState } from "$lib/canvas/state/agents.svelte";
   import { useEngine } from "$lib/canvas/engine.svelte";
   import { noteRead } from "$lib/canvas/notes/api";
+  import { ACCOUNT_AGENTS, canvasAccounts } from "$lib/canvas/accounts/store.svelte";
+  import { terminalIdOf } from "$lib/canvas/term/gl-types";
+  import AccountBadge from "../accounts/AccountBadge.svelte";
 
   let { node, selected = false }: { node: CanvasNode; selected?: boolean } = $props();
 
@@ -12,6 +15,18 @@
   const agentState = $derived<AgentState>(signal?.state ?? "unknown");
   const role = $derived(typeof node.data.roleId === "string" ? (node.data.roleId as string) : "");
   const agentName = $derived(typeof node.data.agent === "string" ? (node.data.agent as string) : "");
+  void canvasAccounts.load();
+  const accountBadge = $derived.by(() => {
+    if (agent && ACCOUNT_AGENTS.has(agentName || "shell")) {
+      const tid = terminalIdOf(node);
+      return canvasAccounts.terminalBadge(node, tid, tid in canvasAccounts.running);
+    }
+    if (node.kind === "portal") return canvasAccounts.sessionBadge(node);
+    return null;
+  });
+  const kindName = $derived(
+    node.kind === "portal" ? $t("canvas.engine.spawn.portal", { default: "Portal" }) : agentName,
+  );
   const lastLine = $derived(signal?.lastLine ?? signal?.message ?? "");
   const engine = useEngine();
   let fileText = $state<string | null>(null);
@@ -62,7 +77,10 @@
   <div class="head">
     {#if agent}<span class="dot" style:background={stateCss(agentState)}></span>{/if}
     <span class="title">{node.title || node.kind}</span>
-    {#if agent && agentName}<span class="tag">{agentName}</span>{/if}
+    {#if accountBadge}
+      <AccountBadge badge={accountBadge} readonly />
+      {#if kindName}<span class="tag">{kindName}</span>{/if}
+    {:else if agent && agentName}<span class="tag">{agentName}</span>{/if}
   </div>
   {#if agent}
     <div class="meta">

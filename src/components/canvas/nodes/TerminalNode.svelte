@@ -32,6 +32,8 @@
   import RoleBadge from "$components/canvas/roles/RoleBadge.svelte";
   import MaestroBadge from "$components/canvas/maestro/MaestroBadge.svelte";
   import ChatFace from "$components/canvas/chat/ChatFace.svelte";
+  import AccountBadge from "$components/canvas/accounts/AccountBadge.svelte";
+  import { ACCOUNT_AGENTS, canvasAccounts, cliOfAgent } from "$lib/canvas/accounts/store.svelte";
 
   let {
     node,
@@ -81,6 +83,27 @@
   const isManager = $derived(!!data.isManager);
   const chatFace = $derived(chats.isChat(node.id));
   const fontScale = $derived(termFontScale(node));
+  const showAccount = $derived(ACCOUNT_AGENTS.has(agent));
+  const accountBadge = $derived(canvasAccounts.terminalBadge(node, termId, !live.exited));
+  const accountOptions = $derived(canvasAccounts.forCli(cliOfAgent(agent)));
+  const accountError = $derived(live.error.includes("CANVAS_ACCOUNT"));
+  const accountNotice = $derived(
+    data.accountNotice && typeof data.accountNotice === "object"
+      ? (data.accountNotice as { previous?: string | null; previousLabel?: string | null })
+      : null,
+  );
+
+  function pickAccount(id: string | null) {
+    onpatch?.({ data: { ...node.data, account: id, accountNotice: null } });
+    if (accountError) {
+      live.error = "";
+      setTimeout(() => void open(true), 50);
+    }
+  }
+
+  function dismissNotice() {
+    onpatch?.({ data: { ...node.data, accountNotice: null } });
+  }
 
   let findOpen = $state(false);
   let findQuery = $state("");
@@ -354,6 +377,7 @@
   });
 
   onMount(() => {
+    void canvasAccounts.load();
     void open(true);
   });
 
@@ -413,6 +437,9 @@
       <span class="role" title={role.name}><RoleBadge icon={role.icon} color={role.color} size={16} /></span>
     {/if}
     <span class="title" title={live.cwd || title}>{title}</span>
+    {#if showAccount}
+      <AccountBadge badge={accountBadge} options={accountOptions} compact={zoom < 0.35} onpick={pickAccount} />
+    {/if}
     <MaestroBadge {workspaceId} floorId={engine.store.floorId} nodeId={node.id} on={isManager} compact={zoom < 0.35} />
     {#if live.exited}
       <span class="exit-tag">
@@ -540,9 +567,27 @@
           {/if}
         </div>
       {/if}
+      {#if accountNotice && !card}
+        <div class="acct-notice" role="status">
+          <span>
+            {accountNotice.previous
+              ? $t("canvas.accounts.noticeFresh", {
+                  default: "The previous conversation stayed in the account {{account}}; this is a new one.",
+                  account: accountNotice.previousLabel ?? accountNotice.previous,
+                })
+              : $t("canvas.accounts.noticeFreshEnv", {
+                  default: "The previous conversation stayed in the environment account; this is a new one.",
+                })}
+          </span>
+          <button type="button" onclick={dismissNotice}>{$t("canvas.accounts.dismiss", { default: "Dismiss" })}</button>
+        </div>
+      {/if}
       {#if live.error}
         <div class="overlay error" role="alert">
           <span>{$t("canvas.term.error", { error: live.error })}</span>
+          {#if accountError}
+            <AccountBadge badge={accountBadge} options={accountOptions} onpick={pickAccount} />
+          {/if}
           <button type="button" onclick={() => open(true)}>{$t("canvas.term.action.retry")}</button>
         </div>
       {:else if live.exited && !card}
@@ -802,6 +847,35 @@
     background: var(--accent, #ff9f0a);
     color: #111;
     font-size: 12px;
+    cursor: pointer;
+  }
+  .acct-notice {
+    position: absolute;
+    left: 8px;
+    right: 8px;
+    top: 6px;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 8px;
+    border-radius: 8px;
+    font-size: 11px;
+    background: color-mix(in srgb, var(--pane-bg, #1c1c1e) 92%, var(--accent, #ff9f0a) 8%);
+    border: 1px solid color-mix(in srgb, var(--accent, #ff9f0a) 40%, transparent);
+  }
+  .acct-notice span {
+    flex: 1;
+    min-width: 0;
+  }
+  .acct-notice button {
+    flex: none;
+    border: 0;
+    border-radius: 6px;
+    padding: 2px 8px;
+    background: transparent;
+    color: var(--text-dim, #98989d);
+    font-size: 11px;
     cursor: pointer;
   }
   .role {

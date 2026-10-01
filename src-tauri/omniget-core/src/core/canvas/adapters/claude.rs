@@ -103,17 +103,32 @@ pub fn launch_args(plugin_dir: &Path) -> Vec<String> {
     ]
 }
 
-pub fn session_exists(session_id: &str) -> bool {
-    if session_id.is_empty()
-        || !session_id
+pub fn valid_session_id(session_id: &str) -> bool {
+    !session_id.is_empty()
+        && session_id
             .chars()
             .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
-    {
+}
+
+pub fn default_config_dir() -> Option<std::path::PathBuf> {
+    std::env::var_os("CLAUDE_CONFIG_DIR")
+        .filter(|v| !v.is_empty())
+        .map(std::path::PathBuf::from)
+        .or_else(|| dirs::home_dir().map(|h| h.join(".claude")))
+}
+
+pub fn session_exists(session_id: &str) -> bool {
+    session_exists_in(session_id, None)
+}
+
+pub fn session_exists_in(session_id: &str, config_dir: Option<&Path>) -> bool {
+    if !valid_session_id(session_id) {
         return false;
     }
-    let root = std::env::var_os("CLAUDE_CONFIG_DIR")
-        .map(std::path::PathBuf::from)
-        .or_else(|| dirs::home_dir().map(|h| h.join(".claude")));
+    let root = match config_dir {
+        Some(d) => Some(d.to_path_buf()),
+        None => default_config_dir(),
+    };
     let Some(projects) = root.map(|r| r.join("projects")) else {
         return false;
     };

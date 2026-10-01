@@ -1,5 +1,6 @@
 pub mod automation;
 pub mod script;
+pub mod sessions;
 pub mod storage;
 pub mod tls;
 
@@ -137,7 +138,9 @@ pub fn bind(app: &AppHandle) {
                 Op::AddConnection { .. } | Op::RemoveConnection { .. } => relink = true,
                 Op::UpdateNode { id, patch } if host().has(id) => {
                     let data = patch.get("data");
-                    let scope_changed = data.is_some_and(|d| d.get("storageScope").is_some());
+                    let scope_changed = data.is_some_and(|d| {
+                        d.get("storageScope").is_some() || d.get("session").is_some()
+                    });
                     if scope_changed {
                         relink = true;
                     }
@@ -218,10 +221,7 @@ fn node_scope(node_id: &str) -> Option<Scope> {
     let store = crate::canvas::doc::host().store();
     let (ws, floor) = store.locate_node(node_id)?;
     store
-        .read(&ws, &floor, |d| {
-            d.node(node_id)
-                .map(|n| Scope::parse(n.data_str("storageScope")))
-        })
+        .read(&ws, &floor, |d| d.node(node_id).map(storage::scope_of))
         .ok()
         .flatten()
 }
@@ -472,6 +472,10 @@ fn build_with(
     popup: Option<tauri::webview::NewWindowFeatures>,
     opener: Option<String>,
 ) -> Result<WebviewWindow, String> {
+    let spec = &OpenSpec {
+        scope: sessions::scope_for(spec.scope, &spec.node_id),
+        ..spec.clone()
+    };
     let main = main_window(app)?;
     tls::install(&main);
     let app_load = app.clone();
@@ -558,6 +562,7 @@ fn build_with(
             .unwrap_or_else(|| storage::scope_key(spec.scope, o, &spec.workspace_id)),
         None => {
             let key = storage::effective_key(spec.scope, &spec.node_id, &spec.workspace_id);
+            sessions::check_key(&key)?;
             builder = storage::apply(builder, spec.scope, &key);
             key
         }
@@ -683,6 +688,7 @@ fn popup_portal(
         "data": {
             "url": url.to_string(), "portalKind": "web", "name": title,
             "storageScope": scope.as_str(), "openerId": opener_id,
+            "session": sessions::session_of_node(&opener_id),
         },
     }))
     .map_err(|e| format!("PORTAL_POPUP: {e}"))?;

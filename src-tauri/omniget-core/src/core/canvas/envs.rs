@@ -367,14 +367,17 @@ pub fn check_env_overrides(env: &Value) -> Result<(), String> {
         .map(String::as_str)
         .filter(|k| {
             let u = k.to_ascii_uppercase();
-            u == "PATH" || u == "HOME" || u.starts_with("OMNIGET_")
+            u == "PATH"
+                || u == "HOME"
+                || u.starts_with("OMNIGET_")
+                || super::accounts::CONFIG_VARS.contains(&u.as_str())
         })
         .collect();
     if bad.is_empty() {
         Ok(())
     } else {
         Err(format!(
-            "CANVAS_INVALID: env overrides cannot set {} (PATH, HOME and OMNIGET_* belong to the terminal)",
+            "CANVAS_INVALID: env overrides cannot set {} (PATH, HOME and OMNIGET_* belong to the terminal; CLAUDE_CONFIG_DIR and CODEX_HOME come from the node's account)",
             bad.join(", ")
         ))
     }

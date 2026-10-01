@@ -12728,6 +12728,46 @@
         "svg": "SVG",
         "link": "Link"
       }
+    },
+    "accounts": {
+      "environment": "ambiente",
+      "environmentOption": "Conta do ambiente",
+      "environmentHint": "Usa a conta do ambiente em que o app foi aberto",
+      "accountHint": "Usa a conta {{name}}",
+      "restart": "reinicie para aplicar",
+      "restartHint": "A nova conta vale quando este terminal reiniciar",
+      "invalidMissing": "Esta conta não existe mais; escolha outra",
+      "invalidDisabled": "Esta conta está desativada; escolha outra",
+      "invalidCli": "Esta conta é de outro CLI; escolha outra",
+      "pick": "Conta",
+      "noticeFresh": "A conversa anterior ficou na conta {{account}}; esta é uma conversa nova.",
+      "noticeFreshEnv": "A conversa anterior ficou na conta do ambiente; esta é uma conversa nova.",
+      "dismiss": "Fechar",
+      "sessions": {
+        "title": "Sessões de portal",
+        "hint": "Uma sessão é um perfil de navegador com nome que os portais podem dividir, como \"Teams trabalho\". Faça login uma vez num portal que a usa; renomear mantém o login. Os agentes só veem os nomes, nunca cookies ou senhas.",
+        "unsupported": "Sessões com nome precisam do macOS 14 ou mais novo.",
+        "label": "Sessão: os logins que este portal usa",
+        "own": "Armazenamento próprio",
+        "new": "Nova sessão…",
+        "renameThis": "Renomear esta sessão…",
+        "deleteThis": "Apagar esta sessão…",
+        "missing": "Esta sessão não existe mais; escolha outra",
+        "missingOption": "(sessão apagada)",
+        "name": "Nome da sessão",
+        "namePlaceholder": "Teams trabalho",
+        "create": "Criar",
+        "save": "Salvar",
+        "cancel": "Cancelar",
+        "rename": "Renomear",
+        "delete": "Apagar",
+        "color": "Cor",
+        "deleteAsk": "Apagar \"{{name}}\" e os logins dela?",
+        "deleteUsed": "Apagar \"{{name}}\" e os logins dela? Usada por: {{names}}",
+        "usedBy": "Usada por {{names}}",
+        "unused": "Nenhum portal usa",
+        "empty": "Nenhuma sessão ainda."
+      }
     }
   },
   "tube": {

@@ -5,7 +5,7 @@ export const EVENT_STATE = 'canvas://portal-state';
 const EVENT_DRIVE = 'canvas://portal-drive';
 const EVENT_CLOSED = 'canvas://portal-closed';
 
-export type StorageScope = 'isolated' | 'workspace' | 'global';
+export type StorageScope = 'isolated' | 'workspace' | 'global' | 'named';
 
 export interface PortalState {
   nodeId: string;

@@ -18,9 +18,10 @@ mod settings;
 use super::policy::{self, Principal};
 use super::ToolDef;
 
+mod accounts;
 mod activity;
-mod assets;
 mod artifacts;
+mod assets;
 mod clipboard;
 mod council;
 mod generate;
@@ -200,7 +201,7 @@ fn routine_props() -> Value {
 fn defs() -> &'static [Def] {
     static DEFS: OnceLock<Vec<Def>> = OnceLock::new();
     DEFS.get_or_init(|| {
-        let mut all = build_defs();
+        let mut all = accounts::augment(build_defs());
         all.extend(generate::defs());
         all.extend(artifacts::defs());
         all
@@ -1271,9 +1272,11 @@ pub async fn call(app: &AppHandle, p: &Principal, name: &str, a: Value) -> Resul
     normalize_aliases(name, &mut a);
     validate(name, &a)?;
     let prefer = st(&a, "workspaceId").map(|_| ws_of(&a));
+    accounts::before(&ready(app), name, &mut a)?;
     let me = who::of(p);
     crate::canvas::activity::name_actor(&me.origin, &me.client);
-    who::scope(me, PREFER_WS.scope(prefer, dispatch(app, name, a))).await
+    let r = who::scope(me, PREFER_WS.scope(prefer, dispatch(app, name, a))).await;
+    accounts::echo(name, r)
 }
 
 async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String> {
@@ -2177,6 +2180,7 @@ async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
             Ok(json!({ "nodeId": n.id, "stackId": sid }))
         }
         "canvas_portal_open" => portal_open(&app, &s, &a).await,
+        accounts::LIST => Ok(accounts::list()),
         "canvas_portal_snapshot" | "canvas_portal_screenshot" | "canvas_portal_console" => {
             let verb = name.trim_start_matches("canvas_portal_");
             portal_drive(&app, &s, &a, verb).await
@@ -4053,6 +4057,7 @@ async fn portal_open(app: &AppHandle, s: &Arc<CanvasStore>, a: &Value) -> Result
                 "storageScope",
                 "x",
                 "y",
+                "data",
             ] {
                 if let Some(v) = a.get(k) {
                     spawn_args[k] = v.clone();

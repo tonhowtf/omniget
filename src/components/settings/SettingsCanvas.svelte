@@ -13,6 +13,7 @@
   import { onMount } from "svelte";
   import SettingsCanvasEnvironments from "./SettingsCanvasEnvironments.svelte";
   import SettingsCanvasImages from "./SettingsCanvasImages.svelte";
+  import SettingsCanvasPortalSessions from "./SettingsCanvasPortalSessions.svelte";
 
   const tr = (key: string, fallback: string, vars?: Record<string, unknown>) =>
     $t(key, { default: fallback, ...(vars ?? {}) }) as string;
@@ -443,6 +444,7 @@
 <SettingsCanvasImages />
 
 <SettingsCanvasEnvironments />
+<SettingsCanvasPortalSessions />
 
 <style>
   .pair {

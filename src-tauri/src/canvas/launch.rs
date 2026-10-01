@@ -134,6 +134,7 @@ fn base_env(n: &CanvasNode, ws: &str, tid: &str) -> HashMap<String, String> {
             }
         }
     }
+    omniget_core::core::canvas::accounts::strip_config_vars(&mut env);
     env
 }
 
@@ -279,16 +280,22 @@ pub async fn ensure(
                     | "cmd"
             )
         });
+    let (account, accounts) = super::accounts::prepare(ws, floor, &node, &agent)?;
     if opts.restore && command.len() == 1 {
         if let Some(sid) = omniget_core::core::term::session::history::agent_session(&tid) {
-            match agent.as_str() {
-                "claude" if omniget_core::core::canvas::adapters::claude::session_exists(&sid) => {
-                    command.extend(["--resume".to_string(), sid]);
+            let rc = super::accounts::ResumeCtx {
+                ws,
+                floor,
+                node_id,
+                tid: &tid,
+                agent: &agent,
+            };
+            if super::accounts::may_resume(&rc, &sid, &account, &accounts) {
+                match agent.as_str() {
+                    "claude" => command.extend(["--resume".to_string(), sid]),
+                    "codex" => command.extend(["resume".to_string(), sid]),
+                    _ => {}
                 }
-                "codex" => {
-                    command.extend(["resume".to_string(), sid]);
-                }
-                _ => {}
             }
         }
     }
@@ -297,7 +304,8 @@ pub async fn ensure(
         .filter(|c| !c.trim().is_empty())
         .map(str::to_string);
     let mut env = base_env(&node, ws, &tid);
-    let mut env_remove = None;
+    let mut env_remove: Vec<String> = Vec::new();
+    omniget_core::core::canvas::accounts::apply(&account, &mut env, &mut env_remove);
 
     let mut first_prompt = None;
     if let Some(role_id) = node.data_str("roleId").filter(|r| !r.is_empty()) {
@@ -345,9 +353,7 @@ pub async fn ensure(
         match ne {
             Ok(ne) => {
                 env.extend(ne.env);
-                if !ne.env_remove.is_empty() {
-                    env_remove = Some(ne.env_remove);
-                }
+                omniget_core::core::canvas::accounts::merge_remove(&mut env_remove, ne.env_remove);
                 if !command.is_empty() && !ne.args.is_empty() {
                     let rest = command.split_off(1);
                     command.extend(ne.args);
@@ -387,13 +393,14 @@ pub async fn ensure(
         },
         restore: Some(opts.restore),
         shell_fallback: Some(super::prefs::get(app).terminal.shell_fallback),
-        env_remove,
+        env_remove: (!env_remove.is_empty()).then_some(env_remove),
         ..Default::default()
     };
     let m2 = m.clone();
     let info = tauri::async_runtime::spawn_blocking(move || m2.open(req))
         .await
         .map_err(|e| format!("PTY_OPEN: {e}"))??;
+    super::accounts::launched(&tid, &account);
     drop(_held);
 
     let mut one_shot = false;

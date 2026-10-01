@@ -29,6 +29,8 @@
   import { showToast } from "$lib/stores/toast-store.svelte";
   import Icon from "../chrome/Icon.svelte";
   import PortalDesignSheet from "./PortalDesignSheet.svelte";
+  import SessionPicker from "../accounts/SessionPicker.svelte";
+  import { canvasAccounts, sessionOf } from "$lib/canvas/accounts/store.svelte";
 
   let {
     node,
@@ -77,6 +79,8 @@
   const kind = $derived(String(node.data.portalKind ?? "web"));
   const url = $derived(String(node.data.url ?? ""));
   const scope = $derived((String(node.data.storageScope ?? "isolated")) as StorageScope);
+  const sessionId = $derived(sessionOf(node));
+  void canvasAccounts.load();
   const shownUrl = $derived(pstate?.url && pstate.url !== "about:blank" ? pstate.url : url);
   const device = $derived(
     (node.data.device as { platform?: string } | undefined)?.platform ?? "responsive",
@@ -316,6 +320,18 @@
     }
   }
 
+  async function pickSession(id: string | null) {
+    if (id === sessionId) return;
+    error = null;
+    patchData({ session: id });
+    if (pstate) {
+      await closePortal(node.id).catch(() => {});
+      pstate = null;
+      live = false;
+    }
+    policy.kick();
+  }
+
   async function pickScope(e: Event) {
     const next = (e.currentTarget as HTMLSelectElement).value as StorageScope;
     if (next === scope) return;
@@ -436,6 +452,8 @@
           <option value={p.id}>{$t(p.key, { default: p.label })} {p.width}×{p.height}</option>
         {/each}
       </select>
+      <SessionPicker current={sessionId} onpick={pickSession} />
+      {#if !sessionId}
       <select
         class="pick"
         title={$t("canvas.portal.storage.label", { default: "Storage" })}
@@ -447,6 +465,7 @@
         <option value="workspace">{$t("canvas.portal.storage.workspace", { default: "Workspace" })}</option>
         <option value="global">{$t("canvas.portal.storage.global", { default: "Global" })}</option>
       </select>
+      {/if}
       <button
         type="button"
         class="nav"

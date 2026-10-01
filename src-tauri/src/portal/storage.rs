@@ -11,6 +11,7 @@ pub enum Scope {
     Isolated,
     Workspace,
     Global,
+    Named,
 }
 
 impl Scope {
@@ -18,6 +19,7 @@ impl Scope {
         match s.map(str::trim) {
             Some("workspace") => Scope::Workspace,
             Some("global") => Scope::Global,
+            Some("named") => Scope::Named,
             _ => Scope::Isolated,
         }
     }
@@ -27,6 +29,7 @@ impl Scope {
             Scope::Isolated => "isolated",
             Scope::Workspace => "workspace",
             Scope::Global => "global",
+            Scope::Named => "named",
         }
     }
 }
@@ -36,6 +39,18 @@ pub fn scope_key(scope: Scope, node_id: &str, workspace_id: &str) -> String {
         Scope::Isolated => format!("portal:node:{node_id}"),
         Scope::Workspace => format!("portal:ws:{workspace_id}"),
         Scope::Global => "portal:global".to_string(),
+        Scope::Named => match super::sessions::session_of_node(node_id) {
+            Some(id) => super::sessions::key(&id),
+            None => format!("portal:node:{node_id}"),
+        },
+    }
+}
+
+pub fn scope_of(n: &omniget_core::core::canvas::model::CanvasNode) -> Scope {
+    if super::sessions::session_of(&n.data).is_some() {
+        Scope::Named
+    } else {
+        Scope::parse(n.data_str("storageScope"))
     }
 }
 
@@ -46,7 +61,7 @@ pub fn session_root(
     use omniget_core::core::canvas::model::NodeKind;
     use std::collections::{BTreeSet, VecDeque};
     let is_portal = |id: &str| doc.node(id).is_some_and(|n| n.kind == NodeKind::Portal);
-    let scope_of = |id: &str| Scope::parse(doc.node(id).and_then(|n| n.data_str("storageScope")));
+    let scope_at = |id: &str| doc.node(id).map(scope_of).unwrap_or_default();
     let links: Vec<(&str, &str)> = doc
         .connections
         .iter()
@@ -73,7 +88,7 @@ pub fn session_root(
         .or_else(|| group.iter().next())
         .cloned()
         .unwrap_or_else(|| node_id.to_string());
-    let scope = scope_of(&root);
+    let scope = scope_at(&root);
     (root, scope)
 }
 

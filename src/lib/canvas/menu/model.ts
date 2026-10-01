@@ -11,6 +11,7 @@ import { agentFiles, openInIde, sidebarUi } from '../sidebar.svelte';
 import { placeInStack, stackTargets } from '../notes/stack';
 import { aiActivity } from '../activity/store.svelte';
 import { openArtifacts } from '../artifacts/client.svelte';
+import { ACCOUNT_AGENTS, canvasAccounts, cliOfAgent } from '../accounts/store.svelte';
 
 export interface MenuEntry {
   id: string;
@@ -55,16 +56,29 @@ function e(id: string, key: string, label: string, run?: () => unknown, extra: P
 }
 
 export function addMenu(engine: CanvasEngine, ctx: MenuContext): MenuEntry[] {
+  void canvasAccounts.load();
   const at = ctx.free || ctx.wx === undefined || ctx.wy === undefined ? null : { x: ctx.wx, y: ctx.wy };
-  const spawn = (kind: string, agent?: AgentKind) => () => {
-    const node = engine.spawn(kind, at, { agent, connectFrom: ctx.connectFrom });
+  const spawn = (kind: string, agent?: AgentKind, account?: string) => () => {
+    const data = account ? { account } : undefined;
+    const node = engine.spawn(kind, at, { agent, connectFrom: ctx.connectFrom, data });
     if (kind === 'text' || kind === 'note' || kind === 'terminal' || kind === 'agent') engine.selection.focus(node.id);
     return { nodeId: node.id };
   };
   return [
     e('terminal', 'canvas.menu.add.terminal', 'Terminal', undefined, {
       children: [
-        ...SPAWN_AGENTS.map((a) => e(a.id, `canvas.engine.spawn.${a.id === 'shell' ? 'terminal' : a.id}`, a.label, spawn(a.kind, a.agent))),
+        ...SPAWN_AGENTS.map((a) => {
+          const key = `canvas.engine.spawn.${a.id === 'shell' ? 'terminal' : a.id}`;
+          const cli = cliOfAgent(a.agent);
+          const accounts = cli ? canvasAccounts.forCli(cli).filter((x) => !x.disabled) : [];
+          if (!accounts.length) return e(a.id, key, a.label, spawn(a.kind, a.agent));
+          return e(a.id, key, a.label, undefined, {
+            children: [
+              e('environment', 'canvas.accounts.environmentOption', 'Environment account', spawn(a.kind, a.agent)),
+              ...accounts.map((x) => e(`account:${x.id}`, x.label, x.label, spawn(a.kind, a.agent, x.id))),
+            ],
+          });
+        }),
         ...Object.keys(canvasPrefs().agent_presets).map((name, i) =>
           e(`preset:${name}`, name, name, () => {
             const node = engine.spawn('terminal', at, { preset: name, connectFrom: ctx.connectFrom });
@@ -157,6 +171,27 @@ export function nodeMenu(engine: CanvasEngine, nodeId: string): MenuEntry[] {
       e('useSizeAsDefault', 'canvas.menu.useSizeAsDefault', 'Use Size as Default', () =>
         updateSettings({ canvas: { defaults: { [sizeKey]: { size: `${Math.round(node.w)}x${Math.round(node.h)}` } } } }),
       ),
+    );
+  }
+  const agentName = typeof node.data.agent === 'string' ? node.data.agent : 'shell';
+  if (terminal && ACCOUNT_AGENTS.has(agentName)) {
+    const current = typeof node.data.account === 'string' ? node.data.account : '';
+    const pick = (id: string | null) => () =>
+      engine.commit([{ op: 'update_node', id: nodeId, patch: { data: { account: id, accountNotice: null } } as never }]);
+    out.push(
+      e('account', 'canvas.accounts.pick', 'Account', undefined, {
+        sepBefore: true,
+        children: [
+          e('environment', 'canvas.accounts.environmentOption', 'Environment account', pick(null)),
+          ...canvasAccounts
+            .forCli(cliOfAgent(agentName))
+            .filter((x) => !x.disabled || x.id === current)
+            .map((x) => {
+              const label = x.id === current ? `${x.label} ✓` : x.label;
+              return e(`account:${x.id}`, label, label, pick(x.id));
+            }),
+        ],
+      }),
     );
   }
   if (terminal) {

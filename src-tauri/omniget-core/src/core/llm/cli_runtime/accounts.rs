@@ -222,6 +222,17 @@ pub const SCRUB_ENV: &[&str] = &[
     "OMNIGET_BRIDGE_URL",
 ];
 
+pub const CREDENTIAL_SCRUB: &[&str] = &[
+    "ANTHROPIC_API_KEY",
+    "ANTHROPIC_AUTH_TOKEN",
+    "ANTHROPIC_BASE_URL",
+    "CLAUDE_CODE_OAUTH_TOKEN",
+    "CLAUDE_CODE_USE_BEDROCK",
+    "CLAUDE_CODE_USE_VERTEX",
+    "OPENAI_API_KEY",
+    "OPENAI_BASE_URL",
+];
+
 pub fn create_profile_dir(dir: &Path) -> Result<()> {
     std::fs::create_dir_all(dir)
         .map_err(|e| AccountError::new(ERR_CLI_IO, format!("cannot create {}: {e}", dir.display())))

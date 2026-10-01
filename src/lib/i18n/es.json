@@ -12728,6 +12728,46 @@
         "svg": "SVG",
         "link": "Link"
       }
+    },
+    "accounts": {
+      "environment": "environment",
+      "environmentOption": "Environment account",
+      "environmentHint": "Runs on the account of the environment the app was started in",
+      "accountHint": "Runs on the account {{name}}",
+      "restart": "restart to apply",
+      "restartHint": "The new account applies when this terminal restarts",
+      "invalidMissing": "This account no longer exists; pick another",
+      "invalidDisabled": "This account is disabled; pick another",
+      "invalidCli": "This account is for another CLI; pick another",
+      "pick": "Account",
+      "noticeFresh": "The previous conversation stayed in the account {{account}}; this is a new one.",
+      "noticeFreshEnv": "The previous conversation stayed in the environment account; this is a new one.",
+      "dismiss": "Dismiss",
+      "sessions": {
+        "title": "Portal sessions",
+        "hint": "A session is a named browser profile that portals can share, like \"Teams work\". Log in once inside a portal that uses it; renaming keeps the login. Agents see only the names, never cookies or passwords.",
+        "unsupported": "Named portal sessions need macOS 14 or later.",
+        "label": "Session: the logins this portal uses",
+        "own": "Own storage",
+        "new": "New session…",
+        "renameThis": "Rename this session…",
+        "deleteThis": "Delete this session…",
+        "missing": "This session no longer exists; pick another",
+        "missingOption": "(deleted session)",
+        "name": "Session name",
+        "namePlaceholder": "Teams work",
+        "create": "Create",
+        "save": "Save",
+        "cancel": "Cancel",
+        "rename": "Rename",
+        "delete": "Delete",
+        "color": "Color",
+        "deleteAsk": "Delete \"{{name}}\" and its logins?",
+        "deleteUsed": "Delete \"{{name}}\" and its logins? Used by: {{names}}",
+        "usedBy": "Used by {{names}}",
+        "unused": "Not used by any portal",
+        "empty": "No sessions yet."
+      }
     }
   },
   "tube": {

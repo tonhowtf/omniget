@@ -1,5 +1,6 @@
 pub mod activity;
 pub mod artifacts;
+pub mod accounts;
 pub mod chat;
 pub mod clipboard;
 pub mod companion;
