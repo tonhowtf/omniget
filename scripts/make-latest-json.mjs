@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// Writes the updater manifest (latest.json) from release files built locally,
-// for when the release is not made by the GitHub workflow. Same platform map
-// as the "Generate and upload latest.json" step of release.yml.
+// Writes the updater manifest (latest.json) from release files built locally.
+// scripts/release-local.mjs calls it at the end; run it again by hand after
+// gathering the bundles of other machines in the same folder.
 //
 //   node scripts/make-latest-json.mjs <dir> [--base https://getomniget.com/dl] [--notes notes.md]
 //

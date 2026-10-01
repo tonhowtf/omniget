@@ -48,6 +48,8 @@
     "tauri": "tauri",
     "tauri:appimage": "bash scripts/linux/appimage.sh",
     "version:set": "node scripts/bump-version.js",
+    "release:local": "node scripts/release-local.mjs",
+    "smoke": "node scripts/smoke-test.mjs",
     "generate:i18n-keys": "node scripts/generate-i18n-keys.js",
     "check:i18n": "node scripts/generate-i18n-keys.js --strict",
     "check:clippy-baseline": "node scripts/clippy-baseline.mjs --check",

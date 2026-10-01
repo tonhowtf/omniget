@@ -280,3 +280,6 @@ skills-lock.json
 
 # pdf.js runtime for the /read reader, copied from node_modules by scripts/setup-pdfjs.mjs
 /static/vendor/pdfjs/
+
+# Local release output (scripts/release-local.mjs)
+/dist-release/
