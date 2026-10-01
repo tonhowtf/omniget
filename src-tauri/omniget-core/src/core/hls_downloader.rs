@@ -581,9 +581,22 @@ fn select_best_variant(master: &MasterPlaylist, max_height: Option<u32>) -> Opti
         .or_else(|| sorted.first().copied())
 }
 
+/// Resolves a playlist URI against the playlist URL (RFC 3986, as yt-dlp's
+/// `urljoin` and N_m3u8DL-RE do): `/root/seg.ts`, `//cdn/seg.ts` and
+/// `../seg.ts` all land where the player fetches them. A relative URI with
+/// no query of its own inherits the playlist's (signed CDNs need the token on
+/// every segment).
 fn resolve_url(base: &str, relative: &str) -> String {
     if relative.starts_with("http://") || relative.starts_with("https://") {
         return relative.to_string();
+    }
+    if let Ok(mut u) = url::Url::parse(base).and_then(|b| b.join(relative)) {
+        if !relative.contains('?') {
+            if let Some((_, q)) = base.split_once('?') {
+                u.set_query(Some(q.split('#').next().unwrap_or(q)));
+            }
+        }
+        return u.to_string();
     }
 
     let (base_path, query) = match base.find('?') {
@@ -1180,6 +1193,23 @@ mod tests {
                 "segment0.ts?key=123"
             ),
             "https://cdn.example.com/path/segment0.ts?key=123"
+        );
+    }
+
+    #[test]
+    fn resolve_url_root_and_protocol_relative() {
+        let base = "https://embed-cloudfront.wistia.com/deliveries/abc.m3u8";
+        assert_eq!(
+            resolve_url(base, "/deliveries/abc.m3u8/seg-1-v1-a1.ts"),
+            "https://embed-cloudfront.wistia.com/deliveries/abc.m3u8/seg-1-v1-a1.ts"
+        );
+        assert_eq!(
+            resolve_url(base, "//cdn.example.com/s/1.ts"),
+            "https://cdn.example.com/s/1.ts"
+        );
+        assert_eq!(
+            resolve_url("https://a.com/v/x/index.m3u8?t=1", "../seg.ts"),
+            "https://a.com/v/seg.ts?t=1"
         );
     }
 
