@@ -12778,6 +12778,22 @@
         "unused": "Nenhum portal usa",
         "empty": "Nenhuma sessão ainda."
       }
+    },
+    "media": {
+      "extractAudio": "Extrair áudio",
+      "transcribe": "Transcrever",
+      "audioReady": "Áudio salvo ao lado do vídeo",
+      "failed": "Falhou: {{error}}",
+      "stage": {
+        "placing": "Preparando",
+        "model": "Baixando o modelo de fala",
+        "audio": "Extraindo o áudio",
+        "transcribing": "Transcrevendo {{pct}}%",
+        "writing": "Salvando a transcrição",
+        "summarizing": "Escrevendo o contexto para a LLM",
+        "done": "Transcrição pronta",
+        "failed": "Falhou"
+      }
     }
   },
   "tube": {

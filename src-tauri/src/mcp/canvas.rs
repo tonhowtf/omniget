@@ -31,6 +31,7 @@ mod mcp_servers;
 mod omni_cords_remote;
 mod schemas;
 pub mod who;
+mod transcribe;
 mod workspace_io;
 use crate::commands::canvas as cmd;
 
@@ -416,6 +417,19 @@ fn build_defs() -> Vec<Def> {
         destructive(def("routine_delete", "Delete a routine.", true, json!({"id": s("Routine id")}), &["id"], out(json!({"deleted": ty("string")}), &["deleted"]))),
         def("canvas_maestro_set", "Turn Maestro Mode on or off for a terminal node (a Maestro may recruit, connect, swap, dismiss and notify).", true, json!({"nodeId": node(), "on": b("Maestro on")}), &["nodeId", "on"], out(json!({"nodeId": ty("string"), "maestro": ty("boolean")}), &["nodeId", "maestro"])),
         def("canvas_start", "Start here: who you are on the canvas (client, the origin your edits are signed with, scopes), the workspaces (folder, nodes, terminals), which one the window shows, and the dozen calls most canvas tasks need, with argument examples. One short answer instead of reading the whole catalog.", false, json!({}), &[], out(json!({"you": ty("object"), "workspaces": arr(ty("object")), "window": any(), "recipes": arr(ty("object")), "tips": arr(ty("string"))}), &["workspaces", "recipes"])),
+        def("canvas_media_to_audio", "Turn a video (or any media file) into an audio file with FFmpeg: m4a (default), mp3 or wav (16 kHz mono, for speech tools). Written next to the source unless outDir; with workspaceId the audio is also placed on the canvas.", true, json!({
+            "path": s("Absolute path of the video or audio file"), "format": e(&["m4a", "mp3", "wav"], "Audio format (default m4a)"), "outDir": s("Folder for the audio (default: next to the source)"),
+            "workspaceId": ws(), "floorId": floor(), "place": b("Place the audio on the canvas (default true with workspaceId)"), "x": n("Left"), "y": n("Top")
+        }), &["path"], out(json!({"audio": ty("string"), "bytes": ty("integer"), "ms": ty("integer"), "node": any()}), &["audio"])),
+        def("canvas_transcribe", "Turn a recording (a 2-hour meeting, a class, a video) into context for an LLM, on the canvas. Runs in the background: extracts the audio, transcribes it (local Whisper by default, nothing leaves the computer; engine provider uses the AI connection), saves transcricao.md with [hh:mm:ss] paragraphs, an .srt, the segments and 15-minute parts, and places the source, the transcript note and a 'Contexto para LLM' note. With summarize agent (default) a summarizer agent writes contexto.md: summary, timeline, decisions, action items, open questions, facts, glossary and quotes, each with its time. Follow it with canvas_transcribe_status.", true, json!({
+            "workspaceId": ws(), "floorId": floor(), "path": s("Absolute path of the video or audio file"), "title": s("Title (default: the file name)"),
+            "engine": e(&["local", "provider"], "Transcription engine (default local)"), "lang": s("Language code, e.g. pt or en (default: detected)"), "model": s("Local Whisper model id (default: the app's)"),
+            "summarize": e(&["agent", "none"], "Write the LLM context pack with an agent (default agent)"), "agent": e(AGENTS, "Agent of the summarizer (default claude)"),
+            "x": n("Left"), "y": n("Top")
+        }), &["path"], out(json!({"jobId": ty("string"), "folder": ty("string"), "nodes": ty("object"), "next": ty("string")}), &["jobId"])),
+        def("canvas_transcribe_status", "Stage of a transcription (placing, model, audio, transcribing with progress, writing, summarizing, done, failed), its files, nodes, and whether contexto.md is ready.", false, json!({
+            "jobId": s("jobId from canvas_transcribe")
+        }), &["jobId"], out(json!({"jobId": ty("string"), "stage": ty("string"), "progress": ty("number"), "done": ty("boolean"), "contextReady": ty("boolean"), "error": any(), "files": any(), "nodes": any(), "elapsedMs": ty("integer")}), &["jobId", "stage"])),
         def("canvas_council", "Several agents decide one question together on the board (needs a workspace folder). Lays out three notes (Pergunta, Quadro = shared board, Decisão), the members and a chair (Maestro) corded to them; the chair runs the method by itself and writes the decision. method: brainstorm (approaches + cross-critique + one recommendation for the person to approve), dialectic (thesis, antithesis, rebuttal, synthesis), arena (independent answers, anonymous ranking, best answer with grafts), simulation (MiroFish-style personas reacting on the board in rounds). members: [{name, agent, perspective}] (default 2-3 per method). Follow it with canvas_council_status.", true, json!({
             "workspaceId": ws(), "floorId": floor(), "question": s("What to decide"), "method": e(council::METHODS, "Method (default brainstorm)"),
             "members": json!({"type": "array", "maxItems": 6, "description": "Members (default by method)", "items": {"type": "object", "additionalProperties": false, "properties": {"name": {"type": "string"}, "agent": {"type": "string", "enum": AGENTS}, "perspective": {"type": "string"}}}}),
@@ -1294,6 +1308,10 @@ pub async fn call(app: &AppHandle, p: &Principal, name: &str, a: Value) -> Resul
     accounts::echo(name, r)
 }
 
+pub(crate) async fn media_tool(app: &AppHandle, name: &str, a: Value) -> Result<Value, String> {
+    transcribe::call(app, name, &a).await
+}
+
 async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String> {
     let s = ready(app);
     let app = app.clone();
@@ -1770,6 +1788,9 @@ async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
             Ok(json!({ "removed": ids, "rev": r.rev }))
         }
         "canvas_start" => canvas_start(&app, &s).await,
+        "canvas_media_to_audio" | "canvas_transcribe" | "canvas_transcribe_status" => {
+            transcribe::call(&app, name, &a).await
+        }
         "canvas_council" | "canvas_council_status" => council::call(&app, name, &a).await,
         n if activity::owns(n) => activity::call(&app, n, &a).await,
         n if mcp_servers::owns(n) => mcp_servers::call(&app, n, &a).await,

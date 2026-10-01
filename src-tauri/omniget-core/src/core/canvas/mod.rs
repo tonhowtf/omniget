@@ -24,4 +24,5 @@ pub mod roles;
 pub mod routines;
 pub mod state;
 pub mod store;
+pub mod transcript;
 pub mod workspace_io;

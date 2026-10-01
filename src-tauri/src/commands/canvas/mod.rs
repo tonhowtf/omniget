@@ -19,5 +19,6 @@ pub mod remote;
 pub mod roles;
 pub mod routines;
 pub mod term;
+pub mod transcribe;
 pub mod workspace_io;
 pub mod workspace_meta;

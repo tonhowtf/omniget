@@ -12778,6 +12778,22 @@
         "unused": "Not used by any portal",
         "empty": "No sessions yet."
       }
+    },
+    "media": {
+      "extractAudio": "Extract audio",
+      "transcribe": "Transcribe",
+      "audioReady": "Audio saved next to the video",
+      "failed": "Failed: {{error}}",
+      "stage": {
+        "placing": "Preparing",
+        "model": "Downloading the speech model",
+        "audio": "Extracting the audio",
+        "transcribing": "Transcribing {{pct}}%",
+        "writing": "Saving the transcript",
+        "summarizing": "Writing the context for the LLM",
+        "done": "Transcript ready",
+        "failed": "Failed"
+      }
     }
   },
   "tube": {
