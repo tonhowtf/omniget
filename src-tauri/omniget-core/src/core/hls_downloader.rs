@@ -274,8 +274,15 @@ impl HlsDownloader {
             }
         };
 
-        let (_, playlist) = parse_media_playlist(text.as_bytes())
+        let (_, mut playlist) = parse_media_playlist(text.as_bytes())
             .map_err(|e| anyhow::anyhow!("Parse media playlist: {:?}", e))?;
+        if is_live(&playlist) {
+            let dropped = take_live_edge(&mut playlist, LIVE_TAKE);
+            tracing::info!(
+                "[hls] live playlist: keeping the latest {} segments, {dropped} older ones skipped",
+                playlist.segments.len()
+            );
+        }
 
         let total_segments = playlist.segments.len();
 
@@ -704,6 +711,49 @@ struct InitSections {
 /// the spec applies it to every following segment until the next MAP, so it
 /// is carried forward here. A BYTERANGE without `@offset` starts where the
 /// previous sub-range of the same resource ended (streamlink hls.py:189-194).
+/// Segments a live download keeps: N_m3u8DL-RE's `--live-take-count`
+/// default (src/N_m3u8DL-RE/CommandLine/CommandInvoker.cs). A live window can
+/// list hours of DVR; without a cut the job downloads all of it.
+pub const LIVE_TAKE: usize = 16;
+
+/// A media playlist with no `EXT-X-ENDLIST` that is not typed VOD is live
+/// (N_m3u8DL-RE's HLSExtractor.cs: `IsLive = !isEndlist`).
+pub fn is_live(p: &m3u8_rs::MediaPlaylist) -> bool {
+    !p.end_list && p.playlist_type != Some(m3u8_rs::MediaPlaylistType::Vod)
+}
+
+/// Keeps the last `keep` segments, starting at the live edge as yt-dlp and
+/// N_m3u8DL-RE do (`FilterUtil.SyncStreams(…, takeLastCount)`). The init
+/// section and the key the dropped segments declared carry over to the first
+/// kept one, and the media sequence moves with it so AES IVs stay right.
+fn take_live_edge(p: &mut m3u8_rs::MediaPlaylist, keep: usize) -> usize {
+    let n = p.segments.len();
+    if n <= keep {
+        return 0;
+    }
+    let drop = n - keep;
+    let (mut map, mut key) = (None, None);
+    for s in &p.segments[..drop] {
+        if s.map.is_some() {
+            map = s.map.clone();
+        }
+        if s.key.is_some() {
+            key = s.key.clone();
+        }
+    }
+    p.segments.drain(..drop);
+    if let Some(first) = p.segments.first_mut() {
+        if first.map.is_none() {
+            first.map = map;
+        }
+        if first.key.is_none() {
+            first.key = key;
+        }
+    }
+    p.media_sequence += drop as u64;
+    drop
+}
+
 fn plan_segments(
     playlist: &m3u8_rs::MediaPlaylist,
     base: &str,
@@ -1211,6 +1261,27 @@ mod tests {
             resolve_url("https://a.com/v/x/index.m3u8?t=1", "../seg.ts"),
             "https://a.com/v/seg.ts?t=1"
         );
+    }
+
+    #[test]
+    fn live_window_keeps_the_edge() {
+        let mut text = String::from(
+            "#EXTM3U\n#EXT-X-TARGETDURATION:6\n#EXT-X-MEDIA-SEQUENCE:100\n#EXT-X-MAP:URI=\"init.mp4\"\n",
+        );
+        for i in 0..40 {
+            text.push_str(&format!("#EXTINF:6.0,\nseg{i}.m4s\n"));
+        }
+        let (_, mut p) = parse_media_playlist(text.as_bytes()).unwrap();
+        assert!(is_live(&p));
+        assert_eq!(take_live_edge(&mut p, LIVE_TAKE), 24);
+        assert_eq!(p.segments.len(), LIVE_TAKE);
+        assert_eq!(p.segments[0].uri, "seg24.m4s");
+        assert_eq!(p.media_sequence, 124);
+        assert_eq!(p.segments[0].map.as_ref().unwrap().uri, "init.mp4");
+
+        text.push_str("#EXT-X-ENDLIST\n");
+        let (_, vod) = parse_media_playlist(text.as_bytes()).unwrap();
+        assert!(!is_live(&vod));
     }
 
     #[test]
