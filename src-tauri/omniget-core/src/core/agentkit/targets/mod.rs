@@ -498,20 +498,6 @@ impl TargetAdapter {
         }
         seen.join("|")
     }
-
-    /// Model value for a Claude alias; `None` = omit the field.
-    pub fn map_model(&self, model: &str) -> Option<String> {
-        if self.id == "claude" {
-            return Some(model.to_string());
-        }
-        match self.model_map.get(model) {
-            Some(m) if !m.is_empty() => Some(m.clone()),
-            Some(_) => None,
-            // not an alias: a concrete id passes through only if it looks qualified
-            None => (!matches!(model, "sonnet" | "opus" | "haiku" | "fable" | "inherit"))
-                .then(|| model.to_string()),
-        }
-    }
 }
 
 /// Loads every embedded manifest (cached). A broken manifest is a build bug, so

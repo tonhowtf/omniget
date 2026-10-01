@@ -489,10 +489,6 @@ pub fn insert_message_tx(
     })
 }
 
-pub fn insert_message(db: &AssistDb, m: &NewMessage) -> Result<RoomMessage, String> {
-    db.tx(|tx| insert_message_tx(tx, m))
-}
-
 fn message_from_row(r: &Row) -> rusqlite::Result<RoomMessage> {
     let author: String = r.get(3)?;
     Ok(RoomMessage {

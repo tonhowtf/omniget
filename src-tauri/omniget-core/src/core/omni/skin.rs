@@ -259,13 +259,6 @@ impl Skin {
         &self.manifest.skin
     }
 
-    /// Every page URL, in atlas order: what the renderer preloads.
-    pub fn page_urls(&self) -> Vec<String> {
-        (0..self.atlas.pages.len())
-            .map(|i| self.page_url(i))
-            .collect()
-    }
-
     fn page_url(&self, page: usize) -> String {
         match self.atlas.pages.get(page) {
             Some(name) => format!("{}/{}", self.atlas_dir_url, name),

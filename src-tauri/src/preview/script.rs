@@ -320,10 +320,3 @@ pub const CONSOLE_FN: &str = r#"function (a) {
   var lim = a.limit || 200;
   return { entries: list.slice(-lim), total: list.length, url: location.href };
 }"#;
-
-pub const HISTORY_FN: &str = r#"function (a) {
-  if (a.action === 'back') history.back();
-  else if (a.action === 'forward') history.forward();
-  else location.reload();
-  return { ok: true };
-}"#;

@@ -288,24 +288,6 @@ pub fn parse_task_xml(xml: &str) -> Option<bool> {
     }
 }
 
-/// `schtasks /query /tn X /fo csv /v`: the "Scheduled Task State" column
-/// (by header, else position 11). Only English and Portuguese words are
-/// known; anything else is `None`.
-pub fn parse_task_csv(csv: &str) -> Option<bool> {
-    let mut rows = csv.lines().filter(|l| !l.trim().is_empty()).map(split_csv);
-    let head = rows.next()?;
-    let col = head
-        .iter()
-        .position(|h| h == "Scheduled Task State" || h == "Estado da Tarefa Agendada")
-        .unwrap_or(11);
-    let row = rows.next()?;
-    match row.get(col)?.to_ascii_lowercase().as_str() {
-        "enabled" | "habilitado" | "habilitada" => Some(true),
-        "disabled" | "desabilitado" | "desabilitada" => Some(false),
-        _ => None,
-    }
-}
-
 fn split_csv(line: &str) -> Vec<String> {
     let mut out = Vec::new();
     let mut cur = String::new();

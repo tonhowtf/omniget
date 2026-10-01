@@ -258,9 +258,3 @@ pub fn store() -> Result<Arc<CompanyStore>, String> {
     let s = Arc::new(CompanyStore::open(&dir.join(DB_FILE))?);
     Ok(STORE.get_or_init(|| s).clone())
 }
-
-/// The store if it was already opened (tools called before boot answer
-/// "not ready" instead of opening a second handle).
-pub fn try_store() -> Option<Arc<CompanyStore>> {
-    STORE.get().cloned()
-}

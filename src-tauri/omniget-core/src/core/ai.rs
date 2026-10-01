@@ -379,38 +379,6 @@ impl AiConfig {
     }
 }
 
-/// Point the app's AI at an `ai_keys` entry. The entry's kind is recorded as it
-/// is and the wire is derived from it, so a provider is no longer flattened to
-/// "Local" and forgotten.
-pub fn set_from_key(
-    kind: &str,
-    key_id: &str,
-    model: String,
-    base_url: String,
-    key: String,
-) -> Result<AiConfig, String> {
-    let provider = provider_for_kind(kind);
-    let mut guard = store().lock().unwrap();
-    let previous = guard.clone();
-    let mut next = previous.clone();
-    next.provider = provider;
-    next.kind = kind.to_string();
-    next.key_id = key_id.to_string();
-    next.model = model.trim().to_string();
-    next.local_base_url = match provider {
-        // The OpenAI and Anthropic wires have a fixed endpoint in `chat()`.
-        AiProvider::Openai | AiProvider::Anthropic | AiProvider::None => String::new(),
-        AiProvider::Local => base_url.trim().trim_end_matches('/').to_string(),
-    };
-    match provider {
-        AiProvider::Anthropic => next.anthropic_key = key.trim().to_string(),
-        _ => next.openai_key = key.trim().to_string(),
-    }
-    persist_current(&previous, &next)?;
-    *guard = next.clone();
-    Ok(next)
-}
-
 fn http_client() -> Result<reqwest::Client, String> {
     let builder = reqwest::Client::builder().timeout(std::time::Duration::from_secs(120));
     crate::core::http_client::apply_global_proxy(builder)

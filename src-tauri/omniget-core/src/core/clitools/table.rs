@@ -1,7 +1,7 @@
 //! A tabela de CLIs: um registro por ferramenta, carregado de `data/tools.json`
 //! (embutido no binário). Só dados; quem decide é `detect`, `plan` e `doctor`.
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::OnceLock;
 
 use serde::{Deserialize, Serialize};
@@ -232,9 +232,4 @@ pub fn expand_home(path: &str) -> PathBuf {
         }
     }
     PathBuf::from(path)
-}
-
-/// `path` fica dentro de `root` (comparação por componentes, sem symlink).
-pub fn is_within(path: &Path, root: &Path) -> bool {
-    path.starts_with(root)
 }

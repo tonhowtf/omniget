@@ -4,7 +4,7 @@
 //! índice, varrer, SQLite) roda em `spawn_blocking`.
 
 use omniget_core::core::catalog::{
-    self, collections, fetch, index, marketplace, registry,
+    collections, fetch, index, marketplace, registry,
     search::{self, Filters, Page, Sort},
     sources, CatalogError,
 };
@@ -270,19 +270,6 @@ pub async fn catalog_collections_export(id: String, path: String) -> Result<Stri
 pub async fn catalog_collections_import(path: String) -> Result<Value, String> {
     let r = blocking(move || collections::import(std::path::Path::new(&path))).await?;
     to_value(r)
-}
-
-/// Instala um índice novo (arquivo `.json` ou `.json.gz` local) em
-/// `<app_data>/agentkit/catalog/` e recarrega.
-#[tauri::command]
-pub async fn catalog_install_index(path: String) -> Result<Value, String> {
-    blocking(move || {
-        let bytes = std::fs::read(&path)
-            .map_err(|e| CatalogError::new(catalog::ERR_IO, format!("{path}: {e}")))?;
-        index::install_index(&bytes)?;
-        index::meta()
-    })
-    .await
 }
 
 // ------------------------------------------------------------------ agentkit ↔ catálogo

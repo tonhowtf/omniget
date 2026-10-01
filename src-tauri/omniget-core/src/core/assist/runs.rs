@@ -767,22 +767,6 @@ impl Registry {
         }
     }
 
-    /// A registry that believes it is another process boot (tests of the
-    /// restart path).
-    pub fn with_instance(db: Arc<AssistDb>, instance: &str) -> Self {
-        Self {
-            db,
-            instance: instance.into(),
-            sink: None,
-        }
-    }
-
-    /// A private sink instead of the process-wide one (tests).
-    pub fn with_sink(mut self, sink: Sink) -> Self {
-        self.sink = Some(sink);
-        self
-    }
-
     pub fn db(&self) -> &Arc<AssistDb> {
         &self.db
     }
@@ -1342,25 +1326,6 @@ impl Registry {
         })
     }
 
-    /// Closes a receipt: `Ok(result)` → completed, `Err(e)` → failed.
-    pub fn settle_receipt(
-        &self,
-        operation_id: &str,
-        outcome: Result<&str, &str>,
-    ) -> Result<(), String> {
-        let (state, result, error) = match outcome {
-            Ok(r) => ("completed", Some(clip(r, 4000)), None),
-            Err(e) => ("failed", None, Some(clip(e, 2000))),
-        };
-        self.db.with(|c| {
-            c.execute(
-                "UPDATE runs_receipts SET state=?2, result=?3, error=?4, updated_ms=?5 WHERE operation_id=?1 AND state IN ('admitted','unknown')",
-                params![operation_id, state, result, error, super::now_ms()],
-            )
-            .map(|_| ())
-        })
-    }
-
     pub fn receipt(&self, operation_id: &str) -> Option<Receipt> {
         self.db
             .with(|c| {
@@ -1376,28 +1341,6 @@ impl Registry {
     }
 
     // ── permissions ───────────────────────────────────────────────────
-
-    /// Opens a permission request, pending until `deadline_ms`. When the run
-    /// is known it moves to `waiting_user`.
-    pub fn open_permission(
-        &self,
-        run_id: &str,
-        tool_call_id: &str,
-        action: &str,
-        preview: &str,
-        options: &[&str],
-        deadline_ms: i64,
-    ) -> Result<PermissionRequest, String> {
-        self.open_ask(NewAsk {
-            run_id: run_id.into(),
-            tool_call_id: tool_call_id.into(),
-            action: action.into(),
-            preview: preview.into(),
-            options: options.iter().map(|o| o.to_string()).collect(),
-            deadline_ms,
-            ..NewAsk::default()
-        })
-    }
 
     /// [`Self::open_permission`] with everything a durable ask carries (2.2):
     /// the agent, the elicitation payload, and this boot as its holder. The
@@ -1477,21 +1420,6 @@ impl Registry {
                 rows.collect()
             })
             .unwrap_or_default()
-    }
-
-    /// The pending request of one tool call held by this boot, if any.
-    pub fn pending_of_call(&self, tool_call_id: &str) -> Option<PermissionRequest> {
-        self.db
-            .with(|c| {
-                c.query_row(
-                    &format!("SELECT {PERM_COLS} FROM runs_permissions WHERE tool_call_id=?1 AND state='pending' AND instance_id=?2 ORDER BY created_ms DESC LIMIT 1"),
-                    params![tool_call_id, &*self.instance],
-                    row_perm,
-                )
-                .optional()
-            })
-            .ok()
-            .flatten()
     }
 
     /// The one answer of a request. Applies only while it is pending and

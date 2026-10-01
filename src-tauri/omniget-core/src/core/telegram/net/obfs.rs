@@ -15,7 +15,6 @@ use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
 type Ctr = ctr::Ctr128BE<aes::Aes256>;
 
-pub const TAG_ABRIDGED: u32 = 0xefef_efef;
 pub const TAG_INTERMEDIATE: u32 = 0xeeee_eeee;
 pub const TAG_PADDED: u32 = 0xdddd_dddd;
 

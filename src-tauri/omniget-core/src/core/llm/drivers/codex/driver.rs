@@ -219,11 +219,6 @@ impl CodexDriver {
         }
     }
 
-    pub fn with_idle(mut self, idle: Duration) -> Self {
-        self.idle = idle;
-        self
-    }
-
     fn emit(&self, ev: RuntimeEvent) {
         let _ = self.sink.send(ev);
     }

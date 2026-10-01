@@ -756,8 +756,4 @@ impl Engine {
                 .map(|_| ()),
         }
     }
-
-    pub fn live_count(&self) -> usize {
-        self.live.lock().unwrap_or_else(|e| e.into_inner()).len()
-    }
 }

@@ -26,16 +26,6 @@ pub fn gain_for(integrated_lufs: f64) -> f64 {
     ((REPLAYGAIN_REFERENCE_LUFS - integrated_lufs) * 100.0).round() / 100.0
 }
 
-/// Gain the player can apply without clipping: never push the peak above
-/// `ceiling` (linear, e.g. 1.0 or 0.891 for -1 dBTP).
-pub fn safe_gain_db(gain_db: f64, peak: f64, ceiling: f64) -> f64 {
-    if peak <= 0.0 {
-        return gain_db;
-    }
-    let max_gain = 20.0 * (ceiling / peak).log10();
-    gain_db.min(max_gain)
-}
-
 /// Streaming meter: feed interleaved f32 frames, then `finish`.
 pub struct Meter {
     inner: EbuR128,

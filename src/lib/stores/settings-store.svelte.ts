@@ -726,7 +726,7 @@ const EFFECT_BY_PATH: Array<[RegExp, EffectId]> = [
   [/^proxy(\.|$)/, "network.proxy"],
   [/^advanced\.max_concurrent_segments$/, "downloads.segments"],
   [/^advanced\.(max_concurrent_downloads|stagger_delay_ms|max_retries|prevent_sleep)$/, "downloads.queue"],
-  [/^download\.(hotkey|clip_hotkey|music_hotkey)_/, "shortcuts.registration"],
+  [/^download\.(hotkey|music_hotkey)_/, "shortcuts.registration"],
   [/^start_with_system$/, "app.autostart"],
   [/^rpc(\.|$)/, "integrations.rpc"],
   [/^llm\.prune_/, "llm.pruning"],

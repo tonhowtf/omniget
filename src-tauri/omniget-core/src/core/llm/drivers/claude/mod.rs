@@ -504,36 +504,6 @@ impl ClaudeDriver {
         Ok(())
     }
 
-    /// Sets the thread's MCP servers (`--mcp-config` JSON or file path),
-    /// applied at the next launch. For the embedded OmniGet MCP.
-    pub fn set_mcp_config(&self, thread_id: &str, config: Option<String>) {
-        let s = self.session_or_create(thread_id, None);
-        let mut inner = s.inner.lock().unwrap_or_else(|e| e.into_inner());
-        inner.config.mcp_config = config;
-    }
-
-    /// Asks the live CLI for its subscription windows (`get_usage`, the
-    /// Agent SDK's experimental call). Opt-in: nothing calls it by itself.
-    /// The windows also come out as `account.rate-limits.updated`.
-    pub async fn request_usage(&self, thread_id: &str) -> Result<Value, DriverError> {
-        let s = self
-            .session(thread_id)
-            .ok_or_else(|| DriverError::new(ERR_DRIVER_NO_SESSION, "no Claude session"))?;
-        let rx = {
-            let mut inner = s.inner.lock().unwrap_or_else(|e| e.into_inner());
-            let id = Self::control(&mut inner, json!({"subtype": "get_usage"}))
-                .ok_or_else(|| DriverError::new(ERR_DRIVER_NO_SESSION, "Claude is not running"))?;
-            let (tx, rx) = oneshot::channel();
-            inner.waiters.insert(id, tx);
-            rx
-        };
-        match tokio::time::timeout(Duration::from_secs(20), rx).await {
-            Ok(Ok((true, v))) => Ok(v),
-            Ok(Ok((false, v))) => Err(DriverError::new(ERR_DRIVER_FAILED, v.to_string())),
-            _ => Err(DriverError::new(ERR_DRIVER_FAILED, "get_usage timed out")),
-        }
-    }
-
     /// Kills the live process (if any) so the next turn relaunches with the
     /// current settings. Only when idle.
     fn relaunch_if_idle(inner: &mut Inner) -> Option<ProcHandle> {

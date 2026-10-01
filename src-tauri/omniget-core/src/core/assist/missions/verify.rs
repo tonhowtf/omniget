@@ -1139,12 +1139,6 @@ pub fn verdict(
     v
 }
 
-/// A structured next action for a failing verdict (shown and used as the
-/// prompt of the next round).
-pub fn next_round_prompt(objective: &str, v: &Verdict) -> String {
-    next_round_prompt_for(objective, v, &[])
-}
-
 /// [`next_round_prompt`] that also names the exact file each failing
 /// artifact criterion reads, so the executor writes it where it is checked.
 pub fn next_round_prompt_for(objective: &str, v: &Verdict, criteria: &[Criterion]) -> String {

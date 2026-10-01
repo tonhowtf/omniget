@@ -231,11 +231,6 @@ impl Ledger {
         self.chains.remove(chain);
     }
 
-    /// Messages recorded in a chain.
-    pub fn messages_in(&self, chain: &str) -> u32 {
-        self.chains.get(chain).map(|c| c.messages).unwrap_or(0)
-    }
-
     /// Drops idempotency keys and idle chains older than the TTL.
     pub fn gc(&mut self, now_ms: u64) {
         self.requests

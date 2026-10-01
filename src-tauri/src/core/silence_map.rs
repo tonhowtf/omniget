@@ -86,18 +86,6 @@ fn field_after(line: &str, key: &str) -> Option<f64> {
         .ok()
 }
 
-/// Para onde saltar quando a reproducao chega em `position`.
-///
-/// `None` significa "siga tocando". Devolve o destino em vez de um booleano
-/// para o player nao ter que reimplementar a aritmetica do padding.
-pub fn skip_target(map: &SilenceMap, position: f64) -> Option<f64> {
-    map.spans
-        .iter()
-        .filter(|s| s.duration() >= MIN_SKIPPABLE_SECS)
-        .find(|s| position >= s.start && position < s.end - PLAYBACK_PADDING_SECS)
-        .map(|s| s.end - PLAYBACK_PADDING_SECS)
-}
-
 /// Quanto tempo a reproducao economiza com o mapa, em segundos.
 ///
 /// Este e o numero que o B36 nao alcanca: aqui so o padding de reproducao e

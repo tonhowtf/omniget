@@ -403,11 +403,6 @@ pub fn execute_files(
     serde_json::to_string(&result).map_err(|_| "FILE_RESPONSE_ENCODING".into())
 }
 
-/// Charge before each provider request, including retries. Conservative debits
-/// survive crashes and are never refunded without authoritative usage evidence.
-pub fn reserve_model(conversation: &str, bot: &str, amount: u64) -> Result<(), String> {
-    reserve_model_id(conversation, bot, amount).map(|_| ())
-}
 /// Replaces a conservative debit by the usage the provider reported for that
 /// request, never raising it (an unreported request keeps its upper bound).
 pub fn settle_model(debit: &str, actual_tokens: u64) -> Result<(), String> {

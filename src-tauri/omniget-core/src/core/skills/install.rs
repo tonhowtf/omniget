@@ -74,12 +74,6 @@ pub struct InstallOutcome {
 }
 
 impl InstallOutcome {
-    /// The manifest, for a caller that does not care about the verdict. Panics
-    /// on nothing: a parked install still has a manifest.
-    pub fn into_manifest(self) -> SkillManifest {
-        self.manifest
-    }
-
     /// True when the skill is parked and not installed.
     pub fn is_pending(&self) -> bool {
         self.needs_confirm.is_some()

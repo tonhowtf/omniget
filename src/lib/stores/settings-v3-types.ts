@@ -166,8 +166,6 @@ export type SettingsPublicV3 = {
     speed_limit: string;
     hotkey_enabled: boolean;
     hotkey_binding: string;
-    clip_hotkey_enabled?: boolean;
-    clip_hotkey_binding?: string;
     music_hotkey_enabled: boolean;
     music_hotkey_binding: string;
     music_audio_format: string;

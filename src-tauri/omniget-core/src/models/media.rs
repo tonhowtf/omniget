@@ -2,7 +2,6 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-use crate::platforms::Platform;
 use tokio_util::sync::CancellationToken;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -97,20 +96,4 @@ pub struct MediaItem {
     pub width: Option<u32>,
     pub height: Option<u32>,
     pub duration_seconds: Option<f64>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GenericDownloadResult {
-    pub platform: Platform,
-    pub title: String,
-    pub author: String,
-    pub files: Vec<DownloadedFile>,
-    pub total_bytes: u64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DownloadedFile {
-    pub path: PathBuf,
-    pub media_type: MediaType,
-    pub size_bytes: u64,
 }

@@ -444,59 +444,6 @@ fn ports_in_yaml(text: &str) -> Vec<(u16, &'static str)> {
     out
 }
 
-/// The Clash/mihomo REST controller, when a config exposes one. Lets the
-/// screen show node names and switch nodes without leaving OmniGet.
-#[derive(Debug, Clone, Serialize)]
-pub struct ClashController {
-    pub url: String,
-    pub secret: Option<String>,
-    pub app: String,
-}
-
-pub fn clash_controllers() -> Vec<ClashController> {
-    let mut out: Vec<ClashController> = Vec::new();
-    for dir in clash_dirs() {
-        let app = pretty_app(
-            &dir.file_name()
-                .map(|n| n.to_string_lossy().to_string())
-                .unwrap_or_default(),
-        );
-        for file in yaml_files(&dir, 3) {
-            let Ok(text) = std::fs::read_to_string(&file) else {
-                continue;
-            };
-            let top = |key: &str| -> Option<String> {
-                text.lines().find_map(|l| {
-                    if l.starts_with(' ') {
-                        return None;
-                    }
-                    let (k, v) = l.split_once(':')?;
-                    (k.trim() == key).then(|| v.trim().trim_matches(['"', '\'']).to_string())
-                })
-            };
-            let Some(ctrl) = top("external-controller").filter(|c| !c.is_empty()) else {
-                continue;
-            };
-            let ctrl = ctrl.replace("0.0.0.0", "127.0.0.1");
-            let ctrl = if ctrl.starts_with(':') {
-                format!("127.0.0.1{ctrl}")
-            } else {
-                ctrl
-            };
-            let url = format!("http://{ctrl}");
-            if out.iter().any(|c| c.url == url) {
-                continue;
-            }
-            out.push(ClashController {
-                url,
-                secret: top("secret").filter(|s| !s.is_empty()),
-                app: app.clone(),
-            });
-        }
-    }
-    out
-}
-
 /// Connects to 127.0.0.1:`port` and asks what it speaks. Returns SOCKS5
 /// and/or HTTP when the listener answers like one.
 pub async fn sniff_local(port: u16) -> Vec<RouteKind> {

@@ -128,20 +128,6 @@ pub fn diagnose(stderr: &str) -> Option<Diagnosis> {
     None
 }
 
-/// Todas as chaves de i18n que a tela precisa ter traduzidas.
-///
-/// Existe para o teste travar: causa nova sem chave correspondente vira texto
-/// cru na interface, que e a forma mais visivel de regressao de i18n.
-pub const ALL_CAUSE_KEYS: &[&str] = &[
-    "error.cause.po_token_required",
-    "error.cause.sabr_only",
-    "error.cause.rate_limited",
-    "error.cause.disk_full",
-    "error.cause.needs_login",
-    "error.cause.tls_fingerprint",
-    "error.cause.extractor_outdated",
-];
-
 /// Stable machine diagnosis. This deliberately distinguishes observations
 /// (HTTP access denied) from hypotheses (authentication/fingerprint).
 #[derive(Debug, Clone, Serialize)]

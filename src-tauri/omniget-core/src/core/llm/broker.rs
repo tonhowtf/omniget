@@ -235,25 +235,6 @@ const INTERNAL_PREFIX: &str = "";
 /// The prefix every skill tool carries, matching [`grant_key`].
 pub const SKILL_PREFIX: &str = "skill:";
 
-/// The prefix every tool of one MCP server carries, matching [`grant_key`].
-pub fn mcp_prefix(server: &str) -> String {
-    format!("mcp:{server}:")
-}
-
-/// Prefix every spec name once. A spec that already carries the prefix (a
-/// source that namespaced its own names) is left alone.
-fn namespaced(prefix: &str, specs: Vec<ToolSpec>) -> Vec<ToolSpec> {
-    specs
-        .into_iter()
-        .map(|mut spec| {
-            if !spec.name.starts_with(prefix) {
-                spec.name = format!("{prefix}{}", spec.name);
-            }
-            spec
-        })
-        .collect()
-}
-
 /// One place tools come from: the internal table, one MCP server, the skills.
 struct Source {
     /// Route key. Also the id a later `register_*` replaces.
@@ -354,11 +335,6 @@ impl ToolBroker {
         broker
     }
 
-    pub fn with_ask_timeout(self, timeout: Duration) -> Self {
-        self.set_ask_timeout(timeout);
-        self
-    }
-
     /// The default ask timeout (the chat's), settable on a broker that is
     /// already shared: the settings change while the app runs.
     pub fn set_ask_timeout(&self, timeout: Duration) {
@@ -405,27 +381,6 @@ impl ToolBroker {
         self.register(INTERNAL_PREFIX.to_string(), specs, executor)
     }
 
-    /// Replace the tools of one MCP server. `specs` carry the bare names the
-    /// server reported; the broker namespaces them to `mcp:<server>:<tool>`,
-    /// and the executor is called with that full name.
-    pub fn register_mcp(
-        &self,
-        server: &str,
-        specs: Vec<ToolSpec>,
-        executor: Arc<dyn ToolExecutor>,
-    ) -> usize {
-        let prefix = mcp_prefix(server);
-        let specs = namespaced(&prefix, specs);
-        self.register(prefix, specs, executor)
-    }
-
-    /// Replace the skill tools. `specs` carry the bare skill names; the broker
-    /// namespaces them to `skill:<name>`.
-    pub fn register_skills(&self, specs: Vec<ToolSpec>, executor: Arc<dyn ToolExecutor>) -> usize {
-        let specs = namespaced(SKILL_PREFIX, specs);
-        self.register(SKILL_PREFIX.to_string(), specs, executor)
-    }
-
     /// Replace the tools of a named source whose names are already final
     /// (no namespacing): the assistant tools (`assist`), for one.
     pub fn register_source(
@@ -435,12 +390,6 @@ impl ToolBroker {
         executor: Arc<dyn ToolExecutor>,
     ) -> usize {
         self.register(prefix.to_string(), specs, executor)
-    }
-
-    /// Drop one MCP server (disabled, removed, or failed to connect). Returns
-    /// how many specs went away.
-    pub fn unregister_mcp(&self, server: &str) -> usize {
-        self.unregister(&mcp_prefix(server))
     }
 
     /// Drop every skill tool.
@@ -540,10 +489,6 @@ impl ToolBroker {
             .find(|g| grant_key(&g.source) == name)
             .map(|g| g.mode)
             .unwrap_or(GrantMode::Deny)
-    }
-
-    pub fn has_tool(&self, name: &str) -> bool {
-        self.executor_for(name).is_some()
     }
 
     /// Answer a pending `Ask`. Returns false when the id is unknown (already
@@ -774,10 +719,6 @@ impl ToolBroker {
             .iter()
             .map(|(k, p)| (p.request_id.clone(), k.clone(), p.tool.clone()))
             .collect()
-    }
-
-    pub fn pending_count(&self) -> usize {
-        self.pending.lock().unwrap_or_else(|e| e.into_inner()).len()
     }
 
     /// Whether a question of this turn waits for a person right now. The

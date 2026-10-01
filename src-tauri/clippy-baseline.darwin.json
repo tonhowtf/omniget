@@ -1,6 +1,6 @@
 {
   "generated_on": "darwin",
-  "total": 55,
+  "total": 54,
   "counts": {
     "omniget_core|clippy::assertions_on_constants": 1,
     "omniget_core|clippy::collapsible_if": 2,
@@ -21,7 +21,7 @@
     "omniget_core|clippy::vec_init_then_push": 1,
     "omniget_lib|clippy::collapsible_match": 1,
     "omniget_lib|clippy::doc_overindented_list_items": 4,
-    "omniget_lib|clippy::double_ended_iterator_last": 2,
+    "omniget_lib|clippy::double_ended_iterator_last": 1,
     "omniget_lib|clippy::if_same_then_else": 1,
     "omniget_lib|clippy::let_underscore_future": 1,
     "omniget_lib|clippy::manual_filter": 1,

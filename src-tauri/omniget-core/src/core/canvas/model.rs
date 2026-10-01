@@ -928,9 +928,6 @@ impl FloorDoc {
     pub fn node(&self, id: &str) -> Option<&CanvasNode> {
         self.nodes.iter().find(|n| n.id == id)
     }
-    pub fn node_mut(&mut self, id: &str) -> Option<&mut CanvasNode> {
-        self.nodes.iter_mut().find(|n| n.id == id)
-    }
     pub fn connection(&self, id: &str) -> Option<&Connection> {
         self.connections.iter().find(|c| c.id == id)
     }

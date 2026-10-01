@@ -403,17 +403,6 @@ pub fn books_by_ids(ids: &[i64]) -> Result<Vec<BookRow>, String> {
     Ok(out)
 }
 
-pub fn book_by_path(path: &str) -> Result<Option<BookRow>, String> {
-    with(|c| {
-        c.query_row(
-            &format!("SELECT {BOOK_COLS} FROM books WHERE path = ?1"),
-            [path],
-            row_to_book,
-        )
-        .optional()
-    })
-}
-
 /// Title without leading articles, for sorting (`The Hobbit` -> `hobbit`).
 pub fn sort_key(title: &str) -> String {
     let t = title.trim().to_lowercase();

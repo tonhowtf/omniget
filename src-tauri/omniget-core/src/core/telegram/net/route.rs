@@ -142,13 +142,6 @@ impl Route {
         }
     }
 
-    pub fn is_local(&self) -> bool {
-        matches!(
-            self.host.as_str(),
-            "127.0.0.1" | "localhost" | "::1" | "[::1]" | "0.0.0.0"
-        )
-    }
-
     /// Link that another person can paste into OmniGet or Telegram.
     pub fn share_link(&self) -> Option<String> {
         use urlencoding::encode;

@@ -395,11 +395,6 @@ pub fn unit_name(c: &Component, ctx: &ConvertCtx) -> String {
     ctx.name_for(c)
 }
 
-/// `true` when the component is OmniGet's own observation hook.
-pub fn is_observe(c: &Component) -> bool {
-    matches!(&c.body, crate::core::agentkit::model::ComponentBody::Hook(h) if h.tags.iter().any(|t| t == super::hook_observe::OBSERVE_TAG))
-}
-
 pub fn missing(target: &TargetAdapter, what: &str, scope: Scope) -> AgentkitError {
     AgentkitError::new(
         "AGENTKIT_NO_PATH",

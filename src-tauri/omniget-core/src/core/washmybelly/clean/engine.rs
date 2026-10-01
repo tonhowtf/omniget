@@ -106,25 +106,6 @@ impl Env {
         }
     }
 
-    pub fn with_processes(mut self, names: &[&str]) -> Env {
-        self.processes = names.iter().map(|n| n.to_lowercase()).collect();
-        self
-    }
-
-    pub fn with_programs(mut self, names: &'static [&'static str]) -> Env {
-        self.on_path = Box::new(move |p| names.contains(&p));
-        self
-    }
-
-    pub fn with_output(
-        mut self,
-        f: impl Fn(&str, &[&str]) -> Option<String> + Send + Sync + 'static,
-    ) -> Env {
-        self.run = Box::new(f);
-        self.probes = true;
-        self
-    }
-
     pub fn output(&self, program: &str, args: &[&str]) -> Option<String> {
         (self.run)(program, args)
     }

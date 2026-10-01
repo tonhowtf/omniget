@@ -72,14 +72,3 @@ pub fn preview_rule_match(url: String, platform: Option<String>) -> Option<Rule>
     let rules = load_rules();
     first_match(&rules, &url, platform.as_deref()).cloned()
 }
-
-/// O que a regra decidiu, para o enfileiramento aplicar.
-#[derive(Debug, Clone, Default, serde::Serialize)]
-pub struct RuleOutcome {
-    pub rule_name: Option<String>,
-    pub output_dir: Option<String>,
-    pub quality: Option<String>,
-    pub audio_only: Option<bool>,
-    pub subtitles: Option<bool>,
-    pub tags: Vec<String>,
-}

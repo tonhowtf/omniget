@@ -959,10 +959,6 @@ fn validate_task_request(req: &TaskRequest) -> Result<(), String> {
     Ok(())
 }
 
-pub fn create_task(db: &AssistDb, principal: &str, req: &TaskRequest) -> Result<TaskView, String> {
-    create_task_with(db, roster()?.as_ref(), principal, req)
-}
-
 pub fn create_task_with(
     db: &AssistDb,
     roster: &dyn BotRoster,
@@ -1067,10 +1063,6 @@ fn task_owner(db: &AssistDb, principal: &str, task_id: &str) -> Result<Task, Str
         return Err("TASK_NOT_AUTHORIZED".into());
     }
     tasks::task(db, task_id)
-}
-
-pub fn task_run(db: &AssistDb, principal: &str, task_id: &str) -> Result<ExternalTaskRun, String> {
-    task_run_with(db, roster()?.as_ref(), principal, task_id)
 }
 
 pub fn task_run_with(
@@ -1214,21 +1206,6 @@ fn pending_heads(db: &AssistDb, limit: usize) -> Result<Vec<(String, String, i64
         let rows = s.query_map([limit as i64], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?;
         rows.collect()
     })
-}
-
-/// Round-robin by principal: the head task of the first principal after
-/// `after` (by id, wrapping). A driver that keeps the last principal it
-/// served never serves the same principal twice while another one waits.
-pub fn next_pending_task(
-    db: &AssistDb,
-    after: Option<&str>,
-) -> Result<Option<(String, String)>, String> {
-    let mut heads = pending_heads(db, 1_000)?;
-    heads.sort_by(|a, b| a.0.cmp(&b.0));
-    let pick = after
-        .and_then(|a| heads.iter().find(|h| h.0.as_str() > a))
-        .or_else(|| heads.first());
-    Ok(pick.map(|(p, t, _)| (p.clone(), t.clone())))
 }
 
 // ── local isolation (H1) ────────────────────────────────────────────────

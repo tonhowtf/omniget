@@ -831,18 +831,6 @@ fn embed_thumbnail_enabled() -> bool {
     EMBED_THUMBNAIL_FN.get().map(|f| f()).unwrap_or(true)
 }
 
-/// Whether any cosmetic post-processing (metadata/thumbnail embedding,
-/// SponsorBlock, chapter splitting) would be added to a download. The
-/// confined worker must answer false: those steps need extra network or
-/// conversions and a failed thumbnail conversion fails the whole download.
-pub fn cosmetic_postprocessing_enabled() -> bool {
-    embed_metadata_enabled()
-        || embed_thumbnail_enabled()
-        || sponsorblock_enabled()
-        || split_chapters_enabled()
-        || live_from_start_enabled()
-}
-
 pub fn set_speed_limit_fn(f: impl Fn() -> Option<String> + Send + Sync + 'static) {
     let _ = SPEED_LIMIT_FN.set(Box::new(f));
 }

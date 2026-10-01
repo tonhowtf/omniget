@@ -113,19 +113,6 @@ pub fn statusline_main(tool: &str, command: &str, stdin: &[u8]) -> (i32, String)
     (out.exit, out.stdout)
 }
 
-/// Undoes [`wrap_command`] (for import/inventory): the inner command.
-pub fn unwrap_command(cmd: &str) -> Option<String> {
-    let (_, rest) = cmd.split_once(" -- ")?;
-    let rest = rest.trim();
-    if let Some(inner) = rest.strip_prefix('\'').and_then(|r| r.strip_suffix('\'')) {
-        return Some(inner.replace("'\\''", "'"));
-    }
-    if let Some(inner) = rest.strip_prefix('"').and_then(|r| r.strip_suffix('"')) {
-        return Some(inner.replace("\\\"", "\""));
-    }
-    Some(rest.to_string())
-}
-
 // ------------------------------------------------------------------ stdin translation
 
 fn pick<'a>(v: &'a Value, paths: &[&str]) -> Option<&'a Value> {

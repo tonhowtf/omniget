@@ -1406,11 +1406,6 @@ impl Jobs {
         Ok(job)
     }
 
-    /// Runs a prepared job to the end and returns it (missions await it).
-    pub async fn run_prepared(self: &Arc<Self>, id: &str) -> Option<Job> {
-        self.run_job(id, None).await
-    }
-
     /// [`Self::run_prepared`] under a mission's [`JobGuard`].
     pub async fn run_prepared_guarded(self: &Arc<Self>, id: &str, guard: JobGuard) -> Option<Job> {
         self.guards

@@ -30,16 +30,6 @@ pub async fn company_run_stop(run_id: String) -> Result<(), String> {
     }
 }
 
-#[tauri::command]
-pub async fn company_engine_status() -> Result<Value, String> {
-    Ok(match crate::company::get() {
-        Some(e) => {
-            json!({"running": true, "live_runs": e.live_count(), "max": crate::company::GLOBAL_MAX})
-        }
-        None => json!({"running": false}),
-    })
-}
-
 /// Roster agents a hire can copy (runtime and model), for the hire form.
 #[tauri::command]
 pub async fn company_runtime_templates(app: tauri::AppHandle) -> Result<Value, String> {

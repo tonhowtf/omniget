@@ -281,11 +281,7 @@ pub struct HoldToken {
     id: Option<u64>,
 }
 
-impl HoldToken {
-    pub fn is_holding(&self) -> bool {
-        self.id.is_some()
-    }
-}
+impl HoldToken {}
 
 impl Drop for HoldToken {
     fn drop(&mut self) {

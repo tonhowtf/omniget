@@ -109,8 +109,6 @@
     "bilibili_preferred_codec": 20,
     "bilibili_preferred_qn": 200,
     "caption_locale": "en",
-    "clip_hotkey_binding": "CmdOrCtrl+Shift+B",
-    "clip_hotkey_enabled": false,
     "clipboard_detection": false,
     "continuous_lecture_numbers": false,
     "cookie_file": "",

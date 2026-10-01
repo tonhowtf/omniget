@@ -360,15 +360,3 @@ pub fn start() {
         ONCE.call_once(|| mirror::start(super::doc::host().store().clone()));
     }
 }
-
-/// Where the mirror lives (Settings, diagnostics); `None` off macOS.
-pub fn mirror_dir() -> Option<std::path::PathBuf> {
-    #[cfg(target_os = "macos")]
-    {
-        mirror::dir()
-    }
-    #[cfg(not(target_os = "macos"))]
-    {
-        None
-    }
-}

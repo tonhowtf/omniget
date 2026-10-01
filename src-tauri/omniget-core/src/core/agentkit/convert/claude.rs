@@ -14,7 +14,7 @@ use super::{
     format_for_path, kind_path, place_support, rewrite_command, ConvertCtx, Converter, Dedupe,
     PatchOp, PlannedFile, SupportPlan,
 };
-use crate::core::agentkit::edit::{keys, textblock, DocFormat, Seg};
+use crate::core::agentkit::edit::{keys, DocFormat, Seg};
 use crate::core::agentkit::model::*;
 use crate::core::agentkit::parse::{self, placeholders};
 use crate::core::agentkit::targets::TargetAdapter;
@@ -791,9 +791,4 @@ impl Converter for SkillDirConverter {
     ) -> Result<Vec<Component>> {
         ClaudeConverter::own_paths().import(kind, target, scope, ctx)
     }
-}
-
-/// Text block helper re-exported for converters that append to rules files.
-pub fn rules_block(text: &str, id: &str, content: &str) -> String {
-    textblock::upsert(text, id, content)
 }

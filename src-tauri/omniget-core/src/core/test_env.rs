@@ -13,12 +13,9 @@ use std::cell::RefCell;
 use std::ffi::{OsStr, OsString};
 use std::ops::Deref;
 use std::path::PathBuf;
-use std::sync::{Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard};
+use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 static DATA_DIR_ENV: RwLock<()> = RwLock::new(());
-/// Readers set the shared value one at a time (only the first one after an
-/// exclusive holder that had none actually writes).
-static SETTING: Mutex<()> = Mutex::new(());
 
 const KEY: &str = "OMNIGET_DATA_DIR";
 
@@ -32,21 +29,6 @@ impl Deref for Shared {
     fn deref(&self) -> &PathBuf {
         &self.path
     }
-}
-
-/// `<tmp>/omniget-vcs-tests-data` as the data dir while the guard lives.
-/// Never call it twice in one test: the lock is not reentrant.
-pub fn shared_data_dir() -> Shared {
-    let read = DATA_DIR_ENV.read().unwrap_or_else(|e| e.into_inner());
-    let path = std::env::temp_dir().join("omniget-vcs-tests-data");
-    std::fs::create_dir_all(&path).unwrap();
-    {
-        let _one = SETTING.lock().unwrap_or_else(|e| e.into_inner());
-        if std::env::var_os(KEY).as_deref() != Some(path.as_os_str()) {
-            std::env::set_var(KEY, &path);
-        }
-    }
-    Shared { path, _read: read }
 }
 
 pub struct Exclusive {

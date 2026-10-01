@@ -256,12 +256,6 @@ fn roster_with_prompts(prompts: &PromptDefaults) -> Vec<AgentDef> {
     ]
 }
 
-/// Team templates. Placeholder table until `core/llm/templates.rs`
-/// (f2-llm-coordinator) lands; `apply_template` delegates there once it exists.
-pub fn template_ids() -> Vec<&'static str> {
-    vec!["solo", "chief_of_staff", "engineering_manager"]
-}
-
 pub fn template(name: &str) -> Option<Vec<AgentDef>> {
     let prompts = prompt_defaults();
     let base = |id: &str, agent_name: &str, role: AgentRole, prompt: &str| AgentDef {

@@ -617,12 +617,7 @@ pub struct SecretOperations {
     pub twitter_manual_cookie: SecretOperation,
 }
 
-impl SecretOperations {
-    pub fn is_noop(&self) -> bool {
-        self.proxy_password == SecretOperation::Keep
-            && self.twitter_manual_cookie == SecretOperation::Keep
-    }
-}
+impl SecretOperations {}
 
 fn parse_secret_operation(v: &Value, path: &str) -> Result<SecretOperation, FieldError> {
     let Value::Object(obj) = v else {
@@ -744,7 +739,7 @@ pub fn apply_secret_operations(s: &mut AppSettings, ops: &SecretOperations) {
 /// The exact allowlist of `reset-policy.json`, by key. Anything not listed
 /// (secrets, bridge token and port, consents, enablement of integrations,
 /// derived calibration, unknown keys) survives every reset.
-pub const RESET_ALLOWLIST: [(&str, SettingsSection); 124] = [
+pub const RESET_ALLOWLIST: [(&str, SettingsSection); 122] = [
     ("appearance.theme", SettingsSection::Appearance),
     ("appearance.language", SettingsSection::General),
     ("download.default_output_dir", SettingsSection::Downloads),
@@ -782,8 +777,6 @@ pub const RESET_ALLOWLIST: [(&str, SettingsSection); 124] = [
     ("download.speed_limit", SettingsSection::Downloads),
     ("download.hotkey_enabled", SettingsSection::Downloads),
     ("download.hotkey_binding", SettingsSection::Downloads),
-    ("download.clip_hotkey_enabled", SettingsSection::Downloads),
-    ("download.clip_hotkey_binding", SettingsSection::Downloads),
     ("download.music_hotkey_enabled", SettingsSection::Downloads),
     ("download.music_hotkey_binding", SettingsSection::Downloads),
     ("download.music_audio_format", SettingsSection::Downloads),

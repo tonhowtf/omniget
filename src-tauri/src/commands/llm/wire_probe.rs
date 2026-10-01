@@ -24,9 +24,7 @@ use std::sync::{Arc, Mutex, OnceLock};
 use omniget_core::core::llm::error::ERR_LLM_MODEL;
 use omniget_core::core::llm::providers::Provider;
 use omniget_core::core::llm::types::{ModelRef, ProviderId};
-use omniget_core::core::llm::wire_probe::{
-    self, ProbeCase, ProbeRound, MAX_OUTPUT_TOKENS, MAX_PROBE_REQUESTS,
-};
+use omniget_core::core::llm::wire_probe::{self, ProbeCase, ProbeRound};
 use serde_json::Value;
 use tauri::State;
 
@@ -134,7 +132,3 @@ pub async fn llm_wire_probe_last() -> Result<Value, String> {
         None => Ok(Value::Null),
     }
 }
-
-/// Limits the UI shows next to the button, kept in one place so the copy and
-/// the enforcement cannot drift apart.
-pub const PROBE_LIMITS: (usize, u32) = (MAX_PROBE_REQUESTS, MAX_OUTPUT_TOKENS);

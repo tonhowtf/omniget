@@ -107,20 +107,6 @@ pub mod util {
         dedup_paths(v)
     }
 
-    pub fn xdg_config_homes() -> Vec<PathBuf> {
-        let mut v = Vec::new();
-        if let Some(x) = env_dir("XDG_CONFIG_HOME") {
-            v.push(x);
-        }
-        if let Some(h) = home_join(&[".config"]) {
-            v.push(h);
-        }
-        if let Some(d) = dirs::config_dir() {
-            v.push(d);
-        }
-        dedup_paths(v)
-    }
-
     pub fn dedup_paths(v: Vec<PathBuf>) -> Vec<PathBuf> {
         let mut out: Vec<PathBuf> = Vec::new();
         for p in v {
@@ -289,21 +275,6 @@ pub mod util {
                 f(v);
             }
         }
-    }
-
-    /// Primeira linha JSON de um JSONL (cabeçalho), sem ler o resto.
-    pub fn first_jsonl(p: &Path) -> Option<Value> {
-        let file = fs::File::open(p).ok()?;
-        let reader = BufReader::new(file);
-        for line in reader.split(b'\n').take(50) {
-            let line = line.ok()?;
-            let t = trim_bytes(&line);
-            if t.is_empty() {
-                continue;
-            }
-            return serde_json::from_slice(t).ok();
-        }
-        None
     }
 
     fn trim_bytes(b: &[u8]) -> &[u8] {

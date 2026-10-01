@@ -2,7 +2,6 @@
 //! baixado uma vez por dia para `<app_data>/tools/pricing/litellm.json`.
 //! Preços internos ficam por token em dólares; a UI mostra por milhão.
 
-use std::collections::HashMap;
 use std::path::PathBuf;
 
 use anyhow::anyhow;
@@ -200,5 +199,3 @@ pub fn cost(price: &ModelPrice, input_tokens: u64, output_tokens: u64) -> Option
     let o = price.output_per_m.unwrap_or(0.0) / 1_000_000.0 * output_tokens as f64;
     Some(i + o)
 }
-
-pub type PriceMap = HashMap<String, ModelPrice>;

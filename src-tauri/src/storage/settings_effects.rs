@@ -88,8 +88,6 @@ impl EffectId {
             Self::ShortcutsRegistration => &[
                 "download.hotkey_enabled",
                 "download.hotkey_binding",
-                "download.clip_hotkey_enabled",
-                "download.clip_hotkey_binding",
                 "download.music_hotkey_enabled",
                 "download.music_hotkey_binding",
             ],

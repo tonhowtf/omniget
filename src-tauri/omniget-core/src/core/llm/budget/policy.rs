@@ -838,15 +838,6 @@ impl Engine {
         *self.policies.write().unwrap_or_else(|e| e.into_inner()) = list;
     }
 
-    /// This engine's own quota source (tests); the app sets the global one.
-    pub fn set_quota(&self, f: QuotaFn) {
-        *self.quota.write().unwrap_or_else(|e| e.into_inner()) = Some(f);
-    }
-
-    pub fn set_price(&self, f: PriceFn) {
-        *self.price.write().unwrap_or_else(|e| e.into_inner()) = Some(f);
-    }
-
     pub fn set_listener(&self, f: Listener) {
         *self.listener.write().unwrap_or_else(|e| e.into_inner()) = Some(f);
     }

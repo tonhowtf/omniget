@@ -195,15 +195,6 @@ pub const WRITE_TOOLS: &[&str] = &[
     "tg_delete_messages",
 ];
 
-/// Tools that change local state (downloads, auto-save rules).
-pub const LOCAL_TOOLS: &[&str] = &[
-    "tg_download",
-    "tg_watch_add",
-    "tg_watch_update",
-    "tg_watch_remove",
-    "tg_watch_run",
-];
-
 /// Run one `tg_*` tool as an agent of the /llm broker.
 pub async fn call(name: &str, a: Value) -> Result<Value, String> {
     call_as(Caller::Agent, name, a).await

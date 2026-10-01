@@ -105,18 +105,6 @@ pub struct SideModel {
     pub reason: SideReason,
 }
 
-/// The provider family of a candidate, for [`small_model_of`]: `claude-cli`,
-/// `codex-cli`, or the native provider id (`anthropic`, `openai`, …).
-pub fn side_family(candidate: &Candidate, runtime: &super::agent::RuntimeKind) -> String {
-    match (&candidate.runtime, runtime) {
-        (CandidateRuntime::Cli { .. }, super::agent::RuntimeKind::Cli { cli, .. }) => {
-            format!("{}-cli", cli.trim().to_ascii_lowercase())
-        }
-        (CandidateRuntime::Native { provider }, _) => provider.as_str().to_ascii_lowercase(),
-        (CandidateRuntime::Cli { account_id }, _) => format!("cli:{account_id}"),
-    }
-}
-
 /// The small model of the same family, or `None` when none is known (a
 /// local model is already free; an ACP agent picks its own). Names that a
 /// family does not offer only cost one failed side call: the caller retries
@@ -285,13 +273,6 @@ impl Capacity {
     pub fn unavailable() -> Self {
         Self {
             available: false,
-            ..Self::default()
-        }
-    }
-
-    pub fn with_quota(quota: f32) -> Self {
-        Self {
-            quota_remaining: Some(quota),
             ..Self::default()
         }
     }

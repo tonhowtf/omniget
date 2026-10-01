@@ -48,24 +48,9 @@ pub struct CachedMediaMeta {
     pub fetched_at: Instant,
 }
 
-const META_TTL: Duration = Duration::from_secs(5 * 60);
 const META_MAX_ENTRIES: usize = 5000;
 
 pub type MetadataCache = Arc<DashMap<(i64, i32), CachedMediaMeta>>;
-
-pub fn metadata_get(
-    cache: &MetadataCache,
-    chat_id: i64,
-    message_id: i32,
-) -> Option<CachedMediaMeta> {
-    let entry = cache.get(&(chat_id, message_id))?;
-    if entry.fetched_at.elapsed() > META_TTL {
-        drop(entry);
-        cache.remove(&(chat_id, message_id));
-        return None;
-    }
-    Some(entry.clone())
-}
 
 pub fn metadata_put(cache: &MetadataCache, chat_id: i64, message_id: i32, meta: CachedMediaMeta) {
     if cache.len() >= META_MAX_ENTRIES {
@@ -249,11 +234,6 @@ async fn create_client_with_updates(
     let updates_rx = pool.updates;
     tokio::spawn(Box::pin(pool.runner.run()));
     Ok((client, updates_rx))
-}
-
-pub async fn create_client() -> anyhow::Result<Client> {
-    let (client, _updates_rx) = create_client_with_updates().await?;
-    Ok(client)
 }
 
 pub async fn delete_session() -> anyhow::Result<()> {

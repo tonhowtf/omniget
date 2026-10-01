@@ -11,7 +11,7 @@
 use super::chat::{self, ChatEntry};
 use super::model::{
     new_id, now_rfc3339, CableTie, CanvasNode, Connection, Drawing, FloorDoc, Group, NodeKind,
-    Point, Rect, Size,
+    Point, Size,
 };
 use super::notes;
 use super::ops::Op;
@@ -537,9 +537,4 @@ pub fn paste(
         group_ids: plan.group_ids,
         terminals: plan.terminals,
     })
-}
-
-/// Bounds of a set of rects, for callers that centre a paste.
-pub fn bounds_of(rects: impl Iterator<Item = Rect>) -> Option<Rect> {
-    rects.reduce(|a, b| a.union(&b))
 }

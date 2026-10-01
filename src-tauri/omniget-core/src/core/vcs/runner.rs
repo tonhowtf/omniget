@@ -85,13 +85,6 @@ impl VcsError {
             VcsError::Io(_) => ERR_IO,
         }
     }
-
-    pub fn exit_stderr(&self) -> Option<&str> {
-        match self {
-            VcsError::Exit { stderr, .. } => Some(stderr),
-            _ => None,
-        }
-    }
 }
 
 impl std::fmt::Display for VcsError {

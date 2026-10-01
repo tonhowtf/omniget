@@ -249,8 +249,8 @@ mod settings_rebrand_audit {
             "../../tests/fixtures/settings-audit-defaults.json"
         ))
         .unwrap();
-        assert_eq!(leaf_count(&actual), 240);
-        assert_eq!(leaf_count(&expected), 240);
+        assert_eq!(leaf_count(&actual), 238);
+        assert_eq!(leaf_count(&expected), 238);
         // Read the fixture through its actual Rust types: f32 defaults such as
         // 1.55 otherwise differ from JSON's f64 representation by rounding.
         let typed_fixture: AppSettings = serde_json::from_value(expected).unwrap();
@@ -261,7 +261,7 @@ mod settings_rebrand_audit {
     fn all_settings_keep_nondefault_values_through_the_real_codec() {
         let mut expected = serde_json::to_value(AppSettings::default()).unwrap();
         synthetic_values(&mut expected, "");
-        assert_eq!(leaf_count(&expected), 240);
+        assert_eq!(leaf_count(&expected), 238);
         let decoded: AppSettings = serde_json::from_value(expected.clone()).unwrap();
         assert_eq!(serde_json::to_value(decoded).unwrap(), expected);
         assert_eq!(

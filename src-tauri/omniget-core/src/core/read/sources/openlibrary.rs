@@ -39,10 +39,6 @@ pub fn cover_url(id: i64, size: char) -> String {
     format!("https://covers.openlibrary.org/b/id/{id}-{size}.jpg")
 }
 
-pub fn isbn_cover_url(isbn: &str) -> String {
-    format!("https://covers.openlibrary.org/b/isbn/{isbn}-L.jpg?default=false")
-}
-
 /// `mode`: `everything` or `ebooks` (only public-domain readable books).
 pub fn search_url(query: &str, language: &str, mode: &str, page: u32) -> String {
     let mut u = url::Url::parse("https://openlibrary.org/search.json").expect("static url");

@@ -96,22 +96,6 @@ fn updated_index(embedded_generated: &str) -> Option<CatalogIndex> {
     None
 }
 
-/// Grava um índice novo (gz ou JSON) em `<app_data>/agentkit/catalog/` e recarrega.
-pub fn install_index(bytes: &[u8]) -> Result<()> {
-    let ix = decode_index(bytes)?;
-    if ix.items.is_empty() {
-        return Err(CatalogError::new(ERR_PARSE, "catalog index has no items"));
-    }
-    let name = if bytes.starts_with(&[0x1f, 0x8b]) {
-        INDEX_FILE_GZ
-    } else {
-        INDEX_FILE
-    };
-    super::write_atomic(&catalog_dir()?.join(name), bytes)?;
-    invalidate();
-    Ok(())
-}
-
 fn build() -> Result<Catalog> {
     let embedded = embedded_index()?;
     let (base, loaded_from) = match updated_index(&embedded.generated) {

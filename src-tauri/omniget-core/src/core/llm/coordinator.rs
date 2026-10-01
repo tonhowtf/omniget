@@ -328,25 +328,12 @@ impl Coordinator {
         }
     }
 
-    /// Checks and charges turns against this policy engine (tests; the app
-    /// uses the global one).
-    pub fn with_policies(self, engine: Arc<super::budget::policy::Engine>) -> Self {
-        *self.policies.write().unwrap_or_else(|e| e.into_inner()) = Some(engine);
-        self
-    }
-
     fn policies(&self) -> Option<Arc<super::budget::policy::Engine>> {
         self.policies
             .read()
             .unwrap_or_else(|e| e.into_inner())
             .clone()
             .or_else(super::budget::policy::active)
-    }
-
-    /// Records runs in this registry (tests; the app uses the global one).
-    pub fn with_runs(self, registry: crate::core::assist::runs::Registry) -> Self {
-        *self.runs.write().unwrap_or_else(|e| e.into_inner()) = Some(registry);
-        self
     }
 
     fn runs(&self) -> Option<crate::core::assist::runs::Registry> {
@@ -402,14 +389,6 @@ impl Coordinator {
 
     pub fn with_router(mut self, router: Arc<Router>) -> Self {
         self.router = router;
-        self
-    }
-
-    /// Installs context pruning. The pruner carries its own `PruneConfig`
-    /// (default off) and its own judge, so nothing outside this call knows
-    /// about pruning settings.
-    pub fn with_prune(self, pruner: Arc<ContextPruner>) -> Self {
-        self.set_prune(pruner);
         self
     }
 

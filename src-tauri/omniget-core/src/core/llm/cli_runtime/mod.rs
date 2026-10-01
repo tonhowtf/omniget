@@ -401,11 +401,6 @@ impl CliRuntime {
         Some(dir)
     }
 
-    pub fn with_options(mut self, options: CliRuntimeOptions) -> Self {
-        self.options = options;
-        self
-    }
-
     pub fn capacity(&self) -> Arc<CliCapacity> {
         self.capacity.clone()
     }

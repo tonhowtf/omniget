@@ -826,27 +826,6 @@ impl CanvasStore {
         ops
     }
 
-    /// Re-reads a floor from disk under a new epoch (after an outside change).
-    pub fn reload_floor(&self, ws: &str, floor: &str) -> Result<Snapshot, String> {
-        {
-            let mut g = self.lock();
-            if let Some(e) = g.workspaces.get_mut(ws) {
-                e.floors.remove(floor);
-            }
-        }
-        let snap = self.snapshot(ws, floor)?;
-        self.emit(StoreEvent::Patch(PatchEvent {
-            workspace_id: ws.to_string(),
-            floor_id: floor.to_string(),
-            epoch: snap.epoch.clone(),
-            rev: snap.rev,
-            seq: snap.seq,
-            ops: Vec::new(),
-            origin: ORIGIN_SYSTEM.to_string(),
-        }));
-        Ok(snap)
-    }
-
     /// Serializes a whole-folder rewrite (backup restore, import) against the
     /// debounced saver. Callers [`flush`](Self::flush) first.
     pub fn with_io<R>(&self, f: impl FnOnce() -> R) -> R {

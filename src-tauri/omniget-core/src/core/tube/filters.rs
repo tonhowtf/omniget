@@ -117,10 +117,6 @@ fn contains_folded(hay: &str, needle: &str, whole_word: bool) -> bool {
     false
 }
 
-pub fn matches_word(text: &str, word: &str, whole_word: bool) -> bool {
-    contains_folded(&fold(text), &fold(word.trim()), whole_word)
-}
-
 fn title_of(item: &Item) -> &str {
     match item {
         Item::Video(v) => &v.title,

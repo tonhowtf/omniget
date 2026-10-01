@@ -152,12 +152,6 @@ impl SeenBits {
         }
     }
 
-    /// Marks the whole seconds between two positions in milliseconds
-    /// (`10_000..15_000` marks seconds 10 to 14).
-    pub fn mark_ms(&mut self, from_ms: u64, to_ms: u64) {
-        self.mark(from_ms / 1000, to_ms / 1000);
-    }
-
     pub fn is_seen(&self, s: u64) -> bool {
         self.bits
             .get((s / 8) as usize)

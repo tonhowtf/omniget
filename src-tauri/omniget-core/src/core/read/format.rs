@@ -141,12 +141,6 @@ impl BookFormat {
             Self::Cbz | Self::Cbr | Self::Cb7 | Self::Cbt | Self::Folder
         )
     }
-
-    /// Formats the in-app reader opens directly (foliate-js or the comic
-    /// reader). The rest need a conversion first.
-    pub fn readable_in_app(self) -> bool {
-        !matches!(self, Self::Djvu | Self::Cbr | Self::Cb7)
-    }
 }
 
 pub fn is_image_name(name: &str) -> bool {

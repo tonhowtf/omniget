@@ -54,12 +54,6 @@ impl OmniState {
         true
     }
 
-    /// Clamped to 0..=100 by the type itself; kept as a method so Phase 4 has
-    /// one place to hook the quota into.
-    pub fn set_energy(&mut self, energy: u8) {
-        self.energy = energy.min(100);
-    }
-
     pub fn is_exhausted(&self) -> bool {
         self.energy == EXHAUSTED_ENERGY
     }

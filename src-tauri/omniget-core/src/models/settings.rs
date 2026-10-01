@@ -1042,10 +1042,6 @@ pub struct DownloadSettings {
     #[serde(default = "default_hotkey_binding")]
     pub hotkey_binding: String,
     #[serde(default)]
-    pub clip_hotkey_enabled: bool,
-    #[serde(default = "default_clip_hotkey_binding")]
-    pub clip_hotkey_binding: String,
-    #[serde(default)]
     pub music_hotkey_enabled: bool,
     #[serde(default = "default_music_hotkey_binding")]
     pub music_hotkey_binding: String,
@@ -1219,10 +1215,6 @@ pub fn default_filename_template() -> String {
 
 fn default_hotkey_binding() -> String {
     "CmdOrCtrl+Shift+D".into()
-}
-
-fn default_clip_hotkey_binding() -> String {
-    "CmdOrCtrl+Shift+B".into()
 }
 
 fn default_music_hotkey_binding() -> String {
@@ -1459,8 +1451,6 @@ impl Default for AppSettings {
                 speed_limit: String::new(),
                 hotkey_enabled: false,
                 hotkey_binding: default_hotkey_binding(),
-                clip_hotkey_enabled: false,
-                clip_hotkey_binding: default_clip_hotkey_binding(),
                 music_hotkey_enabled: false,
                 music_hotkey_binding: default_music_hotkey_binding(),
                 music_audio_format: default_music_audio_format(),

@@ -18,7 +18,6 @@ pub use omniget_core::platforms::YouTubeDownloader;
 
 pub mod magnet;
 pub mod noop;
-pub mod twitter;
 
 #[cfg(not(target_os = "android"))]
 pub mod gallerydl;

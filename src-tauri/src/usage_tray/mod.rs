@@ -857,16 +857,6 @@ pub async fn usage_tray_resize(app: AppHandle, height: f64) -> Result<(), String
     Ok(())
 }
 
-/// Opens the panel from elsewhere in the app (and from the test driver).
-#[tauri::command]
-pub async fn usage_tray_open_panel(app: AppHandle) -> Result<(), String> {
-    if !state().prefs.enabled {
-        set_enabled(&app, true)?;
-    }
-    show_panel(&app, None);
-    Ok(())
-}
-
 #[tauri::command]
 pub async fn usage_tray_close_panel(app: AppHandle) -> Result<(), String> {
     hide_panel(&app);

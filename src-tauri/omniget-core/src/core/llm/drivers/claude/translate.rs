@@ -266,16 +266,6 @@ impl Translator {
         self.interrupt_requested = false;
     }
 
-    /// The cursor, when it changed since the last call.
-    pub fn take_cursor_if_dirty(&mut self) -> Option<ClaudeCursor> {
-        if self.cursor_dirty {
-            self.cursor_dirty = false;
-            Some(self.cursor.clone())
-        } else {
-            None
-        }
-    }
-
     fn cursor_event(&mut self) -> Option<RuntimeEvent> {
         if self.cursor.session_id.is_empty() {
             return None;
@@ -368,10 +358,6 @@ impl Translator {
             }
         }
         (sends, events)
-    }
-
-    pub fn open_request(&self, request_id: &str) -> Option<&OpenRequest> {
-        self.requests.get(request_id)
     }
 
     // ── answers ─────────────────────────────────────────────────────────

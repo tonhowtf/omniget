@@ -29,8 +29,6 @@ use tokio::sync::{mpsc, oneshot};
 /// Unanswered server → client requests allowed at once.
 pub const MAX_ACTIVE_SERVER_REQUESTS: usize = 32;
 
-pub const CODE_PARSE_ERROR: i64 = -32700;
-pub const CODE_INVALID_REQUEST: i64 = -32600;
 pub const CODE_METHOD_NOT_FOUND: i64 = -32601;
 pub const CODE_INVALID_PARAMS: i64 = -32602;
 pub const CODE_INTERNAL: i64 = -32603;

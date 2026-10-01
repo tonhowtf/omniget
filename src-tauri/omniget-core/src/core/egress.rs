@@ -190,7 +190,6 @@ fn host_addresses() -> io::Result<BTreeSet<IpAddr>> {
 pub struct Broker {
     pub address: SocketAddr,
     nonce: String,
-    authorization: String,
     cancellation: CancellationToken,
     task: Option<JoinHandle<()>>,
     connections: Arc<AtomicU64>,
@@ -220,7 +219,7 @@ impl Broker {
             "Basic {}",
             base64::engine::general_purpose::STANDARD.encode(format!("omniget:{nonce}"))
         );
-        let expected_authorization = Arc::new(authorization.clone());
+        let expected_authorization = Arc::new(authorization);
         let cancellation = parent.child_token();
         let stop = cancellation.clone();
         let connections = Arc::new(AtomicU64::new(0));
@@ -261,7 +260,6 @@ impl Broker {
         Ok(Self {
             address,
             nonce,
-            authorization,
             cancellation,
             task: Some(task),
             connections,
@@ -272,10 +270,6 @@ impl Broker {
     }
     pub fn proxy_url(&self) -> String {
         format!("http://omniget:{}@{}", self.nonce, self.address)
-    }
-    /// Secret for fixed internal clients/tests only. Never log or persist.
-    pub fn proxy_authorization(&self) -> &str {
-        &self.authorization
     }
     pub fn revoke(&self) {
         self.cancellation.cancel();

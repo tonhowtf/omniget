@@ -476,17 +476,6 @@ pub fn music_queue(json: &Value) -> QueuePage {
     }
 }
 
-/// Automix playlist the queue offers after its end (`automixPreviewVideoRenderer`),
-/// as `(playlistId, params)` for the next `next` call.
-pub fn music_automix(json: &Value) -> Option<(String, Option<String>)> {
-    let a = find_first(json, "automixPreviewVideoRenderer")?;
-    let ep = find_first(a, "watchPlaylistEndpoint")?;
-    Some((
-        ep.get("playlistId").and_then(Value::as_str)?.to_string(),
-        ep.get("params").and_then(Value::as_str).map(str::to_string),
-    ))
-}
-
 /// Lyrics tab (`browse MPLY...`): plain text from
 /// `musicDescriptionShelfRenderer`, or timed lines (`timedLyricsModel`)
 /// when the client gets them. `None` when the song has no lyrics.

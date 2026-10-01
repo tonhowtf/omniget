@@ -660,26 +660,6 @@ pub fn set_local_budget(
         tx.execute("INSERT INTO media_provider_budgets(principal,mission,ceiling) VALUES(?1,?2,?3) ON CONFLICT(principal,mission) DO UPDATE SET ceiling=excluded.ceiling",params![principal,mission,microcredits]).map_err(db_error)?;Ok(())
     })
 }
-/// Trusted local revocation stops new reservations while retaining all unknown
-/// or spent reservations. Already dispatched provider jobs are not canceled.
-pub fn revoke_local_budget(db: &AssistDb, principal: &str, mission: &str) -> Result<(), String> {
-    db.tx(|tx| {
-        owner(tx, principal, mission, false)?;
-        // ceiling is positive by schema; delete an unused grant, otherwise
-        // reduce it to the amount already reserved. No credit is refunded.
-        tx.execute(
-            "DELETE FROM media_provider_budgets WHERE principal=?1 AND mission=?2 AND reserved=0",
-            params![principal, mission],
-        )
-        .map_err(db_error)?;
-        tx.execute(
-            "UPDATE media_provider_budgets SET ceiling=reserved WHERE principal=?1 AND mission=?2",
-            params![principal, mission],
-        )
-        .map_err(db_error)?;
-        Ok(())
-    })
-}
 fn reserve_authorized(
     db: &AssistDb,
     principal: &str,

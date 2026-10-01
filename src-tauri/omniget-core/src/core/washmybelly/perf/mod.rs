@@ -25,15 +25,6 @@ pub use session::SessionSummary;
 
 const DEFAULT_SECONDS: u64 = 60;
 
-/// Sessions that overlap `[start_ms, end_ms]` (unix ms). The League tab
-/// calls this with a match's start and end to show the capture of it.
-pub fn sessions_between(start_ms: u64, end_ms: u64) -> Vec<SessionSummary> {
-    match Ctx::app() {
-        Ok(ctx) => session::between(&ctx, start_ms, end_ms),
-        Err(_) => vec![],
-    }
-}
-
 // ── Capabilities ────────────────────────────────────────────────────────
 
 fn caps() -> Value {

@@ -27,7 +27,6 @@ pub const GAMEMODE_IFACE: &str = "com.feralinteractive.GameMode";
 pub const PORTAL_NAME: &str = "org.freedesktop.portal.Desktop";
 pub const PORTAL_PATH: &str = "/org/freedesktop/portal/desktop";
 pub const PORTAL_GAMEMODE_IFACE: &str = "org.freedesktop.portal.GameMode";
-pub const PORTAL_INHIBIT_IFACE: &str = "org.freedesktop.portal.Inhibit";
 
 pub const PROFILES_NAME: &str = "org.freedesktop.UPower.PowerProfiles";
 pub const PROFILES_PATH: &str = "/org/freedesktop/UPower/PowerProfiles";
@@ -39,9 +38,6 @@ pub const SCREENSAVER_IFACE: &str = "org.freedesktop.ScreenSaver";
 
 pub const APP_ID: &str = "wtf.tonho.omniget";
 pub const REASON: &str = "A game is running (OmniGet game mode)";
-
-/// `Inhibit` flag of the portal: idle (screen saver and suspend on idle).
-pub const PORTAL_INHIBIT_IDLE: u32 = 8;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -154,23 +150,6 @@ pub fn portal(verb: Verb, pid: i32) -> Call {
         PORTAL_GAMEMODE_IFACE,
         method,
         vec![Arg::I32(pid)],
-    )
-}
-
-/// The portal's two-pid form: `(target, requester)`, the reverse of the
-/// daemon's `ByPID`.
-pub fn portal_by_pid(verb: Verb, game: i32, requester: i32) -> Call {
-    let method = match verb {
-        Verb::Register => "RegisterGameByPid",
-        Verb::Unregister => "UnregisterGameByPid",
-        Verb::Query => "QueryStatusByPid",
-    };
-    session(
-        PORTAL_NAME,
-        PORTAL_PATH,
-        PORTAL_GAMEMODE_IFACE,
-        method,
-        vec![Arg::I32(game), Arg::I32(requester)],
     )
 }
 

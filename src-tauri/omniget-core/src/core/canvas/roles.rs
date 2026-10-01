@@ -36,8 +36,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 
-use super::export::EmbeddedRole;
-use super::model::{is_safe_id, AgentKind, TerminalData};
+use super::model::{is_safe_id, AgentKind};
 use super::store::CanvasStore;
 
 /// Folder of the global library, next to the workspace folders.
@@ -789,41 +788,6 @@ pub fn set_scope(store: &CanvasStore, ws: &str, id: &str, to: Scope) -> Result<R
     Ok(saved)
 }
 
-/// Merges the roles a partitura carries: same id wins, then same name
-/// (case-insensitive), otherwise a new workspace role. Returns old → new id.
-pub fn merge_embedded(
-    store: &CanvasStore,
-    ws: &str,
-    roles: &[EmbeddedRole],
-) -> HashMap<String, String> {
-    let mut map = HashMap::new();
-    for er in roles {
-        if get(store, ws, &er.id).is_some() {
-            map.insert(er.id.clone(), er.id.clone());
-            continue;
-        }
-        if let Some((r, _)) = find(store, ws, &er.name) {
-            map.insert(er.id.clone(), r.id);
-            continue;
-        }
-        let input = RoleInput {
-            id: is_safe_id(&er.id).then(|| er.id.clone()),
-            name: er.name.clone(),
-            prompt: er.prompt.clone(),
-            icon: er.icon.clone(),
-            color: er.color.clone(),
-            ..Default::default()
-        };
-        match save(store, Some(ws), input) {
-            Ok(r) => {
-                map.insert(er.id.clone(), r.id);
-            }
-            Err(e) => tracing::warn!("[canvas.roles] partitura role {} not merged: {e}", er.name),
-        }
-    }
-    map
-}
-
 /// Roles found in `<dir>/.omniget/roles/*/role.json` and
 /// `<dir>/.maestri/roles/*/role.json` (Maestri "Discover Roles").
 pub fn discover(dir: &Path) -> Vec<Role> {
@@ -1111,16 +1075,4 @@ pub fn launch_plan(
         AgentKind::Shell | AgentKind::Unknown(_) => {}
     }
     Ok(plan)
-}
-
-/// Launch plan for a node, from its `data` (`roleId`, `agent`, `cwd`).
-pub fn launch_for_node(
-    store: &CanvasStore,
-    ws: &str,
-    data: &TerminalData,
-) -> Result<Option<RoleLaunch>, String> {
-    let Some(role_id) = data.role_id.as_deref().filter(|r| !r.is_empty()) else {
-        return Ok(None);
-    };
-    launch_plan(store, ws, role_id, &data.agent, data.cwd.as_deref()).map(Some)
 }

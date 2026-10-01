@@ -323,43 +323,6 @@ pub fn compat_report(
     }))
 }
 
-/// Perfis do OmniGet (somente leitura, dev, sem rede, autônomo com guarda,
-/// provider alternativo) com os settings que cada um grava.
-#[tauri::command]
-pub async fn agentkit_profiles() -> Result<Value, String> {
-    to_value(ak::profiles::list())
-}
-
-/// Planeja um perfil em várias ferramentas de uma vez (`targets` vazio = todas
-/// as instaladas que aceitam). Aplicar com `agentkit_apply(plan.id)`.
-#[tauri::command]
-pub async fn agentkit_profile_plan(
-    id: String,
-    params: Option<Value>,
-    targets: Option<Vec<String>>,
-    scope: Option<String>,
-    project_dir: Option<String>,
-    policy: Option<String>,
-) -> Result<Value, String> {
-    blocking(move || {
-        let env = env()?;
-        let scope = scope.as_deref().map(Scope::parse).transpose()?;
-        let plan = ak::profiles::plan_profile(
-            &env,
-            ak::profiles::ProfileRequest {
-                id,
-                params: params.unwrap_or(Value::Null),
-                targets: targets.filter(|t| !t.is_empty()),
-                scope,
-                project_dir: project(project_dir),
-                policy: parse_policy(policy.as_deref()),
-            },
-        )?;
-        to_value(plan)
-    })
-    .await
-}
-
 pub fn parse_policy(p: Option<&str>) -> ConflictPolicy {
     match p.unwrap_or("rename") {
         "skip" => ConflictPolicy::Skip,

@@ -40,9 +40,6 @@ impl Kind {
             Kind::Raw => "raw",
         }
     }
-    pub fn wants_reply(self) -> bool {
-        self == Kind::Ask
-    }
 }
 
 #[derive(Debug, Clone)]

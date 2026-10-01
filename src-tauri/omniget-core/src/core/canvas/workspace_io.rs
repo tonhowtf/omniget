@@ -922,18 +922,6 @@ pub fn list_backups(store: &CanvasStore, ws: &str) -> Result<Vec<BackupInfo>, St
     Ok(out)
 }
 
-/// Workspaces that have backups (including deleted ones).
-pub fn backed_up_workspaces(store: &CanvasStore) -> Vec<String> {
-    fs::read_dir(backups_root(store))
-        .map(|rd| {
-            rd.flatten()
-                .filter(|e| e.path().is_dir())
-                .filter_map(|e| e.file_name().to_str().map(str::to_string))
-                .collect()
-        })
-        .unwrap_or_default()
-}
-
 fn copy_files(files: &[(String, PathBuf)], dest: &Path) -> Result<u64, String> {
     let mut total = 0;
     for (rel, src) in files {
@@ -1317,9 +1305,4 @@ pub fn restore_backup(store: &CanvasStore, ws: &str, backup_id: &str) -> Result<
         routines::replace_workspace(store, ws, rs)?;
     }
     store.reload_workspace(ws)
-}
-
-/// JSON view used by commands and MCP.
-pub fn backup_json(b: &BackupInfo) -> Value {
-    serde_json::to_value(b).unwrap_or(Value::Null)
 }

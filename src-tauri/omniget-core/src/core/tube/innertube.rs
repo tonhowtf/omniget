@@ -404,15 +404,6 @@ impl CookieJar {
         self.get("SAPISID").is_some() || self.get("__Secure-3PAPISID").is_some()
     }
 
-    /// Merge `Set-Cookie` values from a youtube.com response.
-    pub fn merge_set_cookie(&mut self, set_cookie_values: &[String]) {
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_secs() as i64)
-            .unwrap_or(0);
-        self.merge_set_cookie_from("www.youtube.com", set_cookie_values, now);
-    }
-
     /// Returns true when some cookie value changed (cached `Cookie` headers
     /// are stale). Host-only cookies belong to `host`; a response may only
     /// set cookies for its own domain or a parent of it (RFC 6265 5.3.5).

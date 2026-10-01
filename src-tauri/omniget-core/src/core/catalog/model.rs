@@ -201,27 +201,6 @@ pub fn kind_plural(kind: &str) -> &'static str {
     }
 }
 
-/// Tipo a partir do plural (inverso de [`kind_plural`]).
-pub fn kind_from_plural(p: &str) -> Option<&'static str> {
-    Some(match p {
-        "agents" => "agent",
-        "commands" => "command",
-        "skills" => "skill",
-        "mcps" => "mcp",
-        "hooks" => "hook",
-        "settings" => "setting",
-        "statuslines" => "statusline",
-        "loops" => "loop",
-        "workflows" => "workflow",
-        "mods" => "mod",
-        "plugins" => "plugin",
-        "rules" => "rule",
-        "templates" => "template",
-        "sandbox" => "sandbox",
-        _ => return None,
-    })
-}
-
 /// Hash de conteúdo de um item: sha256 de `path\0sha256\n` ordenado.
 /// `None` quando o item não tem lista de arquivos (plugin/registry).
 pub fn content_hash(item: &CatalogItem) -> Option<String> {

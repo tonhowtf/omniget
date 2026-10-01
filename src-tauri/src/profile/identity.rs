@@ -165,12 +165,3 @@ pub fn fingerprint(public_key: &[u8; 32]) -> String {
 pub fn encode_public_key(public_key: &[u8; 32]) -> String {
     b64().encode(public_key)
 }
-
-/// Decode a base64 payload coming from the frontend. Anything that is not
-/// base64 is a caller bug, not a crypto failure, but it still has to carry a
-/// code the UI can map.
-pub fn decode_b64(raw: &str) -> Result<Vec<u8>, String> {
-    b64()
-        .decode(raw.trim())
-        .map_err(|_| format!("{ERR_SIGN}: the payload is not base64"))
-}

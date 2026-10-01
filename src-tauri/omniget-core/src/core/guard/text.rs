@@ -67,28 +67,6 @@ pub fn clip(s: &str, max: usize) -> String {
     out
 }
 
-/// Largest char boundary ≤ `i`.
-pub fn floor_boundary(s: &str, mut i: usize) -> usize {
-    if i >= s.len() {
-        return s.len();
-    }
-    while i > 0 && !s.is_char_boundary(i) {
-        i -= 1;
-    }
-    i
-}
-
-/// Smallest char boundary ≥ `i`.
-pub fn ceil_boundary(s: &str, mut i: usize) -> usize {
-    if i >= s.len() {
-        return s.len();
-    }
-    while i < s.len() && !s.is_char_boundary(i) {
-        i += 1;
-    }
-    i
-}
-
 // ------------------------------------------------------------- frontmatter
 
 /// A frontmatter value as the tools read it.

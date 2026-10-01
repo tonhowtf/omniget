@@ -18,7 +18,6 @@ use crate::core::tools::ProgressFn;
 pub const OLLAMA_URL: &str = "http://127.0.0.1:11434";
 pub const LMSTUDIO_URL: &str = "http://127.0.0.1:1234";
 pub const LLAMA_SERVER_URL: &str = "http://127.0.0.1:8080";
-pub const LLAMA_SERVER_PORT: u16 = 8080;
 
 const LLAMA_REPO: &str = "ggml-org/llama.cpp";
 const PROBE_TIMEOUT_MS: u64 = 1200;
@@ -26,7 +25,6 @@ const PROBE_TIMEOUT_MS: u64 = 1200;
 pub const ERR_LOCAL_BINARY: &str = "ERR_LLM_LOCAL_BINARY";
 pub const ERR_LOCAL_MODEL: &str = "ERR_LLM_LOCAL_MODEL";
 pub const ERR_LOCAL_SPAWN: &str = "ERR_LLM_LOCAL_SPAWN";
-pub const ERR_LOCAL_HASH: &str = "ERR_LLM_LOCAL_HASH";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]

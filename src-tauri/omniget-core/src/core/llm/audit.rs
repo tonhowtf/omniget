@@ -142,7 +142,6 @@ pub struct Query {
     pub limit: Option<usize>,
 }
 
-pub const DEFAULT_RETENTION_DAYS: u32 = 90;
 /// A details object bigger than this is cut (an audit line is a fact, not a
 /// payload).
 const DETAILS_MAX: usize = 4096;

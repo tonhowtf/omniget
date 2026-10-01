@@ -104,27 +104,6 @@ impl ComponentKind {
             other => other.as_str(),
         }
     }
-
-    /// Path-table key where files of this kind go.
-    pub fn paths_key(self) -> &'static str {
-        match self {
-            ComponentKind::Rule => "rules",
-            ComponentKind::Agent => "agents",
-            ComponentKind::Command => "commands",
-            ComponentKind::Skill => "skills",
-            ComponentKind::Mcp => "mcp",
-            ComponentKind::Hook => "hooks",
-            ComponentKind::Setting => "settings",
-            ComponentKind::Statusline => "statusline",
-            ComponentKind::Loop => "loops",
-            ComponentKind::Workflow => "workflows",
-            ComponentKind::Mod => "mods",
-            ComponentKind::Plugin => "plugins",
-            ComponentKind::ProjectTemplate => "templates",
-            ComponentKind::SandboxRecipe => "sandbox",
-            ComponentKind::Stack => "stacks",
-        }
-    }
 }
 
 impl std::fmt::Display for ComponentKind {

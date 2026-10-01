@@ -86,11 +86,6 @@ impl ApiClient {
         })
     }
 
-    pub fn with_referer(mut self, referer: impl Into<String>) -> Self {
-        self.referer = referer.into();
-        self
-    }
-
     pub fn with_user_agent(mut self, ua: impl Into<String>) -> Self {
         self.user_agent = ua.into();
         self

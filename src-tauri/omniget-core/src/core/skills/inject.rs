@@ -29,8 +29,6 @@ use crate::core::llm::types::ToolSpec;
 
 /// Namespace of the tool that opens a skill. Provider-safe (no `:`).
 pub const SKILL_TOOL_PREFIX: &str = "skill__";
-/// The spelling of a legacy grant (`broker::grant_key` of `ToolSource::Skill`).
-pub const LEGACY_SKILL_PREFIX: &str = "skill:";
 /// Provider limit on a tool name.
 pub const MAX_TOOL_NAME: usize = 64;
 /// Most bytes of skill body handed to the model in one call.
@@ -175,23 +173,6 @@ pub fn exposed_tool_name(name: &str, hash: &str) -> String {
     // prefix + name part + `_` + 6 (name tag) + `_` + 8 (version)
     let keep = MAX_TOOL_NAME - SKILL_TOOL_PREFIX.len() - 16;
     format!("{SKILL_TOOL_PREFIX}{}_{}_{h8}", &name[..keep], &tag[..6])
-}
-
-/// True for a name that obeys the provider rule `^[a-zA-Z0-9_-]{1,64}$`.
-pub fn is_provider_safe(tool: &str) -> bool {
-    !tool.is_empty()
-        && tool.len() <= MAX_TOOL_NAME
-        && tool
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
-}
-
-/// The skill behind a legacy grant key (`skill:<name>`) or an unversioned
-/// tool name (`skill__<name>`), or `None` when it is neither.
-pub fn skill_from_tool(tool: &str) -> Option<&str> {
-    tool.strip_prefix(LEGACY_SKILL_PREFIX)
-        .or_else(|| tool.strip_prefix(SKILL_TOOL_PREFIX))
-        .filter(|s| !s.is_empty())
 }
 
 /// The input schema every skill tool takes: nothing (open the body) or one

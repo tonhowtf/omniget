@@ -470,37 +470,6 @@ fn js_string_hash_base36(s: &str) -> String {
     String::from_utf8(out).unwrap_or_default()
 }
 
-/// Busca `needle` (já em minúsculas ASCII) em bytes, ignorando caixa ASCII.
-pub fn bytes_contains_ci(hay: &[u8], needle_lower: &[u8]) -> bool {
-    if needle_lower.is_empty() {
-        return true;
-    }
-    if hay.len() < needle_lower.len() {
-        return false;
-    }
-    let first = needle_lower[0];
-    let first_up = first.to_ascii_uppercase();
-    let last = hay.len() - needle_lower.len();
-    let mut i = 0;
-    while i <= last {
-        let b = hay[i];
-        if b == first || b == first_up {
-            let mut ok = true;
-            for (j, nb) in needle_lower.iter().enumerate().skip(1) {
-                if hay[i + j].to_ascii_lowercase() != *nb {
-                    ok = false;
-                    break;
-                }
-            }
-            if ok {
-                return true;
-            }
-        }
-        i += 1;
-    }
-    false
-}
-
 /// Abre um SQLite de outra ferramenta só para leitura.
 pub fn open_ro(path: &Path) -> Option<rusqlite::Connection> {
     use rusqlite::OpenFlags;

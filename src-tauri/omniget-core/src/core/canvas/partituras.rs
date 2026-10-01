@@ -755,11 +755,6 @@ fn embedded(r: &super::roles::Role) -> EmbeddedRole {
     }
 }
 
-/// Global roles folder: the roles library (`<app_data>/canvas/roles-library`).
-pub fn global_roles_dir(store: &CanvasStore) -> PathBuf {
-    super::roles::library_dir(store)
-}
-
 /// Roles visible from a workspace: its own first, then the library ones
 /// (same storage and precedence as `roles::list`).
 pub fn local_roles(store: &CanvasStore, ws: &str) -> Vec<EmbeddedRole> {

@@ -332,33 +332,6 @@ pub async fn read_series_update(
     Ok(row)
 }
 
-#[tauri::command]
-pub async fn read_series_remove(
-    app: AppHandle,
-    id: i64,
-    delete_downloads: bool,
-) -> Result<(), String> {
-    blocking(move || {
-        if delete_downloads {
-            let paths: Vec<String> = db::with(|c| {
-                let mut st = c.prepare(
-                    "SELECT b.path FROM books b JOIN chapters ch ON ch.book_id = b.id WHERE ch.series_id = ?1",
-                )?;
-                let rows = st.query_map([id], |r| r.get(0))?.collect();
-                rows
-            })?;
-            for p in paths {
-                let _ = std::fs::remove_file(&p);
-                let _ = db::with(|c| c.execute("DELETE FROM books WHERE path = ?1", [&p]));
-            }
-        }
-        db::with(|c| c.execute("DELETE FROM series WHERE id = ?1", [id])).map(|_| ())
-    })
-    .await?;
-    changed(&app);
-    Ok(())
-}
-
 // ---------- chapters ----------
 
 #[tauri::command]

@@ -32,17 +32,8 @@ pub const REPO_URL: &str = "https://github.com/OpenRouterTeam/skills.git";
 pub const REPO_HTML_URL: &str = "https://github.com/OpenRouterTeam/skills";
 /// Commit audited on 18/09/2026; installs pin to it.
 pub const COMMIT: &str = "012c823da319ef10ee899a64aacd10e83ce39c74";
-/// Date the commit above was authored.
-pub const COMMIT_DATE: &str = "2026-08-25T17:16:29Z";
-/// Immutable tarball of [`COMMIT`].
-pub const TARBALL_URL: &str =
-    "https://codeload.github.com/OpenRouterTeam/skills/tar.gz/012c823da319ef10ee899a64aacd10e83ce39c74";
-/// sha256 of the tarball at [`TARBALL_URL`] (503 928 bytes).
-pub const TARBALL_SHA256: &str = "26cb531d298028fc9a6c13a514fd518e467ca2e5dd0ba1c3e5e4e3c8f834e323";
 /// No licence is declared anywhere in the repository.
 pub const LICENSE: Option<&str> = None;
-/// When the facts above were checked, by hand, against the live repository.
-pub const VERIFIED_AT: &str = "2026-09-18";
 
 /// One installable entry of the catalog. All data is baked in, so the list
 /// renders with no network call.
@@ -244,17 +235,4 @@ pub fn sha256_hex(data: &[u8]) -> String {
     let mut hasher = Sha256::new();
     hasher.update(data);
     hex::encode(hasher.finalize())
-}
-
-/// True when the installed `SKILL.md` is byte-for-byte the audited one. A
-/// mismatch is not an error by itself — the skill may simply be newer — but the
-/// UI can show "changed since audit".
-pub fn verify_installed(root: &Path, name: &str) -> Result<bool, SkillError> {
-    let Some(entry) = entry(name) else {
-        return Ok(false);
-    };
-    let file = install::skill_path(root, name)?.join(super::manifest::SKILL_FILE);
-    let bytes = std::fs::read(&file)
-        .map_err(|e| SkillError::io(&format!("reading {}", file.display()), &e))?;
-    Ok(sha256_hex(&bytes) == entry.skill_md_sha256)
 }

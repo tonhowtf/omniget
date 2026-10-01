@@ -187,11 +187,6 @@ pub fn internal_specs() -> Vec<ToolSpec> {
     omniget_core::core::llm::tool_table::specs()
 }
 
-/// Old name of [`internal_specs`], kept for the call sites of Phase 2.
-pub fn mcp_specs() -> Vec<ToolSpec> {
-    internal_specs()
-}
-
 /// Source 2 of the broker: one external MCP server, driven through the
 /// **same** `McpRegistry` singleton the `/llm/mcp` tab uses
 /// (`commands::llm::mcp::registry()`). Two registries would mean two child
@@ -981,36 +976,6 @@ impl LlmManager {
         self.inner().broker.clone()
     }
 
-    /// Source 2: one external MCP server. `specs` carry the bare names the
-    /// server reported (`McpClient::tools()`); the broker namespaces them to
-    /// `mcp:<server>:<tool>`. Calling it again for the same server replaces
-    /// its tool list (a reconnect, a `tools/list` refresh). The calls go
-    /// through [`McpSourceExecutor`], i.e. the registry the MCP tab owns.
-    pub fn register_mcp_tools(&self, server: &str, specs: Vec<ToolSpec>) -> usize {
-        self.register_mcp_tools_with(server, specs, Arc::new(McpSourceExecutor))
-    }
-
-    /// Same, with an executor of your own (tests, a fake server).
-    pub fn register_mcp_tools_with(
-        &self,
-        server: &str,
-        specs: Vec<ToolSpec>,
-        executor: Arc<dyn ToolExecutor>,
-    ) -> usize {
-        self.inner().broker.register_mcp(server, specs, executor)
-    }
-
-    /// Source 3: the installed skills, one provider-safe tool per installed
-    /// version (`skill__<name>_<hash8>`, see `assist::bots::skills`). Called
-    /// at boot and after every install, update, removal or repair; the
-    /// source is replaced whole, so no tool outlives its skill.
-    pub fn register_skill_tools(
-        &self,
-    ) -> Result<omniget_core::core::assist::bots::skills::ProjectionSummary, String> {
-        let _ = self.inner();
-        omniget_core::core::assist::bots::skills::projection().reproject()
-    }
-
     pub fn budget(&self) -> Arc<BudgetStore> {
         self.inner().budget.clone()
     }
@@ -1050,11 +1015,6 @@ impl LlmManager {
     /// memory on every turn.
     pub fn probe_provider_for(&self, id: &ProviderId) -> Option<Arc<dyn Provider>> {
         build_provider_with(id, true)
-    }
-
-    /// Registers a provider by hand (tests, and the CLI runtime of Phase 4).
-    pub fn register_provider(&self, id: &str, provider: Arc<dyn Provider>) {
-        self.inner().native.register(id, provider);
     }
 
     // Roster ----------------------------------------------------------
@@ -1144,10 +1104,6 @@ impl LlmManager {
 
     pub fn conversation(&self, id: &str) -> Vec<Message> {
         self.inner().conversations.messages(id)
-    }
-
-    pub fn conversation_delete(&self, id: &str) -> Result<(), String> {
-        self.inner().conversations.delete(id)
     }
 
     /// Model override for a conversation, kept out of the JSONL on purpose:
@@ -1774,10 +1730,6 @@ impl LlmManager {
             .map_err(|_| format!("{ERR_NO_ASK}: {tool_call_id}"))
     }
 
-    pub fn pending_asks(&self) -> usize {
-        self.inner().broker.pending_count()
-    }
-
     // Telemetry -------------------------------------------------------
 
     pub fn telemetry(&self) -> TelemetrySnapshot {
@@ -1907,13 +1859,6 @@ impl LlmManager {
     pub fn bridge_openai_enabled(&self) -> bool {
         self.inner().bridge_openai.load(Ordering::SeqCst)
     }
-
-    pub fn set_bridge_openai(&self, enabled: bool) -> bool {
-        let inner = self.inner();
-        inner.bridge_openai.store(enabled, Ordering::SeqCst);
-        write_flag(&inner.root.join("bridge-openai.json"), enabled);
-        enabled
-    }
 }
 
 /// Usage folded into one agent's counters, including first-token latency.
@@ -2007,39 +1952,12 @@ pub fn build_provider_with(id: &ProviderId, capture: bool) -> Option<Arc<dyn Pro
     })
 }
 
-/// Collects a turn stream into the final answer, for callers that do not
-/// stream (the bridge without `stream: true`).
-pub async fn collect_answer(
-    manager: &LlmManager,
-    agent_id: &str,
-    mut stream: BoxStream<'static, TurnEvent>,
-) -> Result<String, LlmError> {
-    let mut answer = String::new();
-    while let Some(event) = stream.next().await {
-        manager.note_event(agent_id, &event);
-        match event {
-            TurnEvent::TextDelta { text } => answer.push_str(&text),
-            TurnEvent::Error { error } => return Err(error),
-            TurnEvent::Finished { .. } => break,
-            _ => {}
-        }
-    }
-    Ok(answer)
-}
-
 fn read_flag(path: &std::path::Path) -> bool {
     std::fs::read_to_string(path)
         .ok()
         .and_then(|t| serde_json::from_str::<Value>(&t).ok())
         .and_then(|v| v.get("enabled").and_then(|e| e.as_bool()))
         .unwrap_or(false)
-}
-
-fn write_flag(path: &std::path::Path, enabled: bool) {
-    if let Some(parent) = path.parent() {
-        let _ = std::fs::create_dir_all(parent);
-    }
-    let _ = std::fs::write(path, serde_json::json!({ "enabled": enabled }).to_string());
 }
 
 fn read_overrides(path: &std::path::Path) -> HashMap<String, ModelRef> {

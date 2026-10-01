@@ -80,9 +80,6 @@ pub struct ClaudeArgs {
     pub no_session_persistence: bool,
 }
 
-/// Built-in tools of a side call (the Loop auditor, 3.7): none.
-pub const SIDE_TOOLS: &str = "";
-
 /// `--effort` of a side call: a verdict in one JSON line needs no thinking.
 pub const SIDE_EFFORT: &str = "low";
 
@@ -867,23 +864,4 @@ fn epoch_seconds(value: &Value) -> Option<i64> {
     chrono::DateTime::parse_from_rfc3339(text)
         .ok()
         .map(|d| d.timestamp())
-}
-
-/// The status-line payload the CLI hands an installed status line
-/// (`rate_limits.{five_hour,seven_day}.{used_percentage,resets_at}`), for the
-/// interactive sessions the user opens from the Accounts tab.
-pub fn statusline_snapshot(input: &str) -> Option<RateSnapshot> {
-    let value: Value = serde_json::from_str(input).ok()?;
-    let limits = value.get("rate_limits")?;
-    let five = window_at(limits, "five_hour");
-    let seven = window_at(limits, "seven_day");
-    if five.is_none() && seven.is_none() {
-        return None;
-    }
-    Some(RateSnapshot {
-        status: RateStatus::Allowed,
-        window_5h: five,
-        window_7d: seven,
-        source: QuotaSource::Real,
-    })
 }

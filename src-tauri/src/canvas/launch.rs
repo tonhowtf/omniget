@@ -216,15 +216,6 @@ pub async fn ensure_running(ws: &str, floor: &str, node_id: &str) -> Result<Stri
     Ok(l.info.id)
 }
 
-/// `ensure_running` for a node found by id alone (any workspace/floor).
-pub async fn ensure_node(node_id: &str) -> Result<String, String> {
-    let (ws, floor) = super::doc::host()
-        .store()
-        .locate_node(node_id)
-        .ok_or_else(|| format!("CANVAS_NOT_FOUND: node {node_id} is not on any canvas"))?;
-    ensure_running(&ws, &floor, node_id).await
-}
-
 /// Starts `node` in the background when it has no terminal in this run
 /// (a recruit, a node patched to a new terminal id).
 pub fn spawn_ensure(ws: &str, floor: &str, node_id: &str) {

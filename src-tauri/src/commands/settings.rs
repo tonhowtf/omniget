@@ -213,11 +213,6 @@ fn validate_bindings(before: &AppSettings, next: &AppSettings) -> Result<(), Rep
             &next.download.hotkey_binding,
         ),
         (
-            "download.clip_hotkey_binding",
-            &before.download.clip_hotkey_binding,
-            &next.download.clip_hotkey_binding,
-        ),
-        (
             "download.music_hotkey_binding",
             &before.download.music_hotkey_binding,
             &next.download.music_hotkey_binding,

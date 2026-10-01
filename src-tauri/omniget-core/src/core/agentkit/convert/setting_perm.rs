@@ -223,12 +223,6 @@ impl PermissionSet {
     pub fn shell_denied(&self) -> bool {
         self.bare(Family::Shell) == Some(Decision::Deny)
     }
-
-    /// Network tools denied outright (WebFetch, and WebSearch when mentioned).
-    pub fn network_denied(&self) -> bool {
-        self.bare(Family::WebFetch) == Some(Decision::Deny)
-            && !matches!(self.bare(Family::WebSearch), Some(Decision::Allow))
-    }
 }
 
 /// `Bash(git push *)` → `git push`; `Bash(npm run test:*)` → `npm run test`.

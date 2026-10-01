@@ -17,7 +17,7 @@
 //!   only when OmniGet itself starts the game (screen action, never an MCP
 //!   tool); a running game gets the HUD instruction and the 1 Hz telemetry.
 
-use super::format::{Frame, LaunchCommand};
+use super::format::LaunchCommand;
 
 /// Frame intervals (ms) in one HUD log line, and the frame counter.
 pub fn parse_line(line: &str) -> Option<(u64, Vec<f64>)> {
@@ -37,23 +37,6 @@ pub fn parse_line(line: &str) -> Option<(u64, Vec<f64>)> {
         .filter(|x| x.is_finite() && *x > 0.0)
         .collect();
     Some((counter, intervals))
-}
-
-/// Frames of a whole HUD log (stderr capture), `t_ms` from the first frame.
-pub fn parse_log(text: &str) -> Vec<Frame> {
-    let mut t = 0.0;
-    let mut out = Vec::new();
-    for (_, intervals) in text.lines().filter_map(parse_line) {
-        for ft in intervals {
-            t += ft;
-            out.push(Frame {
-                t_ms: super::stats::round(t, 3),
-                frametime_ms: ft,
-                ..Default::default()
-            });
-        }
-    }
-    out
 }
 
 /// What the person can do by hand to see the HUD on a game OmniGet did

@@ -130,20 +130,6 @@ pub fn elo_expectancy(a: f64, b: f64) -> f64 {
     1.0 / (1.0 + 10f64.powf((b - a) / ELO_SCALE))
 }
 
-/// Log5 (Bradley-Terry) combination of two independent win rates.
-///
-/// `P = (pa − pa·pb) / (pa + pb − 2·pa·pb)` — used as a cross-check of the Elo
-/// path; both reduce to the same answer for symmetric inputs.
-pub fn log5(pa: f64, pb: f64) -> f64 {
-    let num = pa - pa * pb;
-    let den = pa + pb - 2.0 * pa * pb;
-    if den.abs() < f64::EPSILON {
-        0.5
-    } else {
-        num / den
-    }
-}
-
 /// One player's contribution to the team strength estimate.
 #[derive(Debug, Clone, Copy)]
 pub struct PlayerStrength {
@@ -382,23 +368,6 @@ pub fn contribution_ratio(value: f64, team_total: f64, team_size: usize) -> f64 
         return 0.0;
     }
     (value / team_total) * team_size as f64
-}
-
-/// Kill-damage efficiency: kill share divided by damage share.
-///
-/// Above 1 the player converts less damage into more kills (finishing or
-/// stealing); below 1 they deal damage others convert. Neutral when unknown.
-pub fn kill_damage_efficiency(kills: u32, team_kills: u32, damage: f64, team_damage: f64) -> f64 {
-    if team_kills == 0 || team_damage <= 0.0 || damage <= 0.0 {
-        return 1.0;
-    }
-    let kill_share = kills as f64 / team_kills as f64;
-    let damage_share = damage / team_damage;
-    if damage_share <= 0.0 {
-        1.0
-    } else {
-        kill_share / damage_share
-    }
 }
 
 /// Linear ramp used by the impact components: `min` scores 0, `max` scores full.

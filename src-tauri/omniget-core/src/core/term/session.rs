@@ -25,7 +25,7 @@ pub mod sanitize;
 use std::collections::{HashMap, VecDeque};
 use std::io::{Read, Write};
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, OnceLock, RwLock, Weak};
 use std::time::{Duration, Instant};
 
@@ -439,7 +439,6 @@ pub struct TermManager {
     shared: Arc<Shared>,
     default_cap: Mutex<Option<usize>>,
     subs: Mutex<HashMap<String, Arc<FrameSub>>>,
-    next_observer: AtomicU64,
     me: OnceLock<Weak<TermManager>>,
 }
 
@@ -497,7 +496,6 @@ impl TermManager {
             }),
             default_cap: Mutex::new(None),
             subs: Mutex::new(HashMap::new()),
-            next_observer: AtomicU64::new(1),
             me: OnceLock::new(),
         });
         let _ = m.me.set(Arc::downgrade(&m));
@@ -1149,21 +1147,6 @@ impl TermManager {
             self.shared.state(&s.id, &sig);
         }
         Ok(())
-    }
-
-    /// Observes every byte the program writes (called on the reader thread;
-    /// keep it cheap).
-    pub fn subscribe_bytes(&self, id: &str, cb: ByteObserver) -> Result<u64, String> {
-        let s = self.get(id)?;
-        let h = self.next_observer.fetch_add(1, Ordering::Relaxed);
-        lock(&s.observers).push((h, cb));
-        Ok(h)
-    }
-
-    pub fn unsubscribe_bytes(&self, id: &str, handle: u64) {
-        if let Ok(s) = self.get(id) {
-            lock(&s.observers).retain(|(h, _)| *h != handle);
-        }
     }
 
     /// The user typed in this terminal in the last 1.5 s (an agent should not

@@ -46,11 +46,6 @@ pub fn is_sharepoint_host(host: &str) -> bool {
     h.ends_with(".sharepoint.com") || h.ends_with(".sharepoint.us") || h.ends_with(".sharepoint.cn")
 }
 
-/// Anything this module knows how to import.
-pub fn is_teams_recording_url(url: &str) -> bool {
-    classify(url).is_some()
-}
-
 pub fn classify(raw: &str) -> Option<TeamsInput> {
     let raw = raw.trim();
     let url = url::Url::parse(raw).ok()?;

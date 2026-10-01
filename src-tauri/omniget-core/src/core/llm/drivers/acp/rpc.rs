@@ -164,14 +164,6 @@ impl Connection {
         }
     }
 
-    /// The protocol log (`{dir: "in"|"out", msg}`), when enabled.
-    pub fn take_log(&self) -> Vec<Value> {
-        self.log
-            .as_ref()
-            .map(|l| std::mem::take(&mut *l.lock().unwrap_or_else(|e| e.into_inner())))
-            .unwrap_or_default()
-    }
-
     fn spawn_reader(self: Arc<Self>, stdout: tokio::process::ChildStdout) {
         tokio::spawn(async move {
             let mut reader = tokio::io::BufReader::new(stdout);

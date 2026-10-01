@@ -1254,14 +1254,6 @@ pub fn register_driver(reg: DriverRegistration) {
         .insert(reg.kind.clone(), reg);
 }
 
-pub fn unregister_driver(kind: &str) -> bool {
-    let mut guard = REGISTRY.write().unwrap_or_else(|e| e.into_inner());
-    guard
-        .as_mut()
-        .map(|m| m.remove(kind).is_some())
-        .unwrap_or(false)
-}
-
 pub fn driver_registration(kind: &str) -> Option<DriverRegistration> {
     REGISTRY
         .read()

@@ -82,12 +82,6 @@ impl DownloadReporter {
         }
     }
 
-    pub fn set_total(&mut self, total: u64) {
-        if total > 0 {
-            self.total_bytes = Some(total);
-        }
-    }
-
     /// `percent` in 0..=100. Bytes and speed are derived from the total
     /// when it is known. Throttled except for 0 and 100.
     pub fn progress(&mut self, percent: f64) {

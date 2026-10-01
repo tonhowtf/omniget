@@ -1704,13 +1704,3 @@ pub async fn session_kill(
         Err(format!("CANVAS_ENV_FAILED: {}", o.err_text().trim()))
     }
 }
-
-/// Local tmux only (kept for callers that only mean this machine).
-pub async fn tmux_sessions() -> Vec<Value> {
-    target_sessions(&EnvRecord {
-        kind: EnvKind::Tmux,
-        ..Default::default()
-    })
-    .await
-    .unwrap_or_default()
-}

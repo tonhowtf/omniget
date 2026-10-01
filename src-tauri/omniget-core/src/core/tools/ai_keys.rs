@@ -838,24 +838,6 @@ pub fn app_base_url(kind: &str, base_url: &str) -> String {
     base
 }
 
-/// Usa esta chave como a IA do OmniGet (Ajustes → IA).
-///
-/// The entry's `kind` is kept as it is: the app config records the provider id,
-/// and `AiProvider` is derived from the wire instead of every non-OpenAI entry
-/// being filed as `Local`.
-pub fn use_in_app(id: &str) -> anyhow::Result<()> {
-    let e = get(id)?;
-    crate::core::ai::set_from_key(
-        &e.kind,
-        &e.id,
-        e.model.clone(),
-        app_base_url(&e.kind, &e.base_url),
-        e.key.clone(),
-    )
-    .map_err(anyhow::Error::msg)?;
-    Ok(())
-}
-
 // ── Sign in with OpenRouter (OAuth PKCE, sem backend) ──────────────────
 
 /// Where OpenRouter sends the browser back. The `omniget://` scheme is already

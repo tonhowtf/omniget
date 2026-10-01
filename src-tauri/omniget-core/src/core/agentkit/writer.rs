@@ -589,12 +589,6 @@ thread_local! {
     static FORCE_COPY_LINKS: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
-/// Tests (this thread only): behave as on Windows without link permission
-/// (copy instead of link).
-pub fn set_force_copy_links(on: bool) {
-    FORCE_COPY_LINKS.with(|c| c.set(on));
-}
-
 /// What a correct link to `to` looks like to the plan (compared with [`link_state`]).
 pub fn link_bytes(to: &Path) -> Vec<u8> {
     format!("link:{}", to.display()).into_bytes()

@@ -295,17 +295,6 @@ pub fn resolve_in(
     }
 }
 
-/// Single memory records the user shared into a room: `(scope key, record id)`.
-/// The memory module may return these to room members, and only these.
-pub fn shared_records(room: &str) -> Vec<(String, String)> {
-    db().ok()
-        .and_then(|d| store::shares(&d, room).ok())
-        .unwrap_or_default()
-        .into_iter()
-        .filter_map(|s| s.record_id.map(|r| (s.scope, r)))
-        .collect()
-}
-
 // ── per-turn hook ────────────────────────────────────────────────────────
 
 fn is_project_tool(name: &str) -> bool {

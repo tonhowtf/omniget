@@ -30,10 +30,6 @@ impl Preset {
         }
     }
 
-    pub fn is_lossless(self) -> bool {
-        matches!(self, Preset::Flac | Preset::Alac | Preset::Wav)
-    }
-
     fn codec_args(self) -> Vec<&'static str> {
         match self {
             Preset::Mp3V0 => vec!["-c:a", "libmp3lame", "-q:a", "0"],

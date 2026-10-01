@@ -76,17 +76,6 @@ pub fn whoami_has_sid(csv: &str, sid: &str) -> bool {
         .any(|l| l.split(',').any(|c| c.trim_matches('"') == sid))
 }
 
-/// `key: value` lines (`sw_vers`, `pmset -g batt` details, `diskutil info`).
-pub fn colon_pairs(text: &str) -> HashMap<String, String> {
-    text.lines()
-        .filter_map(|l| {
-            let (k, v) = l.split_once(':')?;
-            Some((k.trim().to_string(), v.trim().to_string()))
-        })
-        .filter(|(k, _)| !k.is_empty())
-        .collect()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

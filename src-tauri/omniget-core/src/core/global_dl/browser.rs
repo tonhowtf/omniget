@@ -1058,23 +1058,6 @@ impl Browser {
             .await;
     }
 
-    /// Applies the blocking switch to every open tab.
-    pub async fn apply_blocking(&self, on: bool) {
-        let urls = if on {
-            super::blocklist::patterns()
-        } else {
-            Vec::new()
-        };
-        for t in self.tabs() {
-            if let Some(s) = t.session {
-                let _ = self
-                    .cdp
-                    .call("Network.setBlockedURLs", json!({ "urls": urls }), Some(&s))
-                    .await;
-            }
-        }
-    }
-
     /// Shows `tab_id` inside OmniGet: the page is laid out at `width`×`height`
     /// CSS pixels and its frames stream as `frame` events.
     pub async fn view(
@@ -1279,42 +1262,6 @@ impl Browser {
         (cur > 0, cur + 1 < n)
     }
 
-    /// Answers an alert/confirm/prompt the page opened.
-    pub async fn answer_dialog(
-        &self,
-        tab_id: &str,
-        accept: bool,
-        text: Option<String>,
-    ) -> Result<(), String> {
-        let s = self.session_for(tab_id).await?;
-        let mut p = json!({ "accept": accept });
-        if let Some(t) = text {
-            p["promptText"] = json!(t);
-        }
-        self.cdp
-            .call("Page.handleJavaScriptDialog", p, Some(&s))
-            .await
-            .map(|_| ())
-    }
-
-    /// Gives a file input the files the person picked in OmniGet.
-    pub async fn set_files(
-        &self,
-        tab_id: &str,
-        backend_node_id: i64,
-        files: Vec<String>,
-    ) -> Result<(), String> {
-        let s = self.session_for(tab_id).await?;
-        self.cdp
-            .call(
-                "DOM.setFileInputFiles",
-                json!({ "files": files, "backendNodeId": backend_node_id }),
-                Some(&s),
-            )
-            .await
-            .map(|_| ())
-    }
-
     /// PNG of the tab's viewport.
     pub async fn screenshot(&self, tab_id: &str) -> Result<Vec<u8>, String> {
         use base64::Engine;
@@ -1360,23 +1307,6 @@ impl Browser {
             )
             .await?;
         Ok(r["targetId"].as_str().unwrap_or_default().to_string())
-    }
-
-    /// Clears cookies and cache of the main profile.
-    pub async fn clear_data(&self) -> Result<(), String> {
-        let s = self
-            .tabs()
-            .into_iter()
-            .find(|t| !t.private && t.session.is_some())
-            .and_then(|t| t.session)
-            .ok_or("open a tab first")?;
-        self.cdp
-            .call("Network.clearBrowserCookies", json!({}), Some(&s))
-            .await?;
-        self.cdp
-            .call("Network.clearBrowserCache", json!({}), Some(&s))
-            .await?;
-        Ok(())
     }
 
     /// Shows the window of window mode in front.

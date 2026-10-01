@@ -103,14 +103,6 @@ impl JevJudge {
         Self::new(key, keep_threshold, timeout_ms)
     }
 
-    pub fn with_base_url(mut self, base_url: impl Into<String>) -> Self {
-        let base: String = base_url.into();
-        if !base.trim().is_empty() {
-            self.base_url = base.trim().to_string();
-        }
-        self
-    }
-
     /// The state shared by one batch of questions.
     fn state(goal: &GoalContext, batch: &[Candidate]) -> Value {
         let mut candidates = Map::new();

@@ -121,10 +121,6 @@ pub fn patterns() -> Vec<String> {
     out
 }
 
-pub fn host_count() -> usize {
-    HOSTS.len()
-}
-
 /// Hosts that only serve ad creatives. They are not blocked on the network:
 /// players load the ad SDK from the same hosts (Google IMA's `client.js` is
 /// on 2mdn.net) and break without it. Their media is only kept out of the

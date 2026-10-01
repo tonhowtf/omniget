@@ -761,11 +761,6 @@ impl SessionIndex {
         Ok(())
     }
 
-    /// Troca as raízes do Claude usadas na varredura (testes, perfis).
-    pub fn set_claude_roots(&mut self, roots: Vec<claude::Root>) {
-        self.claude_roots = Some(roots);
-    }
-
     pub fn conn(&self) -> &Connection {
         &self.conn
     }
@@ -1088,17 +1083,6 @@ impl SessionIndex {
             }
         }
         let _ = tx.commit();
-    }
-
-    /// A sessão tem subagentes no índice?
-    pub fn has_children(&self, tool: &str, id: &str) -> bool {
-        self.conn
-            .query_row(
-                "SELECT EXISTS(SELECT 1 FROM sessions WHERE tool=?1 AND parent_session=?2)",
-                params![tool, id],
-                |r| r.get::<_, bool>(0),
-            )
-            .unwrap_or(false)
     }
 
     /// Modelos com uso nas sessões dadas.

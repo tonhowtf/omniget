@@ -801,27 +801,11 @@ impl Manager {
         mihomo::status(self.cfg.lock().unwrap().use_mihomo)
     }
 
-    /// Downloads the pinned binary without turning anything on.
-    pub async fn mihomo_install(&self) -> anyhow::Result<mihomo::MihomoStatus> {
-        mihomo::install(&self.download_proxies()).await?;
-        Ok(self.mihomo_status())
-    }
-
     /// Restarts (reloads) the sidecar and probes every node.
     pub async fn mihomo_restart(self: &Arc<Self>) -> anyhow::Result<mihomo::MihomoStatus> {
         let routes = mihomo::start().await?;
         self.probe_many(routes).await;
         Ok(self.mihomo_status())
-    }
-
-    /// Adds mihomo nodes from pasted text without touching native routes.
-    /// Returns how many were new.
-    pub async fn mihomo_add_links(self: &Arc<Self>, text: &str) -> usize {
-        let added = mihomo::add_nodes(mihomo::extract_nodes(text, RouteSource::Link));
-        if added > 0 {
-            self.mihomo_ensure(true).await;
-        }
-        added
     }
 
     /// Removes one node by its key and reloads.

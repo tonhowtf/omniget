@@ -36,15 +36,7 @@ pub enum Problem {
     AlreadyHave,
 }
 
-impl Problem {
-    /// Problema que o usuario consegue resolver antes de comecar.
-    ///
-    /// A distincao importa para a copy: "importe seus cookies" e acionavel,
-    /// "nenhum downloader cobre este site" nao e.
-    pub fn is_actionable(self) -> bool {
-        matches!(self, Problem::NeedsAuth)
-    }
-}
+impl Problem {}
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
 pub struct PreflightReport {

@@ -1007,20 +1007,6 @@ fn finish_tx(
     .map_err(sql)
 }
 
-/// Checks for the benches: every wake ends accounted for.
-pub fn lost_wakes(store: &CompanyStore, company: &str) -> Result<i64, String> {
-    store.read(|c| {
-        c.query_row(
-            "SELECT COUNT(*) FROM wakeups w WHERE company_id = ?1 AND (
-               (state = 'dispatched' AND run_id IS NULL)
-               OR (state = 'coalesced' AND run_id IS NULL
-                   AND NOT EXISTS (SELECT 1 FROM wakeups s WHERE s.id = w.skip_reason AND s.state IN ('queued','cancelled','skipped'))))",
-            params![company],
-            |r| r.get(0),
-        )
-    })
-}
-
 /// One agent's record over a window: the "performance review" Paperclip only
 /// promises in its README, computed from runs, issues and the ledger.
 #[derive(Debug, Clone, Serialize)]

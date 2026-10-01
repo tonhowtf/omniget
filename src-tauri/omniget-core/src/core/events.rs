@@ -41,8 +41,3 @@ pub struct QueueItemProgress {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub eta_seconds: Option<u64>,
 }
-
-pub trait EventEmitter: Send + Sync + Clone + 'static {
-    fn emit_queue_state(&self, items: &[QueueItemInfo]);
-    fn emit_progress(&self, progress: &QueueItemProgress);
-}

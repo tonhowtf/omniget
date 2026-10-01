@@ -219,28 +219,6 @@ pub struct TurnHooks {
     pub paused: Option<Arc<dyn Fn() -> bool + Send + Sync>>,
 }
 
-/// Spawns the CLI and returns the turn stream.
-///
-/// The stream always ends: on a clean exit, on a non-zero exit
-/// (`ERR_CLI_EXIT` carrying the code), on a broken pipe, or on cancel
-/// (`ERR_LLM_CANCELLED`, after the child is killed).
-pub fn spawn_turn(
-    spec: SpawnSpec,
-    parser: Arc<dyn LineParser>,
-    cancel: CancellationToken,
-    rate_sink: Option<RateSink>,
-) -> Result<BoxStream<'static, TurnEvent>, LlmError> {
-    spawn_turn_with(
-        spec,
-        parser,
-        cancel,
-        TurnHooks {
-            rate: rate_sink,
-            ..Default::default()
-        },
-    )
-}
-
 /// Reads stdout one line at a time, at most `max` bytes per line.
 ///
 /// Cancel-safe, because the watchdog's timer races it in a `select!`: the

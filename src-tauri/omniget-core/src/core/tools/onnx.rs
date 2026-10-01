@@ -92,15 +92,6 @@ pub fn family(name: &str) -> Vec<&'static ModelSpec> {
     CATALOG.iter().filter(|m| m.family == name).collect()
 }
 
-/// Modelo recomendado de uma família, para a UI não precisar chutar.
-pub fn default_of(family_name: &str) -> Option<&'static ModelSpec> {
-    let list = family(family_name);
-    list.iter()
-        .find(|m| m.recommended)
-        .or_else(|| list.first())
-        .copied()
-}
-
 pub fn models_dir() -> Option<PathBuf> {
     super::tools_dir().map(|d| d.join("models").join("onnx"))
 }

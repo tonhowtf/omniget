@@ -1615,24 +1615,6 @@ async fn api(
     })
 }
 
-/// mihomo's own delay test for one node (HTTP 204 through the node), in
-/// ms. A cheap second opinion next to the MTProto probe.
-pub async fn node_delay(key: &str) -> anyhow::Result<u64> {
-    let (controller, secret) = {
-        let r = running().lock().unwrap();
-        let run = r.as_ref().ok_or_else(|| anyhow!("mihomo is not running"))?;
-        (run.controller, run.secret.clone())
-    };
-    let path = format!(
-        "/proxies/n-{key}/delay?timeout=6000&url={}",
-        urlencoding::encode("https://www.gstatic.com/generate_204")
-    );
-    let v = api(controller, &secret, reqwest::Method::GET, &path, None).await?;
-    v.get("delay")
-        .and_then(|d| d.as_u64())
-        .ok_or_else(|| anyhow!("no answer through this node"))
-}
-
 fn stop_now() {
     if let Some(mut run) = running().lock().unwrap().take() {
         if let Some(g) = run.guard.as_mut() {

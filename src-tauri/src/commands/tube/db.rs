@@ -467,14 +467,6 @@ pub fn feed_set_state(
     Ok(())
 }
 
-pub fn feed_pin(c: &Connection, video_id: &str, pinned: bool) -> rusqlite::Result<()> {
-    c.execute(
-        "UPDATE feed SET pinned = ?2 WHERE video_id = ?1",
-        params![video_id, pinned],
-    )?;
-    Ok(())
-}
-
 // ---------- history ----------
 
 const HISTORY_COLS: &str =

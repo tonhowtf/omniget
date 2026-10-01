@@ -11,10 +11,6 @@ use crate::storage::config;
 /// unregistered here, so a shortcut owned by another feature survives.
 static REGISTERED: Mutex<Vec<(&'static str, Shortcut)>> = Mutex::new(Vec::new());
 
-pub fn reregister(app: &tauri::AppHandle) {
-    register_from_settings(app);
-}
-
 pub fn register_from_settings(app: &tauri::AppHandle) {
     let settings = config::load_settings(app);
     if let Err(e) = apply_bindings(app, &settings) {

@@ -1071,11 +1071,6 @@ pub async fn video_scan(app: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
-#[tauri::command]
-pub fn video_scan_cancel() {
-    scan::cancel();
-}
-
 // ---------- items ----------
 
 fn escape_like(s: &str) -> String {

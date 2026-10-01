@@ -66,25 +66,6 @@ impl McpRegistry {
         default_path().map(Self::at)
     }
 
-    /// No file behind it: for tests and for a headless run.
-    pub fn in_memory() -> Self {
-        Self {
-            path: None,
-            configs: RwLock::new(Vec::new()),
-            clients: Mutex::new(HashMap::new()),
-            reaper: StdMutex::new(None),
-            idle_timeout: IDLE_TIMEOUT,
-            reap_interval: REAP_INTERVAL,
-            secrets: None,
-        }
-    }
-
-    /// Uses `store` for the extracted secrets instead of the process-wide one.
-    pub fn with_secret_store(mut self, store: Arc<dyn SecretStore>) -> Self {
-        self.secrets = Some(store);
-        self
-    }
-
     /// How `secret:<id>` is read when a client connects.
     pub fn lookup(&self) -> SecretLookup {
         match self.secrets.clone() {
@@ -105,16 +86,6 @@ impl McpRegistry {
             Some(store) => store.delete(SECRET_NS, id),
             None => crate::core::secrets::delete(SECRET_NS, id),
         };
-    }
-
-    pub fn with_idle_timeout(mut self, idle: Duration) -> Self {
-        self.idle_timeout = idle;
-        self
-    }
-
-    pub fn with_reap_interval(mut self, interval: Duration) -> Self {
-        self.reap_interval = interval;
-        self
     }
 
     pub fn path(&self) -> Option<&Path> {
@@ -283,22 +254,6 @@ impl McpRegistry {
         closed
     }
 
-    /// Everything down. Called when the section closes and at shutdown.
-    pub async fn close_all(&self) {
-        let clients: Vec<Arc<McpClient>> = {
-            let mut map = self.clients.lock().await;
-            map.drain().map(|(_, c)| c).collect()
-        };
-        for c in clients {
-            c.close().await;
-        }
-        if let Ok(mut g) = self.reaper.lock() {
-            if let Some(h) = g.take() {
-                h.abort();
-            }
-        }
-    }
-
     /// Starts the reaper if it is not running. Holds only a `Weak`, so a
     /// dropped registry cannot be kept alive by its own timer.
     fn ensure_reaper(self: &Arc<Self>) {
@@ -322,15 +277,6 @@ impl McpRegistry {
                 }
             }
         }));
-    }
-
-    /// `true` while the idle reaper is running. The budget claim "0 processes
-    /// and 0 timers with the section closed" is checked through this.
-    pub fn reaper_running(&self) -> bool {
-        self.reaper
-            .lock()
-            .map(|g| g.as_ref().map(|h| !h.is_finished()).unwrap_or(false))
-            .unwrap_or(false)
     }
 
     fn save(&self) -> Result<(), McpError> {

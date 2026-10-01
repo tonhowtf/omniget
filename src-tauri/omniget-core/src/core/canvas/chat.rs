@@ -601,10 +601,6 @@ fn content_type_of(path: &Path) -> (Option<&'static str>, bool) {
     }
 }
 
-pub fn is_image_path(path: &Path) -> bool {
-    content_type_of(path).1
-}
-
 fn clean_file_name(name: &str) -> String {
     let base = Path::new(name)
         .file_name()

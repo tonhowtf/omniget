@@ -28,11 +28,6 @@ impl FakeProvider {
         }
     }
 
-    pub fn with_delay(mut self, delay: Duration) -> Self {
-        self.delay_per_event = delay;
-        self
-    }
-
     /// A plain text answer split into `chunks` deltas, then usage and finish.
     pub fn text(answer: &str, chunks: usize) -> Self {
         let chunks = chunks.max(1);

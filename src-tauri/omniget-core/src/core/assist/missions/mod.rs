@@ -55,8 +55,6 @@ pub const ERR_MISSION_UNSUPPORTED: &str = "ERR_MISSION_UNSUPPORTED";
 pub const PAYLOAD_MAX: usize = 4 * 1024;
 /// Events kept per mission; later ones only bump `events_dropped`.
 pub const EVENTS_PER_MISSION_MAX: i64 = 5_000;
-/// Default lease of a claimed task.
-pub const DEFAULT_LEASE_MS: i64 = 5 * 60 * 1000;
 /// Tasks a mission may hold (a plan is small by design).
 pub const MAX_TASKS: usize = 24;
 /// Criteria a mission may hold.
@@ -2269,72 +2267,6 @@ pub fn unblock_task(
             NewEvent::new("task_unblocked", json!({ "task": task_id, "confirmed": confirmed, "note": clip(note, 300), "next": next })),
         )?;
         task_tx(tx, task_id)
-    })
-}
-
-/// A person settles one effect by key (for an effect left open by a task
-/// that is no longer blocked). `decision` is `confirmed`, `failed` or
-/// `unknown_accepted`; recorded as an event.
-pub fn settle_effect_by_person(
-    db: &AssistDb,
-    key: &str,
-    decision: &str,
-    note: &str,
-) -> Result<Effect, String> {
-    if !matches!(decision, "confirmed" | "failed" | "unknown_accepted") {
-        return Err(input_err(
-            "decision is confirmed, failed or unknown_accepted",
-        ));
-    }
-    db.tx(|tx| {
-        let x = tx
-            .query_row(
-                &format!("SELECT {EFFECT_COLS} FROM missions_effects WHERE key = ?1"),
-                params![key],
-                row_effect,
-            )
-            .optional()
-            .map_err(e)?
-            .ok_or_else(|| format!("{ERR_MISSION_NOT_FOUND}: no effect {key}"))?;
-        if x.state.is_settled() {
-            return Ok(x);
-        }
-        if let Some(tid) = &x.task_id {
-            if task_tx(tx, tid)?.state.is_live() {
-                return Err(format!(
-                    "{ERR_MISSION_STATE}: the task that owns {key} is still running"
-                ));
-            }
-        }
-        tx.execute(
-            "UPDATE missions_effects SET state = ?2, detail = ?3, updated_ms = ?4 WHERE key = ?1",
-            params![
-                key,
-                decision,
-                format!("settled by the user: {}", clip(note, 300)),
-                now_ms()
-            ],
-        )
-        .map_err(e)?;
-        bump_work_revision_tx(tx, &x.mission_id)?;
-        append_event_tx(
-            tx,
-            &x.mission_id,
-            NewEvent::new(
-                if decision == "unknown_accepted" {
-                    "effect_accepted_unknown"
-                } else {
-                    "effect_settled"
-                },
-                json!({ "key": key, "decision": decision, "by": "user", "note": clip(note, 300) }),
-            ),
-        )?;
-        tx.query_row(
-            &format!("SELECT {EFFECT_COLS} FROM missions_effects WHERE key = ?1"),
-            params![key],
-            row_effect,
-        )
-        .map_err(e)
     })
 }
 

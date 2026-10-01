@@ -156,11 +156,6 @@ impl Usage {
             self.cache_write_tokens as u64,
         )
     }
-
-    /// What budget caps count: weighted input plus output.
-    pub fn billable_tokens(&self) -> u64 {
-        self.billable_input_tokens() + self.output_tokens as u64
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

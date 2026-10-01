@@ -778,36 +778,6 @@ pub async fn pages(
     }
 }
 
-#[tauri::command]
-pub async fn read_series_details(
-    source: String,
-    key: String,
-    lang: Option<String>,
-    langs: Option<Vec<String>>,
-) -> Result<SeriesDetails, String> {
-    details(
-        &source,
-        &key,
-        lang.as_deref().unwrap_or("en"),
-        &langs.unwrap_or_default(),
-    )
-    .await
-}
-
-/// Page URLs for reading a chapter online, already routed through the local
-/// image proxy (headers, Referer and MANGA Plus decryption happen there).
-#[tauri::command]
-pub async fn read_chapter_pages(
-    app: tauri::AppHandle,
-    source: String,
-    chapter_key: String,
-    data_saver: Option<bool>,
-) -> Result<Vec<String>, String> {
-    let info = super::server::ensure(&app).await?;
-    let list = pages(&source, &chapter_key, data_saver.unwrap_or(false)).await?;
-    Ok(list.into_iter().map(|p| proxied(&info, &p)).collect())
-}
-
 pub fn proxied(info: &super::server::ServerInfo, p: &RemotePage) -> String {
     let headers = serde_json::to_string(&p.headers).unwrap_or_else(|_| "[]".into());
     format!(
