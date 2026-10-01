@@ -6,7 +6,7 @@
 // same method as the world's text atlas, filled progressively a few hundred
 // glyphs per frame. Buckets are 2^(1/8) steps of the on-screen font size.
 
-import { Lru } from '$lib/world/render/text';
+import { Lru } from '$lib/gfx/text';
 import { cellMetrics, TERM_FONT_SIZE } from './metrics';
 
 export const MAX_SLOTS = 8192;

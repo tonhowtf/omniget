@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { parseAtlas, type AtlasData } from '$lib/world/render/atlas';
+import { parseAtlas, type AtlasData } from '$lib/gfx/atlas';
 import {
   advance,
   createPlayer,

@@ -842,22 +842,6 @@
       "managerId": null
     },
     {
-      "setting": "world.settings.tier_measured",
-      "existingHref": "/settings?tab=world&setting=world.settings.tier_measured",
-      "targetHref": "/settings?tab=integrations&section=world&setting=world.settings.tier_measured",
-      "targetTab": "integrations",
-      "targetSection": "world",
-      "managerId": null
-    },
-    {
-      "setting": "world.settings.tier_pinned",
-      "existingHref": "/settings?tab=world&setting=world.settings.tier_pinned",
-      "targetHref": "/settings?tab=integrations&section=world&setting=world.settings.tier_pinned",
-      "targetTab": "integrations",
-      "targetSection": "world",
-      "managerId": null
-    },
-    {
       "setting": "pet.enable",
       "existingHref": "/settings?tab=world&setting=pet.enable",
       "targetHref": "/settings?tab=integrations&section=pet&setting=pet.enable",

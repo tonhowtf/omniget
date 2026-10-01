@@ -42,7 +42,6 @@
   import { switchTo } from "$lib/canvas/palette/navigate";
   import { workspaces } from "$lib/canvas/palette/workspaces.svelte";
   import { PARTITURA_DRAG_TYPE } from "$lib/canvas/partituras/api";
-  import { ensureRenderTier } from "$lib/canvas/calibrate";
   import { isTerminalKind } from "$lib/canvas/model/types";
   import PromptComposer from "./composer/PromptComposer.svelte";
   import WorkspaceSidebar from "./sidebar/WorkspaceSidebar.svelte";
@@ -161,13 +160,10 @@
         showToast("info", p.name ? `${p.name}: ${p.message}` : p.message, 6000);
       }).catch(() => () => {}),
     ];
-    // First open measures the GPU once (the city reads the stored tier).
-    const calTimer = setTimeout(() => void ensureRenderTier(), 2500);
 
     return () => {
       stopDriver();
       stopPrefs();
-      clearTimeout(calTimer);
       stopDrop();
       stopChat();
       stopRoles();

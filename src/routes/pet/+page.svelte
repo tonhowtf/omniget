@@ -18,7 +18,7 @@
   import { emit, listen, type UnlistenFn } from "@tauri-apps/api/event";
   import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
   import { t } from "$lib/i18n";
-  import { parseAtlas, type AtlasData } from "$lib/world/render/atlas";
+  import { parseAtlas, type AtlasData } from "$lib/gfx/atlas";
   import {
     advance,
     createPlayer,

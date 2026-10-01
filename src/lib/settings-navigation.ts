@@ -183,8 +183,6 @@ export const SETTING_ALIASES: Record<string, SettingAlias> = {
   "settings.ai.history": { href: "/llm/summaries?section=history&setting=settings.ai.history" },
   "world.settings.title": { tab: "integrations", section: "world" },
   "world.settings.enabled": { tab: "integrations", section: "world" },
-  "world.settings.tier_measured": { tab: "integrations", section: "world" },
-  "world.settings.tier_pinned": { tab: "integrations", section: "world" },
   "pet.enable": { tab: "integrations", section: "pet" },
   "pet.click_through": { tab: "integrations", section: "pet" },
   "pet.menu.corner": { tab: "integrations", section: "pet" },

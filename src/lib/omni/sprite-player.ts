@@ -15,7 +15,7 @@
  * the budget says no allocation per frame, and a player is owned by exactly one
  * window.
  *
- * The atlas parser is reused from `$lib/world/render/atlas` (pure: it pulls in
+ * The atlas parser is reused from `$lib/gfx/atlas` (pure: it pulls in
  * only the constant module `render/types`), so the pet and the world read the
  * same art through the same code.
  */
@@ -26,7 +26,7 @@ import {
   type AtlasData,
   type AtlasFrame,
   type Dir8,
-} from '$lib/world/render/atlas';
+} from '$lib/gfx/atlas';
 
 /** Frames per second the pet is never allowed to exceed. */
 export const MAX_FPS = 12;

@@ -1,17 +1,24 @@
 <script lang="ts">
   /**
-   * Settings → World: the world block (phase 7, in `components/world`) plus
-   * the desktop pet of phase 5, which shares the section because both are the
-   * same thing to the user — the agents, outside the app.
+   * Settings → World: the switch for the canvas at /world plus the desktop
+   * pet, which shares the section because both are the same thing to the
+   * user — the agents, outside the app.
    */
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "$lib/i18n";
+  import { getSettings, updateSettings } from "$lib/stores/settings-store.svelte";
   import { showToast } from "$lib/stores/toast-store.svelte";
-  import WorldSettings from "$components/world/WorldSettings.svelte";
   import SettingGroup from "./rebrand/SettingGroup.svelte";
   import SettingRow from "./rebrand/SettingRow.svelte";
   import SettingsEmptyState from "./rebrand/SettingsEmptyState.svelte";
+
+  let settings = $derived(getSettings());
+  let enabled = $derived(settings?.world?.enabled ?? true);
+
+  async function toggleEnabled() {
+    await updateSettings({ world: { enabled: !enabled } });
+  }
 
   // Desktop pet (phase 5). State comes from `pet_capabilities`, which also says
   // whether this desktop can draw a transparent window at all.
@@ -59,7 +66,23 @@
   onMount(loadPet);
 </script>
 
-<WorldSettings />
+<SettingGroup id="world" title={$t("world.settings.title")} description={$t("world.settings.desc")}>
+  <SettingRow id="world-enabled" label={$t("world.settings.enabled")} help={$t("world.settings.enabled_desc")} settingKey="world.settings.enabled" status="world.enabled">
+    {#snippet control(c)}
+      <button
+        type="button"
+        class="toggle"
+        class:on={enabled}
+        id={c.id}
+        aria-describedby={c.describedBy}
+        onclick={toggleEnabled}
+        role="switch"
+        aria-checked={enabled}
+        aria-label={$t("world.settings.enabled") as string}
+      ><span class="toggle-knob"></span></button>
+    {/snippet}
+  </SettingRow>
+</SettingGroup>
 
 <SettingGroup id="pet" title={$t("pet.title")}>
   {#if petLoading}
