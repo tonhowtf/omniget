@@ -12,12 +12,24 @@
   import { readTheme, watchTheme, type CanvasTheme } from "$lib/canvas/render/theme";
   import { registerTermPass, setTermGlAvailable } from "$lib/canvas/term/pass";
   import { canvasPrefs } from "$lib/canvas/prefs.svelte";
+  import { registerSemantic } from "$lib/native-agent/semantic";
 
   const engine = useEngine();
   let glCanvas = $state<HTMLCanvasElement | null>(null);
   let fallbackCanvas = $state<HTMLCanvasElement | null>(null);
   let theme: CanvasTheme | null = null;
   const th = () => (theme ??= readTheme());
+
+  onMount(() =>
+    registerSemantic("canvas-layer", () => ({
+      ready: true,
+      kind: "infinite canvas",
+      renderer: engine.glFallback ? "canvas2d" : "webgl2",
+      workspaceId: engine.store.workspaceId,
+      floorId: engine.store.floorId,
+      zoom: Math.round(engine.camera.zoom * 100) / 100,
+    })),
+  );
 
   onMount(() => {
     const stopTheme = watchTheme(() => {
@@ -76,9 +88,9 @@
 </script>
 
 {#if engine.glFallback}
-  <canvas bind:this={fallbackCanvas} class="l0" aria-hidden="true"></canvas>
+  <canvas bind:this={fallbackCanvas} class="l0" aria-hidden="true" data-agent-renderer="canvas-layer"></canvas>
 {:else}
-  <canvas bind:this={glCanvas} class="l0" aria-hidden="true"></canvas>
+  <canvas bind:this={glCanvas} class="l0" aria-hidden="true" data-agent-renderer="canvas-layer"></canvas>
 {/if}
 
 <style>

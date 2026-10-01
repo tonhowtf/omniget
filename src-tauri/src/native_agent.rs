@@ -160,11 +160,16 @@ pub async fn call(
     if !mutation {
         return call_inner(app, p, name, args).await;
     }
-    let key = args
+    let Some(key) = args
         .get("requestId")
         .and_then(Value::as_str)
-        .ok_or("INVALID_ARGUMENT: requestId required")?
-        .to_owned();
+        .map(str::to_owned)
+    else {
+        if name == "omniget_app_navigate" {
+            return call_inner(app, p, name, args).await;
+        }
+        return Err("INVALID_ARGUMENT: requestId required".into());
+    };
     if let Some(receipt) = policy::reserve(p, name, &key, &args)? {
         return if let Some(error) = receipt["error"].as_str() {
             Err(error.into())
@@ -316,7 +321,21 @@ async fn call_inner(
                     result["route"]
                 ));
             }
-            result
+            if operation == "navigate" {
+                let count = result["nodes"].as_array().map(Vec::len).unwrap_or(0);
+                json!({
+                    "route": result["route"],
+                    "readiness": result["readiness"],
+                    "stateRevision": result["stateRevision"],
+                    "sensitive": result["sensitive"],
+                    "sensitiveReason": result["sensitiveReason"],
+                    "semantics": result["semantics"],
+                    "elements": count,
+                    "more": "omniget_app_inspect lists the elements; omniget_app_capture takes a picture",
+                })
+            } else {
+                result
+            }
         }
         "omniget_app_export" => crate::native_agent_export::export(p, args)?,
         "omniget_app_record" => crate::native_agent_record::call(app, p, args).await?,

@@ -616,6 +616,7 @@ pub fn build_pairing_url(port: u16) -> String {
 
 async fn mcp_post(
     State(state): State<BridgeState>,
+    uri: axum::http::Uri,
     headers: HeaderMap,
     body: axum::body::Bytes,
 ) -> Response {
@@ -686,10 +687,17 @@ async fn mcp_post(
         .get("mcp-protocol-version")
         .and_then(|v| v.to_str().ok())
         .map(str::to_owned);
+    let lean = uri
+        .query()
+        .is_some_and(|q| q.split('&').any(|p| p == "lean=1" || p == "lean=true"))
+        || headers
+            .get("x-omniget-lean")
+            .and_then(|v| v.to_str().ok())
+            .is_some_and(|v| v == "1" || v.eq_ignore_ascii_case("true"));
     match crate::mcp::REQUEST_PROTOCOL
         .scope(
             protocol,
-            crate::mcp::handle_body(&state.app, &principal, &msg),
+            crate::mcp::LEAN.scope(lean, crate::mcp::handle_body(&state.app, &principal, &msg)),
         )
         .await
     {

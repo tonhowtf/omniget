@@ -144,7 +144,7 @@ fn setup_spec() -> Value {
 }
 
 fn commands_map() -> Value {
-    json!({"type": "object", "additionalProperties": {"type": ["string", "null"]}, "description": "Per terminal node id: new startup command, or null to drop it"})
+    json!({"type": "object", "additionalProperties": {"type": ["string", "null"]}, "description": "Per terminal node id: new startup command, or null to run the agent's default command"})
 }
 
 pub fn save_request() -> Value {

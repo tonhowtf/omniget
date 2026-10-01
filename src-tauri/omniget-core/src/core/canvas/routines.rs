@@ -303,7 +303,7 @@ pub fn next_fire(r: &Routine) -> Option<DateTime<Local>> {
                 start_at.as_deref().and_then(|s| parse_at(s).ok()),
             ) {
                 (None, _, Some(start)) => start,
-                (None, None, None) => from,
+                (None, None, None) if step <= ChronoDuration::hours(1) => from,
                 _ => from + step,
             }
         }

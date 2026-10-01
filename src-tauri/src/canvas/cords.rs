@@ -705,7 +705,13 @@ impl CanvasHost {
         );
         env.insert("OMNIGET_CLI".into(), cli.to_string_lossy().into_owned());
         env.insert("OMNIGET_TERMINAL_ID".into(), terminal.clone());
-        let path = std::env::var_os("PATH").unwrap_or_default();
+        let path = env
+            .get("PATH")
+            .cloned()
+            .or_else(omniget_core::core::process::enhanced_path)
+            .map(std::ffi::OsString::from)
+            .or_else(|| std::env::var_os("PATH"))
+            .unwrap_or_default();
         let mut parts = vec![bin.clone()];
         parts.extend(std::env::split_paths(&path).filter(|p| p != &bin));
         if let Ok(joined) = std::env::join_paths(parts) {
@@ -2502,10 +2508,15 @@ impl CanvasHost {
                 }
             };
             let queued = g.mail.get(id).map(|q| q.len()).unwrap_or(0);
+            let first_prompt = t
+                .terminal
+                .as_deref()
+                .is_some_and(crate::canvas::launch::first_prompt_pending);
             out.push(json!({
                 "nodeId": id, "name": t.name, "workspaceId": t.ws, "floorId": t.floor,
                 "reason": reason, "state": f.state, "detail": f.detail, "sinceMs": f.since_ms,
                 "queued": queued,
+                "firstPromptPending": first_prompt,
             }));
         }
         out.sort_by_key(|v| v["sinceMs"].as_i64().unwrap_or(0));

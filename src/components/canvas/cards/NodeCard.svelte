@@ -2,20 +2,38 @@
   import { t } from "$lib/i18n";
   import { isTerminalKind, type CanvasNode } from "$lib/canvas/model/types";
   import { agentStates, stateCss, type AgentState } from "$lib/canvas/state/agents.svelte";
+  import { useEngine } from "$lib/canvas/engine.svelte";
+  import { noteRead } from "$lib/canvas/notes/api";
 
   let { node, selected = false }: { node: CanvasNode; selected?: boolean } = $props();
 
   const agent = $derived(isTerminalKind(node.kind));
   const signal = $derived(agent ? agentStates.of(node) : undefined);
-  const state = $derived<AgentState>(signal?.state ?? "unknown");
+  const agentState = $derived<AgentState>(signal?.state ?? "unknown");
   const role = $derived(typeof node.data.roleId === "string" ? (node.data.roleId as string) : "");
   const agentName = $derived(typeof node.data.agent === "string" ? (node.data.agent as string) : "");
   const lastLine = $derived(signal?.lastLine ?? signal?.message ?? "");
+  const engine = useEngine();
+  let fileText = $state<string | null>(null);
+  const externalNote = $derived(node.kind === "note" && typeof node.data.path === "string" && node.data.text == null);
+  $effect(() => {
+    if (!externalNote) return;
+    void node.data.lastModifiedAt;
+    let alive = true;
+    noteRead(engine.store.workspaceId, engine.store.floorId, node.id)
+      .then((c) => {
+        if (alive) fileText = c.text;
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  });
   const preview = $derived(
-    String(node.data.text ?? node.data.url ?? node.data.path ?? "")
+    String(fileText ?? node.data.text ?? node.data.url ?? node.data.path ?? "")
       .split("\n")
       .filter((l) => l.trim())
-      .slice(0, 4)
+      .slice(0, externalNote || node.kind === "note" ? 14 : 4)
       .join("\n"),
   );
   const segments = $derived.by(() => {
@@ -40,15 +58,15 @@
   };
 </script>
 
-<div class="card" class:selected class:blocked={state === "blocked"} class:agent>
+<div class="card" class:selected class:blocked={agentState === "blocked"} class:agent>
   <div class="head">
-    {#if agent}<span class="dot" style:background={stateCss(state)}></span>{/if}
+    {#if agent}<span class="dot" style:background={stateCss(agentState)}></span>{/if}
     <span class="title">{node.title || node.kind}</span>
     {#if agent && agentName}<span class="tag">{agentName}</span>{/if}
   </div>
   {#if agent}
     <div class="meta">
-      <span class="state" style:color={stateCss(state)}>{$t(STATE_KEYS[state][0], { default: STATE_KEYS[state][1] })}</span>
+      <span class="state" style:color={stateCss(agentState)}>{$t(STATE_KEYS[agentState][0], { default: STATE_KEYS[agentState][1] })}</span>
       {#if role}<span class="role">{role}</span>{/if}
       {#if cost !== undefined}<span class="cost">${cost.toFixed(2)}</span>{/if}
     </div>

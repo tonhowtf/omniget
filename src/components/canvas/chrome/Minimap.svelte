@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { registerSemantic } from "$lib/native-agent/semantic";
   import { onMount } from "svelte";
   import { t } from "$lib/i18n";
   import { useEngine } from "$lib/canvas/engine.svelte";
@@ -57,6 +58,7 @@
     c.set({ x: w.x - c.vw / (2 * c.zoom), y: w.y - c.vh / (2 * c.zoom) });
     engine.invalidate();
   }
+  onMount(() => registerSemantic("canvas-minimap", () => ({ ready: true, kind: "minimap" })));
 </script>
 
 {#if engine.minimapVisible}
@@ -72,6 +74,7 @@
     </button>
     <canvas
       bind:this={canvas}
+      data-agent-renderer="canvas-minimap"
       style:width="{MINIMAP_W}px"
       style:height="{MINIMAP_H}px"
       aria-label={$t("canvas.engine.minimap", { default: "Minimap" })}

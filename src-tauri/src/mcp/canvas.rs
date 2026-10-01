@@ -19,6 +19,7 @@ use super::policy::{self, Principal};
 use super::ToolDef;
 
 mod clipboard;
+mod council;
 mod lift_dock_menu;
 mod omni_cords_remote;
 mod schemas;
@@ -242,10 +243,10 @@ fn build_defs() -> Vec<Def> {
             "background": b("Return right away; floor_list shows it under pendingFloors until it is ready")
         }), &["name"], out(json!({"floor": ty("object"), "setup": arr(ty("object")), "warnings": arr(ty("string")), "pending": ty("object")}), &[])),
         def("floor_activate", "Make a floor the workspace's active floor; the canvas window flies there.", true, json!({"workspaceId": ws(), "floorId": s("Floor id")}), &["floorId"], out(json!({"workspaceId": ty("string"), "floorId": ty("string")}), &["workspaceId", "floorId"])),
-        def("floor_land", "Land a floor: merge its branch into the target (default: the ground floor's branch). With preview: only report what would happen.", true, json!({
+        destructive(def("floor_land", "Land a floor: merge its branch into the target (default: the ground floor's branch). With preview: only report what would happen.", true, json!({
             "workspaceId": ws(), "floorId": s("Floor id (or name)"), "preview": b("Only preview (same as floor_landing)"), "into": s("Target branch"), "deleteBranch": b("Delete the floor branch after landing"),
             "keepFloor": b("Keep the floor after landing"), "message": s("Merge commit message")
-        }), &["floorId"], out(json!({"preview": any(), "outcome": any()}), &[])),
+        }), &["floorId"], out(json!({"preview": any(), "outcome": any()}), &[]))),
         destructive(def("floor_delete", "Discard a floor: close its terminals and remove its working tree (the branch is deleted unless keepBranch).", true, json!({
             "workspaceId": ws(), "floorId": s("Floor id"), "keepBranch": b("Keep the branch"), "force": b("Discard even with uncommitted changes"),
             "pending": s("Instead: dismiss a pending or failed floor (name or id) from pendingFloors")
@@ -260,10 +261,10 @@ fn build_defs() -> Vec<Def> {
         def("canvas_apply", "Apply raw document ops atomically (add_node, update_node {id, patch}, remove_node, add_connection, update_connection, remove_connection, add_drawing, update_drawing, remove_drawing, set_group, set_cable_tie, set_camera), the same ops the canvas writes. Returns the effective ops. Terminals added this way are not started: call canvas_terminal_ensure.", true, json!({
             "workspaceId": ws(), "floorId": floor(), "ops": json!({"type": "array", "items": {"type": "object", "properties": {"op": e(&["add_node", "update_node", "remove_node", "add_connection", "update_connection", "remove_connection", "add_drawing", "update_drawing", "remove_drawing", "set_group", "set_cable_tie", "set_camera"], "Op"), "id": s("Target id (update/remove)"), "patch": schemas::free("Fields (update ops)"), "node": schemas::free("Node (add_node)"), "connection": schemas::free("Cord (add_connection)"), "drawing": schemas::free("Drawing (add_drawing)")}, "required": ["op"], "additionalProperties": true}, "description": "Ops, e.g. [{\"op\": \"update_node\", \"id\": \"n1\", \"patch\": {\"x\": 40}}]"}), "baseRev": json!({"type": "integer", "minimum": 0, "description": "Revision the ops were computed against"})
         }), &["ops"], apply_out.clone()),
-        def("canvas_node_spawn", "Put a node on the canvas the way the canvas does. kind terminal = a terminal running `agent` (claude, codex, gemini, opencode, ollama, shell, native) with optional role, cwd, command and the Maestro flag, started right away; note (text), text, file (path), filetree (path), link/portal (url), shape (shape, text), image (path or url), stack, connector. Without x/y it goes to the nearest free spot. connectFrom cords it to an existing node.", true, json!({
+        def("canvas_node_spawn", "Put a node on the canvas the way the canvas does. kind terminal = a terminal running `agent` (claude, codex, gemini, opencode, ollama, shell, native) with optional role, cwd, command, a first prompt and the Maestro flag, started right away; note (text), text, file (path; a .md/.markdown/.txt becomes an external note showing the formatted text), filetree (path), link/portal (url), shape (shape, text), image (path or url), stack, connector. Without x/y it goes to the nearest free spot. connectFrom cords it to an existing node.", true, json!({
             "workspaceId": ws(), "floorId": floor(), "kind": e(NODE_KINDS, "Node kind"), "agent": e(AGENTS, "Agent of a terminal (default shell)"),
             "title": s("Title"), "name": s("Same as title"), "preset": s("Same as agent"), "fontSize": n("Font size of a text node (8 to 200)"), "fontWeight": e(TEXT_WEIGHTS, "Weight of a text node"), "fontFamily": e(TEXT_FAMILIES, "Family of a text node"), "roleId": s("Role id or name (see role_list)"), "cwd": s("Working folder of a terminal"), "command": s("Own command line of a terminal (overrides the agent preset)"),
-            "model": s("Ollama model"), "maestro": b("Make the terminal the Maestro"), "start": b("Start a terminal now (default true)"),
+            "model": s("Ollama model"), "prompt": s("First message for the agent of a terminal, sent when it is ready for input (after a folder trust question or a login)"), "maestro": b("Make the terminal the Maestro"), "start": b("Start a terminal now (default true)"),
             "text": s("Text of a note, text or shape"), "url": s("URL of a portal, link or image"), "path": s("Path of a file, file tree or image"), "shape": s("Shape: rectangle, ellipse, diamond..."),
             "storageScope": e(&["isolated", "workspace", "global"], "Cookie jar of a portal (default isolated)"),
             "x": n("Left (world units)"), "y": n("Top (world units)"), "w": n("Width"), "h": n("Height"), "color": s("Color"),
@@ -387,7 +388,7 @@ fn build_defs() -> Vec<Def> {
             "updateExisting": s("Replace this library partitura's layout, keeping its id (what the first save left out stays out; partitura_update patch {restore: \"previous\"} undoes it)"), "request": schemas::save_request()
         }), &[], out(json!({"id": ty("string"), "name": ty("string"), "partitura": ty("object")}), &["id", "name", "partitura"])),
         def("partitura_preview", "What importing a partitura (library id, or an inline partitura) would create, and its role conflicts.", false, json!({"workspaceId": ws(), "id": s("Library id"), "partitura": schemas::free("Inline partitura document (partitura_export shape)")}), &[], obj_out("preview")),
-        def("partitura_stamp", "Stamp a partitura onto a floor at a point (options: {commands, roles: {roleId: keep|theirs|both}, applyHooks}).", true, json!({
+        def("partitura_stamp", "Stamp a partitura onto a floor at a point (options: {commands: {nodeId: command or null for the agent's default}, roles: {roleId: keepMine|useTheirs|rename}, applyHooks}). The first message of a spawn is never part of a partitura. In a workspace without a folder the terminals are placed but not started (see notStarted).", true, json!({
             "workspaceId": ws(), "floorId": floor(), "id": s("Library id"), "partitura": schemas::free("Inline partitura document (partitura_export shape)"), "x": n("Left"), "y": n("Top"), "options": schemas::stamp_options()
         }), &[], obj_out("result")),
         destructive(def("partitura_delete", "Delete a partitura from the library.", true, json!({"id": s("Library id")}), &["id"], out(json!({"deleted": ty("string")}), &["deleted"]))),
@@ -400,6 +401,16 @@ fn build_defs() -> Vec<Def> {
         def("routine_run", "Fire a routine now.", true, json!({"id": s("Routine id")}), &["id"], obj_out("routine")),
         destructive(def("routine_delete", "Delete a routine.", true, json!({"id": s("Routine id")}), &["id"], out(json!({"deleted": ty("string")}), &["deleted"]))),
         def("canvas_maestro_set", "Turn Maestro Mode on or off for a terminal node (a Maestro may recruit, connect, swap, dismiss and notify).", true, json!({"nodeId": node(), "on": b("Maestro on")}), &["nodeId", "on"], out(json!({"nodeId": ty("string"), "maestro": ty("boolean")}), &["nodeId", "maestro"])),
+        def("canvas_start", "Start here: the workspaces (folder, nodes, terminals), which one the window shows, and the dozen calls most canvas tasks need, with argument examples. One short answer instead of reading the whole catalog.", false, json!({}), &[], out(json!({"workspaces": arr(ty("object")), "window": any(), "recipes": arr(ty("object")), "tips": arr(ty("string"))}), &["workspaces", "recipes"])),
+        def("canvas_council", "Several agents decide one question together on the board (needs a workspace folder). Lays out three notes (Pergunta, Quadro = shared board, Decisão), the members and a chair (Maestro) corded to them; the chair runs the method by itself and writes the decision. method: brainstorm (approaches + cross-critique + one recommendation for the person to approve), dialectic (thesis, antithesis, rebuttal, synthesis), arena (independent answers, anonymous ranking, best answer with grafts), simulation (MiroFish-style personas reacting on the board in rounds). members: [{name, agent, perspective}] (default 2-3 per method). Follow it with canvas_council_status.", true, json!({
+            "workspaceId": ws(), "floorId": floor(), "question": s("What to decide"), "method": e(council::METHODS, "Method (default brainstorm)"),
+            "members": json!({"type": "array", "maxItems": 6, "description": "Members (default by method)", "items": {"type": "object", "additionalProperties": false, "properties": {"name": {"type": "string"}, "agent": {"type": "string", "enum": AGENTS}, "perspective": {"type": "string"}}}}),
+            "agent": e(AGENTS, "Default agent of members and chair (default claude)"), "chairAgent": e(AGENTS, "Agent of the chair"), "chairName": s("Chair title (default Presidente)"),
+            "rounds": i("Rounds (default 2, simulation 3)", 1, 6), "x": n("Left"), "y": n("Top")
+        }), &["question"], out(json!({"council": ty("object"), "next": ty("string")}), &["council"])),
+        def("canvas_council_status", "State of a council: each agent's state, rounds logged on the board, the tail of the board and, once written, the decision.", false, json!({
+            "workspaceId": ws(), "floorId": floor(), "councilId": s("council.id from canvas_council")
+        }), &["councilId"], out(json!({"councilId": ty("string"), "decided": ty("boolean"), "roundsLogged": ty("integer"), "agents": arr(ty("object")), "decision": any(), "boardTail": ty("string")}), &["councilId", "decided"])),
         def("canvas_maestro", "Act as a Maestro node: recruit {name?, agent?, preset?, command?, role?, floor?, workspace?, dir?, replace?}, connect/disconnect {from, to}, swap_role {name, role}, swap_agent {name, agent, command?}, dismiss {name}, notify {message}, status.", true, json!({
             "asNode": as_node(), "action": e(&["recruit", "connect", "disconnect", "swap_role", "swap_agent", "dismiss", "notify", "status"], "Action"), "args": schemas::free("Arguments of the action (see the description)")
         }), &["asNode", "action"], out(json!({"result": any()}), &["result"])),
@@ -433,7 +444,7 @@ fn build_defs() -> Vec<Def> {
         def("workspace_wake", "Start every terminal of a workspace (or one floor) that is not running.", true, json!({"workspaceId": ws(), "floorId": s("Only this floor")}), &["workspaceId"], out(json!({"workspaceId": ty("string"), "started": arr(ty("string")), "failed": arr(ty("object"))}), &["started"])),
         def("workspace_export", "Export a whole workspace (floors, nodes, cords, groups, drawings, notes, roles, chat history, floor hooks, routines) to one .omniget file. Secret-looking env vars are left out unless includeSecrets; the report lists what was left out.", true, json!({"workspaceId": ws(), "path": s("Destination file (.omniget added when there is no extension)"), "includeSecrets": b("Keep secret-looking env vars (default false)"), "includeChat": b("Include chat transcripts and attachments (default true)")}), &["workspaceId", "path"], out(json!({"path": ty("string"), "bytes": ty("integer"), "files": ty("integer"), "floors": ty("integer"), "nodes": ty("integer"), "routines": ty("integer"), "omitted": ty("array")}), &["path"])),
         destructive(def("workspace_import", "Import a .omniget workspace file. Without confirm it only returns a preview (nodes, floors, roles, conflicts) and creates nothing; with confirm it creates a NEW workspace with fresh ids.", true, json!({"path": s("Workspace file"), "confirm": b("Create it (default false: preview only)"), "name": s("Name of the new workspace"), "dir": s("Working directory of the new workspace")}), &["path"], out(json!({"created": ty("boolean"), "preview": any(), "workspaceId": ty("string"), "name": ty("string"), "nodeIds": ty("array"), "floors": ty("integer"), "routines": ty("integer")}), &["created"]))),
-        def("workspace_backup_list", "Automatic backups of a workspace (hourly when it changed, and before delete, floor delete/land, import and restore). Works for deleted workspaces too. backupNow takes one first.", false, json!({"workspaceId": ws(), "backupNow": b("Take a backup first (skipped when nothing changed)")}), &["workspaceId"], out(json!({"backups": ty("array"), "created": any()}), &["backups"])),
+        def("workspace_backup_list", "Automatic backups of a workspace (hourly when it changed, and before delete, floor delete/land, import and restore). Works for deleted workspaces too. backupNow takes one first.", true, json!({"workspaceId": ws(), "backupNow": b("Take a backup first (skipped when nothing changed)")}), &["workspaceId"], out(json!({"backups": ty("array"), "created": any()}), &["backups"])),
         destructive(def("workspace_backup_restore", "Restore a workspace backup. Without confirm it returns a readable diff (nodes back, removed, notes changed); with confirm it backs up the current state, closes the workspace terminals and restores.", true, json!({"workspaceId": ws(), "backupId": s("Backup id from workspace_backup_list"), "confirm": b("Restore (default false: diff only)")}), &["workspaceId", "backupId"], out(json!({"restored": ty("boolean"), "diff": any(), "workspace": any()}), &["restored"]))),
         def("floor_rename", "Rename or recolor a floor.", true, json!({"workspaceId": ws(), "floorId": s("Floor id or name"), "name": s("New name"), "color": json!({"type": ["string", "null"]})}), &["floorId"], out(json!({"workspaceId": ty("string"), "floorId": ty("string")}), &["floorId"])),
         def("floor_landing", "Preview landing a floor: commits, files, conflicts, dirty trees and what blocks it.", false, json!({"workspaceId": ws(), "floorId": s("Floor id or name"), "into": s("Target branch")}), &["floorId"], obj_out("preview")),
@@ -447,7 +458,9 @@ fn build_defs() -> Vec<Def> {
         def("canvas_node_dock", "Dock a node as a full-height column on the left or right edge (the canvas pans underneath), or undock with edge=none. Width snaps to the 20 pt grid.", true, json!({"nodeId": node(), "edge": e(&["left", "right", "none"], "Edge (default right)"), "width": n("Column width in screen px (default 520)")}), &["nodeId"], out(json!({"workspaceId": ty("string"), "floorId": ty("string"), "nodeId": ty("string"), "lifted": any(), "docked": any(), "window": any()}), &["lifted", "docked"])),
         def("canvas_group_update", "Rename or recolor a group; rotateBy turns a drawing group around its centre.", true, json!({"workspaceId": ws(), "floorId": floor(), "groupId": s("Group id"), "name": s("Name"), "color": s("Color"), "rotateBy": n("Degrees to turn a drawing group (clockwise)")}), &["groupId"], obj_out("group")),
         def("canvas_clipboard", "Canvas clipboard (same as ⌘C/⌘X/⌘V): copy or cut nodes (default: the window's selection) with their inner cords, groups, drawings, note texts and chat history; paste into any workspace/floor (default: the floor open in the window, at its view centre, cascading on repeat; x/y = top-left). Paste also turns foreign OS clipboard content into nodes: a link, an SVG, file paths, an image, text. read shows what is on the clipboard.", true, json!({"action": e(&["copy", "cut", "paste", "read"], "Action"), "nodeIds": strs("Nodes to copy (ids or titles, one floor); default the window's selection"), "drawingIds": strs("Drawings to copy"), "floorId": floor(), "x": n("Paste left (world)"), "y": n("Paste top (world)")}), &["action"], out(json!({"nodeIds": arr(ty("string")), "connectionIds": arr(ty("string")), "groupIds": arr(ty("string")), "source": ty("string"), "clip": ty("object"), "os": ty("object"), "canvas": any()}), &[])),
-        def("canvas_undo", "Undo the person's last canvas change in the window (agent and MCP edits are not the person's).", true, json!({}), &[], out(json!({"ok": ty("boolean")}), &[])),
+        def("canvas_undo", "Undo. With workspaceId (or mine: true): take back your own last MCP edits on that floor, newest first (steps, default 1), without touching the person's undo. With no arguments: undo the person's last change in the canvas window.", true, json!({
+            "workspaceId": ws(), "floorId": floor(), "mine": b("Undo this MCP client's own edits (implied by workspaceId)"), "steps": i("How many of your edits (default 1)", 1, 50)
+        }), &[], out(json!({"ok": ty("boolean"), "undone": ty("integer"), "remaining": ty("integer"), "ops": arr(ty("object"))}), &[])),
         def("canvas_redo", "Redo in the canvas window.", true, json!({}), &[], out(json!({"ok": ty("boolean")}), &[])),
         def("canvas_camera_get", "Camera of the canvas window (live), or the floor's saved camera when the window is not on the canvas.", false, json!({"workspaceId": ws(), "floorId": floor()}), &[], out(json!({"camera": ty("object"), "source": ty("string")}), &["camera"])),
         def("canvas_camera_set", "Move the camera of the canvas window (x, y = world point at the top-left; zoom 0.1 to 3), or of the saved floor when the window is elsewhere.", true, json!({"x": n("World x"), "y": n("World y"), "zoom": n("Zoom"), "animate": b("Fly there"), "fit": b("Fit everything"), "workspaceId": ws(), "floorId": floor()}), &[], out(json!({"camera": ty("object"), "source": ty("string")}), &["camera"])),
@@ -457,7 +470,7 @@ fn build_defs() -> Vec<Def> {
         def("canvas_tie_move", "Move a cable tie.", true, json!({"tieId": s("Tie id"), "x": n("World x"), "y": n("World y"), "workspaceId": ws(), "floorId": floor()}), &["tieId", "x", "y"], obj_out("tie")),
         destructive(def("canvas_tie_delete", "Remove a cable tie (the cords stay).", true, json!({"tieId": s("Tie id"), "workspaceId": ws(), "floorId": floor()}), &["tieId"], removed_out.clone())),
         def("canvas_drawing_update", "Change a drawing (fields merged: color, lineWidth, points, origin, textContent...).", true, json!({"drawingId": s("Drawing id"), "patch": schemas::free("Drawing fields to merge (color, lineWidth, points, origin, textContent...)"), "workspaceId": ws(), "floorId": floor()}), &["drawingId", "patch"], out(json!({"drawing": any(), "rev": ty("integer")}), &["drawing"])),
-        def("canvas_terminal_wait", "Wait until a terminal's screen matches a regex and/or its state becomes one of the given (idle, working, attention, waiting, blocked, exited, unloaded), up to timeoutMs.", false, json!({
+        def("canvas_terminal_wait", "Wait until a terminal's screen matches a regex and/or its state becomes one of the given (idle, working, attention, waiting, blocked, exited, unloaded; ready = idle, needs_you = blocked, done = attention), up to timeoutMs. An unknown state is refused at once.", false, json!({
             "nodeId": node(), "pattern": s("Regex over the last lines (use (?m) for ^/$ per line)"), "state": json!({"type": ["string", "array"], "description": "State or states"}), "lines": i("Lines searched (default 200)", 1, 2000), "timeoutMs": i("Limit (default 30000)", 100, 300000)
         }), &["nodeId"], out(json!({"matched": ty("boolean"), "state": ty("string"), "match": any(), "text": ty("string"), "waitedMs": ty("integer")}), &["matched"])),
         def("canvas_terminal_settings_get", "A terminal node's own settings: agent, command, cwd, role, maestro, env, appearance, chat mode, activity monitor, preset.", false, json!({"nodeId": node()}), &["nodeId"], obj_out("settings")),
@@ -548,6 +561,107 @@ pub fn output_schema(name: &str) -> Option<Value> {
         .map(|d| d.output.clone())
 }
 
+fn normalize_aliases(name: &str, a: &mut Value) {
+    const ALIASES: &[(&str, &[&str])] = &[
+        ("name", &["title"]),
+        ("title", &["name"]),
+        ("content", &["text"]),
+        ("body", &["text"]),
+        ("ids", &["nodeIds", "noteIds"]),
+        ("nodes", &["nodeIds"]),
+        ("notes", &["noteIds"]),
+        ("folder", &["dir", "workingDirectory", "cwd"]),
+        ("directory", &["dir", "workingDirectory", "cwd"]),
+        ("node", &["nodeId"]),
+        ("id", &["nodeId"]),
+        ("workspace", &["workspaceId"]),
+        ("floor", &["floorId"]),
+    ];
+    let Some(d) = defs().iter().find(|d| d.tool.name == name) else {
+        return;
+    };
+    let Some(props) = d.tool.input_schema["properties"].as_object() else {
+        return;
+    };
+    let Some(obj) = a.as_object_mut() else { return };
+    for (alias, targets) in ALIASES {
+        if props.contains_key(*alias) || !obj.contains_key(*alias) {
+            continue;
+        }
+        if let Some(t) = targets
+            .iter()
+            .find(|t| props.contains_key(**t) && !obj.contains_key(**t))
+        {
+            if let Some(v) = obj.remove(*alias) {
+                obj.insert((*t).to_string(), v);
+            }
+        }
+    }
+}
+
+fn closest_key<'a>(key: &str, accepted: impl Iterator<Item = &'a str>) -> Option<&'a str> {
+    let k = key.to_ascii_lowercase().replace(['_', '-'], "");
+    let synonyms: &[(&str, &[&str])] = &[
+        ("name", &["title"]),
+        ("title", &["name"]),
+        ("content", &["text"]),
+        ("body", &["text"]),
+        ("message", &["text"]),
+        ("ids", &["nodeIds", "noteIds"]),
+        ("nodes", &["nodeIds"]),
+        ("notes", &["noteIds"]),
+        ("folder", &["dir", "workingDirectory", "cwd"]),
+        ("directory", &["dir", "workingDirectory", "cwd"]),
+        ("path", &["dir", "cwd"]),
+        ("command", &["prompt"]),
+        ("task", &["prompt"]),
+    ];
+    let accepted: Vec<&'a str> = accepted.collect();
+    for (alias, targets) in synonyms {
+        if k == *alias {
+            if let Some(t) = targets
+                .iter()
+                .find_map(|t| accepted.iter().find(|a| a.eq_ignore_ascii_case(t)))
+            {
+                return Some(*t);
+            }
+        }
+    }
+    let mut best: Option<(&str, usize)> = None;
+    for cand in accepted {
+        let c = cand.to_ascii_lowercase();
+        let d = if c == k
+            || c == format!("{k}id")
+            || (k == "id" && c.ends_with("id"))
+            || c.starts_with(&k)
+            || k.starts_with(&c)
+        {
+            0
+        } else {
+            edit_distance(&k, &c)
+        };
+        if d <= (k.len().max(3) / 3) && best.is_none_or(|(_, bd)| d < bd) {
+            best = Some((cand, d));
+        }
+    }
+    best.map(|(c, _)| c)
+}
+
+fn edit_distance(a: &str, b: &str) -> usize {
+    let (a, b): (Vec<char>, Vec<char>) = (a.chars().collect(), b.chars().collect());
+    let mut prev: Vec<usize> = (0..=b.len()).collect();
+    for (i, ca) in a.iter().enumerate() {
+        let mut cur = vec![i + 1; b.len() + 1];
+        for (j, cb) in b.iter().enumerate() {
+            cur[j + 1] = (prev[j] + usize::from(ca != cb))
+                .min(prev[j + 1] + 1)
+                .min(cur[j] + 1);
+        }
+        prev = cur;
+    }
+    prev[b.len()]
+}
+
 fn validate(name: &str, a: &Value) -> Result<(), String> {
     let d = defs()
         .iter()
@@ -556,16 +670,39 @@ fn validate(name: &str, a: &Value) -> Result<(), String> {
     let schema = &d.tool.input_schema;
     let obj = a.as_object().ok_or("INVALID_ARGUMENTS")?;
     let props = schema["properties"].as_object().ok_or("INVALID_SCHEMA")?;
-    for key in schema["required"].as_array().into_iter().flatten() {
-        let k = key.as_str().unwrap_or("");
-        if !obj.contains_key(k) {
-            return Err(format!("MISSING_ARGUMENT: {k}"));
+    let missing: Vec<&str> = schema["required"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(Value::as_str)
+        .filter(|k| !obj.contains_key(*k))
+        .collect();
+    let unknown: Vec<String> = obj
+        .keys()
+        .filter(|k| !props.contains_key(k.as_str()))
+        .map(|k| match closest_key(k, props.keys().map(String::as_str)) {
+            Some(near) => format!("{k} (did you mean {near}?)"),
+            None => k.clone(),
+        })
+        .collect();
+    if !unknown.is_empty() {
+        let mut accepted: Vec<&str> = props.keys().map(String::as_str).collect();
+        accepted.sort_unstable();
+        let mut msg = format!(
+            "UNKNOWN_ARGUMENT: {}; {name} accepts: {}",
+            unknown.join(", "),
+            accepted.join(", ")
+        );
+        if !missing.is_empty() {
+            msg.push_str(&format!("; MISSING_ARGUMENT: {}", missing.join(", ")));
         }
+        return Err(msg);
+    }
+    if !missing.is_empty() {
+        return Err(format!("MISSING_ARGUMENT: {}", missing.join(", ")));
     }
     for (key, value) in obj {
-        let rule = props
-            .get(key)
-            .ok_or_else(|| format!("UNKNOWN_ARGUMENT: {key}"))?;
+        let Some(rule) = props.get(key) else { continue };
         let types: Vec<&str> = match &rule["type"] {
             Value::String(t) => vec![t.as_str()],
             Value::Array(ts) => ts.iter().filter_map(Value::as_str).collect(),
@@ -1112,6 +1249,8 @@ pub async fn call(app: &AppHandle, p: &Principal, name: &str, a: Value) -> Resul
     {
         return Err("TOOL_NOT_AUTHORIZED".into());
     }
+    let mut a = a;
+    normalize_aliases(name, &mut a);
     validate(name, &a)?;
     let prefer = st(&a, "workspaceId").map(|_| ws_of(&a));
     PREFER_WS.scope(prefer, dispatch(app, name, a)).await
@@ -1590,6 +1729,8 @@ async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
             let r = blocking(move || apply(&s2, &ws, &floor, ops)).await?;
             Ok(json!({ "removed": ids, "rev": r.rev }))
         }
+        "canvas_start" => canvas_start(&app, &s).await,
+        "canvas_council" | "canvas_council_status" => council::call(&app, name, &a).await,
         "canvas_cord_create" => {
             let (ws, floor, from) = omni_cords_remote::locate_end(&s, &a, &need(&a, "from")?)?;
             let (w2, f2, to) = omni_cords_remote::locate_end(&s, &a, &need(&a, "to")?)?;
@@ -2173,8 +2314,20 @@ async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
                 options,
             )
             .await?;
-            let r = to_value(r)?;
-            start_new_terminals(&s, &ws, &floor, &r);
+            let mut r = to_value(r)?;
+            let has_folder = s
+                .workspace(&ws)
+                .ok()
+                .and_then(|w| w.working_directory)
+                .is_some_and(|d| !d.trim().is_empty());
+            if has_folder || floor != omniget_core::core::canvas::model::GROUND_FLOOR_ID {
+                start_new_terminals(&s, &ws, &floor, &r);
+            } else if let Some(o) = r.as_object_mut() {
+                o.insert(
+                    "notStarted".into(),
+                    json!("the workspace has no folder, so the terminals were placed but not started (they would open in the home folder); set one with workspace_update {dir} and start them with canvas_terminal_ensure"),
+                );
+            }
             Ok(json!({ "result": r }))
         }
         "partitura_delete" => {
@@ -2514,7 +2667,36 @@ async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
             blocking(move || apply(&s2, &ws, &floor, ops)).await?;
             wrap("group", g)
         }
-        "canvas_undo" => super::canvas_ui::ui(&app, "undo", json!({})).await,
+        "canvas_undo" => {
+            let mine = flag(&a, "mine") == Some(true)
+                || a.get("workspaceId").is_some()
+                || a.get("floorId").is_some();
+            if !mine {
+                return super::canvas_ui::ui(&app, "undo", json!({})).await;
+            }
+            let (ws, floor) = ws_floor(&s, &a)?;
+            let steps = a
+                .get("steps")
+                .and_then(Value::as_u64)
+                .unwrap_or(1)
+                .clamp(1, 50);
+            let mut undone = 0;
+            let mut ops = Vec::new();
+            for _ in 0..steps {
+                let (s2, w2, f2) = (s.clone(), ws.clone(), floor.clone());
+                match blocking(move || s2.undo_last(&w2, &f2, ORIGIN)).await? {
+                    Some(r) => {
+                        undone += 1;
+                        ops.extend(r.ops);
+                    }
+                    None => break,
+                }
+            }
+            let remaining = s.undo_depth(&ws, &floor, ORIGIN);
+            Ok(
+                json!({ "ok": undone > 0, "undone": undone, "remaining": remaining, "ops": to_value(ops)? }),
+            )
+        }
         "canvas_redo" => super::canvas_ui::ui(&app, "redo", json!({})).await,
         "canvas_camera_get" => match super::canvas_ui::ui(&app, "camera", json!({})).await {
             Ok(mut v) => {
@@ -3138,6 +3320,21 @@ async fn spawn(app: &AppHandle, s: &Arc<CanvasStore>, a: &Value) -> Result<Value
     if kind_name == "note" {
         return note_create(app, s, a).await;
     }
+    if kind_name == "file" {
+        let is_note_file = st(a, "path").is_some_and(|p| {
+            let l = p.to_lowercase();
+            (l.ends_with(".md") || l.ends_with(".markdown") || l.ends_with(".txt"))
+                && std::path::Path::new(&p).is_file()
+        });
+        let editor = a
+            .get("data")
+            .and_then(|d| d.get("view"))
+            .and_then(Value::as_str)
+            == Some("editor");
+        if is_note_file && !editor {
+            return note_create(app, s, a).await;
+        }
+    }
     let mut node = if is_terminal {
         let agent = match &user_preset {
             Some((_, p)) => crate::canvas::prefs::preset_agent(p).to_string(),
@@ -3184,6 +3381,9 @@ async fn spawn(app: &AppHandle, s: &Arc<CanvasStore>, a: &Value) -> Result<Value
         }
         if flag(a, "maestro") == Some(true) {
             n.data["isManager"] = json!(true);
+        }
+        if let Some(p) = st(a, "prompt").filter(|p| !p.trim().is_empty()) {
+            n.data["initialPrompt"] = json!(p);
         }
         n
     } else {
@@ -3364,11 +3564,22 @@ async fn spawn(app: &AppHandle, s: &Arc<CanvasStore>, a: &Value) -> Result<Value
         let tid = crate::canvas::launch::ensure_running(&ws, &floor, &node.id).await?;
         terminal = terminal_json(&node.id, &tid);
     }
-    Ok(json!({
+    let home_start = is_terminal
+        && node.data_str("cwd").is_none_or(|c| c.trim().is_empty())
+        && floor == omniget_core::core::canvas::model::GROUND_FLOOR_ID
+        && s.workspace(&ws)
+            .ok()
+            .and_then(|w| w.working_directory)
+            .is_none_or(|d| d.trim().is_empty());
+    let mut out = json!({
         "node": node_after(s, &ws, &floor, &node.id)?,
         "connection": to_value(connection)?,
         "terminal": terminal,
-    }))
+    });
+    if home_start {
+        out["warning"] = json!("this terminal runs in the home folder: the workspace has no folder and no cwd was given (workspace_update {dir} sets one)");
+    }
+    Ok(out)
 }
 
 fn wire_kind(a: &NodeKind, b: &NodeKind) -> &'static str {
@@ -3892,6 +4103,32 @@ fn terminal_status(app: &AppHandle, ws: &str, floor: &str, n: &CanvasNode, tid: 
         "rows": info.as_ref().map(|i| i.rows),
         "title": info.as_ref().and_then(|i| i.osc_title.clone()),
         "cwd": info.as_ref().and_then(|i| i.osc_cwd.clone().or(i.cwd.clone())),
+        "firstPromptPending": crate::canvas::launch::first_prompt_pending(tid),
+    })
+}
+
+const WAIT_STATES: &[&str] = &[
+    "idle",
+    "working",
+    "attention",
+    "waiting",
+    "blocked",
+    "exited",
+    "unloaded",
+];
+
+fn wait_state(name: &str) -> Option<&'static str> {
+    let n = name.trim().to_ascii_lowercase();
+    if let Some(s) = WAIT_STATES.iter().find(|s| **s == n) {
+        return Some(s);
+    }
+    Some(match n.as_str() {
+        "ready" | "done_seen" => "idle",
+        "needs_you" | "needs-you" => "blocked",
+        "done" | "stuck" | "success" | "failed" => "attention",
+        "starting" | "thinking" => "working",
+        "waiting_peer" => "waiting",
+        _ => return None,
     })
 }
 
@@ -3903,7 +4140,7 @@ async fn terminal_wait(app: &AppHandle, s: &Arc<CanvasStore>, a: &Value) -> Resu
         }
         None => None,
     };
-    let states: Vec<String> = match a.get("state") {
+    let raw_states: Vec<String> = match a.get("state") {
         Some(Value::String(x)) => vec![x.clone()],
         Some(Value::Array(v)) => v
             .iter()
@@ -3912,6 +4149,18 @@ async fn terminal_wait(app: &AppHandle, s: &Arc<CanvasStore>, a: &Value) -> Resu
             .collect(),
         _ => vec![],
     };
+    let mut states = Vec::new();
+    for x in &raw_states {
+        match wait_state(x) {
+            Some(s) => states.push(s.to_string()),
+            None => {
+                return Err(format!(
+                    "INVALID_ARGUMENT: state '{x}' is not a terminal state; use one of {} (or ready, needs_you, done, starting)",
+                    WAIT_STATES.join(", ")
+                ))
+            }
+        }
+    }
     if re.is_none() && states.is_empty() {
         return Err("MISSING_ARGUMENT: pattern or state".into());
     }
@@ -3935,6 +4184,13 @@ async fn terminal_wait(app: &AppHandle, s: &Arc<CanvasStore>, a: &Value) -> Resu
             return Ok(
                 json!({ "matched": true, "state": state, "match": hit, "text": text, "waitedMs": waited }),
             );
+        }
+        if state == "blocked" && !states.iter().any(|x| x == "blocked") && waited >= 1500 {
+            return Ok(json!({
+                "matched": false, "state": state, "match": hit, "text": text, "waitedMs": waited,
+                "blockedOnPerson": true,
+                "hint": "the agent is asking the person something (see text); answer with canvas_terminal_key or ask the person, then wait again",
+            }));
         }
         if waited >= timeout {
             return Ok(
@@ -4429,4 +4685,48 @@ async fn filetree(
             }
         },
     }
+}
+
+async fn canvas_start(app: &AppHandle, s: &Arc<CanvasStore>) -> Result<Value, String> {
+    let list = cmd::doc::canvas_workspaces(app.clone()).await?;
+    let list = to_value(list)?;
+    let workspaces: Vec<Value> = list
+        .as_array()
+        .cloned()
+        .unwrap_or_default()
+        .iter()
+        .map(|w| {
+            json!({
+                "id": w["id"], "name": w["name"], "folder": w["workingDirectory"],
+                "nodes": w["nodeCount"], "terminals": w["terminalCount"], "activeFloor": w["activeFloorId"],
+            })
+        })
+        .collect();
+    let window = super::canvas_ui::ui(app, "camera", json!({})).await.ok();
+    let _ = s;
+    let r = |goal: &str, call: &str| json!({ "goal": goal, "call": call });
+    Ok(json!({
+        "workspaces": workspaces,
+        "window": window,
+        "recipes": [
+            r("new project bound to a folder", r#"workspace_create {"name":"App","dir":"/abs/path"}"#),
+            r("see what is on a canvas (ids)", r#"canvas_snapshot {"workspaceId":"<id>"}"#),
+            r("agent with a first task", r#"canvas_node_spawn {"workspaceId":"<id>","kind":"terminal","agent":"claude","title":"Dev","prompt":"..."}"#),
+            r("wait for it to answer", r#"canvas_terminal_wait {"workspaceId":"<id>","nodeId":"Dev","pattern":"...","state":"done"}"#),
+            r("read its screen", r#"canvas_terminal_read {"workspaceId":"<id>","nodeId":"Dev","lines":40}"#),
+            r("send it more work", r#"canvas_terminal_run {"workspaceId":"<id>","nodeId":"Dev","command":"..."}"#),
+            r("let two agents talk", r#"canvas_cord_create {"workspaceId":"<id>","from":"Dev","to":"Reviewer"}"#),
+            r("note or a .md file shown formatted", r#"canvas_node_spawn {"workspaceId":"<id>","kind":"note","text":"..."} or {"kind":"file","path":"/abs/x.md"}"#),
+            r("several agents decide something", r#"canvas_council {"workspaceId":"<id>","question":"...","method":"brainstorm|dialectic|arena|simulation"}"#),
+            r("what needs the person", r#"canvas_inbox {"workspaceId":"<id>"}"#),
+            r("take back your own edits", r#"canvas_undo {"workspaceId":"<id>","steps":1}"#),
+            r("show the canvas to the person / take a picture", r#"omniget_app_navigate {"screenId":"/world"} then omniget_app_capture {}"#),
+        ],
+        "tips": [
+            "nodeId accepts the node's exact title when it is unique on the workspace",
+            "terminal states: idle, working, attention, waiting, blocked (asking the person), exited; ready = idle, done = attention",
+            "a wrong argument name answers with every mistake at once and the closest accepted name",
+            "agents ask the person before working in a new folder (trust question); the first prompt waits for that answer",
+        ],
+    }))
 }

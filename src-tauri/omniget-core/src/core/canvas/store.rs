@@ -92,7 +92,13 @@ pub struct CanvasStore {
     saver: OnceLock<Saver>,
     io: Mutex<()>,
     pub(super) note_watch: Mutex<HashMap<(String, String), WatchEntry>>,
+    history: Mutex<HashMap<HistoryKey, std::collections::VecDeque<Vec<Op>>>>,
 }
+
+type HistoryKey = (String, String, String);
+
+const HISTORY_DEPTH: usize = 50;
+pub const UNDO_SUFFIX: &str = ":undo";
 
 static SHARED: OnceLock<Arc<CanvasStore>> = OnceLock::new();
 
@@ -120,6 +126,7 @@ impl CanvasStore {
             saver: OnceLock::new(),
             io: Mutex::new(()),
             note_watch: Mutex::new(HashMap::new()),
+            history: Mutex::new(HashMap::new()),
         });
         let weak: Weak<CanvasStore> = Arc::downgrade(&store);
         let _ = store
@@ -738,6 +745,17 @@ impl CanvasStore {
             SAVE_DEBOUNCE
         };
         self.schedule(key, delay);
+        if !camera_only && !origin.ends_with(UNDO_SUFFIX) && !result.inverse.is_empty() {
+            if let Ok(mut h) = self.history.lock() {
+                let q = h
+                    .entry((ws.to_string(), floor.to_string(), origin.to_string()))
+                    .or_default();
+                q.push_back(result.inverse.clone());
+                while q.len() > HISTORY_DEPTH {
+                    q.pop_front();
+                }
+            }
+        }
         self.emit(StoreEvent::Patch(PatchEvent {
             workspace_id: ws.to_string(),
             floor_id: floor.to_string(),
@@ -748,6 +766,34 @@ impl CanvasStore {
             origin: origin.to_string(),
         }));
         Ok(result)
+    }
+
+    pub fn undo_last(
+        &self,
+        ws: &str,
+        floor: &str,
+        origin: &str,
+    ) -> Result<Option<ApplyResult>, String> {
+        let inverse = {
+            let mut h = self.history.lock().map_err(|_| "CANVAS_BUSY")?;
+            h.get_mut(&(ws.to_string(), floor.to_string(), origin.to_string()))
+                .and_then(|q| q.pop_back())
+        };
+        let Some(ops) = inverse else { return Ok(None) };
+        self.apply(ws, floor, ops, &format!("{origin}{UNDO_SUFFIX}"), None)
+            .map(Some)
+            .map_err(|e| format!("CANVAS_UNDO_STALE: the canvas changed since that edit ({e})"))
+    }
+
+    pub fn undo_depth(&self, ws: &str, floor: &str, origin: &str) -> usize {
+        self.history
+            .lock()
+            .ok()
+            .and_then(|h| {
+                h.get(&(ws.to_string(), floor.to_string(), origin.to_string()))
+                    .map(|q| q.len())
+            })
+            .unwrap_or(0)
     }
 
     fn prepare(&self, mut ops: Vec<Op>) -> Vec<Op> {

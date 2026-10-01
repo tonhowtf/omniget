@@ -121,6 +121,9 @@ fn base_env(n: &CanvasNode, ws: &str, tid: &str) -> HashMap<String, String> {
         n.title.clone().unwrap_or_default(),
     );
     env.insert("OMNIGET_TERMINAL_ID".into(), tid.to_string());
+    if let Some(path) = omniget_core::core::process::enhanced_path() {
+        env.insert("PATH".into(), path);
+    }
     if !ws.is_empty() {
         env.insert("OMNIGET_CANVAS_WORKSPACE".into(), ws.to_string());
     }
@@ -393,14 +396,43 @@ pub async fn ensure(
         .map_err(|e| format!("PTY_OPEN: {e}"))??;
     drop(_held);
 
+    let mut one_shot = false;
+    if first_prompt.is_none() {
+        first_prompt = node
+            .data_str("initialPrompt")
+            .filter(|t| !t.trim().is_empty())
+            .map(str::to_string);
+        one_shot = first_prompt.is_some();
+    }
     if let Some(text) = first_prompt.filter(|t| !t.trim().is_empty()) {
         let id = tid.clone();
+        let (ws, floor, node_id) = (ws.to_string(), floor.to_string(), node_id.to_string());
         tauri::async_runtime::spawn(async move {
-            tokio::time::sleep(Duration::from_millis(1500)).await;
             let m = crate::pty::term();
+            if !wait_for_prompt_ready(&m, &id).await {
+                tracing::warn!(
+                    "[canvas.launch] {node_id}: agent never took input, first prompt kept"
+                );
+                return;
+            }
             if m.paste(&id, &text).is_ok() {
                 tokio::time::sleep(Duration::from_millis(150)).await;
                 let _ = m.submit(&id);
+                if one_shot {
+                    let op = omniget_core::core::canvas::ops::Op::update_node(
+                        &node_id,
+                        serde_json::json!({ "data": { "initialPrompt": null } }),
+                    );
+                    if let Err(e) = super::doc::host().store().apply(
+                        &ws,
+                        &floor,
+                        vec![op],
+                        "canvas.launch",
+                        None,
+                    ) {
+                        tracing::warn!("[canvas.launch] {node_id}: clearing the first prompt: {e}");
+                    }
+                }
             }
         });
     }
@@ -432,4 +464,76 @@ pub async fn wait_ready(tid: &str) {
         }
         tokio::time::sleep(Duration::from_millis(200)).await;
     }
+}
+
+fn asks_before_input(screen: &str) -> bool {
+    let s = screen.to_lowercase();
+    [
+        "trust this folder",
+        "do you trust",
+        "trust the files",
+        "select login method",
+        "press enter to continue",
+        "update available",
+    ]
+    .iter()
+    .any(|m| s.contains(m))
+}
+
+async fn wait_for_prompt_ready(m: &omniget_core::core::term::TermManager, id: &str) -> bool {
+    use omniget_core::core::term::AgentState;
+    let started = std::time::Instant::now();
+    tokio::time::sleep(Duration::from_millis(1500)).await;
+    let mut last_text = String::new();
+    let mut quiet_since = std::time::Instant::now();
+    let mut unsettled = Duration::ZERO;
+    let mut last_tick = std::time::Instant::now();
+    pending_prompts()
+        .lock()
+        .map(|mut p| p.insert(id.to_string()))
+        .ok();
+    let _clear = PendingGuard(id.to_string());
+    while unsettled < Duration::from_secs(120) && started.elapsed() < Duration::from_secs(6 * 3600)
+    {
+        if !m.info(id).is_some_and(|i| i.alive) {
+            return false;
+        }
+        let blocked = m
+            .agent_state(id)
+            .is_some_and(|s| s.state == AgentState::Blocked);
+        let text = m.screen_text(id, 40).map(|s| s.text).unwrap_or_default();
+        if text != last_text {
+            last_text = text.clone();
+            quiet_since = std::time::Instant::now();
+        }
+        let quiet = quiet_since.elapsed() >= Duration::from_millis(700);
+        let asking = blocked || asks_before_input(&text);
+        if !asking && quiet && !text.trim().is_empty() {
+            return true;
+        }
+        if !asking {
+            unsettled += last_tick.elapsed();
+        }
+        last_tick = std::time::Instant::now();
+        tokio::time::sleep(Duration::from_millis(250)).await;
+    }
+    false
+}
+
+fn pending_prompts() -> &'static Mutex<std::collections::HashSet<String>> {
+    static P: OnceLock<Mutex<std::collections::HashSet<String>>> = OnceLock::new();
+    P.get_or_init(Default::default)
+}
+
+struct PendingGuard(String);
+impl Drop for PendingGuard {
+    fn drop(&mut self) {
+        if let Ok(mut p) = pending_prompts().lock() {
+            p.remove(&self.0);
+        }
+    }
+}
+
+pub fn first_prompt_pending(tid: &str) -> bool {
+    pending_prompts().lock().is_ok_and(|p| p.contains(tid))
 }

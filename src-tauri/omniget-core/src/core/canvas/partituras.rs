@@ -461,6 +461,14 @@ fn land_chat(
     Ok(written)
 }
 
+fn drop_run_prompts(doc: &mut Partitura) {
+    for n in doc.nodes.iter_mut().filter(|n| n.is_terminal()) {
+        if let Some(data) = n.data.as_object_mut() {
+            data.remove("initialPrompt");
+        }
+    }
+}
+
 fn apply_commands(doc: &mut Partitura, commands: &HashMap<String, Option<String>>) {
     for n in doc.nodes.iter_mut().filter(|n| n.is_terminal()) {
         let Some(edit) = commands.get(&n.id) else {
@@ -501,6 +509,7 @@ pub fn save(
         blank_notes: req.options.blank_notes,
     };
     let mut doc = export::export_from_store(store, ws, floor, &req.selection, &req.options)?;
+    drop_run_prompts(&mut doc);
     apply_commands(&mut doc, &req.commands);
     let chat = if req.include_chat {
         carry_chat(store, ws, &doc)
@@ -976,6 +985,7 @@ pub fn stamp(
         return Err("CANVAS_INVALID: partitura made by a newer OmniGet".into());
     }
     doc.version = doc.version.min(export::PARTITURA_VERSION);
+    drop_run_prompts(&mut doc);
     apply_commands(&mut doc, &opts.commands);
     let role_map = resolve_roles(store, ws, &doc.roles, &opts.roles)?;
     let origin = opts.origin.clone().unwrap_or_else(|| "user".into());

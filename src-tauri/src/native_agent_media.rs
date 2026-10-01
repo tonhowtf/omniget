@@ -89,7 +89,12 @@ pub(super) async fn pixels(app: &AppHandle, window_id: &str) -> Result<(Vec<u8>,
         .map_err(|_| "SESSION_BUSY: snapshot acquisition")?;
     let before = super::native_agent::bridge(app, window_id, "inspect", json!({})).await?;
     if before["sensitive"] != false {
-        return Err("PERMISSION_REQUIRED: sensitive surface".into());
+        return Err(format!(
+            "PERMISSION_REQUIRED: sensitive surface: {}",
+            before["sensitiveReason"]
+                .as_str()
+                .unwrap_or("blocked by the screen")
+        ));
     }
     if before["readiness"] != "ready" {
         return Err("FRONTEND_NOT_READY: surface is loading".into());
@@ -115,7 +120,19 @@ pub async fn capture(app: &AppHandle, p: &Principal, args: Value) -> Result<Valu
     let options: Capture = serde_json::from_value(args).map_err(|_| "INVALID_ARGUMENT")?;
     let window_id = options.window_id.unwrap_or_else(|| "main".into());
     let root = directory(p)?;
-    let (bytes, state) = pixels(app, &window_id).await?;
+    let mut tries = 0;
+    let (bytes, state) = loop {
+        match pixels(app, &window_id).await {
+            Err(e)
+                if tries < 8
+                    && (e.starts_with("STALE_TARGET") || e.starts_with("FRONTEND_NOT_READY")) =>
+            {
+                tries += 1;
+                tokio::time::sleep(std::time::Duration::from_millis(180)).await;
+            }
+            other => break other?,
+        }
+    };
     let mut img = image::load_from_memory(&bytes).map_err(|_| "CAPTURE_FAILED: invalid PNG")?;
     let original = json!({"width":img.width(),"height":img.height()});
     let css_width = state["viewport"]["width"]
@@ -169,7 +186,7 @@ pub async fn capture(app: &AppHandle, p: &Principal, args: Value) -> Result<Valu
     if preview.get_ref().len() > 384 * 1024 {
         return Err("CAPTURE_FAILED: preview limit".into());
     }
-    let metadata = json!({"schemaVersion":1,"windowId":window_id,"route":state["route"],"stateRevision":state["stateRevision"],"source":"WKWebView.takeSnapshot","appVersion":env!("CARGO_PKG_VERSION"),"os":std::env::consts::OS,"width":img.width(),"height":img.height(),"originalDimensions":original,"scale":scale,"crop":crop,"observedAt":chrono::Utc::now().to_rfc3339(),"color":"native snapshot; no explicit profile conversion","profile":"current app profile","artifact":artifact});
+    let metadata = json!({"schemaVersion":1,"windowId":window_id,"route":state["route"],"canvas":state["semantics"]["canvas-layer"],"stateRevision":state["stateRevision"],"source":"WKWebView.takeSnapshot","appVersion":env!("CARGO_PKG_VERSION"),"os":std::env::consts::OS,"width":img.width(),"height":img.height(),"originalDimensions":original,"scale":scale,"crop":crop,"observedAt":chrono::Utc::now().to_rfc3339(),"color":"native snapshot; no explicit profile conversion","profile":"current app profile","artifact":artifact});
     std::fs::write(
         root.join(format!("{id}.json")),
         serde_json::to_vec_pretty(&metadata).map_err(|_| "CAPTURE_FAILED")?,

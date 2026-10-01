@@ -31,7 +31,13 @@ function nameOf(el: Element): string {
 
 function inspect(args: { cursor?: number; limit?: number }) {
   const route = get(page).url.pathname;
-  const sensitive = SENSITIVE_ROUTES.test(route) || !!document.querySelector('[data-agent-sensitive], input[type=password], [role=dialog], dialog[open]');
+  const blocker = document.querySelector('[data-agent-sensitive], input[type=password], [role=dialog], dialog[open]');
+  const sensitive = SENSITIVE_ROUTES.test(route) || !!blocker;
+  const sensitiveReason = !sensitive ? null
+    : SENSITIVE_ROUTES.test(route) ? `route ${route} holds credentials`
+    : blocker?.matches('input[type=password]') ? 'a password field is on screen'
+    : blocker?.matches('[role=dialog], dialog[open]') ? `a dialog is open (${(blocker.getAttribute('aria-label') || blocker.querySelector('h1,h2,h3')?.textContent || 'untitled').trim().slice(0, 80)}); close it (Escape or its close button) and retry`
+    : 'the screen marks itself as sensitive';
   if (route !== previousRoute) {
     refs = new WeakMap();
     fingerprint = '';
@@ -74,11 +80,11 @@ function inspect(args: { cursor?: number; limit?: number }) {
     schemaVersion: 1, route, uiEpoch: epoch, stateRevision: `${epoch}:${revision}`, observedAt: new Date().toISOString(),
     frontendRevision: (globalThis as typeof globalThis & {__omnigetDev?: {frontendRevision: string}}).__omnigetDev?.frontendRevision ?? null,
     ...surfaceReadiness(sensitive, !!get(navigating), semantics),
-    source: 'html-aria', sensitive, semantics,
+    source: 'html-aria', sensitive, sensitiveReason, semantics,
     viewport: {width:innerWidth,height:innerHeight,devicePixelRatio,coordinateSpace:'css-pixels'},
     nodes: nodes.slice(cursor, cursor + limit), nextCursor: cursor + limit < nodes.length ? cursor + limit : null,
     warnings: [
-      ...(sensitive ? ['Sensitive surface: inspection and capture blocked.'] : []),
+      ...(sensitive ? [`Sensitive surface: inspection and capture blocked (${sensitiveReason}).`] : []),
       ...(candidates.length === MAX_NODES ? ['Inspection limited to 10000 candidates.'] : []),
       ...(nodes.some(n => n.role === 'canvas') && Object.keys(semantics).length === 0 ? ['Canvas pixels are native; semantic canvas adapter not yet available.'] : []),
       'HTML/ARIA projection; not the full operating-system accessibility tree.',

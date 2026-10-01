@@ -200,10 +200,11 @@ pub fn migrate_legacy_data() {
     static DONE: Once = Once::new();
     DONE.call_once(|| {
         let dest = host::data_dir();
+        let isolated = std::env::var_os("OMNIGET_DATA_DIR").is_some();
         let session_dest = dest.join("telegram.session");
         if !session_dest.exists() {
             let mut candidates: Vec<PathBuf> = Vec::new();
-            if let Some(base) = dirs::data_dir() {
+            if let Some(base) = dirs::data_dir().filter(|_| !isolated) {
                 candidates.push(base.join("omniget").join("telegram.session"));
                 candidates.push(base.join("wtf.tonho.omniget").join("telegram.session"));
             }
@@ -237,7 +238,7 @@ pub fn migrate_legacy_data() {
         if let Some(app) = crate::core::paths::app_data_dir() {
             plugin_dirs.push(app.join("plugins").join("telegram").join("data"));
         }
-        if let Some(base) = dirs::data_dir() {
+        if let Some(base) = dirs::data_dir().filter(|_| !isolated) {
             plugin_dirs.push(
                 base.join("wtf.tonho.omniget")
                     .join("plugins")
