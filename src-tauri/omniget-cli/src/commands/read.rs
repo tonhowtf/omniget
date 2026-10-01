@@ -11,9 +11,11 @@ use crate::output;
 
 #[derive(clap::Subcommand)]
 pub enum ReadCommand {
-    /// Metadata of a book or comic file (EPUB, MOBI/AZW3, FB2, CBZ, folder)
+    #[command(about = "Metadata of a book or comic file (EPUB, MOBI/AZW3, FB2, CBZ, folder)")]
     Meta { file: PathBuf },
-    /// Search a legal catalog: gutenberg, standardebooks, openlibrary, mangadex, mangaplus
+    #[command(
+        about = "Search a legal catalog: gutenberg, standardebooks, openlibrary, mangadex, mangaplus"
+    )]
     Search {
         query: String,
         #[arg(short, long, default_value = "gutenberg")]
@@ -21,7 +23,7 @@ pub enum ReadCommand {
         #[arg(short, long, help = "Language code (e.g. pt, en, pt-br)")]
         lang: Option<String>,
     },
-    /// List an OPDS catalog page (Atom or OPDS 2 JSON)
+    #[command(about = "List an OPDS catalog page (Atom or OPDS 2 JSON)")]
     Opds {
         url: String,
         #[arg(long)]
@@ -29,7 +31,7 @@ pub enum ReadCommand {
         #[arg(long)]
         password: Option<String>,
     },
-    /// Turn a TXT, Markdown or HTML file into an EPUB (no calibre needed)
+    #[command(about = "Turn a TXT, Markdown or HTML file into an EPUB (no calibre needed)")]
     ToEpub {
         input: PathBuf,
         #[arg(short, long)]
@@ -41,7 +43,7 @@ pub enum ReadCommand {
         #[arg(long)]
         lang: Option<String>,
     },
-    /// Chapters of a MangaDex series (id or URL)
+    #[command(about = "Chapters of a MangaDex series (id or URL)")]
     Manga {
         id: String,
         #[arg(
@@ -51,7 +53,7 @@ pub enum ReadCommand {
         )]
         lang: Option<String>,
     },
-    /// The KOReader document id (partial MD5) of a file
+    #[command(about = "The KOReader document id (partial MD5) of a file")]
     Hash { file: PathBuf },
 }
 

@@ -11,44 +11,46 @@ use omniget_core::core::msgraph::{self, calendar, chats, transcripts};
 
 #[derive(clap::Subcommand)]
 pub enum TeamsCommand {
-    /// Sign-in state and the app registration in use
+    #[command(about = "Sign-in state and the app registration in use")]
     Status,
-    /// Set the Entra app registration (Application (client) ID) to sign in with
+    #[command(about = "Set the Entra app registration (Application (client) ID) to sign in with")]
     Setup {
         #[arg(long)]
         client_id: String,
-        /// "organizations" (default), "common", or your tenant id / domain
+        #[arg(help = "\"organizations\" (default), \"common\", or your tenant id / domain")]
         #[arg(long, default_value = "organizations")]
         tenant: String,
-        /// Also ask for channel messages and meeting transcripts (an admin approves them)
+        #[arg(
+            help = "Also ask for channel messages and meeting transcripts (an admin approves them)"
+        )]
         #[arg(long)]
         admin_scopes: bool,
     },
-    /// Sign in with a device code (open the link, type the code)
+    #[command(about = "Sign in with a device code (open the link, type the code)")]
     Login,
-    /// Forget the Microsoft 365 session
+    #[command(about = "Forget the Microsoft 365 session")]
     Logout,
-    /// List chats, most recent first
+    #[command(about = "List chats, most recent first")]
     Chats {
-        /// Filter by chat name or member
+        #[arg(help = "Filter by chat name or member")]
         #[arg(short, long)]
         query: Option<String>,
         #[arg(long, default_value = "30")]
         limit: usize,
     },
-    /// Print one chat as Markdown (what an LLM should read)
+    #[command(about = "Print one chat as Markdown (what an LLM should read)")]
     Read {
         chat_id: String,
-        /// How far back: 30m, 12h, 7d, 2w or a date (default: everything)
+        #[arg(help = "How far back: 30m, 12h, 7d, 2w or a date (default: everything)")]
         #[arg(long)]
         since: Option<String>,
-        /// Newest N messages (0 = all)
+        #[arg(help = "Newest N messages (0 = all)")]
         #[arg(long, default_value = "500")]
         limit: usize,
     },
-    /// Export chats to files (Markdown, or JSON with --format json)
+    #[command(about = "Export chats to files (Markdown, or JSON with --format json)")]
     Export {
-        /// Chat ids (see `omniget teams chats`); none with --all exports every chat
+        #[arg(help = "Chat ids (see `omniget teams chats`); none with --all exports every chat")]
         chat_ids: Vec<String>,
         #[arg(long)]
         all: bool,
@@ -56,13 +58,13 @@ pub enum TeamsCommand {
         since: Option<String>,
         #[arg(long, default_value = "md", value_parser = ["md", "json"])]
         format: String,
-        /// Output folder (default: <OmniGet data>/teams-export)
+        #[arg(help = "Output folder (default: <OmniGet data>/teams-export)")]
         #[arg(short, long)]
         output: Option<String>,
     },
-    /// List the channels of the teams you joined
+    #[command(about = "List the channels of the teams you joined")]
     Channels,
-    /// Print a channel's posts and replies as Markdown (needs --admin-scopes)
+    #[command(about = "Print a channel's posts and replies as Markdown (needs --admin-scopes)")]
     Channel {
         team_id: String,
         channel_id: String,
@@ -71,16 +73,18 @@ pub enum TeamsCommand {
         #[arg(long, default_value = "200")]
         limit: usize,
     },
-    /// Online meetings on your calendar, with their join links
+    #[command(about = "Online meetings on your calendar, with their join links")]
     Calendar {
         #[arg(long, default_value = "7", help = "Days ahead")]
         days: i64,
         #[arg(long, default_value = "1", help = "Days back")]
         past: i64,
     },
-    /// Import a meeting's official Teams transcript into Meetings (needs --admin-scopes)
+    #[command(
+        about = "Import a meeting's official Teams transcript into Meetings (needs --admin-scopes)"
+    )]
     Transcript {
-        /// The meeting's join link (from `omniget teams calendar`)
+        #[arg(help = "The meeting's join link (from `omniget teams calendar`)")]
         join_url: String,
         #[arg(long)]
         title: Option<String>,

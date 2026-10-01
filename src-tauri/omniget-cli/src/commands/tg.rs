@@ -29,15 +29,15 @@ use super::agent::Bridge;
 
 #[derive(clap::Subcommand)]
 pub enum TgCommand {
-    /// Session, connection route and which backend answers
+    #[command(about = "Session, connection route and which backend answers")]
     Status,
-    /// List chats (optionally only those whose title contains QUERY)
+    #[command(about = "List chats (optionally only those whose title contains QUERY)")]
     Chats {
         query: Option<String>,
         #[arg(long, default_value = "100")]
         limit: usize,
     },
-    /// List media of a chat (id, title, t.me/c/<id> or t.me/<user>/<msg> link)
+    #[command(about = "List media of a chat (id, title, t.me/c/<id> or t.me/<user>/<msg> link)")]
     Ls {
         chat: String,
         #[arg(
@@ -55,7 +55,7 @@ pub enum TgCommand {
         #[command(flatten)]
         chat_opts: ChatOpts,
     },
-    /// Download the media of t.me links (message, album, range t.me/x/10-20)
+    #[command(about = "Download the media of t.me links (message, album, range t.me/x/10-20)")]
     Dl {
         #[arg(required = true)]
         links: Vec<String>,
@@ -67,7 +67,7 @@ pub enum TgCommand {
         )]
         template: Option<String>,
     },
-    /// Download a whole chat with filters (like `tdl dl`)
+    #[command(about = "Download a whole chat with filters (like `tdl dl`)")]
     DlChat {
         chat: String,
         #[command(flatten)]
@@ -91,12 +91,12 @@ pub enum TgCommand {
         #[command(flatten)]
         chat_opts: ChatOpts,
     },
-    /// Auto-save rules: save new media of a chat as it arrives
+    #[command(about = "Auto-save rules: save new media of a chat as it arrives")]
     Watch {
         #[command(subcommand)]
         command: WatchCommand,
     },
-    /// Export a chat as Telegram Desktop's result.json (or HTML)
+    #[command(about = "Export a chat as Telegram Desktop's result.json (or HTML)")]
     Export {
         chat: String,
         #[arg(long, default_value = "json", value_parser = ["json", "html"])]
@@ -116,9 +116,9 @@ pub enum TgCommand {
 #[allow(clippy::large_enum_variant)]
 #[derive(clap::Subcommand)]
 pub enum WatchCommand {
-    /// The rules and what they saved
+    #[command(about = "The rules and what they saved")]
     List,
-    /// Add a rule for a chat
+    #[command(about = "Add a rule for a chat")]
     Add {
         chat: String,
         #[arg(
@@ -153,9 +153,9 @@ pub enum WatchCommand {
         #[command(flatten)]
         chat_opts: ChatOpts,
     },
-    /// Remove a rule
+    #[command(about = "Remove a rule")]
     Rm { id: String },
-    /// Run one rule now (all enabled rules without ID)
+    #[command(about = "Run one rule now (all enabled rules without ID)")]
     Run { id: Option<String> },
 }
 

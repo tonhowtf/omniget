@@ -9,31 +9,33 @@ use serde_json::{json, Value};
 
 #[derive(clap::Subcommand)]
 pub enum WmbCommand {
-    /// Health score and a snapshot of CPU, memory, disk, temperature, battery
+    #[command(about = "Health score and a snapshot of CPU, memory, disk, temperature, battery")]
     Status,
-    /// What this computer is and which modules exist on it
+    #[command(about = "What this computer is and which modules exist on it")]
     Caps,
-    /// Scan without changing anything: junk, artifacts, large, duplicates, empty, apps, startup, privacy, updates
+    #[command(
+        about = "Scan without changing anything: junk, artifacts, large, duplicates, empty, apps, startup, privacy, updates"
+    )]
     Scan {
         kind: String,
-        /// Folders to look in (artifacts, large, duplicates, empty)
+        #[arg(help = "Folders to look in (artifacts, large, duplicates, empty)")]
         #[arg(long = "root")]
         roots: Vec<String>,
     },
-    /// Build a plan from item ids a scan returned
+    #[command(about = "Build a plan from item ids a scan returned")]
     Plan { kind: String, ids: Vec<String> },
-    /// Show a plan and its status
+    #[command(about = "Show a plan and its status")]
     Show { plan_id: String },
-    /// Ask to execute a plan (approved in the OmniGet window)
+    #[command(about = "Ask to execute a plan (approved in the OmniGet window)")]
     Execute {
         plan_id: String,
-        /// Wait for the answer and print the receipt
+        #[arg(help = "Wait for the answer and print the receipt")]
         #[arg(long)]
         wait: bool,
     },
-    /// Ask to undo a receipt (approved in the OmniGet window)
+    #[command(about = "Ask to undo a receipt (approved in the OmniGet window)")]
     Restore { receipt_id: String },
-    /// What earlier plans did
+    #[command(about = "What earlier plans did")]
     Receipts,
 }
 

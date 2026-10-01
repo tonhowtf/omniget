@@ -659,11 +659,11 @@ fn discard_text(v: &Value) -> String {
 
 #[derive(clap::Subcommand)]
 pub enum AgentCommand {
-    /// Run one task with an agent of the roster (in the current folder), or,
-    /// with --tool, an agent of the catalog (or an .md file) as the system
-    /// prompt of a coding CLI: `run <agent> --tool claude "<prompt>"`
+    #[command(
+        about = "Run one task with an agent of the roster (in the current folder), or, with --tool, an agent of the catalog (or an .md file) as the system prompt of a coding CLI: `run <agent> --tool claude \"<prompt>\"`"
+    )]
     Run {
-        /// `<prompt>`; with --tool: `[<agent: catalog id | file.md>] <prompt>`
+        #[arg(help = "`<prompt>`; with --tool: `[<agent: catalog id | file.md>] <prompt>`")]
         #[arg(required = true, num_args = 1..=2)]
         args: Vec<String>,
         #[arg(
@@ -762,8 +762,9 @@ pub enum AgentCommand {
         )]
         no_workflow: bool,
     },
-    /// Keep an agent working until a check passes or the budget runs out;
-    /// `--catalog <loop id>` runs a loop of the catalog instead of a prompt
+    #[command(
+        about = "Keep an agent working until a check passes or the budget runs out; `--catalog <loop id>` runs a loop of the catalog instead of a prompt"
+    )]
     Loop {
         #[arg(required_unless_present = "catalog", default_value = "")]
         prompt: String,
@@ -822,23 +823,25 @@ pub enum AgentCommand {
         )]
         mode: Option<String>,
     },
-    /// List recent jobs, show one, or cancel one
+    #[command(about = "List recent jobs, show one, or cancel one")]
     Jobs {
         id: Option<String>,
         #[arg(long)]
         cancel: bool,
     },
-    /// Why a job is in its state: last event age, pending question, deadline left
+    #[command(
+        about = "Why a job is in its state: last event age, pending question, deadline left"
+    )]
     Explain { id: String },
-    /// What runs now, what waits (place in the queue and why) and the limits
+    #[command(about = "What runs now, what waits (place in the queue and why) and the limits")]
     Status,
-    /// What a job changed in its folder: files and +/-, or the patch
+    #[command(about = "What a job changed in its folder: files and +/-, or the patch")]
     Diff {
         id: String,
         #[arg(long, help = "Print the unified diff instead of the file list")]
         patch: bool,
     },
-    /// Permission questions waiting for you (their ids answer them)
+    #[command(about = "Permission questions waiting for you (their ids answer them)")]
     Approvals {
         #[arg(long, help = "Only the questions of this job")]
         job: Option<String>,
@@ -850,8 +853,9 @@ pub enum AgentCommand {
         )]
         state: String,
     },
-    /// Answer a permission question: allow once (default), or --session,
-    /// --always, --deny, --cancel (deny and stop the turn)
+    #[command(
+        about = "Answer a permission question: allow once (default), or --session, --always, --deny, --cancel (deny and stop the turn)"
+    )]
     Approve {
         id: String,
         #[arg(
@@ -871,47 +875,50 @@ pub enum AgentCommand {
         #[arg(long, help = "Refuse and stop the turn that asked", group = "decision")]
         cancel: bool,
     },
-    /// Merge a worktree job's branch into your checkout (`merge --no-ff`,
-    /// or `--squash`); a conflict is undone and your checkout left as it was
+    #[command(
+        about = "Merge a worktree job's branch into your checkout (`merge --no-ff`, or `--squash`); a conflict is undone and your checkout left as it was"
+    )]
     Integrate {
         id: String,
         #[arg(long, help = "One squashed commit instead of a merge commit")]
         squash: bool,
     },
-    /// Throw a worktree job's work away: its worktree and its branch
+    #[command(about = "Throw a worktree job's work away: its worktree and its branch")]
     Discard { id: String },
-    /// Budget ceilings (3.3): list them, set one, raise a paused one
+    #[command(about = "Budget ceilings (3.3): list them, set one, raise a paused one")]
     Budget {
         #[command(subcommand)]
         cmd: BudgetCommand,
     },
-    /// Everything to report a job back in one answer: verdict, the agent's
-    /// OUTCOME, the host's proof (checks, base→head), the files it changed
-    /// and what the repository's workflow did (3.10)
+    #[command(
+        about = "Everything to report a job back in one answer: verdict, the agent's OUTCOME, the host's proof (checks, base→head), the files it changed and what the repository's workflow did (3.10)"
+    )]
     Report { id: String },
-    /// The repository's `.omniget/workflow.md` (3.10): what is in effect,
-    /// trust its hooks and checks, or validate the file
+    #[command(
+        about = "The repository's `.omniget/workflow.md` (3.10): what is in effect, trust its hooks and checks, or validate the file"
+    )]
     Workflow {
         #[command(subcommand)]
         cmd: WorkflowCommand,
     },
-    /// List the running and finished Loops
+    #[command(about = "List the running and finished Loops")]
     Loops,
-    /// List the agents of the roster
+    #[command(about = "List the agents of the roster")]
     Agents,
 }
 
 #[derive(clap::Subcommand)]
 pub enum WorkflowCommand {
-    /// The version in effect (or the error and the last good version), its
-    /// defaults, the commands it would run and whether they are trusted
+    #[command(
+        about = "The version in effect (or the error and the last good version), its defaults, the commands it would run and whether they are trusted"
+    )]
     Show {
         #[arg(short, long, help = "Folder in the repository (default: current dir)")]
         workspace: Option<String>,
     },
-    /// Approve the version in effect: its hooks and checks run from now on,
-    /// until the file changes. Asks on a terminal; elsewhere give --sha256
-    /// (from `show`), so what is trusted is what was read
+    #[command(
+        about = "Approve the version in effect: its hooks and checks run from now on, until the file changes. Asks on a terminal; elsewhere give --sha256 (from `show`), so what is trusted is what was read"
+    )]
     Trust {
         #[arg(short, long, help = "Folder in the repository (default: current dir)")]
         workspace: Option<String>,
@@ -924,8 +931,9 @@ pub enum WorkflowCommand {
         #[arg(long, help = "Stop trusting this repository's workflow")]
         revoke: bool,
     },
-    /// Validate the file without the app: front matter, template variables
-    /// (exit 1 when invalid)
+    #[command(
+        about = "Validate the file without the app: front matter, template variables (exit 1 when invalid)"
+    )]
     Check {
         #[arg(help = "The file (default: .omniget/workflow.md of the current repository)")]
         file: Option<String>,
@@ -1063,12 +1071,11 @@ fn report_text(v: &Value) -> String {
 
 #[derive(clap::Subcommand)]
 pub enum BudgetCommand {
-    /// Every ceiling with what it has used, and the open incidents
+    #[command(about = "Every ceiling with what it has used, and the open incidents")]
     List,
-    /// Set a ceiling: `omniget agent budget set loop:<id> 0.05` (US$ for the
-    /// loop's whole run), `--metric quota_pct --window 5h`, `--metric
-    /// weighted_tokens --window day`; the same scope, metric and window again
-    /// replaces it
+    #[command(
+        about = "Set a ceiling: `omniget agent budget set loop:<id> 0.05` (US$ for the loop's whole run), `--metric quota_pct --window 5h`, `--metric weighted_tokens --window day`; the same scope, metric and window again replaces it"
+    )]
     Set {
         #[arg(help = "global, agent:<id>, job:<id>, loop:<id>, mission:<id>, account:<id>")]
         scope: String,
@@ -1090,7 +1097,7 @@ pub enum BudgetCommand {
         )]
         soft: bool,
     },
-    /// Raise a paused scope's ceiling and resume its work (`bi_…` from `list`)
+    #[command(about = "Raise a paused scope's ceiling and resume its work (`bi_…` from `list`)")]
     Raise {
         incident: String,
         #[arg(help = "The new ceiling, above what is already used")]

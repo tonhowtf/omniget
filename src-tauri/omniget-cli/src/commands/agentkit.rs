@@ -71,34 +71,38 @@ impl Bridge {
 /// Options shared by everything that installs.
 #[derive(clap::Args, Clone, Default)]
 pub struct InstallOpts {
-    /// Tools to install into (comma list). Default: the installed ones.
+    #[arg(help = "Tools to install into (comma list). Default: the installed ones")]
     #[arg(long, short = 't', value_delimiter = ',')]
     pub target: Vec<String>,
-    /// project | global | local | managed (default: project with --project, else global)
+    #[arg(
+        help = "project | global | local | managed (default: project with --project, else global)"
+    )]
     #[arg(long)]
     pub scope: Option<String>,
-    /// Project folder (default: none = global install)
+    #[arg(help = "Project folder (default: none = global install)")]
     #[arg(long)]
     pub project: Option<String>,
-    /// Apply without asking (needed when stdin is not a terminal)
+    #[arg(help = "Apply without asking (needed when stdin is not a terminal)")]
     #[arg(long, short = 'y')]
     pub yes: bool,
-    /// Show the plan and the diffs, write nothing
+    #[arg(help = "Show the plan and the diffs, write nothing")]
     #[arg(long)]
     pub dry_run: bool,
-    /// When a file or entry with the same name exists: rename | skip | overwrite
+    #[arg(help = "When a file or entry with the same name exists: rename | skip | overwrite")]
     #[arg(long, default_value = "rename")]
     pub on_conflict: String,
 }
 
 #[derive(clap::Subcommand)]
 pub enum ProfilesCommand {
-    /// List the profiles and what they set
+    #[command(about = "List the profiles and what they set")]
     List,
-    /// Apply a profile to several tools at once
+    #[command(about = "Apply a profile to several tools at once")]
     Apply {
         id: String,
-        /// Profile parameter `key=value` (provider: protocol, base_url, key_env, model)
+        #[arg(
+            help = "Profile parameter `key=value` (provider: protocol, base_url, key_env, model)"
+        )]
         #[arg(long = "param", short = 'p')]
         params: Vec<String>,
         #[command(flatten)]
@@ -108,40 +112,43 @@ pub enum ProfilesCommand {
 
 #[derive(clap::Subcommand)]
 pub enum AgentkitCommand {
-    /// Search the catalog
+    #[command(about = "Search the catalog")]
     Search {
         query: Vec<String>,
-        /// Only these kinds (agent, command, skill, mcp, hook, setting, statusline, loop, plugin…)
+        #[arg(
+            help = "Only these kinds (agent, command, skill, mcp, hook, setting, statusline, loop, plugin…)"
+        )]
         #[arg(long, short = 'k', value_delimiter = ',')]
         kind: Vec<String>,
         #[arg(long, default_value = "20")]
         limit: u64,
     },
-    /// Show a catalog item and how it fits each tool
+    #[command(about = "Show a catalog item and how it fits each tool")]
     Show {
         id: String,
         #[arg(long)]
         project: Option<String>,
     },
-    /// Install catalog items (ids like cct:agents/development-team/frontend-developer,
-    /// omniget:profiles/read-only or path:<kind>:<file>)
+    #[command(
+        about = "Install catalog items (ids like cct:agents/development-team/frontend-developer, omniget:profiles/read-only or path:<kind>:<file>)"
+    )]
     Install {
         #[arg(required = true)]
         ids: Vec<String>,
         #[command(flatten)]
         opts: InstallOpts,
-        /// Secret value for tools that cannot read an env var: NAME=value
+        #[arg(help = "Secret value for tools that cannot read an env var: NAME=value")]
         #[arg(long = "secret")]
         secrets: Vec<String>,
     },
-    /// Remove an install (install id, or component id/name for every tool)
+    #[command(about = "Remove an install (install id, or component id/name for every tool)")]
     Uninstall {
         id: String,
         #[arg(long, short = 't')]
         target: Option<String>,
         #[arg(long)]
         project: Option<String>,
-        /// Remove even pieces edited since we wrote them
+        #[arg(help = "Remove even pieces edited since we wrote them")]
         #[arg(long)]
         force: bool,
         #[arg(long, short = 'y')]
@@ -149,26 +156,26 @@ pub enum AgentkitCommand {
         #[arg(long)]
         dry_run: bool,
     },
-    /// What OmniGet installed (global + the project's lockfile)
+    #[command(about = "What OmniGet installed (global + the project's lockfile)")]
     List {
         #[arg(long)]
         project: Option<String>,
     },
-    /// Detected tools, installs and files edited since install
+    #[command(about = "Detected tools, installs and files edited since install")]
     Doctor {
         #[arg(long)]
         project: Option<String>,
     },
-    /// Install a .omnistack file, or copy what one tool has into others (--from)
+    #[command(about = "Install a .omnistack file, or copy what one tool has into others (--from)")]
     Import {
         file: Option<String>,
-        /// Tool whose installed agents/commands/skills/hooks/MCP servers are copied
+        #[arg(help = "Tool whose installed agents/commands/skills/hooks/MCP servers are copied")]
         #[arg(long)]
         from: Option<String>,
         #[command(flatten)]
         opts: InstallOpts,
     },
-    /// Write the installed catalog items as a .omnistack file
+    #[command(about = "Write the installed catalog items as a .omnistack file")]
     Export {
         #[arg(long)]
         project: Option<String>,
@@ -177,12 +184,12 @@ pub enum AgentkitCommand {
         #[arg(long)]
         name: Option<String>,
     },
-    /// OmniGet permission/provider profiles for every tool at once
+    #[command(about = "OmniGet permission/provider profiles for every tool at once")]
     Profiles {
         #[command(subcommand)]
         command: Option<ProfilesCommand>,
     },
-    /// Statusline stdin adapter (run by the tools, not by hand)
+    #[command(about = "Statusline stdin adapter (run by the tools, not by hand)")]
     #[command(hide = true)]
     StatuslineShim {
         #[arg(long)]

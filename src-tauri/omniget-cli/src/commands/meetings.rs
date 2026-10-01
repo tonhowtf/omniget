@@ -12,62 +12,64 @@ use omniget_core::core::tools::ToolProgress;
 
 #[derive(clap::Subcommand)]
 pub enum MeetingsCommand {
-    /// List meetings, newest first
+    #[command(about = "List meetings, newest first")]
     List {
         #[arg(long, default_value = "30")]
         limit: usize,
     },
-    /// Print a meeting as markdown (summary, action items, transcript)
+    #[command(about = "Print a meeting as markdown (summary, action items, transcript)")]
     Show {
         id: String,
-        /// Leave the transcript out
+        #[arg(help = "Leave the transcript out")]
         #[arg(long)]
         no_transcript: bool,
     },
-    /// Search titles, summaries, action items and transcripts
+    #[command(about = "Search titles, summaries, action items and transcripts")]
     Search {
         query: String,
         #[arg(long, default_value = "20")]
         limit: usize,
     },
-    /// Import an audio/video/transcript file or a Teams/SharePoint recording URL
+    #[command(about = "Import an audio/video/transcript file or a Teams/SharePoint recording URL")]
     Import {
         source: String,
         #[arg(long)]
         title: Option<String>,
     },
-    /// Summarize a meeting again with the configured AI provider
+    #[command(about = "Summarize a meeting again with the configured AI provider")]
     Summarize { id: String },
-    /// Post a meeting's summary to the Teams webhook set in the app
+    #[command(about = "Post a meeting's summary to the Teams webhook set in the app")]
     Post { id: String },
-    /// Open action items across every meeting (the follow-up list)
+    #[command(about = "Open action items across every meeting (the follow-up list)")]
     Todo {
-        /// Only items whose owner contains this
+        #[arg(help = "Only items whose owner contains this")]
         #[arg(long)]
         owner: Option<String>,
-        /// Include the ones already done
+        #[arg(help = "Include the ones already done")]
         #[arg(long)]
         all: bool,
     },
-    /// Mark an action item done (index from `omniget meetings todo`)
+    #[command(about = "Mark an action item done (index from `omniget meetings todo`)")]
     Done {
         id: String,
         index: usize,
-        /// Open it again instead
+        #[arg(help = "Open it again instead")]
         #[arg(long)]
         undo: bool,
     },
-    /// Send the Vexa bot to a Teams / Meet / Zoom call (key set in the app)
+    #[command(about = "Send the Vexa bot to a Teams / Meet / Zoom call (key set in the app)")]
     Bot {
-        /// The meeting's join link
+        #[arg(help = "The meeting's join link")]
         url: String,
         #[arg(long)]
         title: Option<String>,
     },
-    /// Pull what the bot transcribed; once the call ended (or with --stop) store it and summarize
+    #[command(
+        about = "Pull what the bot transcribed; once the call ended (or with --stop) store it and summarize"
+    )]
     BotPull {
         id: String,
-        /// Make the bot leave now and keep what it has
+        #[arg(help = "Make the bot leave now and keep what it has")]
         #[arg(long)]
         stop: bool,
     },

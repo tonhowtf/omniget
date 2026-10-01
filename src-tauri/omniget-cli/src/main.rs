@@ -20,7 +20,7 @@ struct Cli {
 
 #[derive(clap::Subcommand)]
 enum Commands {
-    /// Download a video/audio from URL
+    #[command(about = "Download a video/audio from URL")]
     Download {
         url: String,
 
@@ -39,9 +39,9 @@ enum Commands {
         #[arg(long, help = "Format preference (mp4/mkv/webm)")]
         format: Option<String>,
     },
-    /// Preview media info without downloading
+    #[command(about = "Preview media info without downloading")]
     Info { url: String },
-    /// Batch download from a file (one URL per line)
+    #[command(about = "Batch download from a file (one URL per line)")]
     Batch {
         file: String,
 
@@ -51,17 +51,23 @@ enum Commands {
         #[arg(short, long)]
         output: Option<String>,
     },
-    /// Agents of the desktop app: run a task, loop until a check passes, list jobs
+    #[command(
+        about = "Agents of the desktop app: run a task, loop until a check passes, list jobs"
+    )]
     Agent {
         #[command(subcommand)]
         command: commands::agent::AgentCommand,
     },
-    /// Companies of agents: org chart, issues, heartbeats, budgets and approvals of the running app
+    #[command(
+        about = "Companies of agents: org chart, issues, heartbeats, budgets and approvals of the running app"
+    )]
     Company {
         #[command(subcommand)]
         command: commands::company::CompanyCommand,
     },
-    /// The /llm audit log of the app: who did what to jobs, questions, grants, tokens and agents
+    #[command(
+        about = "The /llm audit log of the app: who did what to jobs, questions, grants, tokens and agents"
+    )]
     Audit {
         #[arg(long, default_value = "1d", help = "How far back: 30m, 12h, 1d, 2w")]
         since: String,
@@ -73,29 +79,39 @@ enum Commands {
         #[arg(long, default_value = "200")]
         limit: usize,
     },
-    /// Short reference texts: `omniget guide agents` (delegating to your agents)
+    #[command(about = "Short reference texts: `omniget guide agents` (delegating to your agents)")]
     Guide {
-        /// Topic (none = the list)
+        #[arg(help = "Topic (none = the list)")]
         topic: Option<String>,
     },
-    /// Meetings: list, read, search and import recordings (Teams/SharePoint or files); transcript, summary and action items
+    #[command(
+        about = "Meetings: list, read, search and import recordings (Teams/SharePoint or files); transcript, summary and action items"
+    )]
     Meetings {
         #[command(subcommand)]
         command: commands::meetings::MeetingsCommand,
     },
-    /// Microsoft Teams through Graph: export chats and channels as Markdown/JSON, list calendar meetings, import official transcripts
+    #[command(
+        about = "Microsoft Teams through Graph: export chats and channels as Markdown/JSON, list calendar meetings, import official transcripts"
+    )]
     Teams {
         #[command(subcommand)]
         command: commands::teams::TeamsCommand,
     },
-    /// washmybelly: scan, plan and clean this computer through the running app (execute asks in the window)
+    #[command(
+        about = "washmybelly: scan, plan and clean this computer through the running app (execute asks in the window)"
+    )]
     Wmb {
         #[command(subcommand)]
         command: commands::wmb::WmbCommand,
     },
-    /// Open Claude Code on one of the app's accounts (/llm → Accounts), skipping permission prompts
+    #[command(
+        about = "Open Claude Code on one of the app's accounts (/llm → Accounts), skipping permission prompts"
+    )]
     Claude {
-        /// Account id, label or e-mail (a unique prefix works); without it, the main account (asks when there is none)
+        #[arg(
+            help = "Account id, label or e-mail (a unique prefix works); without it, the main account (asks when there is none)"
+        )]
         account: Option<String>,
 
         #[arg(long, help = "List the Claude accounts (e-mail and plan) and exit")]
@@ -134,11 +150,13 @@ enum Commands {
         )]
         no_splash: bool,
 
-        /// Extra arguments for claude, after `--` (e.g. -- -c)
+        #[arg(help = "Extra arguments for claude, after `--` (e.g. -- -c)")]
         #[arg(last = true)]
         extra: Vec<String>,
     },
-    /// Usage monitor: 5 h / 7 d windows and spend of each Claude Code / Codex account
+    #[command(
+        about = "Usage monitor: 5 h / 7 d windows and spend of each Claude Code / Codex account"
+    )]
     Usage {
         #[arg(long, default_value = "7", help = "Days of history to sum")]
         days: u32,
@@ -146,26 +164,32 @@ enum Commands {
         #[arg(long, value_name = "SECONDS", help = "Keep refreshing every N seconds")]
         watch: Option<u64>,
     },
-    /// Catalog of agents, commands, skills, MCP servers, hooks and settings for
-    /// every coding tool (Claude Code, Codex, Gemini, Cursor, Copilot, OpenCode…)
+    #[command(
+        about = "Catalog of agents, commands, skills, MCP servers, hooks and settings for every coding tool (Claude Code, Codex, Gemini, Cursor, Copilot, OpenCode…)"
+    )]
     Agentkit {
         #[command(subcommand)]
         command: commands::agentkit::AgentkitCommand,
     },
-    /// Cords of the OmniGet canvas: talk to the agents, notes and portals
-    /// wired to this terminal (`omniget canvas help`)
+    #[command(
+        about = "Cords of the OmniGet canvas: talk to the agents, notes and portals wired to this terminal (`omniget canvas help`)"
+    )]
     #[command(disable_help_flag = true)]
     Canvas {
         #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
         args: Vec<String>,
     },
-    /// Hooks OmniGet installs in a coding tool's turn (run by the tool, not by hand)
+    #[command(
+        about = "Hooks OmniGet installs in a coding tool's turn (run by the tool, not by hand)"
+    )]
     #[command(hide = true)]
     Hook {
         #[command(subcommand)]
         command: HookCommand,
     },
-    /// Telegram: chats, media, downloads from links or whole chats, auto-save rules, export
+    #[command(
+        about = "Telegram: chats, media, downloads from links or whole chats, auto-save rules, export"
+    )]
     Tg {
         #[arg(
             long,
@@ -177,12 +201,12 @@ enum Commands {
         #[command(subcommand)]
         command: commands::tg::TgCommand,
     },
-    /// Books and manga: metadata, legal catalogs, OPDS, text to EPUB
+    #[command(about = "Books and manga: metadata, legal catalogs, OPDS, text to EPUB")]
     Read {
         #[command(subcommand)]
         command: commands::read::ReadCommand,
     },
-    /// Import a cookies.txt file (Netscape format)
+    #[command(about = "Import a cookies.txt file (Netscape format)")]
     ImportCookies {
         file: String,
 
@@ -196,12 +220,13 @@ enum Commands {
 
 #[derive(clap::Subcommand)]
 enum HookCommand {
-    /// Claude Code `PreToolUse`/`PostToolUse`: OmniGet's permission rules
-    /// judge the CLI's own tools (reads the hook JSON on stdin)
+    #[command(
+        about = "Claude Code `PreToolUse`/`PostToolUse`: OmniGet's permission rules judge the CLI's own tools (reads the hook JSON on stdin)"
+    )]
     Claude {
         #[arg(long)]
         event: String,
-        /// The turn's private folder (policy.json)
+        #[arg(help = "The turn's private folder (policy.json)")]
         #[arg(long)]
         turn: Option<String>,
     },

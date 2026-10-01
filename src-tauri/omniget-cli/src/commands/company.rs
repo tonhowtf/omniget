@@ -12,26 +12,26 @@ use super::agent::Bridge;
 
 #[derive(Subcommand, Debug)]
 pub enum CompanyCommand {
-    /// Companies, with status and who is working
+    #[command(about = "Companies, with status and who is working")]
     List,
-    /// Built-in company templates
+    #[command(about = "Built-in company templates")]
     Templates,
-    /// Create a company from a template (or blank)
+    #[command(about = "Create a company from a template (or blank)")]
     Create {
         name: String,
         #[arg(long)]
         template: Option<String>,
         #[arg(long)]
         mission: Option<String>,
-        /// Folder the agents work in
+        #[arg(help = "Folder the agents work in")]
         #[arg(long)]
         workspace: Option<String>,
     },
-    /// Overview: mission, org chart, issues, spend, open approvals
+    #[command(about = "Overview: mission, org chart, issues, spend, open approvals")]
     Show { company: String },
-    /// The org chart
+    #[command(about = "The org chart")]
     Team { company: String },
-    /// Open issues (all with --all)
+    #[command(about = "Open issues (all with --all)")]
     Issues {
         company: String,
         #[arg(long)]
@@ -41,9 +41,9 @@ pub enum CompanyCommand {
         #[arg(long)]
         all: bool,
     },
-    /// One issue with its thread
+    #[command(about = "One issue with its thread")]
     Issue { company: String, issue: String },
-    /// File an issue
+    #[command(about = "File an issue")]
     New {
         company: String,
         title: String,
@@ -56,13 +56,13 @@ pub enum CompanyCommand {
         #[arg(long)]
         parent: Option<String>,
     },
-    /// Comment on an issue (@name wakes that agent)
+    #[command(about = "Comment on an issue (@name wakes that agent)")]
     Comment {
         company: String,
         issue: String,
         body: String,
     },
-    /// Move an issue (todo, in_progress, in_review, blocked, done, cancelled)
+    #[command(about = "Move an issue (todo, in_progress, in_review, blocked, done, cancelled)")]
     Move {
         company: String,
         issue: String,
@@ -70,28 +70,28 @@ pub enum CompanyCommand {
         #[arg(long)]
         note: Option<String>,
     },
-    /// Wake an agent now
+    #[command(about = "Wake an agent now")]
     Wake {
         company: String,
         who: String,
         #[arg(long)]
         issue: Option<String>,
     },
-    /// What needs you: approvals, budget incidents, reviews
+    #[command(about = "What needs you: approvals, budget incidents, reviews")]
     Inbox { company: String },
-    /// Spend by agent, project and model
+    #[command(about = "Spend by agent, project and model")]
     Costs {
         company: String,
         #[arg(long, default_value = "month")]
         window: String,
     },
-    /// Recent heartbeat runs
+    #[command(about = "Recent heartbeat runs")]
     Runs {
         company: String,
         #[arg(long, default_value = "20")]
         limit: u32,
     },
-    /// Activity log (--verify checks the hash chain, --csv prints CSV)
+    #[command(about = "Activity log (--verify checks the hash chain, --csv prints CSV)")]
     Audit {
         company: String,
         #[arg(long)]
@@ -99,13 +99,13 @@ pub enum CompanyCommand {
         #[arg(long)]
         csv: bool,
     },
-    /// Print the company as a package (JSON) to move or share it
+    #[command(about = "Print the company as a package (JSON) to move or share it")]
     Export {
         company: String,
         #[arg(long)]
         issues: bool,
     },
-    /// Import a package file: shows the plan, creates it with --yes
+    #[command(about = "Import a package file: shows the plan, creates it with --yes")]
     Import {
         file: String,
         #[arg(long)]
@@ -113,7 +113,9 @@ pub enum CompanyCommand {
         #[arg(long)]
         yes: bool,
     },
-    /// Any method of the company API: `omniget company rpc issue.list '{"company":"ACME"}'`
+    #[command(
+        about = "Any method of the company API: `omniget company rpc issue.list '{\"company\":\"ACME\"}'`"
+    )]
     Rpc {
         method: String,
         args: Option<String>,
