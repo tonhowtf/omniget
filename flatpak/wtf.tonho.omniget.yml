@@ -14,12 +14,7 @@ finish-args:
   - --socket=fallback-x11
   - --socket=wayland
   - --talk-name=org.freedesktop.secrets
-  # Voice needs the audio socket, and the chat's screen-share audio reads the
-  # default sink's monitor directly — the ScreenCast portal carries video only.
-  # Screen capture itself needs no extra permission: the portal hands over a
-  # file descriptor, which is the whole point of asking through the portal.
   - --socket=pulseaudio
-  # PipeWire (camera portal, screen-share audio); works on every flatpak version.
   - --filesystem=xdg-run/pipewire-0
   - --device=dri
   - --filesystem=xdg-download
@@ -53,7 +48,6 @@ modules:
   - name: libayatana-appindicator
     buildsystem: cmake-ninja
     config-opts:
-      # GNUInstallDirs picks lib64 on some arches; pkg-config looks in /app/lib.
       - -DCMAKE_INSTALL_LIBDIR=lib
       - -DENABLE_BINDINGS_MONO=NO
       - -DENABLE_BINDINGS_VALA=NO
@@ -77,7 +71,6 @@ modules:
             sha256: b9cc4a2acd74509435892823607d966d424bd9ad5d0b00938f27240a1bfa878a
           - type: patch
             path: 0001-Fix-HAVE_VALGRIND-AM_CONDITIONAL.patch
-          # The patch edits configure.ac; regenerate configure so it applies.
           - type: shell
             commands:
               - autoreconf -fi

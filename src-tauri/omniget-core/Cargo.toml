@@ -48,33 +48,19 @@ quick-xml = "0.38"
 encoding_rs = "0.8"
 xz2 = { version = "0.1", features = ["static"] }
 walkdir = "2"
-# ONNX Runtime: "load-dynamic" NAO linka nada no build; a lib nativa e um
-# binario gerido, baixado sob demanda.
 ort = { version = "2.0.0-rc.13", default-features = false, features = ["std", "ndarray", "tracing", "load-dynamic", "api-27"] }
-# core/assist: bots, memória pessoal, leitura, sessões e recibos em SQLite
-# (mesma versão/feature do crate do app, então compila uma vez só). Também o
-# motor de threads da Central, analytics de sessões e o lockfile do agentkit.
 rusqlite = { version = "0.32", features = ["bundled"] }
 tempfile = "=3.25.0"
-# Rollouts do Codex (.jsonl.zst) e threads do Zed (zstd JSON).
 zstd = "0.13"
-# Pinning de commits do catálogo (git blob sha1).
 sha1 = "0.10"
-# core/music: tags (read/write), EBU R128 loudness and the FFT behind BPM,
-# key and spectrum analysis. All pure Rust.
 lofty = "0.25"
 ebur128 = "0.1"
 rustfft = "6"
-# washmybelly: Trash for files the person recognises (apps, documents).
 trash = "5"
-# washmybelly: monitor (sysinfo), CleanerML (roxmltree), privacy.sexy YAML,
-# duplicate hashing (xxh3).
 sysinfo = "0.39.6"
 roxmltree = "0.21.1"
 serde_yaml = "0.9.34"
 xxhash-rust = { version = "0.8.18", features = ["xxh3"] }
-# core/telegram: the connection layer (MTProto obfuscation and fake TLS,
-# Shadowsocks AEAD/2022, Trojan) speaks these protocols itself.
 ctr = "0.9"
 aes-gcm = "0.10"
 chacha20poly1305 = "0.10"
@@ -86,8 +72,6 @@ webpki-roots = "1"
 ring = "0.17"
 crc32fast = "1"
 num-bigint = "0.4"
-# core/telegram client: MTProto via grammers (patched 0.8, see the
-# workspace [patch.crates-io]); all traffic goes through our own bridge.
 grammers-client = { version = "0.8", features = ["proxy"] }
 grammers-session = "0.8"
 grammers-tl-types = "0.8"
@@ -100,18 +84,12 @@ dashmap = "6"
 cipher = "0.4"
 filetime = "0.2"
 axum = { version = "0.8", default-features = false, features = ["http1", "json", "tokio", "query"] }
-# core/read uses quick-xml (above) for EPUB/OPF/NCX, ComicInfo.xml and OPDS feeds.
-# core/read: CSS selectors for declarative sources the user adds.
 scraper = "0.27"
-# core/read: TXT/Markdown to EPUB (charset detection, CommonMark).
 pulldown-cmark = { version = "0.13", default-features = false, features = ["html"] }
 chardetng = "0.1"
 alacritty_terminal = "0.26.0"
 
 [target.'cfg(windows)'.dependencies]
-# Job Object of the CLI turns (`core::process::ProcessTreeGuard`): the only
-# reliable way to kill a whole process tree on Windows; washmybelly also uses
-# it for elevation (UAC), registry, services, power and the Restart Manager.
 windows-sys = { version = "0.61", features = [
     "Win32_Devices_DeviceAndDriverInstallation",
     "Win32_Foundation",
