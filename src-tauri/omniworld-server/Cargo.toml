@@ -2,7 +2,7 @@
 name = "omniworld-server"
 version = "0.1.0"
 edition = "2021"
-description = "Room server of the OmniGet world: open a house, visit by code"
+description = "Relay of the OmniGet canvas visits: open a canvas, visit it by code"
 license = "GPL-3.0"
 
 [[bin]]

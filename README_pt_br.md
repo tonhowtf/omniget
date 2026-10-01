@@ -67,7 +67,7 @@ or export a GIF/WebP to assets/readme/hero.webp and use an <img>.
 1. [Deixe o Claude baixar: o OmniGet como servidor MCP](#let-claude-download-it)
 2. [O downloader](#the-downloader)
 3. [Agentes de IA numa janela: um app de desktop para Claude Code, Codex e Gemini CLI](#ai-agents-in-a-window)
-4. [O Mundo: veja seus agentes trabalhando](#the-world)
+4. [O Canvas: veja seus agentes trabalhando](#the-canvas)
 5. [Tools: vai voltar](#tools-coming-back)
 
 Também: [Baixar e instalar](#download-and-install) · [Superpoderes](#superpowers) · [Reuniões](#meetings) · [washmybelly](#washmybelly) · [Todo o resto](#everything-else-in-the-box) · [Privacidade](#privacy-and-what-omniget-refuses-to-do) · [Apoie o OmniGet](#support-omniget) · [Perguntas frequentes](#frequently-asked-questions) · [Linha de comando](#command-line) · [Compilar do código-fonte](#build-from-source) · [Donos de plataformas](#notice-to-platform-owners) · [Contribuir](#contributing-and-translations)
@@ -379,27 +379,14 @@ Medido no projeto de demonstração (um teste falhando, um bug de um caractere),
 
 ---
 
-<a id="the-world"></a>
+<a id="the-canvas"></a>
 
-## 4. O Mundo: veja seus agentes trabalhando
+## 4. O Canvas: veja seus agentes trabalhando
 
-<!--
-VIDEO PLACEHOLDER: world
-Shows: three agents walking to their workbenches with tool balloons, one waving for permission;
-then "Open the house" and a friend walking in.
-Length: 15 to 25 s. 1600 px wide.
--->
+O `/world` é um canvas onde seus agentes trabalham lado a lado. Cada agente roda no seu próprio nó de terminal (Claude Code, Codex, Gemini CLI ou um modelo local), e você coloca notas, arquivos, links e prévias de navegador ao lado deles. Ligue dois agentes com um fio e eles podem trocar mensagens e pedir ajuda um ao outro; o fio acende enquanto uma mensagem ou pergunta está a caminho. Andares guardam quadros separados no mesmo workspace, e rotinas iniciam agentes num horário.
 
-<p align="center">
-  <img src="assets/readme/illustration-world-house.webp" alt="Uma casa isométrica em corte onde três robôs agentes trabalham cada um na sua bancada com balões de ferramenta, enquanto Loop descansa no sofá" width="820" />
-</p>
-
-Seus agentes moram numa casa isométrica. Cada um tem a própria mesa e a própria bancada, anda até ela quando um turno começa, mostra num balão a ferramenta que está rodando (`fs_edit cart.js`, `shell_exec`) e acena para você quando precisa de permissão. Quando a cota acaba, ele vai dormir. O painel Atividade, ao lado da casa, mostra quem está fazendo o quê. `/world?demo=1` roda uma sessão roteirizada sem gastar nenhum token.
-
-- **Visitas.** **Abrir a casa** te dá um código como `ZZCJ-YA09`. Um amigo digita o código e entra: ele vê seus agentes trabalhando e pode conversar, e é só isso que ele pode fazer. O relay só repassa os quadros. Suas chaves e seus agentes ficam na sua máquina. O relay público é `wss://chat.tonho.wtf/v1/room`, e o `omniworld-server` em `scripts/omniworld-server/` deixa você hospedar o seu.
+- **Visitas.** **Abrir para visitas** te dá um código como `ZZCJ-YA09`. Um amigo digita o código e vê seus nós, fios e o estado dos agentes, só para leitura. O conteúdo dos terminais fica privado, a não ser que você compartilhe um nó. O relay só repassa os quadros; suas chaves e seus agentes ficam na sua máquina. O relay público é `wss://chat.tonho.wtf/v1/room`, e o `omniworld-server` em `scripts/omniworld-server/` deixa você hospedar o seu.
 - **O pet.** Um Omni flutuante que reage ao que seus agentes fazem, inclusive o Claude Code ou o Codex rodando num terminal, e responde aos pedidos de permissão deles.
-
-A simulação é um crate Rust e o renderizador é WebGL2. Com oito agentes trabalhando ao mesmo tempo, ficou numa mediana de 64 quadros por segundo na máquina de teste.
 
 ---
 
@@ -739,7 +726,7 @@ O Loop é o mascote do OmniGet. Fan art é bem-vinda. A arte original não pode 
 
 ## Feito sobre open source
 
-O OmniGet é construído sobre [yt-dlp](https://github.com/yt-dlp/yt-dlp), [FFmpeg](https://ffmpeg.org/), [gallery-dl](https://github.com/mikf/gallery-dl), [aria2](https://aria2.github.io/), [librqbit](https://github.com/ikatson/rqbit), [SponsorBlock](https://sponsor.ajay.app/), [FxTwitter](https://github.com/FixTweet/FxTwitter), [cat-catch](https://github.com/xifangczy/cat-catch) (partes do detector de mídia da extensão), [whisper.cpp](https://github.com/ggml-org/whisper.cpp) (em Reuniões e no plugin do Claude Code), [Tauri](https://tauri.app) e [Svelte](https://svelte.dev). Os agentes, os jobs e o Mundo pegaram ideias de [opencode](https://github.com/anomalyco/opencode), [Codex](https://github.com/openai/codex), [aider](https://github.com/Aider-AI/aider), [cline](https://github.com/cline/cline), [compozy](https://github.com/compozy/compozy), do [Agent Client Protocol](https://agentclientprotocol.com), [mem0](https://github.com/mem0ai/mem0), [letta](https://github.com/letta-ai/letta), [ai-town](https://github.com/a16z-infra/ai-town) e do artigo [generative agents](https://github.com/joonspk-research/generative_agents). Reuniões segue o caminho do [Meetily](https://github.com/Zackriya-Solutions/meetily), do [anarlog](https://github.com/fastrepl/anarlog), do [minutes](https://github.com/silverstein/minutes) e do [Humla](https://github.com/michaelwilhelmsen/humla), manda bots pelo [Vexa](https://github.com/Vexa-ai/vexa), chega ao Teams pelo [ms-365-mcp-server](https://github.com/Softeria/ms-365-mcp-server) e lê gravações do Teams do jeito que o [ms-teams-sharepoint-downloader](https://github.com/brendangooden/ms-teams-sharepoint-downloader) mostrou. Obrigado a todo mundo que mantém esses projetos. O washmybelly usa dados e ideias de [privacy.sexy](https://github.com/undergroundwires/privacy.sexy), [BleachBit](https://github.com/bleachbit/bleachbit), [Win11Debloat](https://github.com/Raphire/Win11Debloat), [winutil](https://github.com/ChrisTitusTech/winutil), [Sophia Script](https://github.com/farag2/Sophia-Script-for-Windows), [Bulk Crap Uninstaller](https://github.com/Klocman/Bulk-Crap-Uninstaller), [Kudu](https://github.com/AdventDevInc/kudu), [kondo](https://github.com/tbillington/kondo), [czkawka](https://github.com/qarmin/czkawka), [Stats](https://github.com/exelban/stats), [CapFrameX](https://github.com/CXWorld/CapFrameX) e outros; a lista completa, com as licenças, está no [THIRD_PARTY.md](THIRD_PARTY.md).
+O OmniGet é construído sobre [yt-dlp](https://github.com/yt-dlp/yt-dlp), [FFmpeg](https://ffmpeg.org/), [gallery-dl](https://github.com/mikf/gallery-dl), [aria2](https://aria2.github.io/), [librqbit](https://github.com/ikatson/rqbit), [SponsorBlock](https://sponsor.ajay.app/), [FxTwitter](https://github.com/FixTweet/FxTwitter), [cat-catch](https://github.com/xifangczy/cat-catch) (partes do detector de mídia da extensão), [whisper.cpp](https://github.com/ggml-org/whisper.cpp) (em Reuniões e no plugin do Claude Code), [Tauri](https://tauri.app) e [Svelte](https://svelte.dev). Os agentes, os jobs e o canvas pegaram ideias de [opencode](https://github.com/anomalyco/opencode), [Codex](https://github.com/openai/codex), [aider](https://github.com/Aider-AI/aider), [cline](https://github.com/cline/cline), [compozy](https://github.com/compozy/compozy), do [Agent Client Protocol](https://agentclientprotocol.com), [mem0](https://github.com/mem0ai/mem0), [letta](https://github.com/letta-ai/letta), [ai-town](https://github.com/a16z-infra/ai-town) e do artigo [generative agents](https://github.com/joonspk-research/generative_agents). Reuniões segue o caminho do [Meetily](https://github.com/Zackriya-Solutions/meetily), do [anarlog](https://github.com/fastrepl/anarlog), do [minutes](https://github.com/silverstein/minutes) e do [Humla](https://github.com/michaelwilhelmsen/humla), manda bots pelo [Vexa](https://github.com/Vexa-ai/vexa), chega ao Teams pelo [ms-365-mcp-server](https://github.com/Softeria/ms-365-mcp-server) e lê gravações do Teams do jeito que o [ms-teams-sharepoint-downloader](https://github.com/brendangooden/ms-teams-sharepoint-downloader) mostrou. Obrigado a todo mundo que mantém esses projetos. O washmybelly usa dados e ideias de [privacy.sexy](https://github.com/undergroundwires/privacy.sexy), [BleachBit](https://github.com/bleachbit/bleachbit), [Win11Debloat](https://github.com/Raphire/Win11Debloat), [winutil](https://github.com/ChrisTitusTech/winutil), [Sophia Script](https://github.com/farag2/Sophia-Script-for-Windows), [Bulk Crap Uninstaller](https://github.com/Klocman/Bulk-Crap-Uninstaller), [Kudu](https://github.com/AdventDevInc/kudu), [kondo](https://github.com/tbillington/kondo), [czkawka](https://github.com/qarmin/czkawka), [Stats](https://github.com/exelban/stats), [CapFrameX](https://github.com/CXWorld/CapFrameX) e outros; a lista completa, com as licenças, está no [THIRD_PARTY.md](THIRD_PARTY.md).
 
 <p align="center">
   <a href="https://getomniget.com/download"><b>Baixar o OmniGet</b></a> · <a href="LICENSE">GPL-3.0</a>

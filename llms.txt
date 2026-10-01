@@ -56,10 +56,10 @@ Writing about OmniGet, or generating a post about it? Read [MEDIA-KIT.md](https:
 - Teams through Microsoft Graph with the person's own Microsoft 365 sign-in (their Entra app registration, device code): export chats (and channels with admin-approved permissions) as Markdown or JSON, list calendar meetings with join links, turn a meeting's official transcript into minutes. MCP tools `teams_*` (token permission `teams_read`); `meetings_action_items`, `meeting_action_done` and `meeting_bot_send` join the `meetings_*` tools.
 - Command line: `omniget-cli meetings list|show|search|todo|done|import|summarize|post|bot|bot-pull` and `omniget-cli teams status|setup|login|chats|read|export|channels|channel|calendar|transcript`; `omniget-cli guide meetings` is the reference agents read. Claude Code plugin: `/omniget:meetings`, `/omniget:teams` and the `omniget-meetings` skill.
 
-## 4. The World
+## 4. The Canvas
 
-- [The World](https://github.com/tonhowtf/omniget#the-world): An isometric house, rendered in WebGL2 from a Rust simulation, where each agent walks to its own workbench, shows the running tool in a balloon and waves when it needs permission.
-- Visits: "Open the house" gives a code; a friend's app joins through a relay (`wss://chat.tonho.wtf/v1/room`, or a self-hosted `omniworld-server`). The host app stays the authority.
+- [The Canvas](https://github.com/tonhowtf/omniget#the-canvas): `/world` is a canvas where each agent runs in its own terminal node, next to notes, files, links and browser previews. Cords between agents let them message and ask each other; floors and routines organize the work.
+- Visits: "Open for visits" gives a code; a friend's app sees nodes, cords and agent states read-only through a relay (`wss://chat.tonho.wtf/v1/room`, or a self-hosted `omniworld-server`). The host app stays the authority.
 
 ## 5. Tools
 

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "omniget://world/atlas.schema.json",
   "title": "OmniGet world atlas v1",
-  "description": "Written by `atlas-pack`, validated by `atlas-check` (crate src-tauri/omniget-world-tools). Owner: f6-atlas-tools. Frozen 2026-09-17: changes are additive only. Human summary in static/world/README-format.txt.",
+  "description": "Written by `atlas-pack` (crate src-tauri/omniget-atlas). Owner: f6-atlas-tools. Frozen 2026-09-17: changes are additive only. Human summary in static/world/README-format.txt.",
   "type": "object",
   "required": ["version", "pages", "frames"],
   "additionalProperties": false,

@@ -192,34 +192,12 @@ impl Default for LlmSettings {
     }
 }
 
-/// Settings of the agents' world (`/world`: the canvas and the city). The render
-/// tier: `tier_override` pins a tier by hand (None = automatic, i.e. measured),
-/// and the `tier_measured*` trio is the last calibration, kept so the UI can show
-/// it and so a version change can trigger a recalibration.
+/// Settings of `/world`, the agent canvas.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WorldSettings {
     /// Shows `/world` in the navigation.
     #[serde(default = "default_world_enabled")]
     pub enabled: bool,
-    #[serde(default)]
-    pub tier_override: Option<u8>,
-    /// Pins the renderer backend (`gl2`, `gl1`, `canvas2d`); None picks by tier.
-    #[serde(default)]
-    pub backend_override: Option<String>,
-    /// How `/city` draws: `lite` (2D sprites of the kit) or `3d`; None lets
-    /// the 3D calibration decide.
-    #[serde(default)]
-    pub city_backend: Option<String>,
-    #[serde(default)]
-    pub tier_measured: Option<u8>,
-    #[serde(default)]
-    pub measured_median_ms: Option<f64>,
-    #[serde(default)]
-    pub measured_app_version: Option<String>,
-    /// OmniDisc instance that hosts the city (`/world/v1`). Empty means the
-    /// public one, `https://chat.tonho.wtf`.
-    #[serde(default)]
-    pub city_server: String,
 }
 
 /// Grid of the canvas: every stored frame and default size snaps to it.
@@ -579,13 +557,6 @@ impl Default for WorldSettings {
     fn default() -> Self {
         Self {
             enabled: default_world_enabled(),
-            tier_override: None,
-            backend_override: None,
-            city_backend: None,
-            tier_measured: None,
-            measured_median_ms: None,
-            measured_app_version: None,
-            city_server: String::new(),
         }
     }
 }
@@ -1609,6 +1580,31 @@ mod backcompat_tests {
         old.world.enabled = false;
         assert!(!old.migrate());
         assert!(!old.world.enabled);
+    }
+
+    #[test]
+    fn settings_com_campos_da_cidade_e_do_omnidisc_ainda_carregam() {
+        // settings.json de antes da remocao da cidade e do motor isometrico:
+        // os campos que sairam sao ignorados, o resto continua igual.
+        let mut json = serde_json::to_value(AppSettings::default()).unwrap();
+        json["omnidisc"] =
+            serde_json::json!({ "voice": { "ptt_key": "F8", "vad_threshold_db": -40.0 } });
+        json["world"] = serde_json::json!({
+            "enabled": false,
+            "tier_override": 2,
+            "backend_override": "gl2",
+            "city_backend": "3d",
+            "tier_measured": 3,
+            "measured_median_ms": 4.5,
+            "measured_app_version": "1.0.0",
+            "city_server": "https://chat.tonho.wtf"
+        });
+        let parsed: AppSettings =
+            serde_json::from_value(json).expect("settings antigo precisa desserializar");
+        assert!(!parsed.world.enabled);
+        let back = serde_json::to_value(&parsed).unwrap();
+        assert!(back.get("omnidisc").is_none());
+        assert_eq!(back["world"], serde_json::json!({ "enabled": false }));
     }
 
     #[test]

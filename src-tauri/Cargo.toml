@@ -1,5 +1,5 @@
 [workspace]
-members = [".", "omniget-core", "omniget-cli", "omniget-world-tools", "omniget-world", "omniworld-server"]
+members = [".", "omniget-core", "omniget-cli", "omniget-atlas", "omniworld-server"]
 resolver = "2"
 
 [package]

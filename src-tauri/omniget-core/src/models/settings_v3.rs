@@ -369,11 +369,7 @@ const PROTECTED: [&str; 7] = [
 /// Visual fields locked until the appearance import committed.
 const APPEARANCE_GATED: [&str; 3] = ["appearance.theme", "appearance.mode", "appearance.preset"];
 
-const FINITE_FLOATS: [&str; 3] = [
-    "typography.line_height_base",
-    "typography.spacing_scale",
-    "world.measured_median_ms",
-];
+const FINITE_FLOATS: [&str; 2] = ["typography.line_height_base", "typography.spacing_scale"];
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PatchError {
@@ -393,11 +389,6 @@ fn schema_template() -> Value {
     s.last_download_options.mode = Some(String::new());
     s.last_download_options.quality = Some(String::new());
     s.typography.preset_name = Some(String::new());
-    s.world.tier_override = Some(0);
-    s.world.tier_measured = Some(0);
-    s.world.backend_override = Some(String::new());
-    s.world.measured_median_ms = Some(0.5);
-    s.world.measured_app_version = Some(String::new());
     s.llm.ask_timeout_job_s = Some(0);
     s.llm.jobs_max_per_agent = Some(0);
     serde_json::to_value(s).expect("settings serialize")
@@ -514,10 +505,7 @@ pub fn apply_patch(current: &AppSettings, patch: &Value) -> Result<AppSettings, 
         if touched(path) {
             if let Some(f) = get_path(&merged, path).and_then(Value::as_f64) {
                 // f32 fields turn a huge JSON number into infinity.
-                let finite = match path {
-                    "world.measured_median_ms" => f.is_finite(),
-                    _ => f.is_finite() && (f as f32).is_finite(),
-                };
+                let finite = f.is_finite() && (f as f32).is_finite();
                 if !finite {
                     errors.push(FieldError::new(path, FieldErrorCode::OutOfRange));
                 }
@@ -756,7 +744,7 @@ pub fn apply_secret_operations(s: &mut AppSettings, ops: &SecretOperations) {
 /// The exact allowlist of `reset-policy.json`, by key. Anything not listed
 /// (secrets, bridge token and port, consents, enablement of integrations,
 /// derived calibration, unknown keys) survives every reset.
-pub const RESET_ALLOWLIST: [(&str, SettingsSection); 127] = [
+pub const RESET_ALLOWLIST: [(&str, SettingsSection); 124] = [
     ("appearance.theme", SettingsSection::Appearance),
     ("appearance.language", SettingsSection::General),
     ("download.default_output_dir", SettingsSection::Downloads),
@@ -926,9 +914,6 @@ pub const RESET_ALLOWLIST: [(&str, SettingsSection); 127] = [
         SettingsSection::Appearance,
     ),
     ("accessibility.disable_haptics", SettingsSection::Appearance),
-    ("world.tier_override", SettingsSection::Integrations),
-    ("world.backend_override", SettingsSection::Integrations),
-    ("world.city_backend", SettingsSection::Integrations),
     ("llm.prune_enabled", SettingsSection::Ai),
     ("llm.prune_judge", SettingsSection::Ai),
     ("llm.prune_min_tokens", SettingsSection::Ai),
@@ -1242,8 +1227,8 @@ mod tests {
         // Declared nullable fields accept null.
         let next = apply_patch(&s, &json!({ "llm": { "ask_timeout_job_s": null } })).unwrap();
         assert_eq!(next.llm.ask_timeout_job_s, None);
-        let next = apply_patch(&s, &json!({ "world": { "tier_override": null } })).unwrap();
-        assert_eq!(next.world.tier_override, None);
+        let next = apply_patch(&s, &json!({ "llm": { "jobs_max_per_agent": null } })).unwrap();
+        assert_eq!(next.llm.jobs_max_per_agent, None);
     }
 
     #[test]
@@ -1365,7 +1350,6 @@ mod tests {
         s.legal_acknowledged = true;
         s.onboarding_completed = true;
         s.rpc.enabled = false;
-        s.world.tier_measured = Some(2);
         let general = apply_reset(&s, ResetScope::Section(SettingsSection::General));
         assert_eq!(general.appearance.language, "en");
         assert!(!general.start_with_system);
@@ -1379,7 +1363,6 @@ mod tests {
         assert_eq!(app.bridge.port, 43_210);
         assert!(app.legal_acknowledged && app.onboarding_completed);
         assert!(!app.rpc.enabled);
-        assert_eq!(app.world.tier_measured, Some(2));
         assert_eq!(app.appearance.migration_version, 1);
         assert_eq!(app.appearance.preset.as_deref(), Some(DEFAULT_PRESET));
         assert_eq!(app.appearance.legacy_theme, None);

@@ -1,5 +1,6 @@
-OmniGet world art format (v1) - atlas.json + PNG pages
-Normative schema: atlas.schema.json. Tools: src-tauri/omniget-world-tools.
+OmniGet sprite atlas format (v1) - atlas.json + PNG pages, used by the Omni
+of the canvas and the pet. Normative schema: static/world/atlas.schema.json.
+Tool: src-tauri/omniget-atlas (cargo run -p omniget-atlas --bin atlas-pack).
 
 WHY IT LOOKS LIKE THIS
   A character faces 8 ways on screen but only 5 of them are drawn. SE, E and NE
@@ -29,10 +30,3 @@ PACKING (atlas-pack <src>... <out-dir>)
   repeated outside the rect, so linear filtering cannot pull in the neighbour).
   The output is deterministic: same input, same bytes, no timestamps.
   Try it with no art: atlas-pack --fixture <dir> writes a synthetic source tree.
-
-CHECKING (atlas-check <atlas.json>...)
-  Exit 1 with one ERR_ATLAS_* line per problem. It refuses: a pivot moving more
-  than 1 px inside an animation (the character bobs); SE/E/NE with their own
-  sheet or mirroring the wrong direction; a page over 2048 px; a frame outside
-  its page; a page carrying iCCP/cHRM/gAMA; a frame id or tile frame that does
-  not exist. Run it on every atlas before it reaches the renderer.

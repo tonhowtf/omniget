@@ -248,15 +248,6 @@ export type SettingsPublicV3 = {
   };
   world?: {
     enabled?: boolean;
-    tier_override?: number | null;
-    tier_measured?: number | null;
-    /** Force a renderer backend (gl2, gl1, canvas2d); null picks by tier. */
-    backend_override?: "gl2" | "gl1" | "canvas2d" | null;
-    /** How /city draws: lite (2D sprites) or 3d; null lets the calibration decide. */
-    city_backend?: "lite" | "3d" | null;
-    measured_median_ms?: number | null;
-    measured_app_version?: string | null;
-    city_server?: string;
   };
   /** Agent canvas (Rust `CanvasSettings`); typed in `$lib/canvas/prefs.svelte`. */
   canvas?: Record<string, unknown>;

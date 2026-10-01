@@ -71,7 +71,7 @@ or export a GIF/WebP to assets/readme/hero.webp and use an <img>.
 1. [Пусть Claude скачает: OmniGet как MCP-сервер](#let-claude-download-it)
 2. [Загрузчик](#the-downloader)
 3. [ИИ-агенты в окне: десктопное приложение для Claude Code, Codex и Gemini CLI](#ai-agents-in-a-window)
-4. [Мир: смотрите, как работают ваши агенты](#the-world)
+4. [Холст: смотрите, как работают ваши агенты](#the-canvas)
 5. [Инструменты вернутся](#tools-coming-back)
 
 Ещё: [Скачать и установить](#download-and-install) · [Суперсилы](#superpowers) · [Встречи](#meetings) · [washmybelly](#washmybelly) · [Всё остальное](#everything-else-in-the-box) · [Приватность](#privacy-and-what-omniget-refuses-to-do) · [Поддержать OmniGet](#support-omniget) · [Частые вопросы](#frequently-asked-questions) · [Командная строка](#command-line) · [Сборка из исходников](#build-from-source) · [Владельцам платформ](#notice-to-platform-owners) · [Участие и переводы](#contributing-and-translations)
@@ -383,27 +383,14 @@ omniget-cli agent jobs               # недавние задачи; перед
 
 ---
 
-<a id="the-world"></a>
+<a id="the-canvas"></a>
 
-## 4. Мир: смотрите, как работают ваши агенты
+## 4. Холст: смотрите, как работают ваши агенты
 
-<!--
-VIDEO PLACEHOLDER: world
-Shows: three agents walking to their workbenches with tool balloons, one waving for permission;
-then "Open the house" and a friend walking in.
-Length: 15 to 25 s. 1600 px wide.
--->
+`/world` — это холст, на котором ваши агенты работают бок о бок. Каждый агент запущен в своём узле-терминале (Claude Code, Codex, Gemini CLI или локальная модель), а рядом можно положить заметки, файлы, ссылки и превью браузера. Протяните связь между двумя агентами, и они смогут писать друг другу и просить друг друга о помощи; связь светится, пока сообщение или вопрос в пути. Этажи хранят отдельные доски в одном рабочем пространстве, а расписания запускают агентов по времени.
 
-<p align="center">
-  <img src="assets/readme/illustration-world-house.webp" alt="Изометрический домик в разрезе: три робота-агента работают каждый за своим верстаком с облачками инструментов, а Луп отдыхает на диване" width="820" />
-</p>
-
-Ваши агенты живут в изометрическом доме. У каждого свой стол и верстак: когда начинается ход, агент идёт к нему, показывает в облачке инструмент, который запускает (`fs_edit cart.js`, `shell_exec`), и машет вам, когда ему нужно разрешение. Когда квота кончается, он идёт спать. Панель «Активность» рядом с домом показывает, кто чем занят. `/world?demo=1` проигрывает заранее заданный сценарий, не тратя ни одного токена.
-
-- **Визиты.** **Открыть дом** даёт вам код вроде `ZZCJ-YA09`. Друг вводит его и заходит: он видит ваших агентов за работой и может говорить, и больше ничего не может. Ретранслятор только передаёт кадры; ваши ключи и ваши агенты остаются на вашей машине. Публичный ретранслятор — `wss://chat.tonho.wtf/v1/room`, а `omniworld-server` в `scripts/omniworld-server/` позволяет поднять свой.
-- **Питомец.** Парящий Omni реагирует на то, что делают ваши агенты, включая Claude Code или Codex в терминале, и отвечает на их запросы разрешения.
-
-Симуляция — это крейт на Rust, рендерер — WebGL2. С восемью одновременно работающими агентами на тестовой машине держалась медиана 64 кадра в секунду.
+- **Визиты.** **Открыть для визитов** даёт код вроде `ZZCJ-YA09`. Друг вводит его и видит ваши узлы, связи и состояния агентов, только для чтения. Содержимое терминалов остаётся приватным, если вы не поделились узлом. Ретранслятор только передаёт кадры; ваши ключи и агенты остаются на вашем компьютере. Публичный ретранслятор — `wss://chat.tonho.wtf/v1/room`, а `omniworld-server` в `scripts/omniworld-server/` позволяет поднять свой.
+- **Питомец.** Парящий Omni, который реагирует на действия ваших агентов, включая Claude Code или Codex в терминале, и отвечает на их запросы разрешений.
 
 ---
 
@@ -743,7 +730,7 @@ Loop — маскот OmniGet. Фан-арт приветствуется; ор�
 
 ## Опираясь на открытый код
 
-OmniGet построен на [yt-dlp](https://github.com/yt-dlp/yt-dlp), [FFmpeg](https://ffmpeg.org/), [gallery-dl](https://github.com/mikf/gallery-dl), [aria2](https://aria2.github.io/), [librqbit](https://github.com/ikatson/rqbit), [SponsorBlock](https://sponsor.ajay.app/), [FxTwitter](https://github.com/FixTweet/FxTwitter), [cat-catch](https://github.com/xifangczy/cat-catch) (части медиасниффера в расширении), [whisper.cpp](https://github.com/ggml-org/whisper.cpp) (во Встречах и в плагине для Claude Code), [Tauri](https://tauri.app) и [Svelte](https://svelte.dev). Агенты, задачи и Мир позаимствовали идеи у [opencode](https://github.com/anomalyco/opencode), [Codex](https://github.com/openai/codex), [aider](https://github.com/Aider-AI/aider), [cline](https://github.com/cline/cline), [compozy](https://github.com/compozy/compozy), [Agent Client Protocol](https://agentclientprotocol.com), [mem0](https://github.com/mem0ai/mem0), [letta](https://github.com/letta-ai/letta), [ai-town](https://github.com/a16z-infra/ai-town) и статьи о [generative agents](https://github.com/joonspk-research/generative_agents). Встречи следуют примеру [Meetily](https://github.com/Zackriya-Solutions/meetily), [anarlog](https://github.com/fastrepl/anarlog), [minutes](https://github.com/silverstein/minutes) и [Humla](https://github.com/michaelwilhelmsen/humla), отправляют ботов через [Vexa](https://github.com/Vexa-ai/vexa), доходят до Teams через [ms-365-mcp-server](https://github.com/Softeria/ms-365-mcp-server) и читают записи Teams так, как показал [ms-teams-sharepoint-downloader](https://github.com/brendangooden/ms-teams-sharepoint-downloader). Спасибо всем, кто их поддерживает. washmybelly использует данные и идеи из [privacy.sexy](https://github.com/undergroundwires/privacy.sexy), [BleachBit](https://github.com/bleachbit/bleachbit), [Win11Debloat](https://github.com/Raphire/Win11Debloat), [winutil](https://github.com/ChrisTitusTech/winutil), [Sophia Script](https://github.com/farag2/Sophia-Script-for-Windows), [Bulk Crap Uninstaller](https://github.com/Klocman/Bulk-Crap-Uninstaller), [Kudu](https://github.com/AdventDevInc/kudu), [kondo](https://github.com/tbillington/kondo), [czkawka](https://github.com/qarmin/czkawka), [Stats](https://github.com/exelban/stats), [CapFrameX](https://github.com/CXWorld/CapFrameX) и других проектов; полный список с лицензиями — в [THIRD_PARTY.md](THIRD_PARTY.md).
+OmniGet построен на [yt-dlp](https://github.com/yt-dlp/yt-dlp), [FFmpeg](https://ffmpeg.org/), [gallery-dl](https://github.com/mikf/gallery-dl), [aria2](https://aria2.github.io/), [librqbit](https://github.com/ikatson/rqbit), [SponsorBlock](https://sponsor.ajay.app/), [FxTwitter](https://github.com/FixTweet/FxTwitter), [cat-catch](https://github.com/xifangczy/cat-catch) (части медиасниффера в расширении), [whisper.cpp](https://github.com/ggml-org/whisper.cpp) (во Встречах и в плагине для Claude Code), [Tauri](https://tauri.app) и [Svelte](https://svelte.dev). Агенты, задачи и холст позаимствовали идеи у [opencode](https://github.com/anomalyco/opencode), [Codex](https://github.com/openai/codex), [aider](https://github.com/Aider-AI/aider), [cline](https://github.com/cline/cline), [compozy](https://github.com/compozy/compozy), [Agent Client Protocol](https://agentclientprotocol.com), [mem0](https://github.com/mem0ai/mem0), [letta](https://github.com/letta-ai/letta), [ai-town](https://github.com/a16z-infra/ai-town) и статьи о [generative agents](https://github.com/joonspk-research/generative_agents). Встречи следуют примеру [Meetily](https://github.com/Zackriya-Solutions/meetily), [anarlog](https://github.com/fastrepl/anarlog), [minutes](https://github.com/silverstein/minutes) и [Humla](https://github.com/michaelwilhelmsen/humla), отправляют ботов через [Vexa](https://github.com/Vexa-ai/vexa), доходят до Teams через [ms-365-mcp-server](https://github.com/Softeria/ms-365-mcp-server) и читают записи Teams так, как показал [ms-teams-sharepoint-downloader](https://github.com/brendangooden/ms-teams-sharepoint-downloader). Спасибо всем, кто их поддерживает. washmybelly использует данные и идеи из [privacy.sexy](https://github.com/undergroundwires/privacy.sexy), [BleachBit](https://github.com/bleachbit/bleachbit), [Win11Debloat](https://github.com/Raphire/Win11Debloat), [winutil](https://github.com/ChrisTitusTech/winutil), [Sophia Script](https://github.com/farag2/Sophia-Script-for-Windows), [Bulk Crap Uninstaller](https://github.com/Klocman/Bulk-Crap-Uninstaller), [Kudu](https://github.com/AdventDevInc/kudu), [kondo](https://github.com/tbillington/kondo), [czkawka](https://github.com/qarmin/czkawka), [Stats](https://github.com/exelban/stats), [CapFrameX](https://github.com/CXWorld/CapFrameX) и других проектов; полный список с лицензиями — в [THIRD_PARTY.md](THIRD_PARTY.md).
 
 <p align="center">
   <a href="https://getomniget.com/download"><b>Скачать OmniGet</b></a> · <a href="LICENSE">GPL-3.0</a>

@@ -1085,7 +1085,7 @@
     "section_primary": "Main",
     "section_app": "App",
     "llm": "LLM",
-    "world": "World",
+    "world": "Canvas",
     "help": "Help",
     "help_subtitle": "Guides and assistant",
     "profile_appearance": "Profile and appearance",
@@ -2451,7 +2451,7 @@
       }
     },
     "cat_profile": "Profile",
-    "cat_world": "World",
+    "cat_world": "Canvas",
     "save_failed": "Could not save this change. Try again.",
     "retry": "Try again",
     "search": {
@@ -2822,9 +2822,9 @@
     "folder_change": "變更資料夾",
     "folder_title": "下載資料夾",
     "agents_title": "Meet your agents",
-    "agents_desc": "OmniGet now has a team of AI agents and a house where they live. Both are in the sidebar.",
+    "agents_desc": "OmniGet now has a team of AI agents and a canvas where they work side by side. It starts with three — Omni coordinates, Builder writes code, Scout reads and researches — all local first, and you can edit, replace or delete any of them in LLM › Roster.",
     "agents_llm": "Chat, attach a folder and let an agent read, edit and run your code. It asks before it writes.",
-    "agents_world": "The house where your agents walk around, work at the bench when a tool runs, and receive visitors.",
+    "agents_world": "你的智慧代理並肩工作、彼此交談並接待訪客的畫布。",
     "more_later": "The global hotkey, the browser extension and Discord presence live in Settings whenever you want them.",
     "profile": {
       "title": "Pick a nickname",
@@ -3027,35 +3027,15 @@
     }
   },
   "world": {
-    "title": "World",
-    "subtitle": "你在這台電腦上的家，以及一座與他人共享的城市。",
-    "bench_running": "Benchmark running…",
-    "error": "Renderer error:",
+    "title": "Canvas",
+    "subtitle": "你的智慧代理在這台電腦上的畫布裡：終端機、筆記以及它們之間的連線。",
     "settings": {
-      "title": "World",
-      "tier_measured": "Measured tier",
-      "tier_pinned": "Pinned tier",
-      "tier_auto": "Automatic (measured)",
-      "recalibrate": "Recalibrate",
-      "recalibrating": "Measuring…",
-      "tier_lowered": "The world dropped to a lower tier because the frame time went over budget.",
-      "desc": "How the agents' world is drawn on this machine. The tier is measured, never guessed from the hardware name.",
-      "never_measured": "Not measured yet",
-      "tier_pinned_desc": "Force a tier instead of using the measured one. Automatic follows the measurement and drops a tier when frames go over budget.",
-      "tier_none": "None",
-      "tier_names": {
-        "0": "Software",
-        "1": "Low",
-        "2": "Medium",
-        "3": "High"
-      },
-      "enabled": "Show the world",
-      "enabled_desc": "Adds /world to the sidebar. With it off nothing of the world is loaded or run."
+      "title": "Canvas",
+      "desc": "/world 上的畫布，你的智慧代理在這裡並肩工作。",
+      "enabled": "顯示畫布",
+      "enabled_desc": "把 /world 加到側邊欄。關閉時，畫布的任何內容都不會載入或執行。"
     },
-    "disabled": "The world is switched off. Turn it on in Settings › World.",
-    "house": {
-      "send": "Send"
-    }
+    "disabled": "畫布已關閉。在 設定 › Canvas 中開啟。"
   },
   "llm": {
     "wire": {

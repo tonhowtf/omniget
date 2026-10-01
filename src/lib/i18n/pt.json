@@ -1085,7 +1085,7 @@
     "section_primary": "Main",
     "section_app": "App",
     "llm": "LLM",
-    "world": "Mundo",
+    "world": "Canvas",
     "help": "Help",
     "help_subtitle": "Guias e assistente",
     "profile_appearance": "Perfil e aparência",
@@ -2451,7 +2451,7 @@
       }
     },
     "cat_profile": "Perfil",
-    "cat_world": "Mundo",
+    "cat_world": "Canvas",
     "save_failed": "Não foi possível salvar esta alteração. Tente novamente.",
     "retry": "Tentar novamente",
     "search": {
@@ -2822,9 +2822,9 @@
     "folder_change": "Alterar pasta",
     "folder_title": "Onde guardar seus downloads?",
     "agents_title": "Conheça seus agentes",
-    "agents_desc": "O OmniGet agora tem uma equipe de agentes de IA e uma casa onde eles moram. Começa com três — Omni coordena, Builder escreve código, Scout lê e pesquisa — todos local primeiro, e você pode editar, trocar ou apagar qualquer um em LLM › Elenco.",
+    "agents_desc": "O OmniGet agora tem uma equipe de agentes de IA e um canvas onde eles trabalham lado a lado. Começa com três — Omni coordena, Builder escreve código, Scout lê e pesquisa — todos local primeiro, e você pode editar, trocar ou apagar qualquer um em LLM › Elenco.",
     "agents_llm": "Converse, anexe uma pasta e deixe um agente ler, editar e rodar seu código. Ele pede permissão antes de escrever.",
-    "agents_world": "A casa onde seus agentes andam, trabalham na bancada quando uma tool roda e recebem visitas.",
+    "agents_world": "O canvas onde seus agentes trabalham lado a lado, conversam entre si e recebem visitas.",
     "more_later": "O atalho global, a extensão do navegador e o status no Discord ficam em Configurações quando você quiser.",
     "profile": {
       "title": "Escolha um apelido",
@@ -3027,35 +3027,15 @@
     }
   },
   "world": {
-    "title": "Mundo",
-    "subtitle": "Seus agentes num canvas neste computador e uma cidade que você divide com outras pessoas.",
-    "bench_running": "Benchmark rodando…",
-    "error": "Erro do renderer:",
+    "title": "Canvas",
+    "subtitle": "Seus agentes num canvas neste computador: terminais, notas e os fios entre eles.",
     "settings": {
-      "title": "Mundo",
-      "tier_measured": "Tier medido",
-      "tier_pinned": "Tier fixado",
-      "tier_auto": "Automático (medido)",
-      "recalibrate": "Recalibrar",
-      "recalibrating": "Medindo…",
-      "tier_lowered": "O mundo caiu de tier porque o tempo de frame passou do orçamento.",
-      "desc": "Como o mundo dos agentes é desenhado nesta máquina. O nível é medido, nunca adivinhado pelo nome do hardware.",
-      "never_measured": "Ainda não medido",
-      "tier_pinned_desc": "Força um nível em vez de usar o medido. Automático segue a medição e desce um nível quando os quadros estouram o orçamento.",
-      "tier_none": "Nenhum",
-      "tier_names": {
-        "0": "Software",
-        "1": "Baixo",
-        "2": "Médio",
-        "3": "Alto"
-      },
-      "enabled": "Mostrar o mundo",
-      "enabled_desc": "Coloca /world na barra lateral. Desligado, nada do mundo é carregado nem executado."
+      "title": "Canvas",
+      "desc": "O canvas em /world, onde seus agentes trabalham lado a lado.",
+      "enabled": "Mostrar o canvas",
+      "enabled_desc": "Adiciona /world à barra lateral. Desligado, nada do canvas é carregado ou executado."
     },
-    "disabled": "O mundo está desligado. Ligue em Ajustes › Mundo.",
-    "house": {
-      "send": "Enviar"
-    }
+    "disabled": "O canvas está desligado. Ligue em Ajustes › Canvas."
   },
   "llm": {
     "wire": {

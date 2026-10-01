@@ -306,13 +306,6 @@
     "quarantine_days": 7
   },
   "world": {
-    "backend_override": null,
-    "city_backend": null,
-    "city_server": "",
-    "enabled": true,
-    "measured_app_version": null,
-    "measured_median_ms": null,
-    "tier_measured": null,
-    "tier_override": null
+    "enabled": true
   }
 }

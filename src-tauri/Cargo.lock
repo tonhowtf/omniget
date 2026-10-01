@@ -5520,6 +5520,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "omniget-atlas"
+version = "0.1.0"
+dependencies = [
+ "image",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.69",
+]
+
+[[package]]
 name = "omniget-cli"
 version = "1.0.0"
 dependencies = [
@@ -5628,25 +5638,6 @@ dependencies = [
  "zbus 5.14.0",
  "zip 2.4.2",
  "zstd",
-]
-
-[[package]]
-name = "omniget-world"
-version = "0.1.0"
-dependencies = [
- "serde",
- "serde_json",
- "thiserror 1.0.69",
-]
-
-[[package]]
-name = "omniget-world-tools"
-version = "0.1.0"
-dependencies = [
- "image",
- "serde",
- "serde_json",
- "thiserror 1.0.69",
 ]
 
 [[package]]

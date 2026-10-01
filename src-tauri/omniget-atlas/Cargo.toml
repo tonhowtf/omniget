@@ -1,0 +1,25 @@
+[package]
+name = "omniget-atlas"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Atlas packer for the Omni sprite of the canvas and the pet (tooling; not a dependency of the app)"
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "atlas-pack"
+path = "src/bin/atlas-pack.rs"
+
+[dependencies]
+image = { version = "0.25", default-features = false, features = ["png"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "1"
+
+# The integration tests in tests/ do not see the crate's own dependencies, so the
+# same three are listed again here. No new crate enters Cargo.lock because of it.
+[dev-dependencies]
+image = { version = "0.25", default-features = false, features = ["png"] }
+serde_json = "1"

@@ -63,7 +63,7 @@ Each line can be checked in the README or the app.
 - Shows the diff before an agent writes, and lets you undo.
 - Jobs keep running after the window closes; a Loop repeats until your test command passes.
 - `omniget-cli claude` opens Claude Code on one of the app's accounts; `omniget-cli usage` shows each account's limits and spend.
-- The World: an isometric house where each agent walks to a desk and shows what it's doing.
+- The Canvas: each agent runs in its own terminal on a canvas, and cords between agents let them message and ask each other.
 
 **The app**
 - Windows 10/11, macOS (Apple Silicon and Intel), Linux (.deb, .rpm, AppImage).
@@ -137,7 +137,6 @@ Use images from [`assets/readme/`](assets/readme/), linked from the repository. 
 - `illustration-mcp-downloads.webp`: an agent in a terminal sending downloads to a folder (MCP)
 - `illustration-downloader.webp`: links from many sites landing in one download tray
 - `illustration-agents.webp`: AI agents with a permission card and passing tests
-- `illustration-world-house.webp`: the World, agents working in a house
 - `illustration-support.webp`: supporting the project
 - `downloads.png`: the download queue
 - `extension.png`: the browser extension

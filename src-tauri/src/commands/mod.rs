@@ -54,7 +54,6 @@ pub mod tv_library;
 pub mod video;
 pub mod video_ops;
 pub mod washmybelly;
-pub mod world_bench;
 pub mod yt_templates;
 
 #[cfg(not(target_os = "android"))]

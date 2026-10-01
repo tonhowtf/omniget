@@ -67,7 +67,7 @@ or export a GIF/WebP to assets/readme/hero.webp and use an <img>.
 1. [让 Claude 去下载：把 OmniGet 当作 MCP 服务器](#let-claude-download-it)
 2. [下载器](#the-downloader)
 3. [窗口里的 AI 智能体：Claude Code、Codex 和 Gemini CLI 的桌面应用](#ai-agents-in-a-window)
-4. [World：看你的智能体干活](#the-world)
+4. [Canvas：看你的智能体干活](#the-canvas)
 5. [工具区：即将回归](#tools-coming-back)
 
 另外：[下载与安装](#download-and-install) · [超能力](#superpowers) · [会议](#meetings) · [washmybelly](#washmybelly) · [其他随附功能](#everything-else-in-the-box) · [隐私](#privacy-and-what-omniget-refuses-to-do) · [支持 OmniGet](#support-omniget) · [常见问题](#frequently-asked-questions) · [命令行](#command-line) · [从源码构建](#build-from-source) · [致平台所有者](#notice-to-platform-owners) · [参与贡献](#contributing-and-translations)
@@ -379,27 +379,14 @@ omniget-cli agent jobs               # 最近的 Job；传入 id 可以跟踪某
 
 ---
 
-<a id="the-world"></a>
+<a id="the-canvas"></a>
 
-## 4. World：看你的智能体干活
+## 4. Canvas：看你的智能体干活
 
-<!--
-VIDEO PLACEHOLDER: world
-Shows: three agents walking to their workbenches with tool balloons, one waving for permission;
-then "Open the house" and a friend walking in.
-Length: 15 to 25 s. 1600 px wide.
--->
+`/world` 是一块画布，你的智能体在上面并肩工作。每个智能体在自己的终端节点里运行（Claude Code、Codex、Gemini CLI 或本地模型），你可以在它们旁边放笔记、文件、链接和浏览器预览。在两个智能体之间拉一条连线，它们就能互相发消息、互相求助；消息或提问在路上时连线会亮起。楼层让一个工作区里有多块独立的画板，例程按时间表启动智能体。
 
-<p align="center">
-  <img src="assets/readme/illustration-world-house.webp" alt="一座剖开的等距小屋，三个机器人智能体各自在工作台前干活，头顶飘着工具气泡，Loop 在沙发上休息" width="820" />
-</p>
-
-你的智能体住在一座等距视角的房子里。每个智能体有自己的书桌和工作台，一个回合开始时走过去，用气泡显示正在运行的工具（`fs_edit cart.js`、`shell_exec`），需要权限时向你招手。额度用完了它就去睡觉。房子旁边的 Activity 面板列出谁在做什么。`/world?demo=1` 会播放一段预设的演示，不花一个 token。
-
-- **做客。** **Open the house** 会给你一个类似 `ZZCJ-YA09` 的代码。朋友输入它就能走进来：他们能看到你的智能体在干活，也能聊天，仅此而已。中继只负责转发画面帧；你的密钥和智能体都留在你的电脑上。公共中继是 `wss://chat.tonho.wtf/v1/room`，`scripts/omniworld-server/` 里的 `omniworld-server` 让你可以自己托管一个。
-- **宠物。** 一个漂浮的 Omni，会对你的智能体的动作做出反应，包括在终端里运行的 Claude Code 或 Codex，还能回答它们的权限提示。
-
-模拟部分是一个 Rust crate，渲染器用的是 WebGL2。八个智能体同时干活时，在测试机器上帧率中位数保持在每秒 64 帧。
+- **访问。** **开放访问** 会给你一个类似 `ZZCJ-YA09` 的代码。朋友输入它后可以只读地看到你的节点、连线和智能体状态。除非你共享某个节点，终端内容保持私密。中继只转发画面；你的密钥和智能体都留在你的电脑上。公共中继是 `wss://chat.tonho.wtf/v1/room`，`scripts/omniworld-server/` 里的 `omniworld-server` 让你自己托管一个。
+- **宠物。** 一个漂浮的 Omni，会对智能体的动作做出反应，包括在终端里运行的 Claude Code 或 Codex，并回应它们的权限请求。
 
 ---
 
@@ -739,7 +726,7 @@ Loop 是 OmniGet 的吉祥物。欢迎同人创作；原始美术不得用于商
 
 ## 站在开源的肩膀上
 
-OmniGet 建立在 [yt-dlp](https://github.com/yt-dlp/yt-dlp)、[FFmpeg](https://ffmpeg.org/)、[gallery-dl](https://github.com/mikf/gallery-dl)、[aria2](https://aria2.github.io/)、[librqbit](https://github.com/ikatson/rqbit)、[SponsorBlock](https://sponsor.ajay.app/)、[FxTwitter](https://github.com/FixTweet/FxTwitter)、[cat-catch](https://github.com/xifangczy/cat-catch)（扩展的媒体嗅探器有一部分来自它）、[whisper.cpp](https://github.com/ggml-org/whisper.cpp)（用在会议和 Claude Code 插件里）、[Tauri](https://tauri.app) 和 [Svelte](https://svelte.dev) 之上。智能体、Job 和 World 借鉴了 [opencode](https://github.com/anomalyco/opencode)、[Codex](https://github.com/openai/codex)、[aider](https://github.com/Aider-AI/aider)、[cline](https://github.com/cline/cline)、[compozy](https://github.com/compozy/compozy)、[Agent Client Protocol](https://agentclientprotocol.com)、[mem0](https://github.com/mem0ai/mem0)、[letta](https://github.com/letta-ai/letta)、[ai-town](https://github.com/a16z-infra/ai-town) 以及 [generative agents](https://github.com/joonspk-research/generative_agents) 论文的思路。会议功能参考了 [Meetily](https://github.com/Zackriya-Solutions/meetily)、[anarlog](https://github.com/fastrepl/anarlog)、[minutes](https://github.com/silverstein/minutes) 和 [Humla](https://github.com/michaelwilhelmsen/humla)，通过 [Vexa](https://github.com/Vexa-ai/vexa) 派机器人，通过 [ms-365-mcp-server](https://github.com/Softeria/ms-365-mcp-server) 连接 Teams，并按照 [ms-teams-sharepoint-downloader](https://github.com/brendangooden/ms-teams-sharepoint-downloader) 展示的方式读取 Teams 录制。感谢所有维护它们的人。washmybelly 使用了 [privacy.sexy](https://github.com/undergroundwires/privacy.sexy)、[BleachBit](https://github.com/bleachbit/bleachbit)、[Win11Debloat](https://github.com/Raphire/Win11Debloat)、[winutil](https://github.com/ChrisTitusTech/winutil)、[Sophia Script](https://github.com/farag2/Sophia-Script-for-Windows)、[Bulk Crap Uninstaller](https://github.com/Klocman/Bulk-Crap-Uninstaller)、[Kudu](https://github.com/AdventDevInc/kudu)、[kondo](https://github.com/tbillington/kondo)、[czkawka](https://github.com/qarmin/czkawka)、[Stats](https://github.com/exelban/stats)、[CapFrameX](https://github.com/CXWorld/CapFrameX) 等项目的数据和思路，完整列表和许可证见 [THIRD_PARTY.md](THIRD_PARTY.md)。
+OmniGet 建立在 [yt-dlp](https://github.com/yt-dlp/yt-dlp)、[FFmpeg](https://ffmpeg.org/)、[gallery-dl](https://github.com/mikf/gallery-dl)、[aria2](https://aria2.github.io/)、[librqbit](https://github.com/ikatson/rqbit)、[SponsorBlock](https://sponsor.ajay.app/)、[FxTwitter](https://github.com/FixTweet/FxTwitter)、[cat-catch](https://github.com/xifangczy/cat-catch)（扩展的媒体嗅探器有一部分来自它）、[whisper.cpp](https://github.com/ggml-org/whisper.cpp)（用在会议和 Claude Code 插件里）、[Tauri](https://tauri.app) 和 [Svelte](https://svelte.dev) 之上。智能体、Job 和画布借鉴了 [opencode](https://github.com/anomalyco/opencode)、[Codex](https://github.com/openai/codex)、[aider](https://github.com/Aider-AI/aider)、[cline](https://github.com/cline/cline)、[compozy](https://github.com/compozy/compozy)、[Agent Client Protocol](https://agentclientprotocol.com)、[mem0](https://github.com/mem0ai/mem0)、[letta](https://github.com/letta-ai/letta)、[ai-town](https://github.com/a16z-infra/ai-town) 以及 [generative agents](https://github.com/joonspk-research/generative_agents) 论文的思路。会议功能参考了 [Meetily](https://github.com/Zackriya-Solutions/meetily)、[anarlog](https://github.com/fastrepl/anarlog)、[minutes](https://github.com/silverstein/minutes) 和 [Humla](https://github.com/michaelwilhelmsen/humla)，通过 [Vexa](https://github.com/Vexa-ai/vexa) 派机器人，通过 [ms-365-mcp-server](https://github.com/Softeria/ms-365-mcp-server) 连接 Teams，并按照 [ms-teams-sharepoint-downloader](https://github.com/brendangooden/ms-teams-sharepoint-downloader) 展示的方式读取 Teams 录制。感谢所有维护它们的人。washmybelly 使用了 [privacy.sexy](https://github.com/undergroundwires/privacy.sexy)、[BleachBit](https://github.com/bleachbit/bleachbit)、[Win11Debloat](https://github.com/Raphire/Win11Debloat)、[winutil](https://github.com/ChrisTitusTech/winutil)、[Sophia Script](https://github.com/farag2/Sophia-Script-for-Windows)、[Bulk Crap Uninstaller](https://github.com/Klocman/Bulk-Crap-Uninstaller)、[Kudu](https://github.com/AdventDevInc/kudu)、[kondo](https://github.com/tbillington/kondo)、[czkawka](https://github.com/qarmin/czkawka)、[Stats](https://github.com/exelban/stats)、[CapFrameX](https://github.com/CXWorld/CapFrameX) 等项目的数据和思路，完整列表和许可证见 [THIRD_PARTY.md](THIRD_PARTY.md)。
 
 <p align="center">
   <a href="https://getomniget.com/download"><b>下载 OmniGet</b></a> · <a href="LICENSE">GPL-3.0</a>

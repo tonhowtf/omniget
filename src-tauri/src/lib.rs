@@ -64,7 +64,6 @@ pub mod storage;
 pub mod threads_host;
 pub mod tray;
 pub mod usage_tray;
-pub mod world_bench;
 
 struct DesktopCookieProvider;
 
@@ -506,10 +505,6 @@ pub fn run() {
                     });
                 }
             }
-
-            // Modo bench do mundo (`OMNIGET_WORLD_BENCH=<cenario>`): mesmo molde
-            // do smoke; abre `/world?bench=`, recebe o JSON e sai. Ver `world_bench.rs`.
-            world_bench::maybe_run(app);
 
             // The pet survives restarts when the user left it on.
             if commands::pet::load_prefs().enabled {
@@ -1642,7 +1637,6 @@ pub fn run() {
             commands::profile::profile_set_nickname,
             commands::profile::profile_set_skin,
             // Fase 6 (bench do mundo) — f6-bench
-            commands::world_bench::world_bench_report,
             // Fase 2 (/llm) — f2-llm-commands, f2-wire-probe; Fase 5 (pet) — f5-pet-window
             // central:begin (costurado pelo orquestrador; não editar à mão)
             commands::central::agentkit::agentkit_targets,
