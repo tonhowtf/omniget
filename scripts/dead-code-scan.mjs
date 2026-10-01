@@ -56,7 +56,7 @@ const allRust = [...rustText.values()].join("\n");
 const report = {};
 
 if (want("commands")) {
-  const lib = read(join(ROOT, "src-tauri", "src", "lib.rs"));
+  const lib = read(join(ROOT, "src-tauri", "src", "handlers.rs"));
   const block = lib.slice(lib.indexOf("generate_handler!["));
   const body = block.slice(0, block.indexOf("])"));
   const registered = body

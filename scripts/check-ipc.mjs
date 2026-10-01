@@ -725,13 +725,13 @@ const frontEmitTo = collectTargets(
 );
 frontEmits.found.push(...frontEmitTo.found);
 
-const libPath = join(ROOT, "src-tauri", "src", "lib.rs");
+const libPath = join(ROOT, "src-tauri", "src", "handlers.rs");
 const libLexed = lexRust(readFileSync(libPath, "utf8"));
 const registered = new Set();
 {
   const at = libLexed.mask.indexOf("generate_handler!");
   if (at < 0) {
-    console.error("check-ipc: generate_handler! not found in src-tauri/src/lib.rs");
+    console.error("check-ipc: generate_handler! not found in src-tauri/src/handlers.rs");
     process.exit(2);
   }
   const open = libLexed.mask.indexOf("[", at);
@@ -850,7 +850,7 @@ for (const t of invokes.found) {
   invokedNames.add(t.exact);
   if (t.exact.startsWith("plugin:")) continue;
   if (!registered.has(t.exact) && !allowedCommands.has(t.exact)) {
-    errors.push(`${t.file}:${t.line}: invoke("${t.exact}") is not registered in generate_handler! (src-tauri/src/lib.rs)`);
+    errors.push(`${t.file}:${t.line}: invoke("${t.exact}") is not registered in generate_handler! (src-tauri/src/handlers.rs)`);
   }
 }
 

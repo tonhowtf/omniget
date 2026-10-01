@@ -21,5 +21,3 @@ pub mod noop;
 
 #[cfg(not(target_os = "android"))]
 pub mod gallerydl;
-#[cfg(not(target_os = "android"))]
-pub mod generic_ytdlp;

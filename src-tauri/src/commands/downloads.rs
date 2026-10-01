@@ -574,7 +574,7 @@ pub async fn download_with_custom_args(
     }
 
     let downloader: Arc<dyn crate::platforms::traits::PlatformDownloader> =
-        Arc::new(crate::platforms::generic_ytdlp::GenericYtdlpDownloader::new());
+        Arc::new(omniget_core::platforms::generic_ytdlp::GenericYtdlpDownloader::new());
 
     let title = crate::core::flight_recorder::redact_url(&url);
     let ytdlp_path = ytdlp::find_ytdlp_cached().await;

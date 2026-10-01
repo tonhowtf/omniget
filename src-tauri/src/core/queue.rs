@@ -2497,11 +2497,11 @@ async fn fetch_and_cache_info(
                 omniget_core::platforms::YouTubeDownloader::fetch_with_ytdlp(url, ytdlp).await?
             }
             "generic" => {
-                if crate::platforms::generic_ytdlp::is_direct_media_url(url).is_some() {
+                if omniget_core::platforms::generic_ytdlp::is_direct_media_url(url).is_some() {
                     downloader.get_media_info(url).await?
                 } else {
                     let json = crate::core::ytdlp::get_video_info(ytdlp, url, &[]).await?;
-                    crate::platforms::generic_ytdlp::GenericYtdlpDownloader::parse_video_info(
+                    omniget_core::platforms::generic_ytdlp::GenericYtdlpDownloader::parse_video_info(
                         &json,
                     )?
                 }
