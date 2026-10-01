@@ -1,6 +1,6 @@
 # Contributing to OmniGet
 
-Thanks for helping. This page is the short version of how the project works: how to get it running, what CI checks, and the few rules that keep the codebase tidy. Questions go to [Discord](https://discord.gg/jgdxyPy7Vn); bugs and ideas go to [Issues](https://github.com/tonhowtf/omniget/issues).
+Thanks for helping. This page is the short version of how the project works: how to get it running, what the checks are, and the few rules that keep the codebase tidy. Questions go to [Discord](https://discord.gg/jgdxyPy7Vn); bugs and ideas go to [Issues](https://github.com/tonhowtf/omniget/issues).
 
 ## Contents
 
@@ -39,11 +39,11 @@ Use pnpm. `package-lock.json` exists only for the Flatpak build and the version 
 
 ## Checks
 
-Run these before you push. They are what CI runs.
+Run these before you push. There is no CI: these are the gate.
 
 | Command | What it does |
 |---|---|
-| `pnpm verify` | Every check CI runs, in one command, with one table of results at the end |
+| `pnpm verify` | Every check, in one command, with one table of results at the end |
 | `pnpm verify --changed` | Only the areas your branch touched since it left `main` (commits, working tree and new files) |
 | `pnpm verify --fix` | Runs `cargo fmt --all` first |
 | `pnpm hooks:install` | Opt-in: a pre-push hook (`scripts/git-hooks/`) that runs `pnpm verify --changed`. `pnpm hooks:uninstall` removes it; `git push --no-verify` skips it once |
@@ -53,7 +53,7 @@ Run these before you push. They are what CI runs.
 
 The individual steps, if you want to run one by hand:
 
-- Frontend: `pnpm check` (svelte-check), `pnpm test` (vitest), `pnpm check:i18n`, `pnpm generate:i18n-keys`
+- Frontend: `pnpm check` (svelte-check), `pnpm test` (vitest), `pnpm check:i18n`
 - Rust, inside `src-tauri/`: `cargo fmt --all -- --check`, `cargo clippy --workspace --all-targets`, `cargo test --workspace`
 - Clippy baseline, from the root: `pnpm check:clippy-baseline`
 - Tauri commands and events: `pnpm check:ipc`

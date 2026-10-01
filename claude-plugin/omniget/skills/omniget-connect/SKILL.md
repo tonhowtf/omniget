@@ -17,6 +17,6 @@ into Claude Code's own config. The token never passes through this conversation.
 
    (Windows PowerShell: try `curl.exe -s "http://127.0.0.1:<port>/connect?client=claude"` on each port.)
    If no port answers that way, OmniGet is not open or is older than this feature: ask the
-   person to open or update it (https://github.com/tonhowtf/omniget/releases) and try again.
+   person to open or update it (https://getomniget.com/download) and try again.
 2. Follow the steps it returns, then tell the user to start a new Claude Code session
    so the `omniget` tools load.

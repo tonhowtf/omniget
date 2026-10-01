@@ -1,6 +1,6 @@
 # cargo-deny, advisories only (RustSec): known vulnerabilities, unsound and
 # unmaintained crates, yanked versions. Licenses, bans and sources are not
-# checked here. Runs in .github/workflows/nightly.yml, not on pull requests:
+# checked here. Run by hand:
 #
 #   cargo deny --manifest-path src-tauri/Cargo.toml check advisories
 #

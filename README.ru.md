@@ -48,7 +48,6 @@ or export a GIF/WebP to assets/readme/hero.webp and use an <img>.
 
 <p align="center">
   <a href="https://getomniget.com"><img src="https://img.shields.io/badge/website-getomniget.com-F28500?style=for-the-badge" alt="getomniget.com" /></a>
-  <a href="https://github.com/tonhowtf/omniget/releases/latest"><img src="https://img.shields.io/github/v/release/tonhowtf/omniget?style=for-the-badge&label=release&color=F28500" alt="Последний релиз" /></a>
   <a href="https://github.com/tonhowtf/omniget/stargazers"><img src="https://img.shields.io/github/stars/tonhowtf/omniget?style=for-the-badge&color=FFD426" alt="Звёзды на GitHub" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-2AA845?style=for-the-badge" alt="Лицензия GPL-3.0" /></a>
   <a href="https://discord.gg/jgdxyPy7Vn"><img src="https://img.shields.io/badge/Discord-community-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Сообщество в Discord" /></a>
@@ -421,7 +420,7 @@ Length: 15 to 25 s. 1600 px wide.
 
 ## Скачать и установить
 
-Все сборки лежат на [странице релизов](https://github.com/tonhowtf/omniget/releases/latest). Обновления приходят внутри приложения.
+Все сборки лежат на [странице релизов](https://getomniget.com/download). Обновления приходят внутри приложения.
 
 <table>
   <tr>
@@ -442,7 +441,7 @@ Length: 15 to 25 s. 1600 px wide.
   <tr>
     <td><b>Linux</b></td>
     <td><code>.deb</code> для Debian и Ubuntu<br/><code>.rpm</code> для Fedora, openSUSE и семейства RHEL<br/><code>.AppImage</code> для всего остального<br/>(x86_64 и ARM64)</td>
-    <td>AppImage обновляется сам через свой файл <code>.zsync</code></td>
+    <td>—</td>
   </tr>
 </table>
 
@@ -719,7 +718,7 @@ pnpm tauri build --config '{"bundle":{"createUpdaterArtifacts":false}}'
 
 Стек: Tauri 2, Rust, SvelteKit со Svelte 5, SQLite, yt-dlp, FFmpeg, gallery-dl, aria2 и librqbit для торрентов.
 
-Собираетесь что-то изменить? В [CONTRIBUTING.md](CONTRIBUTING.md) описаны цикл разработки, проверки CI и правила проекта.
+Собираетесь что-то изменить? В [CONTRIBUTING.md](CONTRIBUTING.md) описаны цикл разработки, проверки и правила проекта.
 
 ---
 
@@ -748,5 +747,5 @@ Loop — маскот OmniGet. Фан-арт приветствуется; ор�
 OmniGet построен на [yt-dlp](https://github.com/yt-dlp/yt-dlp), [FFmpeg](https://ffmpeg.org/), [gallery-dl](https://github.com/mikf/gallery-dl), [aria2](https://aria2.github.io/), [librqbit](https://github.com/ikatson/rqbit), [SponsorBlock](https://sponsor.ajay.app/), [FxTwitter](https://github.com/FixTweet/FxTwitter), [cat-catch](https://github.com/xifangczy/cat-catch) (части медиасниффера в расширении), [whisper.cpp](https://github.com/ggml-org/whisper.cpp) (во Встречах и в плагине для Claude Code), [Tauri](https://tauri.app) и [Svelte](https://svelte.dev). Агенты, задачи и Мир позаимствовали идеи у [opencode](https://github.com/anomalyco/opencode), [Codex](https://github.com/openai/codex), [aider](https://github.com/Aider-AI/aider), [cline](https://github.com/cline/cline), [compozy](https://github.com/compozy/compozy), [Agent Client Protocol](https://agentclientprotocol.com), [mem0](https://github.com/mem0ai/mem0), [letta](https://github.com/letta-ai/letta), [ai-town](https://github.com/a16z-infra/ai-town) и статьи о [generative agents](https://github.com/joonspk-research/generative_agents). Встречи следуют примеру [Meetily](https://github.com/Zackriya-Solutions/meetily), [anarlog](https://github.com/fastrepl/anarlog), [minutes](https://github.com/silverstein/minutes) и [Humla](https://github.com/michaelwilhelmsen/humla), отправляют ботов через [Vexa](https://github.com/Vexa-ai/vexa), доходят до Teams через [ms-365-mcp-server](https://github.com/Softeria/ms-365-mcp-server) и читают записи Teams так, как показал [ms-teams-sharepoint-downloader](https://github.com/brendangooden/ms-teams-sharepoint-downloader). Спасибо всем, кто их поддерживает. washmybelly использует данные и идеи из [privacy.sexy](https://github.com/undergroundwires/privacy.sexy), [BleachBit](https://github.com/bleachbit/bleachbit), [Win11Debloat](https://github.com/Raphire/Win11Debloat), [winutil](https://github.com/ChrisTitusTech/winutil), [Sophia Script](https://github.com/farag2/Sophia-Script-for-Windows), [Bulk Crap Uninstaller](https://github.com/Klocman/Bulk-Crap-Uninstaller), [Kudu](https://github.com/AdventDevInc/kudu), [kondo](https://github.com/tbillington/kondo), [czkawka](https://github.com/qarmin/czkawka), [Stats](https://github.com/exelban/stats), [CapFrameX](https://github.com/CXWorld/CapFrameX) и других проектов; полный список с лицензиями — в [THIRD_PARTY.md](THIRD_PARTY.md).
 
 <p align="center">
-  <a href="https://github.com/tonhowtf/omniget/releases/latest"><b>Скачать OmniGet</b></a> · <a href="LICENSE">GPL-3.0</a>
+  <a href="https://getomniget.com/download"><b>Скачать OmniGet</b></a> · <a href="LICENSE">GPL-3.0</a>
 </p>

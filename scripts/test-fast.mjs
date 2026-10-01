@@ -70,7 +70,7 @@ function web() {
   return Promise.all([
     run("vitest", "pnpm", ["-s", "vitest", "run"]),
     run("svelte-check", "pnpm", ["-s", "check"]),
-    run("i18n strict", "node", ["scripts/generate-i18n-keys.js", "--strict"]),
+    run("i18n strict", "node", ["scripts/check-i18n.js", "--strict"]),
   ]);
 }
 

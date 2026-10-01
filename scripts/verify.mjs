@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// Runs what CI demands, locally, and prints one table at the end.
+// The verification gate (there is no CI): runs every check and prints one table at the end.
 //
-//   pnpm verify              everything CI runs (Rust + web + optional suites)
+//   pnpm verify              every check (Rust + web + optional suites)
 //   pnpm verify --changed    only the areas touched since the merge-base with
 //                            main (commits, working tree and untracked files)
 //   pnpm verify --fix        run `cargo fmt --all` first
@@ -14,14 +14,13 @@
 // CARGO_TARGET_DIR is set or OMNIGET_SHARED_TARGET=0; see scripts/cargo-env.mjs.
 // The opt-in pre-push hook (`pnpm hooks:install`) runs `--changed`.
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { cargoEnv, cargoEnvSummary } from "./cargo-env.mjs";
 
 const root = resolve(fileURLToPath(new URL(".", import.meta.url)), "..");
 const tauriDir = join(root, "src-tauri");
-const keysFile = join(root, "src", "lib", "i18n", "keys.ts");
 const isWindows = process.platform === "win32";
 
 const argv = process.argv.slice(2);
@@ -68,7 +67,7 @@ const WEB_FILES = [
   /^pnpm-workspace\.yaml$/,
   /^(svelte|vite|vitest)\.config\.[cm]?[jt]s$/,
   /^tsconfig[^/]*\.json$/,
-  /^scripts\/generate-i18n-keys\.js$/,
+  /^scripts\/check-i18n\.js$/,
 ];
 const areas = {
   rust: (f) =>
@@ -147,39 +146,12 @@ async function rustChain() {
   await check("cargo test", "cargo", ["test", "--workspace", "--no-fail-fast"], tauriDir);
 }
 
-// check:i18n and generate:i18n-keys both rewrite keys.ts, so they run in one
-// chain, and "committed" is judged against the file as it was before either ran.
-const keysBefore = existsSync(keysFile) ? readFileSync(keysFile, "utf8").replace(/\r\n/g, "\n") : null;
-
-async function i18nChain() {
-  await check("pnpm check:i18n", "pnpm", ["-s", "check:i18n"]);
-  const r = await exec("pnpm", ["-s", "generate:i18n-keys"]);
-  if (!r.ok) {
-    record("i18n keys committed", false, r.secs, r.out);
-    return;
-  }
-  const after = existsSync(keysFile) ? readFileSync(keysFile, "utf8").replace(/\r\n/g, "\n") : null;
-  if (after !== keysBefore) {
-    record(
-      "i18n keys committed",
-      false,
-      r.secs,
-      `${r.out}\nsrc/lib/i18n/keys.ts was out of date with en.json. It has been regenerated now; commit it.`,
-    );
-    return;
-  }
-  // Fresh in the working tree. CI compares against the commit, so say so when
-  // the fresh file is not committed yet (not a failure: the work may be too).
-  const dirty = git(["status", "--porcelain", "--", "src/lib/i18n/keys.ts"])?.trim();
-  record("i18n keys committed", true, r.secs, "", dirty ? "(up to date, but not committed yet)" : "");
-}
-
 function webChecks() {
   if (!wants("web")) {
-    for (const l of ["pnpm check", "pnpm test", "pnpm check:i18n", "i18n keys committed"]) skip(l, "no web changes");
+    for (const l of ["pnpm check", "pnpm test", "pnpm check:i18n"]) skip(l, "no web changes");
     return [];
   }
-  return [check("pnpm check", "pnpm", ["-s", "check"]), check("pnpm test", "pnpm", ["-s", "test"]), i18nChain()];
+  return [check("pnpm check", "pnpm", ["-s", "check"]), check("pnpm test", "pnpm", ["-s", "test"]), check("pnpm check:i18n", "pnpm", ["-s", "check:i18n"])];
 }
 
 // Suites other scripts define; each runs only when package.json has it.

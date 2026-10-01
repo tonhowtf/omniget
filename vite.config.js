@@ -30,11 +30,11 @@ function getVersion() {
   }
 }
 
-function i18nKeysPlugin({ strict } = { strict: false }) {
+function i18nCheckPlugin({ strict } = { strict: false }) {
   return {
-    name: "omniget-i18n-keys",
+    name: "omniget-i18n-check",
     buildStart() {
-      const script = path.join(configDir, "scripts", "generate-i18n-keys.js");
+      const script = path.join(configDir, "scripts", "check-i18n.js");
       if (!existsSync(script)) {
         return;
       }
@@ -45,7 +45,7 @@ function i18nKeysPlugin({ strict } = { strict: false }) {
       });
       if (result.status !== 0) {
         throw new Error(
-          `generate-i18n-keys.js exited with code ${result.status}. ` +
+          `check-i18n.js exited with code ${result.status}. ` +
             `Fix locale keys or set OMNIGET_I18N_STRICT=0 to bypass.`,
         );
       }
@@ -74,7 +74,7 @@ export default defineConfig(({ command }) => {
   return {
     plugins: [
       devRevisionPlugin(configDir),
-      i18nKeysPlugin({ strict: strictI18n }),
+      i18nCheckPlugin({ strict: strictI18n }),
       pdfjsRuntimePlugin(),
       sveltekit(),
     ],

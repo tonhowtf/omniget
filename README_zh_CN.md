@@ -44,7 +44,6 @@ or export a GIF/WebP to assets/readme/hero.webp and use an <img>.
 
 <p align="center">
   <a href="https://getomniget.com"><img src="https://img.shields.io/badge/website-getomniget.com-F28500?style=for-the-badge" alt="getomniget.com" /></a>
-  <a href="https://github.com/tonhowtf/omniget/releases/latest"><img src="https://img.shields.io/github/v/release/tonhowtf/omniget?style=for-the-badge&label=release&color=F28500" alt="最新版本" /></a>
   <a href="https://github.com/tonhowtf/omniget/stargazers"><img src="https://img.shields.io/github/stars/tonhowtf/omniget?style=for-the-badge&color=FFD426" alt="GitHub Star 数" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-2AA845?style=for-the-badge" alt="GPL-3.0 许可证" /></a>
   <a href="https://discord.gg/jgdxyPy7Vn"><img src="https://img.shields.io/badge/Discord-community-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Discord 社区" /></a>
@@ -417,7 +416,7 @@ Length: 15 to 25 s. 1600 px wide.
 
 ## 下载与安装
 
-所有构建都在 [Releases 页面](https://github.com/tonhowtf/omniget/releases/latest)。更新会在应用内推送。
+所有构建都在 [Releases 页面](https://getomniget.com/download)。更新会在应用内推送。
 
 <table>
   <tr>
@@ -438,7 +437,7 @@ Length: 15 to 25 s. 1600 px wide.
   <tr>
     <td><b>Linux</b></td>
     <td><code>.deb</code>：Debian 和 Ubuntu<br/><code>.rpm</code>：Fedora、openSUSE 和 RHEL 系<br/><code>.AppImage</code>：其他发行版<br/>（x86_64 和 ARM64）</td>
-    <td>AppImage 通过它的 <code>.zsync</code> 文件自动更新</td>
+    <td>—</td>
   </tr>
 </table>
 
@@ -715,7 +714,7 @@ pnpm tauri build --config '{"bundle":{"createUpdaterArtifacts":false}}'
 
 技术栈：Tauri 2、Rust、SvelteKit（Svelte 5）、SQLite、yt-dlp、FFmpeg、gallery-dl、aria2，种子下载用 librqbit。
 
-想改点什么？[CONTRIBUTING.md](CONTRIBUTING.md) 里有开发流程、CI 会跑的检查和项目规则。
+想改点什么？[CONTRIBUTING.md](CONTRIBUTING.md) 里有开发流程、需要运行的检查和项目规则。
 
 ---
 
@@ -744,5 +743,5 @@ Loop 是 OmniGet 的吉祥物。欢迎同人创作；原始美术不得用于商
 OmniGet 建立在 [yt-dlp](https://github.com/yt-dlp/yt-dlp)、[FFmpeg](https://ffmpeg.org/)、[gallery-dl](https://github.com/mikf/gallery-dl)、[aria2](https://aria2.github.io/)、[librqbit](https://github.com/ikatson/rqbit)、[SponsorBlock](https://sponsor.ajay.app/)、[FxTwitter](https://github.com/FixTweet/FxTwitter)、[cat-catch](https://github.com/xifangczy/cat-catch)（扩展的媒体嗅探器有一部分来自它）、[whisper.cpp](https://github.com/ggml-org/whisper.cpp)（用在会议和 Claude Code 插件里）、[Tauri](https://tauri.app) 和 [Svelte](https://svelte.dev) 之上。智能体、Job 和 World 借鉴了 [opencode](https://github.com/anomalyco/opencode)、[Codex](https://github.com/openai/codex)、[aider](https://github.com/Aider-AI/aider)、[cline](https://github.com/cline/cline)、[compozy](https://github.com/compozy/compozy)、[Agent Client Protocol](https://agentclientprotocol.com)、[mem0](https://github.com/mem0ai/mem0)、[letta](https://github.com/letta-ai/letta)、[ai-town](https://github.com/a16z-infra/ai-town) 以及 [generative agents](https://github.com/joonspk-research/generative_agents) 论文的思路。会议功能参考了 [Meetily](https://github.com/Zackriya-Solutions/meetily)、[anarlog](https://github.com/fastrepl/anarlog)、[minutes](https://github.com/silverstein/minutes) 和 [Humla](https://github.com/michaelwilhelmsen/humla)，通过 [Vexa](https://github.com/Vexa-ai/vexa) 派机器人，通过 [ms-365-mcp-server](https://github.com/Softeria/ms-365-mcp-server) 连接 Teams，并按照 [ms-teams-sharepoint-downloader](https://github.com/brendangooden/ms-teams-sharepoint-downloader) 展示的方式读取 Teams 录制。感谢所有维护它们的人。washmybelly 使用了 [privacy.sexy](https://github.com/undergroundwires/privacy.sexy)、[BleachBit](https://github.com/bleachbit/bleachbit)、[Win11Debloat](https://github.com/Raphire/Win11Debloat)、[winutil](https://github.com/ChrisTitusTech/winutil)、[Sophia Script](https://github.com/farag2/Sophia-Script-for-Windows)、[Bulk Crap Uninstaller](https://github.com/Klocman/Bulk-Crap-Uninstaller)、[Kudu](https://github.com/AdventDevInc/kudu)、[kondo](https://github.com/tbillington/kondo)、[czkawka](https://github.com/qarmin/czkawka)、[Stats](https://github.com/exelban/stats)、[CapFrameX](https://github.com/CXWorld/CapFrameX) 等项目的数据和思路，完整列表和许可证见 [THIRD_PARTY.md](THIRD_PARTY.md)。
 
 <p align="center">
-  <a href="https://github.com/tonhowtf/omniget/releases/latest"><b>下载 OmniGet</b></a> · <a href="LICENSE">GPL-3.0</a>
+  <a href="https://getomniget.com/download"><b>下载 OmniGet</b></a> · <a href="LICENSE">GPL-3.0</a>
 </p>

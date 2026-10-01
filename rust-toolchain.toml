@@ -1,4 +1,4 @@
-# Pins the compiler so local builds, CI and releases produce the same binary.
+# Pins the compiler so local builds and releases produce the same binary.
 [toolchain]
 channel = "1.97.0"
 components = ["rustfmt", "clippy"]

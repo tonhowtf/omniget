@@ -282,13 +282,13 @@ The Tools section is being rebuilt and is not in the current app. When it return
 
 ## Download and install
 
-Every build is on the [Releases page](https://github.com/tonhowtf/omniget/releases/latest). Updates arrive inside the app.
+Every build is on the [Releases page](https://getomniget.com/download). Updates arrive inside the app.
 
 | System | What to download | Other ways |
 |---|---|---|
 | Windows 10 / 11 | `omniget_x.y.z_x64-setup.exe` (installer); `omniget_x.y.z_x64-portable.exe` (no install); `omniget_x.y.z_x64_en-US.msi` (for IT deployments) | `winget install -e --id tonhowtf.OmniGet` |
 | macOS 10.15+ | `omniget_x.y.z_aarch64.dmg` for Apple Silicon; `omniget_x.y.z_x64.dmg` for Intel Macs | `brew install --cask tonhowtf/tap/omniget` |
-| Linux | `.deb` for Debian and Ubuntu; `.rpm` for Fedora, openSUSE and the RHEL family; `.AppImage` for everything else; (x86_64 and ARM64) | The AppImage updates itself through its `.zsync` file |
+| Linux | `.deb` for Debian and Ubuntu; `.rpm` for Fedora, openSUSE and the RHEL family; `.AppImage` for everything else; (x86_64 and ARM64) | — |
 
 ### The first launch warning
 
@@ -517,7 +517,7 @@ Releases sign their updater files with a key only the maintainer holds, so a pla
 
 Stack: Tauri 2, Rust, SvelteKit with Svelte 5, SQLite, yt-dlp, FFmpeg, gallery-dl, aria2 and librqbit for torrents.
 
-Going to change something? [CONTRIBUTING.md](https://github.com/tonhowtf/omniget/blob/main/CONTRIBUTING.md) has the dev loop, the checks CI runs and the project rules.
+Going to change something? [CONTRIBUTING.md](https://github.com/tonhowtf/omniget/blob/main/CONTRIBUTING.md) has the dev loop, the checks to run and the project rules.
 
 ---
 
@@ -537,4 +537,4 @@ Loop is OmniGet's mascot. Fan art is welcome; the original artwork may not be us
 
 OmniGet is built on [yt-dlp](https://github.com/yt-dlp/yt-dlp), [FFmpeg](https://ffmpeg.org/), [gallery-dl](https://github.com/mikf/gallery-dl), [aria2](https://aria2.github.io/), [librqbit](https://github.com/ikatson/rqbit), [SponsorBlock](https://sponsor.ajay.app/), [FxTwitter](https://github.com/FixTweet/FxTwitter), [cat-catch](https://github.com/xifangczy/cat-catch) (parts of the extension's media sniffer), [whisper.cpp](https://github.com/ggml-org/whisper.cpp) (in Meetings and the Claude Code plugin), [Tauri](https://tauri.app) and [Svelte](https://svelte.dev). The agents, jobs and the World borrowed ideas from [opencode](https://github.com/anomalyco/opencode), [Codex](https://github.com/openai/codex), [aider](https://github.com/Aider-AI/aider), [cline](https://github.com/cline/cline), [compozy](https://github.com/compozy/compozy), the [Agent Client Protocol](https://agentclientprotocol.com), [mem0](https://github.com/mem0ai/mem0), [letta](https://github.com/letta-ai/letta), [ai-town](https://github.com/a16z-infra/ai-town) and the [generative agents](https://github.com/joonspk-research/generative_agents) paper. Meetings follows the lead of [Meetily](https://github.com/Zackriya-Solutions/meetily), [anarlog](https://github.com/fastrepl/anarlog), [minutes](https://github.com/silverstein/minutes) and [Humla](https://github.com/michaelwilhelmsen/humla), sends bots through [Vexa](https://github.com/Vexa-ai/vexa), reaches Teams through [ms-365-mcp-server](https://github.com/Softeria/ms-365-mcp-server), and reads Teams recordings the way [ms-teams-sharepoint-downloader](https://github.com/brendangooden/ms-teams-sharepoint-downloader) showed. Thank you to everyone who maintains them. washmybelly uses data and ideas from [privacy.sexy](https://github.com/undergroundwires/privacy.sexy), [BleachBit](https://github.com/bleachbit/bleachbit), [Win11Debloat](https://github.com/Raphire/Win11Debloat), [winutil](https://github.com/ChrisTitusTech/winutil), [Sophia Script](https://github.com/farag2/Sophia-Script-for-Windows), [Bulk Crap Uninstaller](https://github.com/Klocman/Bulk-Crap-Uninstaller), [Kudu](https://github.com/AdventDevInc/kudu), [kondo](https://github.com/tbillington/kondo), [czkawka](https://github.com/qarmin/czkawka), [Stats](https://github.com/exelban/stats), [CapFrameX](https://github.com/CXWorld/CapFrameX) and others; the full list with licenses is in [THIRD_PARTY.md](https://github.com/tonhowtf/omniget/blob/main/THIRD_PARTY.md).
 
-  [Download OmniGet](https://github.com/tonhowtf/omniget/releases/latest) · [GPL-3.0](https://github.com/tonhowtf/omniget/blob/main/LICENSE)
+  [Download OmniGet](https://getomniget.com/download) · [GPL-3.0](https://github.com/tonhowtf/omniget/blob/main/LICENSE)

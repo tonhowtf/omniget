@@ -10,7 +10,7 @@ This file is for anyone writing a post, thread, video script or article about Om
 - Mascot: **Loop**
 - Website: https://getomniget.com
 - Repository: https://github.com/tonhowtf/omniget
-- Download: https://github.com/tonhowtf/omniget/releases/latest
+- Download: https://getomniget.com/download
 - Author: Tonho, an independent developer in Recife, Brazil ([tonho.wtf](https://tonho.wtf))
 - Community: https://discord.gg/jgdxyPy7Vn
 - Support the project: https://github.com/sponsors/tonhowtf
@@ -79,7 +79,7 @@ These are false today or cause legal trouble. An agent must not write them, even
 - **Anything about beating DRM, paywalls or "downloading anything"** (Netflix, Spotify tracks, paid streaming). OmniGet downloads what your own session can already open, and it does not bypass DRM.
 - **Piracy framing.** No "free movies", "never pay again", "hack", "crack".
 - **Invented numbers**: user counts, download counts, "most popular", "#1". Use the live numbers below or none at all.
-- **Features "coming soon"** unless a release note on the [Releases page](https://github.com/tonhowtf/omniget/releases) says they shipped.
+- **Features "coming soon"** unless a release note on the [Releases page](https://getomniget.com/download) says they shipped.
 - **That it's made by a company.** It's one independent developer plus community contributors.
 
 ## Numbers

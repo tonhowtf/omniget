@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Sobe o app de verdade e prova que a janela abriu.
 //
-// O CI compilava em quatro plataformas e nunca abriu o app uma vez. Foi assim
+// Compilar em quatro plataformas e nunca abriu o app uma vez. Foi assim
 // que a #209 passou: o modo portatil do Windows entrou em `main` sem nunca ter
 // criado uma janela. "Compila" e "abre" sao perguntas diferentes, e so uma
 // delas estava sendo feita.

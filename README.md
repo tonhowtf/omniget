@@ -44,7 +44,6 @@ or export a GIF/WebP to assets/readme/hero.webp and use an <img>.
 
 <p align="center">
   <a href="https://getomniget.com"><img src="https://img.shields.io/badge/website-getomniget.com-F28500?style=for-the-badge" alt="getomniget.com" /></a>
-  <a href="https://github.com/tonhowtf/omniget/releases/latest"><img src="https://img.shields.io/github/v/release/tonhowtf/omniget?style=for-the-badge&label=release&color=F28500" alt="Latest release" /></a>
   <a href="https://github.com/tonhowtf/omniget/stargazers"><img src="https://img.shields.io/github/stars/tonhowtf/omniget?style=for-the-badge&color=FFD426" alt="GitHub stars" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-2AA845?style=for-the-badge" alt="License GPL-3.0" /></a>
   <a href="https://discord.gg/jgdxyPy7Vn"><img src="https://img.shields.io/badge/Discord-community-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Discord community" /></a>
@@ -415,7 +414,7 @@ The Tools section is being rebuilt and is not in the current app. When it return
 
 ## Download and install
 
-Every build is on the [Releases page](https://github.com/tonhowtf/omniget/releases/latest). Updates arrive inside the app.
+Every build is on the [Releases page](https://getomniget.com/download). Updates arrive inside the app.
 
 <table>
   <tr>
@@ -436,7 +435,7 @@ Every build is on the [Releases page](https://github.com/tonhowtf/omniget/releas
   <tr>
     <td><b>Linux</b></td>
     <td><code>.deb</code> for Debian and Ubuntu<br/><code>.rpm</code> for Fedora, openSUSE and the RHEL family<br/><code>.AppImage</code> for everything else<br/>(x86_64 and ARM64)</td>
-    <td>The AppImage updates itself through its <code>.zsync</code> file</td>
+    <td>—</td>
   </tr>
 </table>
 
@@ -697,7 +696,7 @@ Releases sign their updater files with a key only the maintainer holds, so a pla
 
 Stack: Tauri 2, Rust, SvelteKit with Svelte 5, SQLite, yt-dlp, FFmpeg, gallery-dl, aria2 and librqbit for torrents.
 
-Going to change something? [CONTRIBUTING.md](CONTRIBUTING.md) has the dev loop, the checks CI runs and the project rules.
+Going to change something? [CONTRIBUTING.md](CONTRIBUTING.md) has the dev loop, the checks to run and the project rules.
 
 ---
 
@@ -722,5 +721,5 @@ Loop is OmniGet's mascot. Fan art is welcome; the original artwork may not be us
 OmniGet is built on [yt-dlp](https://github.com/yt-dlp/yt-dlp), [FFmpeg](https://ffmpeg.org/), [gallery-dl](https://github.com/mikf/gallery-dl), [aria2](https://aria2.github.io/), [librqbit](https://github.com/ikatson/rqbit), [SponsorBlock](https://sponsor.ajay.app/), [FxTwitter](https://github.com/FixTweet/FxTwitter), [cat-catch](https://github.com/xifangczy/cat-catch) (parts of the extension's media sniffer), [whisper.cpp](https://github.com/ggml-org/whisper.cpp) (in Meetings and the Claude Code plugin), [Tauri](https://tauri.app) and [Svelte](https://svelte.dev). The agents, jobs and the World borrowed ideas from [opencode](https://github.com/anomalyco/opencode), [Codex](https://github.com/openai/codex), [aider](https://github.com/Aider-AI/aider), [cline](https://github.com/cline/cline), [compozy](https://github.com/compozy/compozy), the [Agent Client Protocol](https://agentclientprotocol.com), [mem0](https://github.com/mem0ai/mem0), [letta](https://github.com/letta-ai/letta), [ai-town](https://github.com/a16z-infra/ai-town) and the [generative agents](https://github.com/joonspk-research/generative_agents) paper. Meetings follows the lead of [Meetily](https://github.com/Zackriya-Solutions/meetily), [anarlog](https://github.com/fastrepl/anarlog), [minutes](https://github.com/silverstein/minutes) and [Humla](https://github.com/michaelwilhelmsen/humla), sends bots through [Vexa](https://github.com/Vexa-ai/vexa), reaches Teams through [ms-365-mcp-server](https://github.com/Softeria/ms-365-mcp-server), and reads Teams recordings the way [ms-teams-sharepoint-downloader](https://github.com/brendangooden/ms-teams-sharepoint-downloader) showed. Thank you to everyone who maintains them. washmybelly uses data and ideas from [privacy.sexy](https://github.com/undergroundwires/privacy.sexy), [BleachBit](https://github.com/bleachbit/bleachbit), [Win11Debloat](https://github.com/Raphire/Win11Debloat), [winutil](https://github.com/ChrisTitusTech/winutil), [Sophia Script](https://github.com/farag2/Sophia-Script-for-Windows), [Bulk Crap Uninstaller](https://github.com/Klocman/Bulk-Crap-Uninstaller), [Kudu](https://github.com/AdventDevInc/kudu), [kondo](https://github.com/tbillington/kondo), [czkawka](https://github.com/qarmin/czkawka), [Stats](https://github.com/exelban/stats), [CapFrameX](https://github.com/CXWorld/CapFrameX) and others; the full list with licenses is in [THIRD_PARTY.md](THIRD_PARTY.md).
 
 <p align="center">
-  <a href="https://github.com/tonhowtf/omniget/releases/latest"><b>Download OmniGet</b></a> · <a href="LICENSE">GPL-3.0</a>
+  <a href="https://getomniget.com/download"><b>Download OmniGet</b></a> · <a href="LICENSE">GPL-3.0</a>
 </p>

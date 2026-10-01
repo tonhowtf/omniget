@@ -12,6 +12,6 @@ Connect this Claude Code to OmniGet's local MCP server.
 
    (Windows PowerShell: try `curl.exe -s "http://127.0.0.1:<port>/connect?client=claude"` on each port.)
    If no port answers that way, OmniGet is not open or is older than this feature: ask the
-   person to open or update it (https://github.com/tonhowtf/omniget/releases) and try again.
+   person to open or update it (https://getomniget.com/download) and try again.
 2. Follow the steps it returns. The user clicks Allow in the OmniGet window; OmniGet
    writes the `omniget` server into Claude Code's config itself, so never ask for a token.

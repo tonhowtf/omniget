@@ -85,7 +85,7 @@ if (chrome.storage?.onChanged) {
   });
 }
 
-const INSTALL_URL = "https://github.com/tonhowtf/omniget/releases/latest";
+const INSTALL_URL = "https://getomniget.com/download";
 const PROTOCOL_VERSION = 1;
 
 function getIconPath(iconSet) {

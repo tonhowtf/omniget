@@ -9,7 +9,7 @@ import { formatBytes } from "../src/format-size.js";
 import { isListableMedia } from "../src/media-list.js";
 import { captureCookiesForTab } from "../src/cookie-capture.js";
 
-const APP_URL = "https://github.com/tonhowtf/omniget/releases/latest";
+const APP_URL = "https://getomniget.com/download";
 
 const tr = (k, ...subs) =>
   (chrome.i18n?.getMessage?.(k, subs.length ? subs.map(String) : undefined) || k);

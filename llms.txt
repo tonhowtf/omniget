@@ -9,7 +9,7 @@ Writing about OmniGet, or generating a post about it? Read [MEDIA-KIT.md](https:
 - Name: OmniGet. Mascot: Loop.
 - Website: https://getomniget.com
 - Repository: https://github.com/tonhowtf/omniget
-- Download: https://github.com/tonhowtf/omniget/releases/latest
+- Download: https://getomniget.com/download
 - Author: Tonho, an independent developer in Recife, Brazil (https://tonho.wtf)
 - License: GPL-3.0. Free, no paid tier, no account, no ads, no telemetry on downloads.
 - Platforms: Windows 10/11, macOS 10.15+ (Apple Silicon and Intel), Linux x86_64 and ARM64 (.deb, .rpm, AppImage). Also `winget install -e --id tonhowtf.OmniGet` and `brew install --cask tonhowtf/tap/omniget`.
@@ -96,6 +96,6 @@ Writing about OmniGet, or generating a post about it? Read [MEDIA-KIT.md](https:
 
 - [Full README as plain text](https://raw.githubusercontent.com/tonhowtf/omniget/main/llms-full.txt): The whole README flattened, without images.
 - [Media kit](https://github.com/tonhowtf/omniget/blob/main/MEDIA-KIT.md): Descriptions in three lengths, facts, claims to avoid, post templates.
-- [Releases](https://github.com/tonhowtf/omniget/releases): Changelogs and binaries.
+- [Releases](https://getomniget.com/download): Changelogs and binaries.
 - [Support the project](https://github.com/sponsors/tonhowtf): GitHub Sponsors.
 - [Translations on Weblate](https://hosted.weblate.org/engage/omniget/)

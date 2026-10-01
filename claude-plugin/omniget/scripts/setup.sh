@@ -125,7 +125,7 @@ else
 fi
 echo
 
-OMNIGET_REPO="${OMNIGET_REPO:-tonhowtf/omniget}"
+OMNIGET_DL="${OMNIGET_DL:-https://getomniget.com}"
 
 # Prebuilt omniget-cli asset triple for this machine, or empty if unsupported.
 cli_triple() {
@@ -149,11 +149,11 @@ install_omniget_cli() {
     return 1
   fi
   ext="${triple#*:}"; triple="${triple%%:*}"
-  tag="$(curl -fsSL -m 30 "https://api.github.com/repos/$OMNIGET_REPO/releases/latest"         | python3 -c 'import json,sys; print(json.load(sys.stdin).get("tag_name",""))' 2>/dev/null)"
-  [ -n "$tag" ] || { echo "  omniget-cli: couldn't resolve the latest release (offline?). Skipping."; return 1; }
-  ver="${tag#v}"
+  ver="$(curl -fsSL -m 30 "$OMNIGET_DL/update/latest.json" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("version",""))' 2>/dev/null)"
+  [ -n "$ver" ] || { echo "  omniget-cli: couldn't resolve the latest release (offline?). Skipping."; return 1; }
+  tag="v$ver"
   asset="omniget-cli-$ver-$triple.$ext"
-  url="https://github.com/$OMNIGET_REPO/releases/download/$tag/$asset"
+  url="$OMNIGET_DL/dl/$tag/$asset"
   bindir="$(og_skill_bin_dir)"; mkdir -p "$bindir"
   tmp="$(mktemp -d "${TMPDIR:-/tmp}/omniget-cli.XXXXXX")"
   echo "  omniget-cli: downloading $asset ..."

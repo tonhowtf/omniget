@@ -7,15 +7,15 @@
 // poder mexer em qualquer coisa.
 //
 // Chave de comparação: `crate|lint`. Não inclui arquivo nem linha de propósito
-// — mover código não pode reprovar a CI, só introduzir warning novo pode.
+// — mover código não pode reprovar o portão, só introduzir warning novo pode.
 //
 // Uso:
 //   node scripts/clippy-baseline.mjs --check    reprova se piorou
 //   node scripts/clippy-baseline.mjs --update   regrava o baseline
 //
 // Um arquivo por SO: clippy enxerga código diferente por `#[cfg(target_os)]`,
-// então um baseline único não descreve as três plataformas. A CI roda este
-// passo nas três, cada uma contra o seu próprio arquivo.
+// então um baseline único não descreve as três plataformas. Rode este
+// passo em cada SO, contra o arquivo dele.
 //
 // Plataforma sem baseline ainda não gerado não reprova: o passo imprime o
 // conteúdo a ser commitado (ver a mensagem de baseline ausente abaixo).
@@ -123,7 +123,7 @@ if (mode === "update") {
 if (!fs.existsSync(baselinePath)) {
   // Sem baseline para esta plataforma o portao nao reprova — reprovar seria
   // punir alguem por um arquivo que ninguem gerou ainda. Em vez disso imprime
-  // exatamente o conteudo a commitar, para o log da CI servir de fonte.
+  // exatamente o conteudo a commitar, para servir de fonte.
   console.log(
     `no clippy baseline for ${process.platform} yet — not gating.\n` +
       `Commit this as ${path.relative(root, baselinePath)}:\n`,
