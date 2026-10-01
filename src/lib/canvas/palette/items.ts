@@ -5,6 +5,7 @@ import { agentStates, type AgentState } from '../state/agents.svelte';
 import { noteList, noteRead, stackIdOf } from '../notes/api';
 import { fuzzy, splitQuery, type Field } from './fuzzy';
 import { workspaces, type WorkspaceSummary } from './workspaces.svelte';
+import { aiActivity } from '../activity/store.svelte';
 
 export type Section = 'context' | 'actions' | 'attention' | 'nodes' | 'notes' | 'chats' | 'workspaces' | 'floors' | 'roles' | 'partituras' | 'files';
 
@@ -344,6 +345,9 @@ export function actionItems(engine: CanvasEngine, tr: Tr, hooks: ActionHooks): P
     },
     a('routines', tr('canvas.palette.action.routines', 'Routines…'), () => openPanel(engine, { kind: 'routine' }), undefined, 'routine schedule cron timer', 'action'),
     a('ombro', tr('canvas.palette.action.ombro', 'Ombro'), () => openPanel(engine, { kind: 'companion' }), undefined, 'companion omni assistant shoulder', 'action'),
+    a('activity', tr('canvas.activity.palette.activity', 'Activity'), () => aiActivity.show('activity'), undefined, 'timeline history log ai agents who changed', 'action'),
+    a('follow-ai', aiActivity.follow ? tr('canvas.activity.palette.unfollow', 'Stop Following AI') : tr('canvas.activity.palette.follow', 'Follow AI'), () => aiActivity.toggleFollow(), undefined, 'camera track watch agent mcp', 'action'),
+    a('mcp-servers', tr('canvas.mcpServers.palette', 'MCP Servers…'), () => aiActivity.show('mcp', engine.selection.focused ?? engine.selection.list().at(-1) ?? null), undefined, 'mcp tools servers llm connect', 'action'),
     a('partituras', tr('canvas.palette.action.partituras', 'Partituras…'), () => openPanel(engine, { kind: 'partituras' }), '⌘⇧L', 'partitura template library score', 'action'),
     a('roles', tr('canvas.palette.action.roles', 'Roles…'), () => openPanel(engine, { kind: 'roles' }), undefined, 'role library persona', 'role'),
     a('open-folder', tr('canvas.palette.action.openFolder', 'Open Workspace Folder'), () => void openWorkspaceFolder(engine), undefined, 'finder explorer project', 'filetree'),

@@ -717,7 +717,10 @@ impl CanvasHost {
         if let Ok(joined) = std::env::join_paths(parts) {
             env.insert("PATH".into(), joined.to_string_lossy().into_owned());
         }
-        let args = adapters::launch_args(&agent, &cli, &plugin);
+        let mut args = adapters::launch_args(&agent, &cli, &plugin);
+        let (mcp_args, mcp_env) = super::mcp_attach::for_launch(&agent, node);
+        args.extend(mcp_args);
+        env.extend(mcp_env);
         {
             let mut g = self.lock();
             g.tracked.insert(

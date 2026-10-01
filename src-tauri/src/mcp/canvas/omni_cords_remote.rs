@@ -115,7 +115,7 @@ pub fn link(
         floor,
         node,
     };
-    let r = crate::canvas::link::link(&end(from), &end(to), &perms, super::ORIGIN)?;
+    let r = crate::canvas::link::link(&end(from), &end(to), &perms, &super::who::origin())?;
     Ok(json!({
         "connection": {
             "id": r["from"]["cordId"],

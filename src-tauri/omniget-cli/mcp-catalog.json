@@ -17448,7 +17448,7 @@
         "openWorldHint": false,
         "readOnlyHint": true
       },
-      "description": "Start here: the workspaces (folder, nodes, terminals), which one the window shows, and the dozen calls most canvas tasks need, with argument examples. One short answer instead of reading the whole catalog.",
+      "description": "Start here: who you are on the canvas (client, the origin your edits are signed with, scopes), the workspaces (folder, nodes, terminals), which one the window shows, and the dozen calls most canvas tasks need, with argument examples. One short answer instead of reading the whole catalog.",
       "inputSchema": {
         "additionalProperties": false,
         "properties": {},
@@ -17506,6 +17506,10 @@
               "type": "object"
             },
             "type": "array"
+          },
+          "you": {
+            "additionalProperties": true,
+            "type": "object"
           }
         },
         "type": "object"
@@ -25163,6 +25167,472 @@
           "usage": {
             "additionalProperties": true,
             "type": "object"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "readOnlyHint": true
+      },
+      "description": "Recent writes on a workspace, oldest first: who did what and where. Each entry has origin (user = the person, mcp:<client>, agent:<node>; a trailing :undo marks an undo), actor (display name), verb (created, deleted, moved, resized, renamed, edited, wrote, corded, uncorded, drew, erased...), summary (\"created note 'Plan'\", \"moved 3 nodes\") and nodeIds. Your own writes carry canvas_start.you.origin. Pass since = the cursor of the previous answer to get only what is new.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "excludeUser": {
+            "description": "Leave out what the person did by hand",
+            "type": "boolean"
+          },
+          "floorId": {
+            "description": "Only this floor (default: every floor of the workspace)",
+            "type": "string"
+          },
+          "limit": {
+            "description": "Entries (default 50)",
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "mine": {
+            "description": "Only your own writes",
+            "type": "boolean"
+          },
+          "origin": {
+            "description": "Only this author: an exact origin or a prefix such as mcp: or agent:",
+            "type": "string"
+          },
+          "since": {
+            "description": "Cursor of a previous answer: only newer entries",
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "workspaceId": {
+            "description": "Workspace id (default: home)",
+            "type": "string"
+          }
+        },
+        "required": [],
+        "type": "object"
+      },
+      "name": "canvas_activity",
+      "outputSchema": {
+        "anyOf": [
+          {
+            "required": [
+              "entries",
+              "cursor"
+            ]
+          },
+          {
+            "required": [
+              "error"
+            ]
+          }
+        ],
+        "properties": {
+          "cursor": {
+            "type": "integer"
+          },
+          "entries": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "error": {
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "type": "object"
+          },
+          "workspaceId": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "readOnlyHint": true
+      },
+      "description": "The MCP servers configured in OmniGet → LLM → MCP: id, name, transport (stdio or http), target (program or host, never secrets), enabled, connected and toolCount (known once connected). Attach them to a terminal with canvas_mcp_attach.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "required": [],
+        "type": "object"
+      },
+      "name": "canvas_mcp_servers",
+      "outputSchema": {
+        "anyOf": [
+          {
+            "required": [
+              "servers"
+            ]
+          },
+          {
+            "required": [
+              "error"
+            ]
+          }
+        ],
+        "properties": {
+          "error": {
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "type": "object"
+          },
+          "servers": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false,
+        "readOnlyHint": false
+      },
+      "description": "Turn a configured MCP server on or off (off also disconnects it; terminals launched afterwards no longer receive it).",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "description": "On or off",
+            "type": "boolean"
+          },
+          "serverId": {
+            "description": "Server id from canvas_mcp_servers",
+            "type": "string"
+          }
+        },
+        "required": [
+          "serverId",
+          "enabled"
+        ],
+        "type": "object"
+      },
+      "name": "canvas_mcp_server_set",
+      "outputSchema": {
+        "anyOf": [
+          {
+            "required": [
+              "servers"
+            ]
+          },
+          {
+            "required": [
+              "error"
+            ]
+          }
+        ],
+        "properties": {
+          "error": {
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "type": "object"
+          },
+          "servers": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false,
+        "readOnlyHint": false
+      },
+      "description": "Connect to a configured MCP server and list its tools: ok, server_name, protocol_version, tool_count, elapsed_ms, health and the error when it fails.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "serverId": {
+            "description": "Server id from canvas_mcp_servers",
+            "type": "string"
+          }
+        },
+        "required": [
+          "serverId"
+        ],
+        "type": "object"
+      },
+      "name": "canvas_mcp_server_test",
+      "outputSchema": {
+        "anyOf": [
+          {
+            "required": [
+              "serverId",
+              "result"
+            ]
+          },
+          {
+            "required": [
+              "error"
+            ]
+          }
+        ],
+        "properties": {
+          "error": {
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "type": "object"
+          },
+          "result": {},
+          "serverId": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false,
+        "readOnlyHint": false
+      },
+      "description": "Give a Claude or Codex terminal access to configured MCP servers: the ids are stored on the node (data.mcpServers) and, at its next launch, Claude gets them through --mcp-config and Codex through -c mcp_servers.*, with secrets read from the keychain then. The terminal keeps OmniGet's own canvas access. A running terminal picks them up when it restarts (restart: true, or canvas_terminal_restart).",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "nodeId": {
+            "description": "Terminal node (id or unique title)",
+            "type": "string"
+          },
+          "replace": {
+            "description": "Replace the current list instead of adding to it",
+            "type": "boolean"
+          },
+          "restart": {
+            "description": "Restart a running terminal now so it picks them up",
+            "type": "boolean"
+          },
+          "serverIds": {
+            "description": "Server ids from canvas_mcp_servers",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "workspaceId": {
+            "description": "Workspace that titles are looked up in first",
+            "type": "string"
+          }
+        },
+        "required": [
+          "nodeId",
+          "serverIds"
+        ],
+        "type": "object"
+      },
+      "name": "canvas_mcp_attach",
+      "outputSchema": {
+        "anyOf": [
+          {
+            "required": [
+              "nodeId",
+              "mcpServers"
+            ]
+          },
+          {
+            "required": [
+              "error"
+            ]
+          }
+        ],
+        "properties": {
+          "agent": {
+            "type": "string"
+          },
+          "error": {
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "type": "object"
+          },
+          "mcpServers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "nodeId": {
+            "type": "string"
+          },
+          "receives": {
+            "type": "boolean"
+          },
+          "restartNeeded": {
+            "type": "boolean"
+          },
+          "rev": {
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false,
+        "readOnlyHint": false
+      },
+      "description": "Take MCP servers away from a terminal (all of them when serverIds is absent). A running terminal keeps them until it restarts.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "nodeId": {
+            "description": "Terminal node (id or unique title)",
+            "type": "string"
+          },
+          "restart": {
+            "description": "Restart a running terminal now",
+            "type": "boolean"
+          },
+          "serverIds": {
+            "description": "Server ids to remove (default: all)",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "workspaceId": {
+            "description": "Workspace that titles are looked up in first",
+            "type": "string"
+          }
+        },
+        "required": [
+          "nodeId"
+        ],
+        "type": "object"
+      },
+      "name": "canvas_mcp_detach",
+      "outputSchema": {
+        "anyOf": [
+          {
+            "required": [
+              "nodeId",
+              "mcpServers"
+            ]
+          },
+          {
+            "required": [
+              "error"
+            ]
+          }
+        ],
+        "properties": {
+          "agent": {
+            "type": "string"
+          },
+          "error": {
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "type": "object"
+          },
+          "mcpServers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "nodeId": {
+            "type": "string"
+          },
+          "receives": {
+            "type": "boolean"
+          },
+          "restartNeeded": {
+            "type": "boolean"
+          },
+          "rev": {
+            "type": "integer"
           }
         },
         "type": "object"

@@ -9,6 +9,7 @@ import { copySelection, pasteClipboard } from '../clipboard';
 import { canvasPrefs } from '../prefs.svelte';
 import { agentFiles, openInIde, sidebarUi } from '../sidebar.svelte';
 import { placeInStack, stackTargets } from '../notes/stack';
+import { aiActivity } from '../activity/store.svelte';
 
 export interface MenuEntry {
   id: string;
@@ -155,6 +156,7 @@ export function nodeMenu(engine: CanvasEngine, nodeId: string): MenuEntry[] {
     out.push(
       e('role', 'canvas.engine.menu.role', 'Role…', () => (engine.panel = { kind: 'role-picker', nodeId }), { sepBefore: true }),
       e('routine', 'canvas.engine.menu.routine', 'New routine…', () => (engine.panel = { kind: 'routine', targetNodeId: nodeId })),
+      e('mcp', 'canvas.mcpServers.menu', 'MCP servers…', () => aiActivity.show('mcp', nodeId)),
     );
   }
   out.push(e('delete', 'canvas.engine.delete', 'Delete', () => engine.deleteSelection(), { danger: true, sepBefore: true }));

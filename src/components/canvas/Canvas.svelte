@@ -19,6 +19,7 @@
   import SpawnMenu from "./chrome/SpawnMenu.svelte";
   import { viewMenu } from "$lib/canvas/menu/model";
   import RemotePresence from "./chrome/RemotePresence.svelte";
+  import AiActivityLayer from "./activity/AiActivityLayer.svelte";
   import { listen } from "@tauri-apps/api/event";
   import { showToast } from "$lib/stores/toast-store.svelte";
   import { invoke } from "@tauri-apps/api/core";
@@ -755,6 +756,7 @@
   </div>
   <ScreenLayer />
   <RemotePresence />
+  <AiActivityLayer />
 
   <div class="top">
     <Toolbar />

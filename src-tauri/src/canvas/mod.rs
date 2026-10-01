@@ -1,3 +1,4 @@
+pub mod activity;
 pub mod chat;
 pub mod clipboard;
 pub mod companion;
@@ -9,6 +10,7 @@ pub mod floors;
 pub mod launch;
 pub mod link;
 pub mod maestro;
+pub mod mcp_attach;
 pub mod partituras;
 pub mod portal;
 pub mod power;

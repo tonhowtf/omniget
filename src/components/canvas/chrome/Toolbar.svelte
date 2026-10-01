@@ -4,6 +4,7 @@
   import { DRAW_TOOLS, SHAPE_TOOLS, type ToolName } from "$lib/canvas/interaction/tools";
   import { TOOL_ICONS } from "$lib/canvas/icons";
   import Icon from "./Icon.svelte";
+  import { aiActivity } from "$lib/canvas/activity/store.svelte";
 
   const engine = useEngine();
   const COLORS = ["#e8e6e3", "#1d1d1f", "#e5484d", "#f5a524", "#46a758", "#3e8ef7", "#8e4ec6"];
@@ -16,6 +17,7 @@
     share: "M12 3v12 M7 8l5-5 5 5 M5 14v6h14v-6",
     help: "M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18z M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6V14 M12 17.5v.01",
     more: "M6 12h.01 M12 12h.01 M18 12h.01",
+    activity: "M3 12h4l3-8 4 16 3-8h4",
   };
   type PanelKind = "partituras" | "routine" | "roles" | "companion" | "visit";
 
@@ -30,6 +32,7 @@
     tool?: ToolName;
     panel?: PanelKind;
     run?: () => void;
+    on?: () => boolean;
   }
 
   const mod = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘" : "Ctrl+";
@@ -75,6 +78,7 @@
     panel("roles", 16, PANEL_ICONS.roles, "canvas.engine.roles", "Roles"),
     panel("companion", 15, PANEL_ICONS.omni, "canvas.engine.companion", "Omni"),
     panel("visit", 16, PANEL_ICONS.share, "canvas.engine.share", "Share and visit"),
+    { id: "activity", group: 3, prio: 14, icon: PANEL_ICONS.activity, key: "canvas.activity.title", fallback: "Activity", run: () => aiActivity.toggle("activity"), on: () => aiActivity.open },
   ];
 
   const BTN = 32;
@@ -122,6 +126,7 @@
   const hidden = $derived(ITEMS.filter((it) => !visible.has(it.id)));
 
   function isOn(it: Item): boolean {
+    if (it.on) return it.on();
     if (it.tool) return engine.tool === it.tool;
     if (it.panel) return engine.panel?.kind === it.panel;
     return false;

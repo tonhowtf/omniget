@@ -33,6 +33,7 @@ impl CanvasDocHost {
     pub fn bind(&'static self, app: &AppHandle) -> &'static Self {
         if self.app.set(app.clone()).is_ok() {
             crate::commands::canvas::workspace_meta::install();
+            super::activity::install(app, &self.store);
             if let Some(dir) = omniget_core::core::paths::app_data_dir() {
                 use tauri::Manager;
                 let _ = app

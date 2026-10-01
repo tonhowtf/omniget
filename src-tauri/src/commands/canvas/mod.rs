@@ -1,3 +1,4 @@
+pub mod activity;
 pub mod chat;
 pub mod clipboard;
 pub mod companion;
@@ -6,6 +7,7 @@ pub mod doc;
 pub mod files;
 pub mod floors;
 pub mod maestro;
+pub mod mcp_servers;
 pub mod partituras;
 pub mod portal;
 pub mod remote;

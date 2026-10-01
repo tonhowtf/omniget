@@ -94,6 +94,7 @@
   const sizeShown = $derived(showSize === "always" || (showSize === "resize" && selected));
   const driver = $derived.by(() => {
     if (!drive) return "";
+    if (drive.by.startsWith("mcp:")) return drive.by.slice(4);
     const id = drive.by.startsWith("agent:") ? drive.by.slice(6) : drive.by;
     return engine.store.node(id)?.title ?? "";
   });

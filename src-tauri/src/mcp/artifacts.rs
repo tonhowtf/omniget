@@ -5,6 +5,8 @@ use serde::Serialize;
 use std::path::Path;
 
 const MAX_BYTES: u64 = 2 * 1024 * 1024 * 1024;
+const ARTIFACT_GRANT_LIMIT: i64 = 100;
+const ARTIFACT_TTL_SECS: i64 = 900;
 static TRANSFERS: std::sync::OnceLock<std::sync::Arc<tokio::sync::Semaphore>> =
     std::sync::OnceLock::new();
 pub fn admit() -> Result<tokio::sync::OwnedSemaphorePermit, String> {
@@ -160,53 +162,88 @@ pub fn register(p: &Principal, path: &Path) -> Result<Artifact, String> {
             .map_err(|_| "ARTIFACT_UNSAFE_OR_CHANGED")?;
         c.execute_batch("BEGIN IMMEDIATE")
             .map_err(|_| "ARTIFACT_STORE_BUSY")?;
-        use rusqlite::OptionalExtension;
-        let old:Option<(String,i64)>=c.query_row("SELECT id,expires FROM artifact_grants WHERE principal=?1 AND root=?2 AND relative=?3 AND digest=?4 AND revoked=0 AND expires>?5",params![p.id,root_id,relative.to_str().ok_or("INVALID_ARTIFACT")?,snap.digest,now()],|r|Ok((r.get(0)?,r.get(1)?))).optional().map_err(|_|"ARTIFACT_STORE_UNAVAILABLE")?;
-        if let Some((id, expires)) = old {
-            return Ok(Artifact {
-                download_path: format!("/mcp/artifacts/{id}"),
-                artifact_id: id,
-                digest: snap.digest,
-                bytes: snap.bytes,
-                name: relative
-                    .file_name()
-                    .unwrap_or_default()
-                    .to_string_lossy()
-                    .into_owned(),
-                expires_at: expires,
-                transfer_allowed: true,
-            });
+        let issued = issue(&c, p, &root_id, relative, &snap);
+        let end = if issued.is_ok() { "COMMIT" } else { "ROLLBACK" };
+        if c.execute_batch(end).is_err() {
+            let _ = c.execute_batch("ROLLBACK");
+            issued?;
+            return Err("ARTIFACT_STORE_UNAVAILABLE".into());
         }
-        let count: u64 = c
-            .query_row(
-                "SELECT count(*) FROM artifact_grants WHERE principal=?1",
-                [&p.id],
-                |r| r.get(0),
-            )
-            .map_err(|_| "ARTIFACT_STORE_UNAVAILABLE")?;
-        if count >= 100 {
-            return Err("ARTIFACT_GRANT_LIMIT".into());
-        }
-        let id = uuid::Uuid::new_v4().to_string();
-        let expires = now() + 900;
-        c.execute("INSERT INTO artifact_grants(id,principal,root,relative,digest,bytes,expires) VALUES(?1,?2,?3,?4,?5,?6,?7)",params![id,p.id,root_id,relative.to_str().ok_or("INVALID_ARTIFACT")?,snap.digest,snap.bytes,expires]).map_err(|_|"ARTIFACT_STORE_UNAVAILABLE")?;
-        c.execute_batch("COMMIT")
-            .map_err(|_| "ARTIFACT_STORE_UNAVAILABLE")?;
+        return issued;
+    }
+    Err("ROOT_NOT_GRANTED".into())
+}
+
+fn issue(
+    c: &rusqlite::Connection,
+    p: &Principal,
+    root_id: &str,
+    relative: &Path,
+    snap: &Snapshot,
+) -> Result<Artifact, String> {
+    use rusqlite::OptionalExtension;
+    let rel = relative.to_str().ok_or("INVALID_ARTIFACT")?;
+    let name = relative
+        .file_name()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .into_owned();
+    let now = now();
+    let old: Option<(String, i64)> = c
+        .query_row(
+            "SELECT id,expires FROM artifact_grants WHERE principal=?1 AND root=?2 AND relative=?3 AND digest=?4 AND revoked=0 AND expires>?5",
+            params![p.id, root_id, rel, snap.digest, now],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .optional()
+        .map_err(|_| "ARTIFACT_STORE_UNAVAILABLE")?;
+    if let Some((id, expires)) = old {
         return Ok(Artifact {
             download_path: format!("/mcp/artifacts/{id}"),
             artifact_id: id,
-            digest: snap.digest,
+            digest: snap.digest.clone(),
             bytes: snap.bytes,
-            name: relative
-                .file_name()
-                .unwrap_or_default()
-                .to_string_lossy()
-                .into_owned(),
+            name,
             expires_at: expires,
             transfer_allowed: true,
         });
     }
-    Err("ROOT_NOT_GRANTED".into())
+    c.execute(
+        "DELETE FROM artifact_grants WHERE principal=?1 AND (revoked<>0 OR expires<=?2)",
+        params![p.id, now],
+    )
+    .map_err(|_| "ARTIFACT_STORE_UNAVAILABLE")?;
+    let live: i64 = c
+        .query_row(
+            "SELECT count(*) FROM artifact_grants WHERE principal=?1",
+            [&p.id],
+            |r| r.get(0),
+        )
+        .map_err(|_| "ARTIFACT_STORE_UNAVAILABLE")?;
+    let over = live + 1 - ARTIFACT_GRANT_LIMIT;
+    if over > 0 {
+        c.execute(
+            "DELETE FROM artifact_grants WHERE id IN (SELECT id FROM artifact_grants WHERE principal=?1 ORDER BY expires ASC, rowid ASC LIMIT ?2)",
+            params![p.id, over],
+        )
+        .map_err(|_| "ARTIFACT_STORE_UNAVAILABLE")?;
+    }
+    let id = uuid::Uuid::new_v4().to_string();
+    let expires = now + ARTIFACT_TTL_SECS;
+    c.execute(
+        "INSERT INTO artifact_grants(id,principal,root,relative,digest,bytes,expires) VALUES(?1,?2,?3,?4,?5,?6,?7)",
+        params![id, p.id, root_id, rel, snap.digest, snap.bytes, expires],
+    )
+    .map_err(|_| "ARTIFACT_STORE_UNAVAILABLE")?;
+    Ok(Artifact {
+        download_path: format!("/mcp/artifacts/{id}"),
+        artifact_id: id,
+        digest: snap.digest.clone(),
+        bytes: snap.bytes,
+        name,
+        expires_at: expires,
+        transfer_allowed: true,
+    })
 }
 
 pub fn authorized(p: &Principal, id: &str) -> Result<(), String> {

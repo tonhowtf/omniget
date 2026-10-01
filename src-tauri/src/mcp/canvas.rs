@@ -18,11 +18,14 @@ mod settings;
 use super::policy::{self, Principal};
 use super::ToolDef;
 
+mod activity;
 mod clipboard;
 mod council;
 mod lift_dock_menu;
+mod mcp_servers;
 mod omni_cords_remote;
 mod schemas;
+pub mod who;
 mod workspace_io;
 use crate::commands::canvas as cmd;
 
@@ -219,7 +222,7 @@ fn build_defs() -> Vec<Def> {
         json!({"nodeId": ty("string"), "result": any()}),
         &["nodeId", "result"],
     );
-    vec![
+    let mut all = vec![
         def("workspace_list", "List the canvas workspaces with their floors, working folder and node/terminal counts.", false, json!({}), &[], list_out("workspaces")),
         def("workspace_create", "Create a canvas workspace (optionally bound to a working folder, which terminals start in and floors branch from). It opens in the canvas unless activate is false.", true, json!({
             "name": s("Workspace name"), "workingDirectory": s("Absolute folder of the project"), "dir": s("Same as workingDirectory"), "icon": s("Icon: letters, an emoji (or emoji:🎻) or file:/abs/image.png"), "color": s("Color (#rrggbb)"), "id": s("Chosen id (generated when absent)"), "activate": b("Open it in the canvas (default true)")
@@ -401,7 +404,7 @@ fn build_defs() -> Vec<Def> {
         def("routine_run", "Fire a routine now.", true, json!({"id": s("Routine id")}), &["id"], obj_out("routine")),
         destructive(def("routine_delete", "Delete a routine.", true, json!({"id": s("Routine id")}), &["id"], out(json!({"deleted": ty("string")}), &["deleted"]))),
         def("canvas_maestro_set", "Turn Maestro Mode on or off for a terminal node (a Maestro may recruit, connect, swap, dismiss and notify).", true, json!({"nodeId": node(), "on": b("Maestro on")}), &["nodeId", "on"], out(json!({"nodeId": ty("string"), "maestro": ty("boolean")}), &["nodeId", "maestro"])),
-        def("canvas_start", "Start here: the workspaces (folder, nodes, terminals), which one the window shows, and the dozen calls most canvas tasks need, with argument examples. One short answer instead of reading the whole catalog.", false, json!({}), &[], out(json!({"workspaces": arr(ty("object")), "window": any(), "recipes": arr(ty("object")), "tips": arr(ty("string"))}), &["workspaces", "recipes"])),
+        def("canvas_start", "Start here: who you are on the canvas (client, the origin your edits are signed with, scopes), the workspaces (folder, nodes, terminals), which one the window shows, and the dozen calls most canvas tasks need, with argument examples. One short answer instead of reading the whole catalog.", false, json!({}), &[], out(json!({"you": ty("object"), "workspaces": arr(ty("object")), "window": any(), "recipes": arr(ty("object")), "tips": arr(ty("string"))}), &["workspaces", "recipes"])),
         def("canvas_council", "Several agents decide one question together on the board (needs a workspace folder). Lays out three notes (Pergunta, Quadro = shared board, Decisão), the members and a chair (Maestro) corded to them; the chair runs the method by itself and writes the decision. method: brainstorm (approaches + cross-critique + one recommendation for the person to approve), dialectic (thesis, antithesis, rebuttal, synthesis), arena (independent answers, anonymous ranking, best answer with grafts), simulation (MiroFish-style personas reacting on the board in rounds). members: [{name, agent, perspective}] (default 2-3 per method). Follow it with canvas_council_status.", true, json!({
             "workspaceId": ws(), "floorId": floor(), "question": s("What to decide"), "method": e(council::METHODS, "Method (default brainstorm)"),
             "members": json!({"type": "array", "maxItems": 6, "description": "Members (default by method)", "items": {"type": "object", "additionalProperties": false, "properties": {"name": {"type": "string"}, "agent": {"type": "string", "enum": AGENTS}, "perspective": {"type": "string"}}}}),
@@ -524,7 +527,10 @@ fn build_defs() -> Vec<Def> {
         test_only(def("host_shell", "Test only: run a shell command on this computer.", true, json!({"command": s("Command"), "cwd": s("Folder"), "timeoutMs": i("Limit", 100, 600000)}), &["command"], out(json!({"code": any(), "stdout": ty("string"), "stderr": ty("string")}), &["stdout"]))),
         test_only(def("host_fs_read", "Test only: read a file on this computer.", false, json!({"path": s("Path (~ allowed)"), "maxBytes": i("Limit", 1, 16777216)}), &["path"], out(json!({"path": ty("string"), "text": ty("string"), "size": ty("integer")}), &["text"]))),
         test_only(def("host_fs_write", "Test only: write a file on this computer.", true, json!({"path": s("Path (~ allowed)"), "text": s("Content"), "append": b("Append"), "executable": b("chmod +x")}), &["path", "text"], out(json!({"path": ty("string"), "bytes": ty("integer")}), &["path"]))),
-    ]
+    ];
+    all.extend(activity::defs());
+    all.extend(mcp_servers::defs());
+    all
 }
 
 pub fn tools() -> Vec<ToolDef> {
@@ -576,6 +582,8 @@ fn normalize_aliases(name: &str, a: &mut Value) {
         ("id", &["nodeId"]),
         ("workspace", &["workspaceId"]),
         ("floor", &["floorId"]),
+        ("width", &["w"]),
+        ("height", &["h"]),
     ];
     let Some(d) = defs().iter().find(|d| d.tool.name == name) else {
         return;
@@ -924,7 +932,8 @@ fn ready(app: &AppHandle) -> Arc<CanvasStore> {
 async fn blocking<T: Send + 'static>(
     f: impl FnOnce() -> Result<T, String> + Send + 'static,
 ) -> Result<T, String> {
-    tauri::async_runtime::spawn_blocking(f)
+    let me = who::current();
+    tauri::async_runtime::spawn_blocking(move || who::enter(me, f))
         .await
         .map_err(|e| format!("CANVAS_TASK: {e}"))?
 }
@@ -1160,7 +1169,7 @@ fn apply(
     for op in &mut ops {
         snap_op(op);
     }
-    s.apply(ws, floor, ops, ORIGIN, None)
+    s.apply(ws, floor, ops, &who::origin(), None)
 }
 
 const GRID: f64 = omniget_core::core::canvas::model::GRID;
@@ -1253,7 +1262,9 @@ pub async fn call(app: &AppHandle, p: &Principal, name: &str, a: Value) -> Resul
     normalize_aliases(name, &mut a);
     validate(name, &a)?;
     let prefer = st(&a, "workspaceId").map(|_| ws_of(&a));
-    PREFER_WS.scope(prefer, dispatch(app, name, a)).await
+    let me = who::of(p);
+    crate::canvas::activity::name_actor(&me.origin, &me.client);
+    who::scope(me, PREFER_WS.scope(prefer, dispatch(app, name, a))).await
 }
 
 async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String> {
@@ -1451,9 +1462,7 @@ async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
             let (ws, floor) = ws_floor(&s, &a)?;
             let ops: Vec<Op> = de(group_member_ops(a["ops"].clone()), "ops")?;
             let base = a.get("baseRev").and_then(Value::as_u64);
-            to_value(
-                cmd::doc::canvas_apply(app, ws, floor, base, ops, Some(ORIGIN.to_string())).await?,
-            )
+            to_value(cmd::doc::canvas_apply(app, ws, floor, base, ops, Some(who::origin())).await?)
         }
         "canvas_node_spawn" => spawn(&app, &s, &a).await,
         "canvas_node_update" => {
@@ -1534,7 +1543,8 @@ async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
             let id = n.id.clone();
             if let Some(dest) = move_to {
                 let (s2, w2, f2, id2) = (s.clone(), ws.clone(), floor.clone(), id.clone());
-                blocking(move || notes::move_to(&s2, &w2, &f2, &id2, &dest, ORIGIN)).await?;
+                blocking(move || notes::move_to(&s2, &w2, &f2, &id2, &dest, &who::origin()))
+                    .await?;
                 if patch.is_empty() {
                     let rev = s.read(&ws, &floor, |d| d.rev)?;
                     return Ok(json!({ "node": node_after(&s, &ws, &floor, &id)?, "rev": rev }));
@@ -1678,7 +1688,7 @@ async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
                     floor.clone(),
                     resolved.clone(),
                     de(a["mode"].clone(), "mode")?,
-                    Some(ORIGIN.to_string()),
+                    Some(who::origin()),
                 )
                 .await?,
             )?;
@@ -1731,6 +1741,8 @@ async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
         }
         "canvas_start" => canvas_start(&app, &s).await,
         "canvas_council" | "canvas_council_status" => council::call(&app, name, &a).await,
+        n if activity::owns(n) => activity::call(&app, n, &a).await,
+        n if mcp_servers::owns(n) => mcp_servers::call(&app, n, &a).await,
         "canvas_cord_create" => {
             let (ws, floor, from) = omni_cords_remote::locate_end(&s, &a, &need(&a, "from")?)?;
             let (w2, f2, to) = omni_cords_remote::locate_end(&s, &a, &need(&a, "to")?)?;
@@ -1803,7 +1815,8 @@ async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
             for id in &ids {
                 let (ws, floor) = locate_cord(&s, id)?;
                 if let Some(pair) = crate::canvas::link::pair_of(&ws, &floor, id) {
-                    blocking(move || crate::canvas::link::unlink_pair(&pair, ORIGIN)).await?;
+                    blocking(move || crate::canvas::link::unlink_pair(&pair, &who::origin()))
+                        .await?;
                     continue;
                 }
                 let s2 = s.clone();
@@ -2077,7 +2090,7 @@ async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
                 n.id.clone(),
                 a["text"].as_str().unwrap_or("").to_string(),
                 st(&a, "ifRevision"),
-                Some(ORIGIN.to_string()),
+                Some(who::origin()),
             )
             .await?;
             note_json(&n.id, c)
@@ -2114,7 +2127,7 @@ async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
                 n.id.clone(),
                 text,
                 Some(cur.revision),
-                Some(ORIGIN.to_string()),
+                Some(who::origin()),
             )
             .await?;
             note_json(&n.id, c)
@@ -2367,7 +2380,7 @@ async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
                 return Err("MISSING_ARGUMENT: id (routine_list gives it)".into());
             }
             if r.get("createdBy").is_none() {
-                r["createdBy"] = json!(ORIGIN);
+                r["createdBy"] = json!(who::origin());
             }
             wrap(
                 "routine",
@@ -2684,7 +2697,7 @@ async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
             let mut ops = Vec::new();
             for _ in 0..steps {
                 let (s2, w2, f2) = (s.clone(), ws.clone(), floor.clone());
-                match blocking(move || s2.undo_last(&w2, &f2, ORIGIN)).await? {
+                match blocking(move || s2.undo_last(&w2, &f2, &who::origin())).await? {
                     Some(r) => {
                         undone += 1;
                         ops.extend(r.ops);
@@ -2692,7 +2705,7 @@ async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
                     None => break,
                 }
             }
-            let remaining = s.undo_depth(&ws, &floor, ORIGIN);
+            let remaining = s.undo_depth(&ws, &floor, &who::origin());
             Ok(
                 json!({ "ok": undone > 0, "undone": undone, "remaining": remaining, "ops": to_value(ops)? }),
             )
@@ -3823,8 +3836,10 @@ async fn note_create(app: &AppHandle, s: &Arc<CanvasStore>, a: &Value) -> Result
         let (s2, w2, f2) = (s.clone(), ws.clone(), floor.clone());
         blocking(move || {
             let id = match &external {
-                Some(p) => notes::create_external(&s2, &w2, &f2, at.x, at.y, p, &text, ORIGIN)?,
-                None => notes::create(&s2, &w2, &f2, at.x, at.y, &text, ORIGIN)?,
+                Some(p) => {
+                    notes::create_external(&s2, &w2, &f2, at.x, at.y, p, &text, &who::origin())?
+                }
+                None => notes::create(&s2, &w2, &f2, at.x, at.y, &text, &who::origin())?,
             };
             let mut ops = Vec::new();
             if let Some(t) = title {
@@ -4033,7 +4048,7 @@ async fn portal_open(app: &AppHandle, s: &Arc<CanvasStore>, a: &Value) -> Result
                 &ws,
                 &floor,
                 &node_id,
-                ORIGIN,
+                &who::origin(),
                 "navigate",
                 json!({ "url": u }),
             )
@@ -4062,7 +4077,8 @@ async fn portal_drive(
     if let Some(o) = args.as_object_mut() {
         o.remove("nodeId");
     }
-    let r = crate::canvas::portal::drive(app, &ws, &floor, &n.id, ORIGIN, verb, args).await?;
+    let r =
+        crate::canvas::portal::drive(app, &ws, &floor, &n.id, &who::origin(), verb, args).await?;
     Ok(json!({ "nodeId": n.id, "result": r }))
 }
 
@@ -4705,7 +4721,14 @@ async fn canvas_start(app: &AppHandle, s: &Arc<CanvasStore>) -> Result<Value, St
     let window = super::canvas_ui::ui(app, "camera", json!({})).await.ok();
     let _ = s;
     let r = |goal: &str, call: &str| json!({ "goal": goal, "call": call });
+    let me = who::current();
+    let you = json!({
+        "client": me.as_ref().map(|w| w.client.clone()),
+        "origin": who::origin(),
+        "scopes": me.map(|w| w.scopes).unwrap_or_default(),
+    });
     Ok(json!({
+        "you": you,
         "workspaces": workspaces,
         "window": window,
         "recipes": [
@@ -4720,6 +4743,7 @@ async fn canvas_start(app: &AppHandle, s: &Arc<CanvasStore>) -> Result<Value, St
             r("several agents decide something", r#"canvas_council {"workspaceId":"<id>","question":"...","method":"brainstorm|dialectic|arena|simulation"}"#),
             r("what needs the person", r#"canvas_inbox {"workspaceId":"<id>"}"#),
             r("take back your own edits", r#"canvas_undo {"workspaceId":"<id>","steps":1}"#),
+            r("what the agents and clients changed lately", r#"canvas_activity {"workspaceId":"<id>","limit":20}"#),
             r("show the canvas to the person / take a picture", r#"omniget_app_navigate {"screenId":"/world"} then omniget_app_capture {}"#),
         ],
         "tips": [

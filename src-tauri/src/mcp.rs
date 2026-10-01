@@ -1154,6 +1154,13 @@ pub async fn handle(app: &AppHandle, principal: &policy::Principal, msg: &Value)
     }
     Some(match method {
         "initialize" => {
+            if let Some(client) = params
+                .get("clientInfo")
+                .and_then(|c| c.get("name"))
+                .and_then(|n| n.as_str())
+            {
+                canvas::who::remember_client(&principal.id, client);
+            }
             let requested = params
                 .get("protocolVersion")
                 .and_then(|v| v.as_str())
