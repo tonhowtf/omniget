@@ -248,13 +248,21 @@ fn phrase(verb: &str) -> &str {
     }
 }
 
+fn article(noun: &str) -> &'static str {
+    if noun.starts_with(['a', 'e', 'i', 'o', 'u']) {
+        "an"
+    } else {
+        "a"
+    }
+}
+
 fn describe(verb: &str, nodes: &[(String, String)], other: usize, noun: &str) -> String {
     let said = phrase(verb);
     match nodes {
         [] if other > 1 => format!("{said} {other} {noun}s"),
-        [] => format!("{said} a {noun}"),
+        [] => format!("{said} {} {noun}", article(noun)),
         [(t, k)] if !t.trim().is_empty() => format!("{said} {} {}", kind_noun(k), quoted(t)),
-        [(_, k)] => format!("{said} a {}", kind_noun(k)),
+        [(_, k)] => format!("{said} {} {}", article(kind_noun(k)), kind_noun(k)),
         many => format!("{said} {} nodes", many.len()),
     }
 }

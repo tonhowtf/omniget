@@ -82,6 +82,7 @@ struct CookiesRequest {
 
 const HOST_MAX_PROTOCOL_VERSION: u32 = 1;
 
+const MCP_BODY_LIMIT: usize = 36 * 1024 * 1024;
 const ENQUEUE_BODY_LIMIT: usize = 8 * 1024 * 1024;
 
 pub fn generate_token() -> String {
@@ -251,7 +252,13 @@ pub async fn spawn(app: AppHandle) {
         .route("/v1/queue", get(queue_state))
         .route("/v1/log/{id}", get(download_log))
         .route("/v1/cookies", post(cookies_export))
-        .route("/mcp", post(mcp_post).get(mcp_get).delete(mcp_get))
+        .route(
+            "/mcp",
+            post(mcp_post)
+                .get(mcp_get)
+                .delete(mcp_get)
+                .layer(DefaultBodyLimit::max(MCP_BODY_LIMIT)),
+        )
         .route("/mcp/artifacts/{id}", get(mcp_artifact))
         .route(
             "/mcp/assist",
@@ -659,8 +666,12 @@ async fn mcp_post(
     {
         return StatusCode::UNSUPPORTED_MEDIA_TYPE.into_response();
     }
-    if body.len() > 65536 {
-        return StatusCode::PAYLOAD_TOO_LARGE.into_response();
+    if body.len() > MCP_BODY_LIMIT {
+        return (
+            StatusCode::PAYLOAD_TOO_LARGE,
+            "PAYLOAD_TOO_LARGE: the request is over 36 MB; send files by path or url instead of base64",
+        )
+            .into_response();
     }
     let accept = headers
         .get("accept")

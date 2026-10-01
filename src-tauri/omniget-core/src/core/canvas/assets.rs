@@ -2,7 +2,8 @@ use std::collections::HashMap;
 use std::io::Cursor;
 use std::net::IpAddr;
 use std::path::{Component, Path, PathBuf};
-use std::sync::{Mutex, OnceLock};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, SystemTime};
 
 use base64::Engine as _;
@@ -11,13 +12,14 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
 use sha2::{Digest, Sha256};
 
-use super::persist::write_atomic;
 use crate::core::assist::web::{check_url, fetch_raw, forbidden_ip, WebPolicy};
 
 pub const MAX_IMPORT_BYTES: usize = 25 * 1024 * 1024;
 pub const MAX_LOCAL_BYTES: u64 = 200 * 1024 * 1024;
 pub const THUMB_SIDE: u32 = 1024;
 pub const TINY_SIDE: u32 = 128;
+const TINY_MIN_SIDE: u32 = 32;
+const TINY_MAX_BYTES: usize = 4 * 1024;
 pub const URL_TIMEOUT: Duration = Duration::from_secs(20);
 pub const MAX_REDIRECTS: usize = 3;
 pub const ASSETS_REL: &str = "files/assets";
@@ -154,6 +156,33 @@ fn asset_ref(ws_dir: &Path, id: &str, ext: &str, w: u32, h: u32, bytes: u64) -> 
     }
 }
 
+fn write_file(path: &Path, bytes: &[u8]) -> Result<(), String> {
+    static SEQ: AtomicU64 = AtomicU64::new(0);
+    let dir = path.parent().ok_or("ASSET_IO: path has no parent")?;
+    std::fs::create_dir_all(dir).map_err(|e| format!("ASSET_IO: {e}"))?;
+    let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("file");
+    let tmp = dir.join(format!(
+        ".{name}.{}.{}.tmp",
+        std::process::id(),
+        SEQ.fetch_add(1, Ordering::Relaxed)
+    ));
+    std::fs::write(&tmp, bytes).map_err(|e| format!("ASSET_IO: {e}"))?;
+    std::fs::rename(&tmp, path).map_err(|e| {
+        let _ = std::fs::remove_file(&tmp);
+        format!("ASSET_IO: {e}")
+    })
+}
+
+fn hash_lock(hash: &str) -> Arc<Mutex<()>> {
+    static LOCKS: OnceLock<Mutex<HashMap<String, Arc<Mutex<()>>>>> = OnceLock::new();
+    let mut m = LOCKS
+        .get_or_init(|| Mutex::new(HashMap::new()))
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
+    m.retain(|_, l| Arc::strong_count(l) > 1);
+    m.entry(hash.to_string()).or_default().clone()
+}
+
 fn index_file(ws_dir: &Path) -> PathBuf {
     assets_dir(ws_dir).join("index.json")
 }
@@ -189,7 +218,7 @@ pub fn remember(
     if let Some(u) = source_url {
         entry["sourceUrl"] = json!(u);
     }
-    write_atomic(
+    write_file(
         &index_file(ws_dir),
         &serde_json::to_vec_pretty(&idx).map_err(|e| e.to_string())?,
     )
@@ -200,7 +229,7 @@ fn forget(ws_dir: &Path, id: &str) {
     let mut idx = read_index(ws_dir);
     if idx.remove(id).is_some() {
         if let Ok(b) = serde_json::to_vec_pretty(&idx) {
-            let _ = write_atomic(&index_file(ws_dir), &b);
+            let _ = write_file(&index_file(ws_dir), &b);
         }
     }
 }
@@ -211,8 +240,10 @@ fn put_inner(ws_dir: &Path, bytes: &[u8]) -> Result<AssetRef, String> {
     let id = hash_bytes(bytes);
     let r = asset_ref(ws_dir, &id, ext, w, h, bytes.len() as u64);
     let dest = PathBuf::from(&r.abs);
+    let lock = hash_lock(&id);
+    let _g = lock.lock().unwrap_or_else(|e| e.into_inner());
     if !dest.is_file() {
-        write_atomic(&dest, bytes)?;
+        write_file(&dest, bytes)?;
     }
     Ok(r)
 }
@@ -487,6 +518,11 @@ pub fn make_thumb(ws_dir: &Path, hash: &str, bytes: &[u8]) -> Result<ThumbInfo, 
     if let Some(t) = cached_thumb(ws_dir, hash) {
         return Ok(t);
     }
+    let lock = hash_lock(hash);
+    let _g = lock.lock().unwrap_or_else(|e| e.into_inner());
+    if let Some(t) = cached_thumb(ws_dir, hash) {
+        return Ok(t);
+    }
     let img = decode(bytes)?;
     let (w, h) = (img.width(), img.height());
     let small = if w.max(h) > THUMB_SIDE {
@@ -500,7 +536,7 @@ pub fn make_thumb(ws_dir: &Path, hash: &str, bytes: &[u8]) -> Result<ThumbInfo, 
     };
     let webp = encode_webp(&small)?;
     let t = thumb_file(ws_dir, hash);
-    write_atomic(&t, &webp)?;
+    write_file(&t, &webp)?;
     let mime = sniff(bytes).map(|(_, m)| m).unwrap_or("image/unknown");
     let meta = ThumbMeta {
         w,
@@ -508,7 +544,7 @@ pub fn make_thumb(ws_dir: &Path, hash: &str, bytes: &[u8]) -> Result<ThumbInfo, 
         mime: mime.to_string(),
         src_bytes: bytes.len() as u64,
     };
-    write_atomic(
+    write_file(
         &meta_file(ws_dir, hash),
         &serde_json::to_vec(&meta).map_err(|e| e.to_string())?,
     )?;
@@ -567,7 +603,22 @@ pub fn tiny_thumb(ws_dir: &Path, hash: &str) -> Option<String> {
     let t = cached_thumb(ws_dir, hash)?;
     let bytes = std::fs::read(&t.thumb).ok()?;
     let img = image::load_from_memory_with_format(&bytes, ImageFormat::WebP).ok()?;
-    let small = img.thumbnail(TINY_SIDE, TINY_SIDE).to_rgba8();
+    let largest = img.width().max(img.height());
+    let mut side = TINY_SIDE.min(largest).max(1);
+    loop {
+        let out = tiny_jpeg(&img, side)?;
+        if out.len() <= TINY_MAX_BYTES || side <= TINY_MIN_SIDE {
+            return Some(format!(
+                "data:image/jpeg;base64,{}",
+                base64::engine::general_purpose::STANDARD.encode(&out)
+            ));
+        }
+        side = (side / 2).max(TINY_MIN_SIDE);
+    }
+}
+
+fn tiny_jpeg(img: &image::DynamicImage, side: u32) -> Option<Vec<u8>> {
+    let small = img.thumbnail(side, side).to_rgba8();
     let mut rgb = image::RgbImage::new(small.width(), small.height());
     for (x, y, p) in small.enumerate_pixels() {
         let a = p[3] as u32;
@@ -575,13 +626,10 @@ pub fn tiny_thumb(ws_dir: &Path, hash: &str) -> Option<String> {
         rgb.put_pixel(x, y, image::Rgb([mix(p[0]), mix(p[1]), mix(p[2])]));
     }
     let mut out = Vec::new();
-    image::codecs::jpeg::JpegEncoder::new_with_quality(&mut out, 70)
+    image::codecs::jpeg::JpegEncoder::new_with_quality(&mut out, 60)
         .encode_image(&rgb)
         .ok()?;
-    Some(format!(
-        "data:image/jpeg;base64,{}",
-        base64::engine::general_purpose::STANDARD.encode(&out)
-    ))
+    Some(out)
 }
 
 pub fn clear_thumbs(canvas_root: &Path) -> u64 {

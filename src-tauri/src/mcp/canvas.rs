@@ -1261,6 +1261,19 @@ tokio::task_local! {
     static PREFER_WS: Option<String>;
 }
 
+fn mask_emails(v: Value) -> Value {
+    static EMAIL: OnceLock<regex::Regex> = OnceLock::new();
+    let re = EMAIL.get_or_init(|| {
+        regex::Regex::new(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}").expect("email pattern")
+    });
+    match v {
+        Value::String(t) => Value::String(re.replace_all(&t, "[e-mail hidden]").into_owned()),
+        Value::Array(items) => Value::Array(items.into_iter().map(mask_emails).collect()),
+        Value::Object(map) => Value::Object(map.into_iter().map(|(k, x)| (k, mask_emails(x))).collect()),
+        other => other,
+    }
+}
+
 pub async fn call(app: &AppHandle, p: &Principal, name: &str, a: Value) -> Result<Value, String> {
     if !policy::allowed(p, name) {
         return Err("TOOL_NOT_AUTHORIZED".into());
@@ -2490,6 +2503,7 @@ async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
                     cmd::companion::canvas_companion_ask(app, ws, q, n.map(|x| x.2.id)).await
                 }
             }
+            .map(mask_emails)
         }
         "omni_dismiss" => Ok(json!({
             "dismissed": cmd::companion::canvas_companion_dismiss(app, need(&a, "id")?).await?

@@ -25,6 +25,8 @@ interface Entry {
   bitmap?: ImageBitmap;
   bitmapLoading?: boolean;
   error?: string;
+  failedAt?: number;
+  retries?: number;
   bytes: number;
   used: number;
   version: number;
@@ -34,6 +36,8 @@ type NodeLike = Pick<CanvasNode, 'id' | 'kind' | 'data'>;
 
 const RASTER = /\.(png|jpe?g|gif|webp)$/i;
 const NEIGHBOUR_MARGIN = 0.5;
+const AUTO_RETRY_MS = 3000;
+const AUTO_RETRIES = 2;
 const FIT_MAX = 480;
 const GRID = 20;
 
@@ -105,6 +109,18 @@ export function imageError(entry: Entry | undefined): string {
   return entry?.status === 'error' ? (entry.error ?? '') : '';
 }
 
+export function imageView(engine: CanvasEngine, node: NodeLike): { status: Status | 'none'; original: string; error: string } {
+  const e = imageEntry(engine, node);
+  return { status: e?.status ?? 'none', original: e?.resolved?.original ?? '', error: imageError(e) };
+}
+
+function fail(e: Entry, err: unknown): void {
+  e.status = 'error';
+  e.error = String(err);
+  e.failedAt = performance.now();
+  bump();
+}
+
 function fitted(w: number, h: number): { w: number; h: number } {
   const k = Math.min(1, FIT_MAX / Math.max(w, h));
   const snap = (v: number) => Math.max(GRID * 2, Math.round((v * k) / GRID) * GRID);
@@ -150,9 +166,7 @@ async function loadBitmap(engine: CanvasEngine, e: Entry): Promise<void> {
     publish(e);
     engine.invalidate();
   } catch (err) {
-    e.status = 'error';
-    e.error = String(err);
-    bump();
+    fail(e, err);
   } finally {
     e.bitmapLoading = false;
   }
@@ -184,9 +198,7 @@ async function load(engine: CanvasEngine, node: NodeLike, e: Entry, ws: string):
     bump();
     if (canvasPrefs().images.any_zoom) await loadBitmap(engine, e);
   } catch (err) {
-    e.status = 'error';
-    e.error = String(err);
-    bump();
+    fail(e, err);
   }
 }
 
@@ -210,6 +222,15 @@ export function requestImage(engine: CanvasEngine, node: NodeLike): Entry | unde
     return e;
   }
   e.used = performance.now();
+  if (e.status === 'error' && (e.retries ?? 0) < AUTO_RETRIES && e.used - (e.failedAt ?? 0) > AUTO_RETRY_MS) {
+    e.retries = (e.retries ?? 0) + 1;
+    e.status = 'loading';
+    e.error = undefined;
+    e.resolved = undefined;
+    bump();
+    void load(engine, node, e, ws);
+    return e;
+  }
   if (e.status === 'ready' && canvasPrefs().images.any_zoom) {
     if (e.bitmap) {
       if (prevKey !== ck) publish(e);

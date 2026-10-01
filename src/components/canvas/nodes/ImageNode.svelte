@@ -3,7 +3,7 @@
   import { t } from "$lib/i18n";
   import type { CanvasNode } from "$lib/canvas/model/types";
   import { useEngine } from "$lib/canvas/engine.svelte";
-  import { imageEntry, imageError, requestImage, retryImage } from "$lib/canvas/images.svelte";
+  import { imageView, requestImage, retryImage } from "$lib/canvas/images.svelte";
 
   let { node }: { node: CanvasNode } = $props();
   const engine = useEngine();
@@ -17,12 +17,11 @@
     requestImage(engine, node);
   });
 
-  const entry = $derived(imageEntry(engine, node));
+  const view = $derived(imageView(engine, node));
   const src = $derived.by(() => {
-    const r = entry?.resolved;
-    if (!r?.original) return "";
+    if (!view.original) return "";
     try {
-      return convertFileSrc(r.original);
+      return convertFileSrc(view.original);
     } catch {
       return "";
     }
@@ -33,7 +32,7 @@
     failed = false;
   });
 
-  const error = $derived(failed ? "ASSET_DECODE" : imageError(entry));
+  const error = $derived(failed ? "ASSET_DECODE" : view.error);
   const message = $derived.by(() => {
     if (error.includes("ASSET_URL_OFF")) return $t("canvas.image.webOff", { default: "Downloading images from the web is off in Settings" });
     if (error.includes("ASSET_URL")) return $t("canvas.image.downloadFailed", { default: "Couldn't download this image" });

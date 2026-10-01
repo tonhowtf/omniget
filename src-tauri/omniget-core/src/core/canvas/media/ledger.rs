@@ -200,7 +200,7 @@ fn assess_in(
     let recent = agent_recent(c, ws, now)?;
     let needs_approval = amount > b.auto_per_gen || recent >= b.auto_per_hour;
     let reason = if b.ceiling == 0 {
-        Some("PROVIDER_BUDGET_NOT_SET: the workspace budget is 0; set a ceiling first".to_string())
+        Some("PROVIDER_BUDGET_NOT_SET: the workspace budget is 0; the person sets it in the generation node, or call canvas_generate_budget {workspaceId, ceiling}".to_string())
     } else if !fits_budget {
         Some(format!(
             "PROVIDER_BUDGET_EXCEEDED: needs {:.2} credits, {:.2} left in the workspace budget",

@@ -334,6 +334,10 @@ pub fn session_json(n: &CanvasNode) -> Value {
 
 pub fn echo(name: &str, r: Result<Value, String>) -> Result<Value, String> {
     let mut v = r?;
+    if name == "canvas_terminals_list" {
+        list_accounts(&mut v);
+        return Ok(v);
+    }
     if !acts_on_node(name) || !v.is_object() {
         return Ok(v);
     }
@@ -362,4 +366,29 @@ pub fn echo(name: &str, r: Result<Value, String>) -> Result<Value, String> {
         v["session"] = session_json(&n);
     }
     Ok(v)
+}
+
+fn list_accounts(v: &mut Value) {
+    let store = crate::canvas::doc::host().store();
+    let Some(items) = v.get_mut("terminals").and_then(Value::as_array_mut) else {
+        return;
+    };
+    for item in items {
+        let Some(id) = item
+            .get("nodeId")
+            .or_else(|| item.get("id"))
+            .and_then(Value::as_str)
+            .map(str::to_string)
+        else {
+            continue;
+        };
+        let Some((ws, floor)) = store.locate_node(&id) else {
+            continue;
+        };
+        if let Ok(Some(n)) = store.read(&ws, &floor, |d| d.node(&id).cloned()) {
+            if crate::canvas::launch::is_terminal(&n) {
+                item["account"] = crate::canvas::accounts::node_account_json(&n);
+            }
+        }
+    }
 }
