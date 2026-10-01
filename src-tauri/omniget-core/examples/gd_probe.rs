@@ -238,6 +238,127 @@ async fn main() -> Result<(), String> {
                 }
             }
         }
+        "probe" => {
+            // One process, end to end, for site sweeps:
+            // probe <url> [out dir] [max height] [wait secs]
+            // Opens the page, starts every <video>/<audio>, resolves with the
+            // sniffer, downloads what it found (yt-dlp items are only
+            // listed) and stops a file past GD_CAP_MB (default 50).
+            let b = browser::start(None, true).await?;
+            let url = args.get(1).ok_or("url")?;
+            let tab = b.open_tab(url).await?;
+            omniget_core::core::global_dl::page::wait_loaded(
+                &b,
+                &tab,
+                std::time::Duration::from_secs(25),
+            )
+            .await;
+            let wait: u64 = args.get(4).and_then(|x| x.parse().ok()).unwrap_or(8);
+            let played = b
+                .eval(
+                    &tab,
+                    "(() => { const m = [...document.querySelectorAll('video,audio')]; m.forEach(v => { try { v.muted = true; v.play().catch(() => {}); } catch (e) {} }); return [document.title, document.readyState, m.length, m.map(v => v.currentSrc).join(' ')]; })()",
+                    std::time::Duration::from_secs(5),
+                )
+                .await;
+            println!("page: {played:?}");
+            tokio::time::sleep(std::time::Duration::from_secs(wait)).await;
+            if std::env::var("GD_LOG").is_ok() {
+                let t = b.tab(&tab).map(|t| t.title).unwrap_or_default();
+                println!("title: {t}");
+                for e in omniget_core::core::global_dl::sniffer::log(Some(&tab), None, &[], 4000) {
+                    if e.resource_type != "Image"
+                        && e.resource_type != "Stylesheet"
+                        && e.resource_type != "Font"
+                    {
+                        println!(
+                            "  log {} {} {} {}",
+                            e.status,
+                            e.resource_type,
+                            e.mime,
+                            e.url.chars().take(140).collect::<String>()
+                        );
+                    }
+                }
+            }
+            let r = connector::resolve(url, None, Some(tab.clone()), None).await;
+            let r = match r {
+                Ok(r) => r,
+                Err(e) => {
+                    let _ = b.close_tab(&tab).await;
+                    return Err(e);
+                }
+            };
+            println!(
+                "connector={:?} items={} drm={} ms={}",
+                r.connector, r.items, r.drm, r.ms
+            );
+            print_tree(&r.tree, 0, &mut 0);
+            for c in &r.tree.children {
+                if let Some(s) = &c.source {
+                    println!(
+                        "  {} {} {}",
+                        c.id,
+                        s.format,
+                        s.url
+                            .as_deref()
+                            .unwrap_or("")
+                            .chars()
+                            .take(150)
+                            .collect::<String>()
+                    );
+                }
+            }
+            if let Some(out) = args.get(2) {
+                let h = args.get(3).and_then(|x| x.parse().ok());
+                let cap: u64 = std::env::var("GD_CAP_MB")
+                    .ok()
+                    .and_then(|v| v.parse().ok())
+                    .unwrap_or(50)
+                    * 1024
+                    * 1024;
+                jobs::set_handoff(Box::new(|u| println!("handoff → yt-dlp: {u}")));
+                let only: Vec<String> = r
+                    .tree
+                    .children
+                    .iter()
+                    .filter(|c| {
+                        c.source
+                            .as_ref()
+                            .is_some_and(|s| s.format != "ytdlp" && s.format != "dash")
+                    })
+                    .map(|c| c.id.clone())
+                    .collect();
+                if only.is_empty() {
+                    println!("nothing to download besides yt-dlp/dash items");
+                } else {
+                    let job = jobs::start(r.tree.clone(), Some(only), out.into(), h)?;
+                    loop {
+                        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+                        let j = jobs::list().into_iter().find(|x| x.id == job.id).unwrap();
+                        if j.items.iter().any(|i| i.bytes > cap) {
+                            jobs::cancel(job.id);
+                            println!("cap reached, cancelled");
+                        }
+                        if j.status != "running" {
+                            for it in &j.items {
+                                println!(
+                                    "{} bytes={} {:?} {:?}",
+                                    it.status,
+                                    it.bytes,
+                                    std::path::Path::new(&it.path)
+                                        .file_name()
+                                        .unwrap_or_default(),
+                                    it.error
+                                );
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+            let _ = b.close_tab(&tab).await;
+        }
         _ => return Err(format!("unknown command {cmd}")),
     }
     Ok(())
