@@ -102,10 +102,6 @@ export default defineConfig(({ command }) => {
             port: 1421,
           }
         : undefined,
-      // The avatar catalog is shared with Rust and imported from its crate.
-      fs: {
-        allow: ["src-tauri/omniget-avatar/catalog"],
-      },
       watch: {
         // 3. tell Vite to ignore watching `src-tauri`
         ignored: ["**/src-tauri/**"],

@@ -20,7 +20,6 @@
     llm: { glyph: "sparkle", from: "#C77DFF", to: "#7B3FE4" },
     help: { glyph: "book-open-text", from: "var(--accent)", to: "var(--accent)" },
     world: { glyph: "globe-hemisphere-west", from: "#67D27E", to: "#2F9E52" },
-    city: { glyph: "cube", from: "#F0A26B", to: "#B9654C" },
     settings: { glyph: "gear-six", from: "#A3A3A8", to: "#6F6F75" },
     about: { glyph: "info", from: "#5AA9FF", to: "#1E6FE8" },
     league: { glyph: "sword", from: "#E8B84A", to: "#B8860B" },

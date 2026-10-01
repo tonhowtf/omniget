@@ -70,7 +70,7 @@
   let scopes = $state(["discover", "enqueue", "control", "diagnostics", "artifacts", "history"]);
   let gatewayWrite = $state(false);
   let gatewayTransfer = $state(false);
-  const gatewayCanWrite = $derived(scopes.some(scope => ["enqueue", "control", "orchestration_create", "orchestration_control", "approvals_respond", "agents_run", "company_control", "city_write"].includes(scope)));
+  const gatewayCanWrite = $derived(scopes.some(scope => ["enqueue", "control", "orchestration_create", "orchestration_control", "approvals_respond", "agents_run", "company_control"].includes(scope)));
   const gatewayCanTransfer = $derived(scopes.includes("transfer"));
   $effect(() => {
     if (!gatewayCanWrite) gatewayWrite = false;
@@ -82,7 +82,7 @@
   let reveal = $state(false);
   let snippets = $state<[string,string][]>([]);
   let client = $state(0);
-  const options = ["app_observe", "app_control", "app_capture", "discover", "enqueue", "control", "diagnostics", "artifacts", "history", "local_network", "transfer", "company_read", "company_control", "orchestration_read", "orchestration_control", "orchestration_create", "auth", "catalog", "system_read", "system_change", "telegram_read", "telegram_write", "approvals_respond", "agents_run", "memory_read", "memory_write", "city_read", "city_write", "meetings_read", "meetings_write", "teams_read", "library"];
+  const options = ["app_observe", "app_control", "app_capture", "discover", "enqueue", "control", "diagnostics", "artifacts", "history", "local_network", "transfer", "company_read", "company_control", "orchestration_read", "orchestration_control", "orchestration_create", "auth", "catalog", "system_read", "system_change", "telegram_read", "telegram_write", "approvals_respond", "agents_run", "memory_read", "memory_write", "meetings_read", "meetings_write", "teams_read", "library"];
   async function chooseFolder() {
     const selected = await open({ directory: true, multiple: false });
     if (typeof selected === "string") folder = selected;

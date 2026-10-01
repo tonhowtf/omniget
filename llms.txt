@@ -60,7 +60,6 @@ Writing about OmniGet, or generating a post about it? Read [MEDIA-KIT.md](https:
 
 - [The World](https://github.com/tonhowtf/omniget#the-world): An isometric house, rendered in WebGL2 from a Rust simulation, where each agent walks to its own workbench, shows the running tool in a balloon and waves when it needs permission.
 - Visits: "Open the house" gives a code; a friend's app joins through a relay (`wss://chat.tonho.wtf/v1/room`, or a self-hosted `omniworld-server`). The host app stays the authority.
-- The City: a 3D town an AI founds and keeps building. A generator lays out terrain, streets and buildings, a building code checks every change, and people make VRM avatars, script new objects and import GLB, VRM or images. Runs locally or on a server.
 
 ## 5. Tools
 

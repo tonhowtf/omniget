@@ -198,17 +198,6 @@
   "music": {
     "enabled": true
   },
-  "omnidisc": {
-    "voice": {
-      "ducking_percent": 0,
-      "input_device": null,
-      "noise_suppression": true,
-      "output_device": null,
-      "ptt_key": "",
-      "relay_only": false,
-      "vad_threshold_db": -45.0
-    }
-  },
   "onboarding_completed": false,
   "portable_mode": false,
   "proxy": {

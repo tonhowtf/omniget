@@ -8,9 +8,8 @@ use serde_json::{Map, Value};
 
 use super::{
     AccessibilitySettings, AppSettings, CanvasSettings, DownloadSettings, LastDownloadOptions,
-    LeagueSettings, LlmSettings, MusicSettings, OmnidiscSettings, ReadSettings, RpcSettings,
-    TelegramSettings, TubeSettings, TypographySettings, VideoSettings, WashMyBellySettings,
-    WorldSettings,
+    LeagueSettings, LlmSettings, MusicSettings, ReadSettings, RpcSettings, TelegramSettings,
+    TubeSettings, TypographySettings, VideoSettings, WashMyBellySettings, WorldSettings,
 };
 
 /// Current `schema_version` of `AppSettings`.
@@ -217,7 +216,6 @@ pub struct SettingsPublicV3 {
     pub washmybelly: WashMyBellySettings,
     pub read: ReadSettings,
     pub accessibility: AccessibilitySettings,
-    pub omnidisc: OmnidiscSettings,
     pub world: WorldSettings,
     pub canvas: CanvasSettings,
     pub llm: LlmSettings,
@@ -305,7 +303,6 @@ impl AppSettings {
             washmybelly: self.washmybelly.clone(),
             read: self.read.clone(),
             accessibility: self.accessibility.clone(),
-            omnidisc: self.omnidisc.clone(),
             world: self.world.clone(),
             canvas: self.canvas.clone(),
             llm: self.llm.clone(),
@@ -372,10 +369,9 @@ const PROTECTED: [&str; 7] = [
 /// Visual fields locked until the appearance import committed.
 const APPEARANCE_GATED: [&str; 3] = ["appearance.theme", "appearance.mode", "appearance.preset"];
 
-const FINITE_FLOATS: [&str; 4] = [
+const FINITE_FLOATS: [&str; 3] = [
     "typography.line_height_base",
     "typography.spacing_scale",
-    "omnidisc.voice.vad_threshold_db",
     "world.measured_median_ms",
 ];
 
@@ -397,8 +393,6 @@ fn schema_template() -> Value {
     s.last_download_options.mode = Some(String::new());
     s.last_download_options.quality = Some(String::new());
     s.typography.preset_name = Some(String::new());
-    s.omnidisc.voice.input_device = Some(String::new());
-    s.omnidisc.voice.output_device = Some(String::new());
     s.world.tier_override = Some(0);
     s.world.tier_measured = Some(0);
     s.world.backend_override = Some(String::new());

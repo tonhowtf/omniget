@@ -9,7 +9,7 @@ use tauri::{AppHandle, Manager};
 
 pub fn catalog(p: &Principal) -> Vec<Value> {
     tools(p).into_iter().map(|tool| {
-        let writes = matches!(policy::scope(tool.name), Some("enqueue" | "control" | "company_control" | "orchestration_control" | "orchestration_create" | "app_control" | "app_capture" | "system_change" | "telegram_write" | "approvals_respond" | "agents_run" | "city_write" | "meetings_write"))
+        let writes = matches!(policy::scope(tool.name), Some("enqueue" | "control" | "company_control" | "orchestration_control" | "orchestration_create" | "app_control" | "app_capture" | "system_change" | "telegram_write" | "approvals_respond" | "agents_run" | "meetings_write"))
             || matches!(tool.name, "teams_transcript_import" | "auth_connection_request" | "diagnostic_bundle_create" | "catalog_install" | "memory_retain");
         let open_world = matches!(tool.name, "meeting_import" | "meeting_bot_send" | "teams_chats_list" | "teams_chat_read" | "teams_channels_list" | "teams_channel_read" | "teams_calendar" | "teams_transcript_import" | "download_enqueue" | "downloads_batch_enqueue" | "download_retry" | "download_resume" | "media_inspect" | "media_collection_list");
         let mut value = serde_json::to_value(&tool).expect("static tool schema serializes");
@@ -261,9 +261,6 @@ pub async fn call(app: &AppHandle, p: &Principal, name: &str, a: Value) -> Resul
     validate(p, name, &a)?;
     if name.starts_with("wmb_") {
         return super::washmybelly::call(app, p, name, a).await;
-    }
-    if name.starts_with("city_") {
-        return super::call(app, name, a).await;
     }
     if matches!(name, "media_inspect" | "media_collection_list") {
         check_network(p, &checked_url(&a)?).await?;

@@ -22,8 +22,8 @@ import {
   type Tier,
 } from './types';
 
-export { calibrate, calibrateDetailed, calibrate3d, calibrate3dDetailed, median } from './calibrate';
-export type { CalibrationDetail, Calibration3DDetail } from './calibrate';
+export { calibrate, calibrateDetailed, median } from './calibrate';
+export type { CalibrationDetail } from './calibrate';
 export {
   buildBenchScene,
   createSyntheticAtlas,
@@ -45,19 +45,6 @@ export { makeCamera, worldToScreen, screenToWorld, visibleChunks, chunkId, proje
 export { parseAtlas, resolveDir } from './atlas';
 export { AnimClock, frameIndex } from './anim';
 export * from './types';
-
-/**
- * The 3D city backend (three.js). A separate chunk: the 2D world never pays
- * for it, and the city route pays only when it mounts the view.
- */
-export async function loadThree3d(): Promise<typeof import('./three3d')> {
-  return await import('./three3d');
-}
-
-/** The city's lite mode (2D renderer, baked kit sprites); its own chunk too. */
-export async function loadCityLite(): Promise<typeof import('./citylite')> {
-  return await import('./citylite');
-}
 
 /** Probes which WebGL versions the webview can actually create. */
 export function probeBackends(): { gl2: boolean; gl1: boolean } {

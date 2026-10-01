@@ -52,8 +52,6 @@ pub struct AppSettings {
     #[serde(default)]
     pub accessibility: AccessibilitySettings,
     #[serde(default)]
-    pub omnidisc: OmnidiscSettings,
-    #[serde(default)]
     pub world: WorldSettings,
     #[serde(default)]
     pub llm: LlmSettings,
@@ -590,51 +588,6 @@ impl Default for WorldSettings {
             city_server: String::new(),
         }
     }
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct OmnidiscSettings {
-    #[serde(default)]
-    pub voice: OmnidiscVoiceSettings,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct OmnidiscVoiceSettings {
-    #[serde(default)]
-    pub ptt_key: String,
-    #[serde(default = "default_true")]
-    pub noise_suppression: bool,
-    #[serde(default)]
-    pub input_device: Option<String>,
-    #[serde(default)]
-    pub output_device: Option<String>,
-    #[serde(default = "default_vad_threshold_db")]
-    pub vad_threshold_db: f32,
-    /// How much of everyone else's audio to duck while you speak, 0-100 %.
-    #[serde(default)]
-    pub ducking_percent: u8,
-    /// Force every connection through a TURN relay so the other side never
-    /// learns your IP. Needs a TURN server on the instance.
-    #[serde(default)]
-    pub relay_only: bool,
-}
-
-impl Default for OmnidiscVoiceSettings {
-    fn default() -> Self {
-        Self {
-            ptt_key: String::new(),
-            noise_suppression: true,
-            input_device: None,
-            output_device: None,
-            vad_threshold_db: default_vad_threshold_db(),
-            ducking_percent: 0,
-            relay_only: false,
-        }
-    }
-}
-
-fn default_vad_threshold_db() -> f32 {
-    -45.0
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -1597,7 +1550,6 @@ impl Default for AppSettings {
             washmybelly: WashMyBellySettings::default(),
             read: ReadSettings::default(),
             accessibility: AccessibilitySettings::default(),
-            omnidisc: OmnidiscSettings::default(),
             world: WorldSettings::default(),
             llm: LlmSettings::default(),
             canvas: CanvasSettings::default(),

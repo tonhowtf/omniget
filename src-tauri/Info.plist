@@ -2,10 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>NSCameraUsageDescription</key>
-	<string>OmniGet uses the camera only when you turn on live expression in the city, to move your avatar. The video stays on this computer; only the avatar's pose is shared.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>OmniGet uses the microphone when you record a meeting, and when you turn on voice to talk in the city and move your avatar's mouth.</string>
+	<string>OmniGet uses the microphone when you record a meeting.</string>
 	<key>NSAudioCaptureUsageDescription</key>
 	<string>OmniGet records the meeting audio your computer plays when you record a meeting.</string>
 </dict>

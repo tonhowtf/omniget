@@ -234,8 +234,6 @@ mod settings_rebrand_audit {
                     "llm.jobs_max_per_agent" => json!(2),
                     "last_download_options.mode"
                     | "last_download_options.quality"
-                    | "omnidisc.voice.input_device"
-                    | "omnidisc.voice.output_device"
                     | "world.backend_override"
                     | "world.city_backend"
                     | "tube.download_folder"
@@ -247,7 +245,7 @@ mod settings_rebrand_audit {
     }
 
     #[test]
-    fn actual_rust_defaults_match_the_254_leaf_harness_fixture() {
+    fn actual_rust_defaults_match_the_leaf_harness_fixture() {
         let mut actual = serde_json::to_value(AppSettings::default()).unwrap();
         // The sole machine-dependent default is not compared to a personal path.
         actual["download"]["default_output_dir"] =
@@ -256,8 +254,8 @@ mod settings_rebrand_audit {
             "../../tests/fixtures/settings-audit-defaults.json"
         ))
         .unwrap();
-        assert_eq!(leaf_count(&actual), 254);
-        assert_eq!(leaf_count(&expected), 254);
+        assert_eq!(leaf_count(&actual), 247);
+        assert_eq!(leaf_count(&expected), 247);
         // Read the fixture through its actual Rust types: f32 defaults such as
         // 1.55 otherwise differ from JSON's f64 representation by rounding.
         let typed_fixture: AppSettings = serde_json::from_value(expected).unwrap();
@@ -265,10 +263,10 @@ mod settings_rebrand_audit {
     }
 
     #[test]
-    fn all_254_settings_keep_nondefault_values_through_the_real_codec() {
+    fn all_settings_keep_nondefault_values_through_the_real_codec() {
         let mut expected = serde_json::to_value(AppSettings::default()).unwrap();
         synthetic_values(&mut expected, "");
-        assert_eq!(leaf_count(&expected), 254);
+        assert_eq!(leaf_count(&expected), 247);
         let decoded: AppSettings = serde_json::from_value(expected.clone()).unwrap();
         assert_eq!(serde_json::to_value(decoded).unwrap(), expected);
         assert_eq!(

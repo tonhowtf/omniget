@@ -389,7 +389,6 @@ fn build() -> Vec<ToolEntry> {
         entry("preview_screenshot", "PNG screenshot of the preview page; returns {path, width, height}. Shows the preview for a moment when it is hidden.", obj(json!({"threadId":{"type":"string"}}), &[]), ToolImpl::Host, "code", Local),
     ];
     all.extend(crate::core::washmybelly::tools::entries());
-    all.extend(crate::core::city3d::tools::entries());
     all.extend(crate::core::global_dl::tools::entries());
     all.extend(crate::core::telegram::tools::entries());
     all
@@ -456,7 +455,6 @@ mod tests {
             .iter()
             .filter(|e| {
                 !e.name.starts_with("wmb_")
-                    && !e.name.starts_with("city_")
                     && !e.name.starts_with("tg_")
                     && !e.name.starts_with("gd_")
             })
@@ -465,8 +463,8 @@ mod tests {
         let tg = crate::core::telegram::tools::all_names().len();
         assert_eq!(
             t.len(),
-            legacy + 34 + 7 + tg + 25,
-            "washmybelly has 34 tools, the city 7, the Global Downloader 25"
+            legacy + 34 + tg + 25,
+            "washmybelly has 34 tools, the Global Downloader 25"
         );
         let names: std::collections::HashSet<_> = t.iter().map(|e| e.name).collect();
         assert_eq!(names.len(), t.len(), "duplicate tool name");
@@ -530,7 +528,6 @@ mod tests {
                 "preview_type",
                 "preview_console",
                 "preview_screenshot",
-                "city_codegeo",
             ]
         );
     }

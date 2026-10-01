@@ -110,16 +110,6 @@ export type ImportAppearanceResult = {
 
 export type AppearanceMode = "system" | "light" | "dark";
 
-export type OmnidiscVoiceSettings = {
-  ptt_key?: string;
-  noise_suppression?: boolean;
-  input_device?: string | null;
-  output_device?: string | null;
-  vad_threshold_db?: number;
-  ducking_percent?: number;
-  relay_only?: boolean;
-};
-
 export type TypographySettings = {
   font_display: string;
   font_body: string;
@@ -255,9 +245,6 @@ export type SettingsPublicV3 = {
     approval_notify_delay_s?: number;
     jobs_max_parallel?: number;
     jobs_max_per_agent?: number | null;
-  };
-  omnidisc?: {
-    voice?: OmnidiscVoiceSettings;
   };
   world?: {
     enabled?: boolean;

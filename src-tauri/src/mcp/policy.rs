@@ -82,10 +82,6 @@ pub const SCOPES: &[&str] = &[
     "agents_run",
     "memory_read",
     "memory_write",
-    // The 3D city: read (inspect, validate, render, codegeo) and change
-    // (propose, apply, found). Never a default.
-    "city_read",
-    "city_write",
     // Meetings: read the minutes and transcripts; write = import a Teams
     // recording by its pre-signed URL.
     "meetings_read",
@@ -287,8 +283,6 @@ pub fn scope(name: &str) -> Option<&'static str> {
         | "wmb_perf_capture_start"
         | "wmb_perf_capture_stop" => "system_change",
         n if n.starts_with("wmb_") => "system_read",
-        "city_inspect" | "city_validate" | "city_render" | "city_codegeo" => "city_read",
-        "city_propose" | "city_apply" | "city_found" => "city_write",
         // /telegram: the write tools additionally wait for the person to
         // approve each call in the OmniGet window.
         "tg_download" | "tg_watch_add" | "tg_watch_update" | "tg_watch_remove" | "tg_watch_run"

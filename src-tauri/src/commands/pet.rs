@@ -2,7 +2,7 @@
 //!
 //! A second webview window, label `pet`: 200x200, transparent, undecorated,
 //! always on top, parked in one screen corner and optionally click-through.
-//! The window is created in code, like `commands::omnidisc::stream` does, so
+//! The window is created in code, so
 //! `tauri.conf.json` stays untouched; its permissions live in
 //! `capabilities/pet.json`.
 //!

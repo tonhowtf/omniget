@@ -92,7 +92,6 @@ impl EffectId {
                 "download.clip_hotkey_binding",
                 "download.music_hotkey_enabled",
                 "download.music_hotkey_binding",
-                "omnidisc.voice.ptt_key",
             ],
             Self::AppAutostart => &["start_with_system", "run_in_background"],
             Self::IntegrationsRpc => &["rpc"],

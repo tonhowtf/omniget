@@ -5,8 +5,6 @@ sdk: org.gnome.Sdk
 sdk-extensions:
   - org.freedesktop.Sdk.Extension.rust-stable
   - org.freedesktop.Sdk.Extension.node20
-  # libclang for bindgen (V4L2 camera of the 3D city's live avatar)
-  - org.freedesktop.Sdk.Extension.llvm21
 
 command: omniget
 
@@ -24,8 +22,6 @@ finish-args:
   # PipeWire (camera portal, screen-share audio); works on every flatpak version.
   - --filesystem=xdg-run/pipewire-0
   - --device=dri
-  # The 3D city's webcam avatar reads the camera through V4L2 on Linux.
-  - --device=all
   - --filesystem=xdg-download
   - --filesystem=xdg-videos
   - --filesystem=xdg-music
@@ -38,7 +34,6 @@ build-options:
   env:
     CARGO_HOME: /run/build/omniget/cargo
     npm_config_nodedir: /usr/lib/sdk/node20
-    LIBCLANG_PATH: /usr/lib/sdk/llvm21/lib
 
 cleanup:
   - /include
