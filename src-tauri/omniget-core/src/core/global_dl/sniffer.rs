@@ -2,7 +2,7 @@
 //! connector authors and the `gd_network_log` tool); responses that look like
 //! media also land in the sniffed list the Global Downloader screen shows.
 
-use std::collections::{BTreeMap, HashMap, VecDeque};
+use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::sync::Mutex;
 
 use serde::Serialize;
@@ -43,6 +43,9 @@ pub struct Sniffed {
     /// Headers the page sent with the request (Referer, Origin, auth), so the
     /// download looks like the page.
     pub headers: BTreeMap<String, String>,
+    /// CDP resource type (`Media`, `XHR`, `Fetch`, `Document`…): a player
+    /// fetching through MSE asks with XHR/Fetch, a `<video src>` with Media.
+    pub resource_type: String,
     pub at: i64,
 }
 
@@ -53,6 +56,10 @@ struct State {
     next_id: u64,
     /// (session, requestId) → what requestWillBeSent / ExtraInfo told us.
     requests: HashMap<(String, String), Pending>,
+    /// Dedupe keys of files a sniffed playlist already covers: the variants
+    /// of a master and the segments of a media playlist. They never show up
+    /// on their own.
+    covered: HashSet<String>,
 }
 
 #[derive(Default, Clone)]
@@ -167,17 +174,41 @@ pub fn on_response(session: &str, tab_id: &str, page: (&str, &str), p: &Value) -
         st.log.pop_front();
     }
 
-    if !(200..400).contains(&status) && status != 206 {
+    // 204 is an empty answer (ad pixels on a `.m3u8` path among them).
+    if !(200..400).contains(&status) || status == 204 {
         return None;
     }
     let kind = classify(&url, &mime, &rtype)?;
     let key = dedupe_key(&url, kind);
-    if st
-        .sniffed
-        .iter()
-        .any(|s| s.tab_id == tab_id && dedupe_key(&s.url, &s.kind) == key)
+    if st.covered.contains(&key)
+        || st
+            .sniffed
+            .iter()
+            .any(|s| s.tab_id == tab_id && dedupe_key(&s.url, &s.kind) == key)
     {
         return None;
+    }
+    if matches!(kind, "video" | "audio") {
+        // A player that streams a manifest through MSE fetches its fragments
+        // with XHR/Fetch (`bbb_0.m4v`, `seg-12.mp4`); the manifest is the
+        // download. A `<video src>` file still counts.
+        let streamed = matches!(rtype.as_str(), "XHR" | "Fetch");
+        let has_manifest = st
+            .sniffed
+            .iter()
+            .any(|s| s.tab_id == tab_id && (s.kind == "hls" || s.kind == "dash"));
+        if streamed && has_manifest {
+            return None;
+        }
+        // The same file from another mirror (PeerTube redundancy, CDN
+        // fallbacks) is one download.
+        if let Some(name) = distinctive_name(&url) {
+            if st.sniffed.iter().any(|s| {
+                s.tab_id == tab_id && s.kind == kind && distinctive_name(&s.url) == Some(name)
+            }) {
+                return None;
+            }
+        }
     }
     st.next_id += 1;
     let mut headers = BTreeMap::new();
@@ -201,8 +232,17 @@ pub fn on_response(session: &str, tab_id: &str, page: (&str, &str), p: &Value) -
         mime,
         size,
         headers,
+        resource_type: rtype.clone(),
         at: now,
     };
+    if kind == "hls" || kind == "dash" {
+        // Fragments sniffed before the manifest showed up.
+        st.sniffed.retain(|s| {
+            !(s.tab_id == tab_id
+                && matches!(s.kind.as_str(), "video" | "audio")
+                && matches!(s.resource_type.as_str(), "XHR" | "Fetch"))
+        });
+    }
     st.sniffed.push_back(item.clone());
     while st.sniffed.len() > SNIFF_CAP {
         st.sniffed.pop_front();
@@ -223,11 +263,26 @@ fn path_ext(url: &str) -> String {
 /// gets downloaded.
 pub fn classify(url: &str, mime: &str, rtype: &str) -> Option<&'static str> {
     let ext = path_ext(url);
-    if mime.contains("mpegurl") || ext == "m3u8" {
+    // Scripts, styles, fonts and images are never the media, whatever their
+    // path says; neither is a page, JSON or XML answer on a media-looking
+    // path (a wiki page named `File:x.webm`, a VAST ad XML on `.m3u8`). The
+    // extension decides only for types servers get wrong (`text/plain`,
+    // `application/octet-stream`).
+    if matches!(rtype, "Script" | "Stylesheet" | "Font" | "Image") {
+        return None;
+    }
+    let textual = mime.starts_with("text/html")
+        || mime.contains("json")
+        || mime.contains("javascript")
+        || (mime.contains("xml") && !mime.contains("dash+xml"));
+    if mime.contains("mpegurl") || (ext == "m3u8" && !textual) {
         return Some("hls");
     }
-    if mime.contains("dash+xml") || ext == "mpd" {
+    if mime.contains("dash+xml") || (ext == "mpd" && !mime.starts_with("text/html")) {
         return Some("dash");
+    }
+    if textual {
+        return None;
     }
     if matches!(
         ext.as_str(),
@@ -260,22 +315,105 @@ pub fn classify(url: &str, mime: &str, rtype: &str) -> Option<&'static str> {
         || mime == "application/epub+zip"
         || matches!(
             ext.as_str(),
-            "pdf"
-                | "epub"
-                | "zip"
-                | "rar"
-                | "7z"
-                | "docx"
-                | "pptx"
-                | "xlsx"
-                | "doc"
-                | "ppt"
-                | "xls"
-        ) && rtype != "Script"
+            "pdf" | "epub" | "docx" | "pptx" | "xlsx" | "doc" | "ppt" | "xls"
+        )
     {
         return Some("document");
     }
+    // An archive a script fetched is app data (a player's bundle), not a
+    // file the page offers.
+    if matches!(ext.as_str(), "zip" | "rar" | "7z") && !matches!(rtype, "XHR" | "Fetch") {
+        return Some("document");
+    }
     None
+}
+
+/// The file name when it is specific enough to identify one file across
+/// hosts (`9c9de5e8-…-720-fragmented.mp4`), not a generic one (`index.mp4`,
+/// `video.mp4`).
+fn distinctive_name(url: &str) -> Option<&str> {
+    let path = url.split(['?', '#']).next().unwrap_or(url);
+    let name = path.rsplit('/').next().unwrap_or("");
+    let stem = name.rsplit_once('.').map(|(s, _)| s).unwrap_or(name);
+    if stem.len() < 16 {
+        return None;
+    }
+    Some(name)
+}
+
+/// Reads a sniffed HLS playlist (fetched again by the browser module, the
+/// way cat-catch parses what it catches). A master hides its variants, a
+/// media playlist hides its segment files (single-file playlists list one
+/// `fragmented.mp4` many times), and an answer that is not a playlist at all
+/// drops the entry. Returns the ids that left the list.
+pub fn absorb_playlist(id: u64, body: &[u8]) -> Vec<u64> {
+    let mut st = state().lock().unwrap_or_else(|e| e.into_inner());
+    let Some(item) = st.sniffed.iter().find(|s| s.id == id).cloned() else {
+        return Vec::new();
+    };
+    let text = String::from_utf8_lossy(body);
+    let mut covered = Vec::new();
+    if !text
+        .trim_start_matches('\u{feff}')
+        .trim_start()
+        .starts_with("#EXTM3U")
+    {
+        st.sniffed.retain(|s| s.id != id);
+        return vec![id];
+    }
+    match m3u8_rs::parse_playlist_res(body) {
+        Ok(m3u8_rs::Playlist::MasterPlaylist(m)) => {
+            for v in &m.variants {
+                covered.push(join(&item.url, &v.uri));
+            }
+            for a in &m.alternatives {
+                if let Some(u) = &a.uri {
+                    covered.push(join(&item.url, u));
+                }
+            }
+        }
+        Ok(m3u8_rs::Playlist::MediaPlaylist(p)) => {
+            for seg in &p.segments {
+                covered.push(join(&item.url, &seg.uri));
+                if let Some(m) = &seg.map {
+                    covered.push(join(&item.url, &m.uri));
+                }
+            }
+        }
+        Err(_) => {
+            st.sniffed.retain(|s| s.id != id);
+            return vec![id];
+        }
+    }
+    let keys: HashSet<String> = covered
+        .iter()
+        .flat_map(|u| {
+            ["hls", "video", "audio"]
+                .into_iter()
+                .map(move |k| dedupe_key(u, k))
+        })
+        .collect();
+    let mut removed = Vec::new();
+    st.sniffed.retain(|s| {
+        let gone =
+            s.id != id && s.tab_id == item.tab_id && keys.contains(&dedupe_key(&s.url, &s.kind));
+        if gone {
+            removed.push(s.id);
+        }
+        !gone
+    });
+    if st.covered.len() > 50_000 {
+        st.covered.clear();
+    }
+    st.covered.extend(keys);
+    removed
+}
+
+fn join(base: &str, rel: &str) -> String {
+    url::Url::parse(base)
+        .and_then(|b| b.join(rel))
+        .map(|u| u.to_string())
+        .unwrap_or_else(|_| rel.to_string())
 }
 
 /// Range requests and signed-URL refreshes of the same file collapse into one
@@ -379,7 +517,111 @@ pub fn summary() -> Value {
 
 #[cfg(test)]
 mod tests {
-    use super::classify;
+    use super::{absorb_playlist, classify, on_response, sniffed};
+    use serde_json::json;
+
+    fn respond(tab: &str, rid: &str, url: &str, mime: &str, rtype: &str) -> Option<u64> {
+        let p = json!({
+            "requestId": rid,
+            "type": rtype,
+            "response": { "url": url, "mimeType": mime, "status": 200, "headers": {} },
+        });
+        on_response("s-test", tab, ("https://page/", "Page"), &p).map(|s| s.id)
+    }
+
+    #[test]
+    fn media_paths_with_page_or_data_answers_are_not_media() {
+        // A wiki page named after the file, a VAST ad XML on a playlist path.
+        assert_eq!(
+            classify(
+                "https://commons.wikimedia.org/wiki/File:BBB.webm",
+                "text/html",
+                "Document"
+            ),
+            None
+        );
+        assert_eq!(
+            classify("https://ads/x.m3u8?ad=1", "application/xml", "XHR"),
+            None
+        );
+        assert_eq!(
+            classify("https://a/x.m3u8", "text/plain", "XHR"),
+            Some("hls")
+        );
+        assert_eq!(
+            classify("https://a/v.mpd", "application/xml", "XHR"),
+            Some("dash")
+        );
+        assert_eq!(classify("https://a/x.m3u8", "", "Script"), None);
+        // A player's bundle is not a download; a zip the page links is.
+        assert_eq!(
+            classify("https://a/web_main.zip", "application/zip", "XHR"),
+            None
+        );
+        assert_eq!(
+            classify("https://a/files.zip", "application/zip", "Document"),
+            Some("document")
+        );
+    }
+
+    #[test]
+    fn fragments_mirrors_and_variants_collapse() {
+        let tab = "t-collapse";
+        // MSE fragments before the manifest go when it shows up.
+        assert!(respond(tab, "1", "https://cdn/bbb/bbb_0.m4v", "video/mp4", "XHR").is_some());
+        let mpd = respond(
+            tab,
+            "2",
+            "https://cdn/bbb/bbb.mpd",
+            "application/dash+xml",
+            "XHR",
+        );
+        assert!(mpd.is_some());
+        assert!(respond(tab, "3", "https://cdn/bbb/bbb_1.m4v", "video/mp4", "XHR").is_none());
+        assert_eq!(sniffed(Some(tab)).len(), 1);
+
+        let tab = "t-hls";
+        let master = respond(
+            tab,
+            "1",
+            "https://f.org/hls/abc/master.m3u8",
+            "application/vnd.apple.mpegurl",
+            "XHR",
+        )
+        .unwrap();
+        let variant = respond(
+            tab,
+            "2",
+            "https://f.org/hls/abc/abc-720.m3u8",
+            "application/vnd.apple.mpegurl",
+            "XHR",
+        )
+        .unwrap();
+        let removed = absorb_playlist(
+            master,
+            b"#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1,RESOLUTION=1280x720\nabc-720.m3u8\n",
+        );
+        assert_eq!(removed, vec![variant]);
+        // The single file the media playlist ranges over, and its mirrors.
+        let removed = absorb_playlist(master, b"not a playlist");
+        assert_eq!(removed, vec![master]);
+        let a = respond(
+            tab,
+            "3",
+            "https://one.org/r/9c9de5e8-0a1e-484a-b099-720-fragmented.mp4",
+            "video/mp4",
+            "Media",
+        );
+        let b = respond(
+            tab,
+            "4",
+            "https://two.org/r/9c9de5e8-0a1e-484a-b099-720-fragmented.mp4",
+            "video/mp4",
+            "Media",
+        );
+        assert!(a.is_some());
+        assert!(b.is_none());
+    }
 
     #[test]
     fn classifies_media_and_skips_segments() {

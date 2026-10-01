@@ -262,6 +262,13 @@
         browserOpen = true;
       } else if (ev.kind === "sniffed") {
         sniffed = [...sniffed, ev.item].slice(-600);
+        // A manifest drops the stream fragments the sniffer listed before it.
+        if (ev.item.kind === "hls" || ev.item.kind === "dash") {
+          invoke<Sniffed[]>("gd_sniffed", { tabId: null }).then((list) => (sniffed = list));
+        }
+      } else if (ev.kind === "sniffed_removed") {
+        const gone = new Set<number>(ev.ids);
+        sniffed = sniffed.filter((s) => !gone.has(s.id));
       } else if (ev.kind === "job") {
         const i = jobs.findIndex((j) => j.id === ev.job.id);
         jobs = i < 0 ? [...jobs, ev.job] : jobs.map((j) => (j.id === ev.job.id ? ev.job : j));

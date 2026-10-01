@@ -60,6 +60,8 @@ pub struct Browser {
     /// Sessions of iframes and workers inside a tab → that tab's id, so the
     /// sniffer files what an embedded player loads under its page.
     child_sessions: Mutex<HashMap<String, String>>,
+    /// Page sessions whose network recording and overrides are in place.
+    ready: Mutex<std::collections::HashSet<String>>,
 }
 
 fn slot() -> &'static Mutex<Option<Arc<Browser>>> {
@@ -498,6 +500,7 @@ async fn attach(
         view: Mutex::default(),
         private_contexts: Mutex::default(),
         child_sessions: Mutex::default(),
+        ready: Mutex::default(),
     });
     if headless {
         if let Ok(v) = cdp.call("Browser.getVersion", json!({}), None).await {
@@ -820,6 +823,9 @@ impl Browser {
             }
             "Target.detachedFromTarget" => {
                 if let Some(sid) = p["sessionId"].as_str() {
+                    if let Ok(mut r) = self.ready.lock() {
+                        r.remove(sid);
+                    }
                     for tab in self
                         .tabs
                         .lock()
@@ -937,6 +943,9 @@ impl Browser {
                 let tab = self.tab_by_session(s).unwrap_or_default();
                 if let Some(item) = sniffer::on_response(s, &tab.id, (&tab.url, &tab.title), p) {
                     emit(json!({ "kind": "sniffed", "item": item }));
+                    if item.kind == "hls" {
+                        tokio::spawn(inspect_playlist(item));
+                    }
                 }
             }
             _ => {}
@@ -1014,6 +1023,9 @@ impl Browser {
                     s,
                 )
                 .await;
+        }
+        if let Ok(mut r) = self.ready.lock() {
+            r.insert(sid.to_string());
         }
         let _ = self
             .cdp
@@ -1403,16 +1415,34 @@ impl Browser {
         emit(json!({ "kind": "tabs", "tabs": self.tabs() }));
     }
 
+    /// Opens `url` in a new tab. The tab starts blank and navigates once its
+    /// session records the network (Puppeteer's `newPage` + `goto`): a
+    /// target created with the URL starts loading before we attach, and the
+    /// page document and whatever its player fetches first go unseen.
     pub async fn open_tab(&self, url: &str) -> Result<String, String> {
+        let blank = url.is_empty() || url == "about:blank";
         let r = self
             .cdp
-            .call("Target.createTarget", json!({ "url": url }), None)
+            .call("Target.createTarget", json!({ "url": "about:blank" }), None)
             .await?;
         let id = r["targetId"].as_str().unwrap_or_default().to_string();
         let _ = self
             .cdp
             .call("Target.activateTarget", json!({ "targetId": id }), None)
             .await;
+        if !blank {
+            for _ in 0..50 {
+                let ready = self
+                    .tab(&id)
+                    .and_then(|t| t.session)
+                    .is_some_and(|s| self.ready.lock().is_ok_and(|r| r.contains(&s)));
+                if ready {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(60)).await;
+            }
+            self.navigate(&id, url).await?;
+        }
         Ok(id)
     }
 
@@ -1746,4 +1776,37 @@ pub fn key_info(key: &str) -> (String, i64, String) {
         return (code, vk, c.to_string());
     }
     (String::new(), 0, String::new())
+}
+
+/// Fetches a sniffed playlist again, with the headers the page sent, so the
+/// sniffer can tell a master from its variants and drop what is not a
+/// playlist.
+async fn inspect_playlist(item: sniffer::Sniffed) {
+    let Ok(client) = reqwest::Client::builder()
+        .use_rustls_tls()
+        .timeout(Duration::from_secs(15))
+        .build()
+    else {
+        return;
+    };
+    let mut req = client.get(&item.url);
+    for (k, v) in &item.headers {
+        req = req.header(k.as_str(), v.as_str());
+    }
+    let Ok(resp) = req.send().await else {
+        return;
+    };
+    if !resp.status().is_success() {
+        return;
+    }
+    let Ok(body) = resp.bytes().await else {
+        return;
+    };
+    if body.len() > 4 * 1024 * 1024 {
+        return;
+    }
+    let removed = sniffer::absorb_playlist(item.id, &body);
+    if !removed.is_empty() {
+        emit(json!({ "kind": "sniffed_removed", "ids": removed }));
+    }
 }
