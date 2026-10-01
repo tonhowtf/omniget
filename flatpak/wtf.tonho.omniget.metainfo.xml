@@ -87,6 +87,12 @@
   </branding>
   <content_rating type="oars-1.1" />
   <releases>
+    <release version="1.0.0" date="2026-10-01">
+      <description>
+        <p>OmniGet 1.0 adds a set of superpowers next to the downloader: a Global Downloader with a built-in browser that lists and saves the videos, audio, subtitles and documents a page loads, a YouTube client, a reader for books, comics and PDFs, a meeting recorder that transcribes and summarizes, a player for movies, shows and live TV, a music app, Telegram downloads and a system cleanup tool.</p>
+        <p>Agents gain companies with budgets and approvals, jobs in their own git worktree with hunk-by-hunk review, Codex support and a memory that learns from each turn. Settings are redesigned with search, and updates are now served from getomniget.com, so copies on 0.10 need to install 1.0.0 once by hand.</p>
+      </description>
+    </release>
     <release version="0.10.1" date="2026-09-21">
       <description>
         <p>Help is a new section with searchable product guides that work offline, a guided connection setup for a chat subscription, an API key or a local model, and an assistant that answers from the bundled documentation. The assistant can plan an agent, check a connection and enqueue a download after you allow the step; download results are redacted so paths and secrets stay out of the chat. Each Agents surface gains a short guide for what the page does, a usage monitor for quotas and running work, and Settings can switch workspace colour presets and light or dark mode without leaving the app.</p>

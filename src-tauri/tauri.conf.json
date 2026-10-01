@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "omniget",
-  "version": "0.10.1",
+  "version": "1.0.0",
   "identifier": "wtf.tonho.omniget",
   "build": {
     "beforeDevCommand": "node scripts/mcp/build-worker.mjs --debug && pnpm dev",
@@ -37,8 +37,9 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDYyOTlEMzE0MUJDMkREMTkKUldRWjNjSWJGTk9aWWtnazV5aTdTNTZ4dk93TVh3cUpxSWlpclRXNjlwYXA1ZXdrdlZsYUxQYzkK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDVBMUREMkJDOERBOEJCOEEKUldTS3U2aU52TklkV2s5UW9LcXNyVEt3MnhLSVpwaWRjVnF0aU1yd29WeVdFSVlOMm5jRGxGMVkK",
       "endpoints": [
+        "https://getomniget.com/update/latest.json",
         "https://github.com/tonhowtf/omniget/releases/latest/download/latest.json"
       ]
     },

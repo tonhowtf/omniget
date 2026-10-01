@@ -3,7 +3,7 @@
   "name": "io.github.tonhowtf/omniget",
   "title": "OmniGet",
   "description": "Queue, track and diagnose media downloads (yt-dlp sites, torrents) in the OmniGet app",
-  "version": "0.10.1",
+  "version": "1.0.0",
   "websiteUrl": "https://getomniget.com",
   "repository": {
     "url": "https://github.com/tonhowtf/omniget",
@@ -12,7 +12,7 @@
   "packages": [
     {
       "registryType": "mcpb",
-      "identifier": "https://github.com/tonhowtf/omniget/releases/download/v0.10.1/omniget-mcp.mcpb",
+      "identifier": "https://github.com/tonhowtf/omniget/releases/download/v1.0.0/omniget-mcp.mcpb",
       "fileSha256": "0000000000000000000000000000000000000000000000000000000000000000",
       "transport": {
         "type": "stdio"

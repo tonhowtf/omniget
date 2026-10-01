@@ -5660,7 +5660,7 @@ dependencies = [
 
 [[package]]
 name = "omniget"
-version = "0.10.1"
+version = "1.0.0"
 dependencies = [
  "aes",
  "anyhow",
@@ -5786,7 +5786,7 @@ dependencies = [
 
 [[package]]
 name = "omniget-cli"
-version = "0.10.1"
+version = "1.0.0"
 dependencies = [
  "anyhow",
  "axum",

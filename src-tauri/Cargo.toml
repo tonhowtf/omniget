@@ -4,7 +4,7 @@ resolver = "2"
 
 [package]
 name = "omniget"
-version = "0.10.1"
+version = "1.0.0"
 description = "Desktop downloader for YouTube, Instagram, TikTok, X, torrents and the sites yt-dlp supports, with an MCP server for coding agents and a window to run AI agents (Claude Code, Codex, Gemini CLI, Ollama), meeting notes (record, transcribe, summarize, import Teams recordings), plus a system cleaner and uninstaller (washmybelly)"
 authors = ["tonhowtf"]
 license = "GPL-3.0"
