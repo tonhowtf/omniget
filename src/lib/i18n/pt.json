@@ -12668,6 +12668,66 @@
       "unsupported": "Este formato de imagem não é suportado",
       "notFound": "O arquivo da imagem sumiu",
       "loadFailed": "Não foi possível carregar esta imagem"
+    },
+    "generate": {
+      "spawn": "Geração de imagem",
+      "model": "Modelo",
+      "modelLoading": "Carregando modelos…",
+      "cliMissing": "CLI do Higgsfield não encontrado. Instale e rode higgsfield auth login.",
+      "prompt": "Prompt",
+      "promptPlaceholder": "Descreva a imagem…",
+      "references": "Referências",
+      "referencesHint": "Ligue nós de imagem a este nó para usá-los como referência.",
+      "referencesUnsupported": "Este modelo não aceita imagens de referência.",
+      "usedIn": "Vai ser usado em",
+      "usedInPlaceholder": "ex.: tela de login do app",
+      "getPrice": "Ver preço",
+      "pricing": "Cotando…",
+      "quote": "≈ {{credits}} créditos · {{left}} restantes",
+      "generate": "Gerar",
+      "approve": "Aprovar e gerar",
+      "awaiting": "Um agente pediu para gerar isto. Precisa da sua aprovação.",
+      "elapsed": "{{seconds}} s",
+      "searchAgain": "Procurar de novo",
+      "release": "Liberar créditos",
+      "versions": "Versões",
+      "noVersions": "Nada gerado ainda.",
+      "budgetLine": "Orçamento: {{left}} de {{ceiling}} créditos restantes",
+      "budgetUnset": "Sem orçamento: nada pode ser gasto ainda.",
+      "setBudget": "Definir orçamento",
+      "save": "Salvar",
+      "cancel": "Cancelar",
+      "agentLimit": "Agentes sozinhos: até {{limit}} créditos por imagem, {{perHour}} por hora",
+      "state": {
+        "draft": "Rascunho",
+        "quoted": "Cotado",
+        "awaiting_approval": "Aguardando aprovação",
+        "running": "Gerando",
+        "done": "Pronto",
+        "uncertain": "Incerto",
+        "failed": "Falhou"
+      },
+      "status": {
+        "submitting": "Enviando",
+        "queued": "Na fila",
+        "running": "Renderizando",
+        "completed": "Salvando"
+      }
+    },
+    "artifacts": {
+      "title": "Artifacts",
+      "menu": "Artifacts…",
+      "empty": "Nenhum artifact ainda. Os agentes guardam com canvas_artifact_save.",
+      "place": "Colocar",
+      "search": "Filtrar",
+      "close": "Fechar",
+      "placed": "Colocado no canvas",
+      "kind": {
+        "html": "HTML",
+        "md": "Markdown",
+        "svg": "SVG",
+        "link": "Link"
+      }
     }
   },
   "tube": {

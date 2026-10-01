@@ -380,6 +380,8 @@ pub fn run() {
             crate::canvas::routines::start(app.handle());
             crate::canvas::companion::start(app.handle());
             crate::canvas::power::start(app.handle());
+            crate::canvas::generate::start(app.handle());
+            let _ = crate::canvas::artifacts_http::ensure();
             crate::canvas::spotlight::start();
             tauri::async_runtime::spawn(crate::local_bridge_remote::boot(app.handle().clone()));
             omniget_core::core::secrets::install(std::sync::Arc::new(secrets::AppSecretStore));

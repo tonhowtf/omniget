@@ -67,7 +67,7 @@ pub fn resolve_interpreter(
     }
     Err("MEDIA_PROVIDER_INTERPRETER_NOT_FOUND".into())
 }
-fn configured_cli(db: &AssistDb) -> Result<Cli, String> {
+pub(crate) fn configured_cli(db: &AssistDb) -> Result<Cli, String> {
     let row: Option<(String, Option<String>)> = db
         .with(|c| {
             c.query_row(

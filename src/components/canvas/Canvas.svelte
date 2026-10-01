@@ -17,6 +17,7 @@
   import ZoomControls from "./chrome/ZoomControls.svelte";
   import Minimap from "./chrome/Minimap.svelte";
   import SpawnMenu from "./chrome/SpawnMenu.svelte";
+  import ArtifactsPanel from "./artifacts/ArtifactsPanel.svelte";
   import { viewMenu } from "$lib/canvas/menu/model";
   import RemotePresence from "./chrome/RemotePresence.svelte";
   import AiActivityLayer from "./activity/AiActivityLayer.svelte";
@@ -783,6 +784,7 @@
     <div class="notice" role="status">{noticeText}</div>
   {/if}
   <SpawnMenu />
+  <ArtifactsPanel />
   <PromptComposer />
   <WorkspaceSidebar />
   <CommandPalette />

@@ -12668,6 +12668,66 @@
       "unsupported": "This image format isn't supported",
       "notFound": "The image file is gone",
       "loadFailed": "Couldn't load this image"
+    },
+    "generate": {
+      "spawn": "Image Generation",
+      "model": "Model",
+      "modelLoading": "Loading models…",
+      "cliMissing": "Higgsfield CLI not found. Install it and run higgsfield auth login.",
+      "prompt": "Prompt",
+      "promptPlaceholder": "Describe the image…",
+      "references": "References",
+      "referencesHint": "Cord image nodes into this node to use them as references.",
+      "referencesUnsupported": "This model takes no reference images.",
+      "usedIn": "Will be used in",
+      "usedInPlaceholder": "e.g. login screen of the app",
+      "getPrice": "Get price",
+      "pricing": "Pricing…",
+      "quote": "≈ {{credits}} credits · {{left}} left",
+      "generate": "Generate",
+      "approve": "Approve and generate",
+      "awaiting": "An agent asked to generate this. It needs your approval.",
+      "elapsed": "{{seconds}} s",
+      "searchAgain": "Search again",
+      "release": "Release credits",
+      "versions": "Versions",
+      "noVersions": "Nothing generated yet.",
+      "budgetLine": "Budget: {{left}} of {{ceiling}} credits left",
+      "budgetUnset": "No budget set: nothing can be spent yet.",
+      "setBudget": "Set budget",
+      "save": "Save",
+      "cancel": "Cancel",
+      "agentLimit": "Agents alone: up to {{limit}} credits per image, {{perHour}} per hour",
+      "state": {
+        "draft": "Draft",
+        "quoted": "Priced",
+        "awaiting_approval": "Needs approval",
+        "running": "Generating",
+        "done": "Done",
+        "uncertain": "Uncertain",
+        "failed": "Failed"
+      },
+      "status": {
+        "submitting": "Sending",
+        "queued": "Queued",
+        "running": "Rendering",
+        "completed": "Saving"
+      }
+    },
+    "artifacts": {
+      "title": "Artifacts",
+      "menu": "Artifacts…",
+      "empty": "No artifacts yet. Agents save them with canvas_artifact_save.",
+      "place": "Place",
+      "search": "Filter",
+      "close": "Close",
+      "placed": "Placed on the canvas",
+      "kind": {
+        "html": "HTML",
+        "md": "Markdown",
+        "svg": "SVG",
+        "link": "Link"
+      }
     }
   },
   "tube": {

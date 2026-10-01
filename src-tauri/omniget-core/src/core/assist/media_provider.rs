@@ -205,7 +205,7 @@ impl Cli {
         cli.interpreter = interpreter;
         Ok(cli)
     }
-    async fn run(&self, args: Vec<String>) -> Result<Value, String> {
+    pub(crate) async fn run(&self, args: Vec<String>) -> Result<Value, String> {
         use std::process::Stdio;
         let mut cmd = match &self.interpreter {
             Some(i) => {

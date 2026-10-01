@@ -45,6 +45,7 @@ export const DEFAULT_SIZES: Record<string, { w: number; h: number }> = {
   image: { w: 320, h: 240 },
   stack: { w: 320, h: 260 },
   connector: { w: 160, h: 48 },
+  generation: { w: 380, h: 600 },
   unknown: { w: 200, h: 120 },
 };
 
@@ -54,6 +55,7 @@ export const MIN_SIZES: Record<string, { w: number; h: number }> = {
   note: { w: 120, h: 80 },
   text: { w: 40, h: 24 },
   portal: { w: 240, h: 180 },
+  generation: { w: 300, h: 420 },
 };
 
 export function sizeFor(kind: string): { w: number; h: number } {
@@ -73,5 +75,6 @@ export const ICONS = {
   link: 'M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1 M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1',
   image: 'M4 5h16v14H4z M4 16l5-5 4 4 3-3 4 4 M15 9h.01',
   portal: 'M3 5h18v14H3z M3 9h18 M6 7h.01 M8.5 7h.01',
+  generation: 'M12 3l1.8 4.6L18.5 9.4l-4.7 1.8L12 16l-1.8-4.8L5.5 9.4l4.7-1.8z M18 15l.8 2.2L21 18l-2.2.8L18 21l-.8-2.2L15 18l2.2-.8z',
   unknown: 'M4 4h16v16H4z M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .8-1 1.5V14 M12 17h.01',
 } as const;

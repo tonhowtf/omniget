@@ -20,8 +20,10 @@ use super::ToolDef;
 
 mod activity;
 mod assets;
+mod artifacts;
 mod clipboard;
 mod council;
+mod generate;
 mod lift_dock_menu;
 mod mcp_servers;
 mod omni_cords_remote;
@@ -197,7 +199,12 @@ fn routine_props() -> Value {
 
 fn defs() -> &'static [Def] {
     static DEFS: OnceLock<Vec<Def>> = OnceLock::new();
-    DEFS.get_or_init(build_defs)
+    DEFS.get_or_init(|| {
+        let mut all = build_defs();
+        all.extend(generate::defs());
+        all.extend(artifacts::defs());
+        all
+    })
 }
 
 fn build_defs() -> Vec<Def> {
@@ -1748,6 +1755,8 @@ async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
         "canvas_council" | "canvas_council_status" => council::call(&app, name, &a).await,
         n if activity::owns(n) => activity::call(&app, n, &a).await,
         n if mcp_servers::owns(n) => mcp_servers::call(&app, n, &a).await,
+        n if n.starts_with("canvas_generate_") => generate::call(&app, name, &a).await,
+        n if n.starts_with("canvas_artifact_") => artifacts::call(&app, name, &a).await,
         "canvas_cord_create" => {
             let (ws, floor, from) = omni_cords_remote::locate_end(&s, &a, &need(&a, "from")?)?;
             let (w2, f2, to) = omni_cords_remote::locate_end(&s, &a, &need(&a, "to")?)?;

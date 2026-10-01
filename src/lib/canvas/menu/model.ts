@@ -10,6 +10,7 @@ import { canvasPrefs } from '../prefs.svelte';
 import { agentFiles, openInIde, sidebarUi } from '../sidebar.svelte';
 import { placeInStack, stackTargets } from '../notes/stack';
 import { aiActivity } from '../activity/store.svelte';
+import { openArtifacts } from '../artifacts/client.svelte';
 
 export interface MenuEntry {
   id: string;
@@ -77,6 +78,12 @@ export function addMenu(engine: CanvasEngine, ctx: MenuContext): MenuEntry[] {
     e('text', 'canvas.engine.spawn.text', 'Text', spawn('text')),
     e('portal', 'canvas.engine.spawn.portal', 'Portal', spawn('portal')),
     e('filetree', 'canvas.menu.add.filetree', 'File Tree', spawn('filetree')),
+    e('generation', 'canvas.generate.spawn', 'Image Generation', () => {
+      const node = engine.spawn('generation', at, { title: 'Generation', connectFrom: ctx.connectFrom, data: { state: 'draft', versions: [], params: {} } });
+      engine.selection.focus(node.id);
+      return { nodeId: node.id };
+    }),
+    e('artifacts', 'canvas.artifacts.menu', 'Artifacts…', () => openArtifacts(at)),
     e('paste', 'canvas.clipboard.paste', 'Paste', async () => ({ nodeIds: await pasteClipboard(engine, at ?? undefined) }), { sepBefore: true }),
   ];
 }

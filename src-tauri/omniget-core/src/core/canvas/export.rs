@@ -207,6 +207,14 @@ pub fn export_selection(
                     continue;
                 }
             }
+            NodeKind::Generation => {
+                for k in [
+                    "versions", "quote", "intentId", "jobId", "progress", "error",
+                ] {
+                    data.remove(k);
+                }
+                data.insert("state".into(), Value::String("draft".into()));
+            }
             _ => {}
         }
         nodes.push(n);

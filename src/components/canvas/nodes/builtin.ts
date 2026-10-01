@@ -9,6 +9,7 @@ const BY_FILE: Record<string, { kinds: string[]; icon: string; focusOnClick?: bo
   'FileNode.svelte': { kinds: ['file'], icon: ICONS.file },
   'LinkNode.svelte': { kinds: ['link'], icon: ICONS.link },
   'ImageNode.svelte': { kinds: ['image'], icon: ICONS.image },
+  'GenerationNode.svelte': { kinds: ['generation'], icon: ICONS.generation, focusOnClick: true },
   'UnknownNode.svelte': { kinds: ['unknown'], icon: ICONS.unknown },
   'ConnectorNode.svelte': { kinds: ['connector'], icon: ICONS.link },
   'TerminalNode.svelte': { kinds: ['terminal', 'agent'], icon: ICONS.terminal, focusOnClick: true },

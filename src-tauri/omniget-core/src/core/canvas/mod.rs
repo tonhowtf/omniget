@@ -13,6 +13,7 @@ pub mod graph;
 pub mod layout;
 pub mod limits;
 pub mod maestro;
+pub mod media;
 pub mod model;
 pub mod notes;
 pub mod ops;

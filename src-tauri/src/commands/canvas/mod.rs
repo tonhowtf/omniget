@@ -1,4 +1,5 @@
 pub mod activity;
+pub mod artifacts;
 pub mod chat;
 pub mod clipboard;
 pub mod companion;
@@ -7,6 +8,7 @@ pub mod doc;
 pub mod files;
 pub mod floors;
 pub mod images;
+pub mod generate;
 pub mod maestro;
 pub mod mcp_servers;
 pub mod partituras;

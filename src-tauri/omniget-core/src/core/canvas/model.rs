@@ -79,6 +79,7 @@ open_enum!(
         Image = "image",
         Stack = "stack",
         Connector = "connector",
+        Generation = "generation",
     }
 );
 
@@ -469,6 +470,7 @@ pub fn default_size(kind: &NodeKind) -> Size {
         NodeKind::Shape => (160.0, 120.0),
         NodeKind::Stack => (260.0, 220.0),
         NodeKind::Connector => (160.0, 48.0),
+        NodeKind::Generation => (380.0, 560.0),
         NodeKind::Unknown(_) => (200.0, 120.0),
     };
     Size { w, h }
@@ -550,6 +552,7 @@ pub fn validate_node(node: &CanvasNode) -> Result<(), String> {
         NodeKind::Connector => {
             check::<ConnectorData>(node)?;
         }
+        NodeKind::Generation => {}
         NodeKind::Unknown(_) => unreachable!(),
     }
     Ok(())

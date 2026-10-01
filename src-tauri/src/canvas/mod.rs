@@ -1,4 +1,6 @@
 pub mod activity;
+pub mod artifacts;
+pub mod artifacts_http;
 pub mod chat;
 pub mod clipboard;
 pub mod companion;
@@ -7,6 +9,7 @@ pub mod design;
 pub mod diagnostics;
 pub mod doc;
 pub mod floors;
+pub mod generate;
 pub mod launch;
 pub mod link;
 pub mod maestro;
