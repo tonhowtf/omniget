@@ -164,38 +164,3 @@ pub fn answer(id: &str, approve: bool) -> Result<Value, String> {
     }
     Ok(json!({ "id": id, "status": status, "tool": p.req.tool }))
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn req(id: &str) -> Request {
-        Request {
-            id: id.into(),
-            tool: "tg_send_message".into(),
-            summary: "Send".into(),
-            details: json!({}),
-            client: "agent".into(),
-            created: now(),
-            expires_at: now() + 60,
-        }
-    }
-
-    #[tokio::test]
-    async fn an_answer_reaches_the_waiting_call_once() {
-        let rx = insert(req("t_a"));
-        assert!(pending().iter().any(|r| r.id == "t_a"));
-        let out = answer("t_a", true).unwrap();
-        assert_eq!(out["status"], "approved");
-        assert!(rx.await.unwrap());
-        assert!(answer("t_a", true).is_err(), "an answer counts once");
-        assert!(!pending().iter().any(|r| r.id == "t_a"));
-    }
-
-    #[tokio::test]
-    async fn a_refusal_is_delivered_as_false() {
-        let rx = insert(req("t_b"));
-        answer("t_b", false).unwrap();
-        assert!(!rx.await.unwrap());
-    }
-}

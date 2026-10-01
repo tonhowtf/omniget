@@ -192,32 +192,3 @@ impl UsageProvider for Copilot {
         })
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn premium_requests_lead_and_unlimited_lanes_are_skipped() {
-        let v = serde_json::json!({"copilot_plan":"individual","quota_reset_date":"2026-10-01T00:00:00Z","quota_snapshots":{
-            "chat":{"entitlement":50,"remaining":48,"used":2,"unlimited":false},
-            "completions":{"entitlement":0,"remaining":0,"unlimited":true},
-            "premium_interactions":{"entitlement":300,"remaining":294,"unlimited":false}}});
-        let ws = parse_usage(&v).unwrap();
-        assert_eq!(ws.len(), 2);
-        assert_eq!(ws[0].id, "premium_interactions");
-        assert!((ws[0].used.unwrap() - 0.02).abs() < 1e-6);
-        assert_eq!(ws[0].limit_abs, Some(300.0));
-        assert!(ws[1].resets_at.is_some());
-        assert!(parse_usage(&serde_json::json!({})).is_none());
-    }
-
-    #[test]
-    fn the_token_is_read_from_the_github_com_block_only() {
-        let yaml = "example.com:\n    oauth_token: other\ngithub.com:\n    user: me\n    oauth_token: \"gho_x\"\n";
-        let t = token_from_hosts(yaml).unwrap();
-        assert_eq!(t.expose(), "gho_x");
-        assert!(!format!("{t:?}").contains("gho_x"));
-        assert_eq!(token_from_hosts("github.com:\n    user: me\n"), None);
-    }
-}

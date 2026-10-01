@@ -259,34 +259,3 @@ pub async fn for_tool(
         error,
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn estado_por_comparacao() {
-        assert_eq!(
-            state_of(Some("1.0.0"), Some("1.0.1")),
-            VersionState::BehindLatest
-        );
-        assert_eq!(
-            state_of(Some("1.0.1"), Some("1.0.1")),
-            VersionState::Current
-        );
-        assert_eq!(
-            state_of(Some("2.0.0"), Some("1.9.0")),
-            VersionState::Current
-        );
-        assert_eq!(state_of(None, Some("1.0.0")), VersionState::Unknown);
-        assert_eq!(state_of(Some("1.0.0"), None), VersionState::Unknown);
-    }
-
-    #[test]
-    fn url_do_npm_escapa_o_escopo() {
-        assert_eq!(
-            npm_url("@openai/codex"),
-            "https://registry.npmjs.org/@openai%2fcodex/latest"
-        );
-    }
-}

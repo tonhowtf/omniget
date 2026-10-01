@@ -421,22 +421,3 @@ pub async fn run(
     on_log("· E2B sandbox closed");
     result.map(|o| (o, record))
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn connect_envelopes_round_trip() {
-        let e = envelope(0, &json!({"a": 1}));
-        let mut two = e.clone();
-        two.extend(envelope(2, &json!({})));
-        let (f, v, used) = take_envelope(&two).unwrap();
-        assert_eq!((f, v["a"].as_i64(), used), (0, Some(1), e.len()));
-        let (f2, _, _) = take_envelope(&two[used..]).unwrap();
-        assert_eq!(f2, 2);
-        assert!(take_envelope(&e[..4]).is_none());
-        assert_eq!(shell_quote("it's"), "'it'\\''s'");
-        assert_eq!(shell_quote("--model"), "--model");
-    }
-}

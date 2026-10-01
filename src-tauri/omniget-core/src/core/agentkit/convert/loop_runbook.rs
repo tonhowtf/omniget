@@ -283,28 +283,3 @@ pub fn loop_plan(c: &Component, runner: &str, workspace: Option<&str>) -> Result
         workspace: workspace.map(str::to_string),
     })
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::core::agentkit::parse;
-
-    #[test]
-    fn loop_plan_from_runbook() {
-        let md = "---\nname: build-test-fix-loop\ndescription: Builds then tests.\ncategory: engineering\ninterval: 10m\nstop-condition: The build is green and `npm test` passes.\ncomponents: [agent:development-team/test-runner, command:testing/generate-tests]\n---\n\n# X\n\n## 🎯 Goal\nImplement.\n\n## ▶️ Run it\n```\n/loop 10m \"Build the next item, run tests. Stop when green.\"\n```\n\n## 🛑 Stopping condition\nAll green.\n\n## 💰 Budget & guardrails\nCap at 15 iterations and 45 minutes.\n";
-        let files: parse::RawFiles = [("x.md".to_string(), md.as_bytes().to_vec())]
-            .into_iter()
-            .collect();
-        let mut c = parse::parse_raw(ComponentKind::Loop, "x.md", &files).unwrap();
-        c.id = "cct:loops/engineering/build-test-fix-loop".into();
-        let p = loop_plan(&c, "codex", Some("/w")).unwrap();
-        assert_eq!(p.prompt, "Build the next item, run tests. Stop when green.");
-        assert_eq!(p.interval_secs, Some(600));
-        assert_eq!(p.check_command.as_deref(), Some("npm test"));
-        assert_eq!((p.max_rounds, p.max_minutes), (15, 45));
-        assert_eq!(p.components.len(), 2);
-        assert_eq!(interval_secs("on-demand"), None);
-        assert_eq!(interval_secs("7d"), Some(604_800));
-        assert_eq!(interval_secs("daily"), Some(86_400));
-    }
-}

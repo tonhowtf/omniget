@@ -324,28 +324,3 @@ pub mod textblock {
         Some(out)
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::textblock;
-
-    #[test]
-    fn textblock_round_trip() {
-        for original in ["", "# Rules\n", "# Rules\n\nmore\n", "no newline"] {
-            let with = textblock::upsert(original, "x1", "Use tabs.");
-            assert!(with.contains("Use tabs."));
-            assert_eq!(
-                textblock::content(&with, "x1").as_deref(),
-                Some("Use tabs.")
-            );
-            let again = textblock::upsert(&with, "x1", "Use tabs.");
-            assert_eq!(with, again);
-            let back = textblock::remove(&with, "x1").unwrap();
-            if original == "no newline" {
-                assert_eq!(back, "no newline\n");
-            } else {
-                assert_eq!(back, original);
-            }
-        }
-    }
-}

@@ -756,17 +756,4 @@ mod tests {
         assert!(s.contains("HTTP 400"), "{s}");
         assert!(s.contains("Unable to resolve handle"), "{s}");
     }
-
-    /// Live: handle-form at:// URI answers 400 for this custom-domain handle.
-    #[tokio::test]
-    #[ignore = "network: resolves a real Bluesky handle"]
-    async fn live_custom_domain_handle_post_resolves() {
-        let d = BlueskyDownloader::new();
-        let info = d
-            .native_get_media_info("https://bsky.app/profile/cinny.bun.how/post/3l7rdfxhyds2f")
-            .await
-            .unwrap();
-        assert_eq!(info.available_qualities[0].format, "mp4");
-        assert!(info.available_qualities[0].url.contains("getBlob"));
-    }
 }

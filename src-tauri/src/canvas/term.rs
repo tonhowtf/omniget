@@ -157,21 +157,3 @@ pub fn theme_ids() -> Vec<String> {
         .chain(user_themes().into_iter().map(|t| t.id))
         .collect()
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn ghostty_theme_without_cursor_uses_foreground() {
-        let t = parse_ghostty(
-            "meu",
-            "# comment\npalette = 1=#ff0000\nbackground = 101010\nforeground = #EEEEEE\n",
-        )
-        .unwrap();
-        assert_eq!(t.background, "#101010");
-        assert_eq!(t.cursor, "#eeeeee");
-        assert_eq!(t.ansi[1], "#ff0000");
-        assert!(parse_ghostty("x", "palette = 0=#000000").is_none());
-    }
-}

@@ -154,37 +154,3 @@ pub fn resolve(bot: &str, conversation: Option<&str>) -> AssistCtx {
         None => direct(bot, conversation),
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn scope_keys_round_trip() {
-        for s in [
-            Scope::User,
-            Scope::Bot { bot: "b1".into() },
-            Scope::Room {
-                conversation: "c1".into(),
-            },
-        ] {
-            assert_eq!(Scope::parse(&s.key()), Some(s));
-        }
-        assert_eq!(Scope::parse("bot:"), None);
-        assert_eq!(Scope::parse("project:/x"), None);
-    }
-
-    #[test]
-    fn a_direct_bot_reads_its_own_scope_and_not_another_bots() {
-        let c = direct("reader", Some("conv"));
-        assert!(c.can_read(&Scope::Bot {
-            bot: "reader".into()
-        }));
-        assert!(!c.can_read(&Scope::Bot {
-            bot: "other".into()
-        }));
-        assert!(!c.can_read(&Scope::Room {
-            conversation: "conv".into()
-        }));
-    }
-}

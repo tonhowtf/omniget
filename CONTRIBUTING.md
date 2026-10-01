@@ -47,9 +47,8 @@ Run these before you push. There is no CI: these are the gate.
 | `pnpm verify --changed` | Only the areas your branch touched since it left `main` (commits, working tree and new files) |
 | `pnpm verify --fix` | Runs `cargo fmt --all` first |
 | `pnpm hooks:install` | Opt-in: a pre-push hook (`scripts/git-hooks/`) that runs `pnpm verify --changed`. `pnpm hooks:uninstall` removes it; `git push --no-verify` skips it once |
-| `pnpm test:fast` | Rust and web tests in parallel |
 
-`pnpm verify` and `pnpm test:fast` build Rust in `~/.cache/omniget/target`, shared by every checkout and worktree, so a second clone does not pay the cold build again. `CARGO_TARGET_DIR` still wins, and `OMNIGET_SHARED_TARGET=0` goes back to `src-tauri/target`. They use [sccache](https://github.com/mozilla/sccache) when it is installed.
+`pnpm verify` builds Rust in `~/.cache/omniget/target`, shared by every checkout and worktree, so a second clone does not pay the cold build again. `CARGO_TARGET_DIR` still wins, and `OMNIGET_SHARED_TARGET=0` goes back to `src-tauri/target`. They use [sccache](https://github.com/mozilla/sccache) when it is installed.
 
 The individual steps, if you want to run one by hand:
 
@@ -57,16 +56,15 @@ The individual steps, if you want to run one by hand:
 - Rust, inside `src-tauri/`: `cargo fmt --all -- --check`, `cargo clippy --workspace --all-targets`, `cargo test --workspace`
 - Clippy baseline, from the root: `pnpm check:clippy-baseline`
 - Tauri commands and events: `pnpm check:ipc`
-- Browser extension: `pnpm test:extension`. Claude Code plugin: `pnpm test:plugin`. Dev loop scripts: `pnpm test:dev`
+- Browser extension: `pnpm test:extension`. Claude Code plugin: `pnpm test:plugin`
 
 ## Tests
 
-- **Add a test when it fixes a bug or protects a contract.** A bug fix comes with a test that fails without the fix. A contract is something other code or other programs rely on: a command or event name, a file format on disk, a wire protocol, a CLI flag. Tests that only restate the implementation are not wanted.
+- **Tests guard what breaks silently.** The suite keeps parsers and extractors of platforms, HLS/DASH and file formats, accounts and credentials, and migrations of data on disk. Add a test there when you fix a bug; glue, UI and logic the type checker already covers do not get tests.
 - **No real clocks.** Never sleep to wait for a timer. In async Rust use tokio's paused time (`#[tokio::test(start_paused = true)]` or `tokio::time::pause()` with `advance`); elsewhere pass the duration in as a parameter so the test can use a tiny one.
 - **Name tests after behavior.** No tests tied to plan items, ticket numbers or steps of a roadmap: a test exists because the behavior matters, and its name says which behavior.
-- **Every `#[ignore]` carries a reason**, written as `#[ignore = "..."]`, and says how to run it (usually an environment variable, see [below](#test-only-and-internal)). Tests that need the network, a real agent CLI or a real yt-dlp are opt-in this way.
+- **No network and no real machine.** A test that needs the network, a real agent CLI or reads the real system does not go in the suite.
 - **Never touch the real profile.** Point `OMNIGET_DATA_DIR` (and the secret-store variables) at a temporary folder.
-- **`pnpm test:inventory`** runs the Rust suite with [cargo-nextest](https://nexte.st/) and reports the cost per area, every test over one second and every `#[ignore]` without a reason. Check it when you add something that takes more than a moment.
 
 ## Project rules
 
@@ -104,14 +102,13 @@ None of these are needed for normal development. The ones a contributor or a pow
 | `OMNIGET_DEV_ENDPOINT` | Points `omniget-mcp` at a `pnpm dev:app` session's `endpoint.json` instead of the installed app. |
 | `OMNIGET_NO_SPLASH` | Any value: `omniget claude` does not print the splash (same as `--no-splash`). |
 | `OMNIGET_I18N_STRICT` | `1`: `vite dev` fails on locale key problems, as `vite build` does. `0`: `vite build` does not. |
-| `OMNIGET_SHARED_TARGET` | `0`: `pnpm verify` and `pnpm test:fast` build in the checkout's own `src-tauri/target` instead of the shared `~/.cache/omniget/target`. `CARGO_TARGET_DIR` still wins. |
+| `OMNIGET_SHARED_TARGET` | `0`: `pnpm verify` builds in the checkout's own `src-tauri/target` instead of the shared `~/.cache/omniget/target`. `CARGO_TARGET_DIR` still wins. |
 | `OMNIGET_TEST_DRIVER` | `1`, debug builds only: turns on the local bridge's `POST /v1/debug/eval` test driver. `pnpm dev:app` sets it. |
 
 The Claude Code plugin has its own variables (`OMNIGET_DIR`, `OMNIGET_TOOL_*`, `OMNIGET_WHISPER_MODEL`, `OMNIGET_COOKIES_FROM_BROWSER`, `OMNIGET_KEYS_FILE`); see [claude-plugin/omniget/README.md](claude-plugin/omniget/README.md#environment-variables).
 
 ### Test-only and internal
 
-- Opt-in live tests: `OMNIGET_TEST_CLAUDE`, `OMNIGET_CODEX_BIN`, `OMNIGET_TEST_OLLAMA` (`_MODEL`, `_URL`), `OMNIGET_PROBE_MODEL`, `OMNIGET_ACP_LIVE_HOME` (`_CWD`, `_OUT`, `_EXTRA_ENV`), `OMNIGET_TEST_ONEDIR_YTDLP`, `OMNIGET_TEST_STANDALONE_YTDLP`, `OMNIGET_TEST_WORKER_LIVE_URL`, `OMNIGET_TEST_FFMPEG`, `OMNIGET_TEST_ENGINE_BINARIES`, `OMNIGET_YTDLP` with `OMNIGET_E2E_URL`, `OMNIGET_EMBED_OLLAMA_MODEL` (`_HOST`), `OMNIGET_HIGGSFIELD_TEST_CLI`, `OMNIGET_TEST_BRIDGE_PORT` (`_PROVIDER`, `_MODEL`, `_SECS`), `OMNIGET_REMOTE_HARNESS_OUT` (`_SECS`). Each test's doc comment says how to run it.
 - Test isolation: `OMNIGET_SECRETS_DIR` (every secret store under one folder), `OMNIGET_PROFILE_SECRET_DIR`, `OMNIGET_OMNIDISC_SESSION_DIR`, `OMNIGET_AI_KEYS_SECRET_DIR`, `OMNIGET_MCP_DOWNLOADS_SECRET_DIR`, `OMNIGET_LIMITS_DIR`, `OMNIGET_PET_DIR`, `OMNIGET_WIZARD_ROOT` (`OMNIGET_WIZARD_KEEP`), `OMNIGET_CLITOOLS_EXTRA_PATH`, `OMNIGET_CLITOOLS_NPM_PREFIX`.
-- Fixtures and benches: `OMNIGET_UPDATE_MCP_CATALOG` (regenerates `omniget-cli/mcp-catalog.json`), `OMNIGET_EMBED_FIXTURE_OUT`, `OMNIGET_BENCH_OUT`, `OMNIGET_PREPARED_TESTS`, `OMNIGET_CLI_USAGE_BENCH_MB` (`_STRICT`), `OMNIGET_SMOKE_EXIT_MS` (`pnpm smoke`).
+- Generators and the smoke test: `pnpm gen:mcp-catalog` (regenerates `omniget-cli/mcp-catalog.json` after an MCP tool changes), `OMNIGET_SMOKE_EXIT_MS` (`pnpm smoke`).
 - Set by OmniGet for its own child processes; do not set them: `OMNIGET_PORTABLE` (portable mode, turned on by a `portable.txt` next to the executable), `OMNIGET_DEV_PROFILE`, `OMNIGET_DEV_SESSION`, `OMNIGET_DEV_URL`, `OMNIGET_BACKEND_BUILD_ID`, `OMNIGET_WORKER_BUILD_ID`, `OMNIGET_BOOT_ID`, `OMNIGET_WORKER_MODE` and the other `OMNIGET_WORKER_*`, `OMNIGET_INFO_JSON_DIR`, `OMNIGET_LAUNCH_ID`, `OMNIGET_ARENA`, `OMNIGET_PROJECT_ROOT`, `OMNIGET_WORKTREE_PATH`, `OMNIGET_WMB_*`.

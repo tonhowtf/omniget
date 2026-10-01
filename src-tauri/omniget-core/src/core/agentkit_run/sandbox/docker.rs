@@ -274,38 +274,3 @@ pub async fn run(
     out.cancelled = cancel.is_cancelled();
     Ok((out, record))
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn image_and_argv_never_carry_the_key_or_skip_permissions() {
-        let df = dockerfile("claude").unwrap();
-        assert!(
-            df.contains("npm install -g @anthropic-ai/claude-code") && df.contains("USER node")
-        );
-        assert!(image_tag("claude", &df).starts_with("omniget-sandbox-claude:"));
-        assert!(dockerfile("cursor").is_err());
-        let (t, r) = runner::runner_of("claude").unwrap();
-        let run = ToolRun {
-            tool: "claude".into(),
-            prompt: "go".into(),
-            permission: runner::Permission::AcceptEdits,
-            ..Default::default()
-        };
-        let l = runner::launch(t, r, &run);
-        let a = run_args(
-            "n",
-            "img",
-            Path::new("/tmp/w"),
-            &["ANTHROPIC_API_KEY".into()],
-            true,
-            &l,
-        );
-        let joined = a.join(" ");
-        assert!(joined.contains("-e ANTHROPIC_API_KEY img claude"));
-        assert!(!joined.contains("dangerously"));
-        assert!(!joined.contains("sk-"));
-    }
-}

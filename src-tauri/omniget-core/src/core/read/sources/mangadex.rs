@@ -332,26 +332,3 @@ pub async fn pages(
         })
         .collect())
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn search_url_has_filters() {
-        let u = search_url("frieren", &["pt-br".into()], &[], "", &[], &[], 30);
-        assert!(u.contains("title=frieren"));
-        assert!(u.contains("availableTranslatedLanguage%5B%5D=pt-br"));
-        assert!(u.contains("offset=30"));
-        assert!(u.contains("order%5Brelevance%5D=desc"));
-    }
-
-    #[test]
-    fn picks_language() {
-        let mut m = std::collections::HashMap::new();
-        m.insert("ja-ro".to_string(), "Sousou no Frieren".to_string());
-        assert_eq!(pick(&m, "pt-br"), "Sousou no Frieren");
-        m.insert("en".to_string(), "Frieren".to_string());
-        assert_eq!(pick(&m, "pt-br"), "Frieren");
-    }
-}

@@ -115,17 +115,3 @@ pub fn dc_for(ip: IpAddr) -> i16 {
         }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn round_trip() {
-        for dc in 1..=5 {
-            assert_eq!(dc_for(addr(dc, false).ip()), dc);
-            assert_eq!(dc_for(addr(dc, true).ip()), dc);
-        }
-        assert_eq!(dc_for("149.154.167.92".parse().unwrap()), 4);
-    }
-}

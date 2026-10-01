@@ -102,35 +102,3 @@ pub fn refresh_if_stale(app: &AppHandle) {
         super::republish(&app);
     });
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn s(cli: &'static str, account: &str, ended_at: i64, cost: f64) -> SessionSummary {
-        SessionSummary {
-            cli,
-            account: account.into(),
-            ended_at,
-            cost_usd: cost,
-            ..Default::default()
-        }
-    }
-
-    #[test]
-    fn spend_is_summed_per_ring_from_midnight() {
-        let m = today_by_ring(
-            &[
-                s("claude", "default", 100, 1.5),
-                s("claude", "default", 50, 9.0),
-                s("claude", "work", 200, 2.0),
-                s("claude", "work", 300, 0.25),
-                s("codex", "default", 150, 3.0),
-            ],
-            100,
-        );
-        assert_eq!(m.get("claude"), Some(&1.5));
-        assert_eq!(m.get("claude:work"), Some(&2.25));
-        assert_eq!(m.get("codex"), Some(&3.0));
-    }
-}

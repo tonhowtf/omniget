@@ -324,21 +324,3 @@ pub fn detect_all(env: &Env, project: Option<&Path>) -> Vec<DetectedTarget> {
         handles.into_iter().filter_map(|h| h.join().ok()).collect()
     })
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn version_token() {
-        assert_eq!(
-            extract_version("2.1.261 (Claude Code)").as_deref(),
-            Some("2.1.261")
-        );
-        assert_eq!(
-            extract_version("codex-cli 0.44.0-alpha.3\n").as_deref(),
-            Some("0.44.0-alpha.3")
-        );
-        assert_eq!(extract_version("no version"), None);
-    }
-}

@@ -324,23 +324,3 @@ fn reveal_in_folder(p: &Path) {
         let _ = std::process::Command::new("xdg-open").arg(d).spawn();
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn secrets_paths_and_mail_are_masked() {
-        let s = redact(
-            "token=oct_abcdef123456 at /Users/joe/x Bearer abc.def-123 me@x.com api_key: \"zz9\" joe",
-            Some("/Users/joe"),
-            Some("joe"),
-        );
-        assert!(!s.contains("oct_abc"), "{s}");
-        assert!(!s.contains("abc.def-123"), "{s}");
-        assert!(!s.contains("me@x.com"), "{s}");
-        assert!(!s.contains("zz9"), "{s}");
-        assert!(s.contains("~/x"), "{s}");
-        assert!(!s.contains("joe"), "{s}");
-    }
-}

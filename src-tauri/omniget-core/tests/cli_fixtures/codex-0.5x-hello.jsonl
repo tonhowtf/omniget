@@ -1,6 +1,0 @@
-{"type":"thread.started","thread_id":"0199a213-81c0-7800-8aa1-bbab2a035a53"}
-{"type":"turn.started"}
-{"type":"item.started","item":{"id":"item_1","type":"command_execution","command":"bash -lc ls","status":"in_progress"}}
-{"type":"item.completed","item":{"id":"item_1","type":"command_execution","command":"bash -lc ls","aggregated_output":"docs\nsdk\nexamples\n","exit_code":0,"status":"completed"}}
-{"type":"item.completed","item":{"id":"item_3","type":"agent_message","text":"Repo contains docs, sdk, and examples directories."}}
-{"type":"turn.completed","usage":{"input_tokens":24763,"cached_input_tokens":24448,"cache_write_input_tokens":0,"output_tokens":122,"reasoning_output_tokens":0}}

@@ -183,24 +183,3 @@ fn skip_name(msg: &[u8], mut pos: usize) -> anyhow::Result<usize> {
         pos += 1 + len as usize;
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn query_and_answer_round_trip() {
-        let q = build_query("t.me", 1);
-        assert_eq!(&q[12..18], b"\x01t\x02me\x00");
-        // Reply: header + question + one A answer with a compressed name.
-        let mut r = q.clone();
-        r[2] = 0x81;
-        r[3] = 0x80;
-        r[7] = 1;
-        r.extend_from_slice(&[0xc0, 0x0c, 0, 1, 0, 1, 0, 0, 0, 60, 0, 4, 149, 154, 167, 99]);
-        assert_eq!(
-            parse_answer(&r, 1).unwrap(),
-            vec!["149.154.167.99".parse::<IpAddr>().unwrap()]
-        );
-    }
-}

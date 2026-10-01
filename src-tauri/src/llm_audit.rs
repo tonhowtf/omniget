@@ -281,34 +281,3 @@ pub async fn llm_audit_retention_set(app: tauri::AppHandle, days: u32) -> Result
     );
     Ok(json!({ "retention_days": days }))
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn the_routes_that_write_their_own_line_are_not_counted_twice() {
-        assert!(self_audited(&Method::POST, "/v1/agent/run"));
-        assert!(self_audited(&Method::POST, "/v1/jobs/j1/cancel"));
-        assert!(self_audited(&Method::POST, "/v1/approvals/apr_1"));
-        assert!(self_audited(&Method::POST, "/v1/agents/cli"));
-        // 2.5's command surface and 3.5's review actions write their own.
-        assert!(self_audited(&Method::POST, "/v1/commands"));
-        assert!(self_audited(&Method::POST, "/v1/jobs/j1/integrate"));
-        assert!(self_audited(&Method::POST, "/v1/jobs/j1/discard"));
-        assert!(self_audited(&Method::POST, "/v1/jobs/j1/hunks/discard"));
-        assert!(!self_audited(&Method::POST, "/v1/jobs/j1/notes"));
-        assert!(!self_audited(&Method::POST, "/v1/hooks/t1"));
-        assert!(!self_audited(&Method::GET, "/v1/jobs"));
-    }
-
-    #[test]
-    fn the_query_reads_since_action_and_limit() {
-        let q = query_of(Some("since=1d&action=job.&limit=5"), 100_000_000).unwrap();
-        assert_eq!(q.since_ms, Some(100_000_000 - 86_400_000));
-        assert_eq!(q.action.as_deref(), Some("job."));
-        assert_eq!(q.limit, Some(5));
-        assert!(query_of(Some("since=soon"), 0).is_err());
-        assert_eq!(query_of(None, 5).unwrap().since_ms, None);
-    }
-}

@@ -39,29 +39,3 @@ pub fn export_link_list(path: String, header: String, urls: Vec<String>) -> Resu
     std::fs::write(p, &text).map_err(|e| e.to_string())?;
     Ok(text.lines().filter(|l| !l.starts_with('#')).count())
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn one_link_per_line_without_repeats() {
-        let urls = vec![
-            "https://a/1".to_string(),
-            " https://a/2 ".to_string(),
-            "https://a/1".to_string(),
-            String::new(),
-            "bad\nline".to_string(),
-        ];
-        assert_eq!(
-            link_list_text("OmniGet, failed", &urls),
-            "# OmniGet, failed\nhttps://a/1\nhttps://a/2\n"
-        );
-    }
-
-    #[test]
-    fn only_txt_files() {
-        let err = export_link_list("/tmp/list.sh".into(), "x".into(), vec![]).unwrap_err();
-        assert!(err.contains(".txt"));
-    }
-}

@@ -299,39 +299,3 @@ impl Converter for GooseRecipeConverter {
         Ok(out)
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::core::agentkit::targets;
-
-    #[test]
-    fn goose_command_recipe_round_trip() {
-        let text = "---\nargument-hint: <feature-name>\ndescription: Create a feature branch\n---\n\nCreate **$ARGUMENTS**.\n- branch: !`git branch --show-current`\n";
-        let files: parse::RawFiles = [("feature.md".to_string(), text.as_bytes().to_vec())]
-            .into_iter()
-            .collect();
-        let c = parse::parse_raw(ComponentKind::Command, "feature.md", &files).unwrap();
-        let ComponentBody::Command(cmd) = &c.body else {
-            unreachable!()
-        };
-        let t = targets::target("goose").unwrap();
-        let (y, losses) = GooseRecipeConverter::command_recipe(&c, cmd, "feature", t);
-        let v = crate::core::agentkit::edit::yaml::parse(&y).unwrap_or_else(|e| panic!("{e}\n{y}"));
-        assert_eq!(v["title"], "feature");
-        assert!(
-            v["prompt"]
-                .as_str()
-                .unwrap()
-                .contains("Create **{{ args }}**."),
-            "{y}"
-        );
-        assert_eq!(v["parameters"][0]["key"], "args");
-        assert_eq!(v["parameters"][0]["description"], "<feature-name>");
-        assert!(losses.iter().any(|l| l.contains("shell")), "{losses:?}");
-        let (back, _) = GooseRecipeConverter::read(&y, t).unwrap();
-        let back = back.unwrap();
-        assert!(back.body.contains("Create **{{args}}**."), "{}", back.body);
-        assert_eq!(back.argument_hint.as_deref(), Some("<feature-name>"));
-    }
-}

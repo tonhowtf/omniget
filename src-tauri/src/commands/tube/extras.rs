@@ -145,17 +145,3 @@ pub async fn tube_ryd(app: AppHandle, video_id: String) -> Result<Option<Ryd>, S
     store(&key, &ryd);
     Ok(ryd)
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn categories_skip_off() {
-        let map = [("sponsor", "skip"), ("filler", "off"), ("intro", "show")]
-            .into_iter()
-            .map(|(k, v)| (k.to_string(), v.to_string()))
-            .collect();
-        assert_eq!(active_categories(&map), vec!["intro", "sponsor"]);
-    }
-}

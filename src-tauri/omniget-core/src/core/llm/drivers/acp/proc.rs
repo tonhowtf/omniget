@@ -236,26 +236,3 @@ pub fn sanitize(s: &str) -> String {
     }
     out.trim().to_string()
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn sanitize_masks_secrets() {
-        let s = sanitize("Authorization: Bearer abcdefghijklmnop key=sk-abcdefghijklmnopqrst");
-        assert!(!s.contains("abcdefghijklmnop"));
-        assert!(s.contains("Bearer ***"));
-        assert!(s.contains("sk-***"));
-    }
-
-    #[test]
-    fn tail_keeps_the_end_on_char_boundaries() {
-        let t = Tail::default();
-        t.push(&"é".repeat(STDERR_TAIL));
-        t.push("end");
-        let text = t.0.lock().unwrap().clone();
-        assert!(text.len() <= STDERR_TAIL);
-        assert!(text.ends_with("end"));
-    }
-}

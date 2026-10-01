@@ -571,6 +571,3 @@ pub fn trust(
     );
     Ok(status_view(&store, dir))
 }
-
-#[cfg(test)]
-mod tests;

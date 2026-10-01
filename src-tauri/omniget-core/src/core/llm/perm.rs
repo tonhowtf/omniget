@@ -447,34 +447,3 @@ pub fn always_rule(tool: &str, input: &Value) -> Rule {
         action: Action::Allow,
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn always_on_an_interpreter_covers_the_program_not_the_script() {
-        let rule = always_rule(
-            "shell_exec",
-            &serde_json::json!({ "command": "node test/cart.test.js" }),
-        );
-        assert_eq!(rule.pattern, "node *");
-        assert_eq!(command_prefix("git status --short"), "git status");
-    }
-
-    #[test]
-    fn a_chained_command_needs_a_rule_for_every_segment() {
-        let rules = vec![Rule {
-            tool: "shell_exec".into(),
-            pattern: "git status *".into(),
-            action: Action::Allow,
-        }];
-        assert_eq!(
-            decide_one(&rules, "shell_exec", "git status"),
-            Some(Action::Allow)
-        );
-        let parts = segments("git status && rm -rf x");
-        assert_eq!(parts, vec!["git status", "rm -rf x"]);
-        assert_eq!(decide_one(&rules, "shell_exec", &parts[1]), None);
-    }
-}

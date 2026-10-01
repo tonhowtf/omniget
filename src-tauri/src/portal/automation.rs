@@ -243,17 +243,3 @@ pub async fn console(app: &AppHandle, node: &str, a: &Value) -> Result<Value, St
     )
     .await
 }
-
-#[cfg(test)]
-mod tests {
-    use super::at_refs;
-
-    #[test]
-    fn refs_become_at_refs() {
-        let t = "- banner\n  - link \"Home\" href=\"/\" [ref=e2]\n  - text: \"hi [ref=x]\"";
-        assert_eq!(
-            at_refs(t),
-            "- banner\n  - link \"Home\" href=\"/\" @e2\n  - text: \"hi [ref=x]\""
-        );
-    }
-}

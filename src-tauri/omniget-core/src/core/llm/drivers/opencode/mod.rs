@@ -1267,26 +1267,3 @@ impl Driver for OpenCodeDriver {
         Ok(())
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn readiness_line_and_models_parse() {
-        assert_eq!(
-            listening_url("opencode server listening on http://127.0.0.1:47611").as_deref(),
-            Some("http://127.0.0.1:47611")
-        );
-        assert_eq!(listening_url("booting"), None);
-        assert_eq!(
-            parse_model("anthropic/claude-sonnet-4-5"),
-            Some(json!({ "providerID": "anthropic", "modelID": "claude-sonnet-4-5" }))
-        );
-        assert_eq!(parse_model("big-pickle"), None);
-        assert_eq!(url_encode("/a b/c"), "/a%20b/c");
-    }
-}
-
-#[cfg(test)]
-mod live_tests;

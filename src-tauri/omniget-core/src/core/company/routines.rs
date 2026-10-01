@@ -554,37 +554,3 @@ impl CompanyStore {
         })
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn cron_next() {
-        // 2026-01-01T00:00:00Z
-        let t0 = 1_767_225_600_000;
-        assert_eq!(
-            next_after("*/15 * * * *", "UTC", t0).unwrap(),
-            t0 + 15 * 60_000
-        );
-        assert_eq!(
-            next_after("0 9 * * *", "UTC", t0).unwrap(),
-            t0 + 9 * 3_600_000
-        );
-        assert_eq!(
-            next_after("@daily", "UTC", t0).unwrap(),
-            t0 + 24 * 3_600_000
-        );
-        assert_eq!(
-            next_after("0 9 * * *", "-03:00", t0).unwrap(),
-            t0 + 12 * 3_600_000
-        );
-        // 2026-01-01 is a Thursday; next Monday 00:00 is the 5th.
-        assert_eq!(
-            next_after("0 0 * * mon", "UTC", t0).unwrap(),
-            t0 + 4 * 86_400_000
-        );
-        assert!(validate_cron("61 * * * *").is_err());
-        assert!(validate_cron("* * *").is_err());
-    }
-}

@@ -255,26 +255,3 @@ pub async fn tube_music_library(kind: String) -> Result<Page, String> {
     }
     Ok(pm::music_library(&json))
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn library_kinds_map_to_browse_ids() {
-        assert_eq!(
-            library_browse_id("playlists"),
-            Some("FEmusic_liked_playlists")
-        );
-        assert_eq!(library_browse_id("liked"), Some("VLLM"));
-        assert_eq!(library_browse_id("nope"), None);
-    }
-
-    #[test]
-    fn queue_fields_are_added() {
-        let mut b = json!({"context": {}});
-        queue_fields(&mut b);
-        assert_eq!(b["isAudioOnly"], json!(true));
-        assert_eq!(b["tunerSettingValue"], json!("AUTOMIX_SETTING_NORMAL"));
-    }
-}

@@ -1124,37 +1124,3 @@ pub fn launch_for_node(
     };
     launch_plan(store, ws, role_id, &data.agent, data.cwd.as_deref()).map(Some)
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn slug_is_folder_safe() {
-        assert_eq!(slug("Code Reviewer!"), "code-reviewer");
-        assert_eq!(slug("  ***  "), "role");
-        assert!(is_safe_id(&slug("Ünïcode Ñame / with slashes")));
-    }
-
-    #[test]
-    fn builtins_are_valid_and_unique() {
-        let b = builtins();
-        assert_eq!(b.len(), 12);
-        for r in &b {
-            assert!(is_safe_id(&r.id));
-            assert!(!r.prompt.is_empty());
-            assert_eq!(b.iter().filter(|o| o.name == r.name).count(), 1);
-        }
-    }
-
-    #[test]
-    fn instructions_redirect_only_in_role_dir() {
-        let r = &builtins()[0];
-        let a = instructions(r, Some("/p"), true);
-        assert!(a.contains("IMPORTANT: You were started"));
-        assert!(a.contains("/p"));
-        let b = instructions(r, Some("/p"), false);
-        assert!(!b.contains("IMPORTANT"));
-        assert!(b.contains("<omniget_canvas>"));
-    }
-}

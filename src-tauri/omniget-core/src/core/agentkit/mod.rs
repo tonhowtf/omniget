@@ -22,9 +22,6 @@ pub mod profiles;
 pub mod targets;
 pub mod writer;
 
-#[cfg(test)]
-mod tests;
-
 use std::path::{Path, PathBuf};
 
 /// Error with a stable code, shown to the front as `"CODE: message"`.

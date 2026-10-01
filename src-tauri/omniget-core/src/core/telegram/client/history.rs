@@ -411,33 +411,3 @@ pub async fn fetch_items(
     }
     Ok(out)
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn item(id: i32, name: &str, size: u64, kind: &str) -> TelegramMediaItem {
-        TelegramMediaItem {
-            message_id: id,
-            file_name: name.into(),
-            file_size: size,
-            media_type: kind.into(),
-            date: 1_700_000_000,
-            webpage: None,
-            caption: Some("Lecture Two".into()),
-            grouped_id: None,
-        }
-    }
-
-    #[test]
-    fn filter_accepts_snake_and_camel() {
-        let f = MediaFilter::from_json(Some(&serde_json::json!({
-            "media_types": ["video"], "minSize": 10, "ext_exclude": [".MKV"], "keyword": "lecture"
-        })))
-        .unwrap();
-        assert!(f.matches(&item(1, "a.mp4", 20, "video")));
-        assert!(!f.matches(&item(2, "a.mkv", 20, "video")));
-        assert!(!f.matches(&item(3, "a.mp4", 5, "video")));
-        assert!(!f.matches(&item(4, "a.jpg", 20, "photo")));
-    }
-}

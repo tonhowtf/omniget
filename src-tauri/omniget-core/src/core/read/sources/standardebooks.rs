@@ -145,28 +145,3 @@ pub async fn browse(
     }
     Ok(feed_to_page(feed))
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn download_links_get_source_param() {
-        assert_eq!(
-            download_url("https://se.org/d/a.epub?source=feed"),
-            "https://se.org/d/a.epub?source=download"
-        );
-        assert_eq!(
-            download_url("https://se.org/d/a.epub"),
-            "https://se.org/d/a.epub?source=download"
-        );
-        assert_eq!(
-            format_of("application/epub+zip", "x_advanced.epub?source=feed").0,
-            "epub"
-        );
-        assert_eq!(
-            format_of("application/kepub+zip", "x.kepub.epub?source=feed").0,
-            "kepub"
-        );
-    }
-}

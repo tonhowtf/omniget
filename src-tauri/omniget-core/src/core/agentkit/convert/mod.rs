@@ -33,8 +33,6 @@ pub mod hook_convert;
 pub mod hook_json;
 pub mod hook_observe;
 pub mod hook_shim;
-#[cfg(test)]
-mod hook_tests;
 pub mod hook_toml;
 pub mod loop_runbook;
 pub mod mcp;

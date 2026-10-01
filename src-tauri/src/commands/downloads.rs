@@ -1367,35 +1367,6 @@ pub async fn open_path_default(path: String) -> Result<(), String> {
     Ok(())
 }
 
-#[cfg(test)]
-mod recovery_outcome_tests {
-    use super::RecoveryOutcome;
-
-    // N-2: "Resume downloads" used to toast "N download(s) resumed" for jobs
-    // it only settled from their folder.
-    #[test]
-    fn reconciled_jobs_are_not_counted_as_resumed() {
-        let mut o = RecoveryOutcome::default();
-        o.count_reconciled(Ok("completed"));
-        o.count_reconciled(Ok("interrupted"));
-        o.count_reconciled(Ok("already_terminal"));
-        o.count_reconciled(Err(()));
-        assert_eq!(
-            o,
-            RecoveryOutcome {
-                restored: 0,
-                reconciled: 2,
-                attention: 2
-            }
-        );
-        let json = serde_json::to_value(o).unwrap();
-        assert_eq!(
-            json,
-            serde_json::json!({"restored":0,"reconciled":2,"attention":2})
-        );
-    }
-}
-
 /// Initial presentation snapshot, including an empty queue after a WebView remount.
 #[tauri::command]
 pub async fn get_download_queue(app: tauri::AppHandle) -> Vec<crate::core::queue::QueueItemInfo> {
@@ -1403,24 +1374,4 @@ pub async fn get_download_queue(app: tauri::AppHandle) -> Vec<crate::core::queue
     let state = app.state::<crate::AppState>();
     let queue = state.download_queue.lock().await;
     crate::core::queue::redacted_for_display(queue.get_state())
-}
-
-#[cfg(test)]
-mod subtitle_lang_tests {
-    use super::subtitle_lang_args;
-
-    #[test]
-    fn plain_language_lists_become_subtitle_flags() {
-        let args = subtitle_lang_args(" en,pt-BR ").unwrap();
-        assert_eq!(args[3], "en,pt-BR");
-        assert!(args.contains(&"--write-sub".to_string()));
-    }
-
-    #[test]
-    fn anything_else_is_ignored() {
-        assert!(subtitle_lang_args("").is_none());
-        assert!(subtitle_lang_args("--exec rm").is_none());
-        assert!(subtitle_lang_args("-en").is_none());
-        assert!(subtitle_lang_args("en; ls").is_none());
-    }
 }

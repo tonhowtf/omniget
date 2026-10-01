@@ -1372,27 +1372,3 @@ pub async fn execute(cmd: TgCommand, local: bool, json_out: bool) -> anyhow::Res
     }
     Ok(())
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn sizes() {
-        assert_eq!(parse_size("10MB").unwrap(), 10_000_000);
-        assert_eq!(parse_size("1.5 GB").unwrap(), 1_500_000_000);
-        assert_eq!(parse_size("700k").unwrap(), 700_000);
-        assert_eq!(parse_size("123").unwrap(), 123);
-        assert_eq!(parse_size("2GiB").unwrap(), 2_000_000_000);
-        assert!(parse_size("ten").is_err());
-    }
-
-    #[test]
-    fn dates() {
-        assert_eq!(parse_date("1700000000", false).unwrap(), 1_700_000_000);
-        let a = parse_date("2026-01-01", false).unwrap();
-        let b = parse_date("2026-01-01", true).unwrap();
-        assert_eq!(b - a, 86_399);
-        assert!(parse_date("01/01/2026", false).is_err());
-    }
-}

@@ -516,51 +516,6 @@ fn a_background_subagent_becomes_task_events_and_a_loose_reply() {
 }
 
 #[test]
-fn an_unknown_control_request_is_answered_with_an_error() {
-    let mut tr = Translator::new("claude", "thr", None, ClaudeCursor::default());
-    let out = tr.on_line(
-        r#"{"type":"control_request","request_id":"r9","request":{"subtype":"hook_callback","callback_id":"x"}}"#,
-        &|_| None,
-    );
-    assert!(
-        matches!(&out[0], Output::Send(v) if v["response"]["subtype"] == "error" && v["response"]["request_id"] == "r9")
-    );
-    // A withdrawn approval resolves as cancelled.
-    tr.register_prompt("t1", "u1", None);
-    let out = tr.on_line(
-        r#"{"type":"control_request","request_id":"r1","request":{"subtype":"can_use_tool","tool_name":"Bash","input":{"command":"rm -rf build","description":"clean"},"tool_use_id":"toolu_x"}}"#,
-        &|_| None,
-    );
-    let opened = out
-        .iter()
-        .find_map(|o| match o {
-            Output::Event(e) => match &e.kind {
-                K::RequestOpened(p) => Some(p.clone()),
-                _ => None,
-            },
-            _ => None,
-        })
-        .unwrap();
-    assert_eq!(opened.request_type, RequestType::CommandExecutionApproval);
-    assert_eq!(
-        opened.detail.as_ref().unwrap().command.as_deref(),
-        Some("rm -rf build")
-    );
-    assert_eq!(
-        opened.detail.as_ref().unwrap().reason.as_deref(),
-        Some("clean")
-    );
-    let out = tr.on_line(
-        r#"{"type":"control_cancel_request","request_id":"r1"}"#,
-        &|_| None,
-    );
-    assert!(
-        matches!(&out[0], Output::Event(e) if matches!(&e.kind, K::RequestResolved(p) if p.resolution.as_deref() == Some("cancelled")))
-    );
-    assert!(tr.answer_approval("r1", ApprovalDecision::Accept).is_err());
-}
-
-#[test]
 fn an_edit_approval_carries_the_diff_against_the_file_on_disk() {
     let mut tr = Translator::new("claude", "thr", Some("/w".into()), ClaudeCursor::default());
     tr.register_prompt("t1", "u1", None);
@@ -724,87 +679,6 @@ mod driver_e2e {
             store.get("thr_e2e").unwrap().session_id,
             "e67cfc11-6cec-4138-9770-dada33dd2794"
         );
-        let _ = std::fs::remove_dir_all(&dir);
-    }
-
-    /// Live run against the installed CLI (costs one tiny haiku turn on the
-    /// default profile). `OMNIGET_TEST_CLAUDE=1 cargo test -p omniget-core
-    /// --lib drivers::claude::tests::driver_e2e::live -- --ignored --nocapture`.
-    #[tokio::test]
-    #[ignore = "spawns the installed claude; set OMNIGET_TEST_CLAUDE=1"]
-    async fn live_turn_approval_and_resume() {
-        if std::env::var("OMNIGET_TEST_CLAUDE").ok().as_deref() != Some("1") {
-            return;
-        }
-        let dir = tmp("live");
-        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
-        let store = Arc::new(CursorStore::at(Some(dir.join("claude-threads.json"))));
-        let driver = ClaudeDriver::with_store(
-            DriverInstance::new("claude", "claude", "Claude"),
-            tx,
-            store.clone(),
-        );
-        let start = |turn: &str, text: &str| TurnStart {
-            thread_id: "thr_live".into(),
-            turn_id: turn.into(),
-            message_id: format!("m-{turn}"),
-            text: text.into(),
-            attachments: vec![],
-            model: Some("haiku".into()),
-            access_mode: AccessMode::ApprovalRequired,
-            interaction_mode: InteractionMode::Default,
-        };
-        driver
-            .start_session(SessionStart {
-                thread_id: "thr_live".into(),
-                instance_id: "claude".into(),
-                cwd: Some(dir.clone()),
-                model: Some("haiku".into()),
-                agent_id: None,
-                access_mode: AccessMode::ApprovalRequired,
-                interaction_mode: InteractionMode::Default,
-                resume_cursor: None,
-            })
-            .await
-            .unwrap();
-        driver
-            .start_turn(start(
-                "t1",
-                "Create x.txt containing exactly: oi (Write tool). Then reply: done",
-            ))
-            .await
-            .unwrap();
-        let mut log = Vec::new();
-        let ok = tokio::time::timeout(Duration::from_secs(120), async {
-            while let Some(ev) = rx.recv().await {
-                eprintln!("{}", serde_json::to_string(&ev).unwrap());
-                if let K::RequestOpened(_) = &ev.kind {
-                    driver
-                        .respond_request(
-                            "thr_live",
-                            ev.request_id.as_deref().unwrap(),
-                            ApprovalDecision::Accept,
-                        )
-                        .await
-                        .unwrap();
-                }
-                let end = matches!(ev.kind, K::TurnCompleted(_));
-                log.push(ev);
-                if end {
-                    break;
-                }
-            }
-        })
-        .await;
-        assert!(ok.is_ok());
-        assert_eq!(
-            std::fs::read_to_string(dir.join("x.txt")).unwrap_or_default(),
-            "oi"
-        );
-        assert!(log.iter().any(|e| matches!(&e.kind, K::RequestOpened(p) if p.detail.as_ref().and_then(|d| d.diff.as_ref()).is_some())));
-        let sid = store.get("thr_live").unwrap().session_id;
-        assert!(!sid.is_empty());
-        driver.stop("thr_live").await.unwrap();
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

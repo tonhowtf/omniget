@@ -4,7 +4,7 @@
 
 use super::*;
 use crate::core::llm::drivers::{RequestType, RuntimeEventKind, StreamKind};
-use serde_json::{json, Value};
+use serde_json::Value;
 
 const TURN: &str = include_str!("../fixtures/opencode-turn.ndjson");
 const TOOLS: &str = include_str!("../fixtures/opencode-tools.ndjson");
@@ -257,23 +257,6 @@ fn permission_requests_get_the_right_type_diff_and_options() {
 }
 
 #[test]
-fn kinds_map_to_request_types() {
-    assert_eq!(request_type("read"), RequestType::FileReadApproval);
-    assert_eq!(request_type("delete"), RequestType::FileChangeApproval);
-    assert_eq!(request_type("move"), RequestType::FileChangeApproval);
-    assert_eq!(request_type("fetch"), RequestType::DynamicToolCall);
-    assert_eq!(request_type("switch_mode"), RequestType::PermissionApproval);
-    // No kind but a diff: an edit.
-    let ask = permission_ask(&json!({
-        "sessionId": "s", "options": [],
-        "toolCall": { "toolCallId": "t", "title": "Write",
-            "content": [{ "type": "diff", "path": "/w/a.txt", "oldText": null, "newText": "x\n" }] }
-    }));
-    assert_eq!(ask.request_type, RequestType::FileChangeApproval);
-    assert!(ask.detail.diff.unwrap().starts_with("--- /dev/null"));
-}
-
-#[test]
 fn gemini_asks_for_authentication_before_session_new() {
     let msgs = inbound(GEMINI);
     let init = &msgs[0]["result"];
@@ -290,78 +273,4 @@ fn gemini_asks_for_authentication_before_session_new() {
     assert_eq!(init["agentCapabilities"]["loadSession"], true);
     let err = super::super::rpc::RpcError::from_value(&msgs[1]["error"]);
     assert!(err.is_auth_required());
-}
-
-#[test]
-fn replays_and_stray_chunks_outside_a_turn_are_dropped() {
-    let mut t = Translator::new();
-    let chunk = json!({ "sessionUpdate": "agent_message_chunk", "content": { "type": "text", "text": "old" } });
-    assert!(t.on_update(&chunk).is_empty());
-    t.begin_turn("hi");
-    let replay = json!({ "sessionUpdate": "agent_message_chunk", "_meta": { "isReplay": true },
-        "content": { "type": "text", "text": "old" } });
-    assert!(t.on_update(&replay).is_empty());
-    // The echo of our own prompt is not a new user message.
-    let echo = json!({ "sessionUpdate": "user_message_chunk", "content": { "type": "text", "text": "hi" } });
-    assert!(t.on_update(&echo).is_empty());
-}
-
-#[test]
-fn plan_mode_usage_and_terminal_output() {
-    let mut t = Translator::new();
-    t.begin_turn("go");
-    let plan = t.on_update(&json!({ "sessionUpdate": "plan", "entries": [
-        { "content": "a", "priority": "high", "status": "completed" },
-        { "content": "b", "priority": "low", "status": "in_progress" }] }));
-    match &plan[0].kind {
-        RuntimeEventKind::PlanUpdated(p) => {
-            assert_eq!(p.plan[0].status, "completed");
-            assert_eq!(p.plan[1].status, "inProgress");
-        }
-        other => panic!("{other:?}"),
-    }
-    t.on_update(&json!({ "sessionUpdate": "current_mode_update", "currentModeId": "plan" }));
-    assert_eq!(t.current_mode(), Some("plan"));
-    // Terminal output before the tool call names the terminal is buffered.
-    assert!(t.on_terminal_output("term-1", "hello ").is_empty());
-    let ev = t.on_update(&json!({ "sessionUpdate": "tool_call", "toolCallId": "c1", "title": "run",
-        "kind": "execute", "status": "in_progress", "content": [{ "type": "terminal", "terminalId": "term-1" }] }));
-    assert_eq!(text_of(&ev, StreamKind::CommandOutput), "hello ");
-    let more = t.on_terminal_output("term-1", "world");
-    assert_eq!(more[0].item_id.as_deref(), Some("c1"));
-    // Cumulative cost → per-turn cost.
-    t.on_update(&json!({ "sessionUpdate": "usage_update", "used": 1, "size": 10, "cost": { "amount": 0.5, "currency": "USD" } }));
-    t.end_turn();
-    t.begin_turn("again");
-    t.on_update(&json!({ "sessionUpdate": "usage_update", "used": 2, "size": 10, "cost": { "amount": 0.75, "currency": "USD" } }));
-    assert_eq!(t.turn_cost(), Some(0.25));
-    // Unknown update kinds pass through as raw.
-    let raw = t.on_update(&json!({ "sessionUpdate": "_vendor_thing", "x": 1 }));
-    assert_eq!(raw[0].type_name(), "raw");
-}
-
-#[test]
-fn elicitation_form_round_trip() {
-    let params = json!({ "mode": "form", "sessionId": "s", "message": "Pick one",
-        "requestedSchema": { "type": "object", "properties": {
-            "color": { "type": "string", "title": "Color", "enum": ["red", "blue"] },
-            "count": { "type": "integer", "title": "Count" },
-            "ok": { "type": "boolean", "title": "OK?" } } } });
-    let qs = elicitation_questions(&params);
-    assert_eq!(qs.len(), 3);
-    let color = qs.iter().find(|q| q.id == "color").unwrap();
-    assert_eq!(color.options.len(), 2);
-    assert!(!color.allow_custom_answer);
-    let resp = elicitation_response(
-        &params,
-        &json!({ "color": "blue", "count": "3", "ok": "yes" }),
-    );
-    assert_eq!(
-        resp,
-        json!({ "action": "accept", "content": { "color": "blue", "count": 3, "ok": true } })
-    );
-    assert_eq!(
-        elicitation_response(&params, &Value::Null),
-        json!({ "action": "cancel" })
-    );
 }

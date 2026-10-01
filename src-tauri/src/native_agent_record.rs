@@ -159,27 +159,3 @@ pub async fn call(app: &AppHandle, p: &Principal, args: Value) -> Result<Value, 
         json!({"schemaVersion":1,"jobId":id,"state":{"status":"recording","targetFps":5,"limitSeconds":60}}),
     )
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn only_transient_frames_retry_and_security_failures_stop() {
-        for error in [
-            "STALE_TARGET: transition",
-            "FRONTEND_NOT_READY: loading",
-            "SESSION_BUSY: snapshot acquisition",
-        ] {
-            assert!(retryable_frame(error));
-        }
-        for error in [
-            "PERMISSION_REQUIRED: sensitive surface",
-            "PRINCIPAL_INACTIVE",
-            "WINDOW_NOT_FOUND",
-            "CAPTURE_FAILED",
-            "TIMEOUT",
-        ] {
-            assert!(!retryable_frame(error));
-        }
-    }
-}

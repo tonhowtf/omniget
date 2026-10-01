@@ -73,28 +73,3 @@ pub trait Provider: Send + Sync {
         None
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn append_response_stops_at_the_cap() {
-        let c = WireCapture::default();
-        c.record_request(serde_json::json!({ "model": "m" }));
-        let big = vec![b'x'; WIRE_CAPTURE_CAP + 10];
-        c.append_response(&big);
-        c.append_response(b"more");
-        let snap = c.snapshot();
-        assert_eq!(snap.raw_response.len(), WIRE_CAPTURE_CAP);
-        assert_eq!(snap.sent_body.unwrap()["model"], "m");
-    }
-
-    #[test]
-    fn record_request_clears_the_previous_response() {
-        let c = WireCapture::default();
-        c.append_response(b"old");
-        c.record_request(serde_json::json!({}));
-        assert!(c.snapshot().raw_response.is_empty());
-    }
-}

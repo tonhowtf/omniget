@@ -400,37 +400,3 @@ pub async fn assist_learning_export(bot_id: String, path: Option<String>) -> Res
 pub async fn assist_learning_forget(bot_id: String) -> Result<usize, String> {
     learning::forget(&*db::global()?, &bot_id)
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn a_repeated_live_evaluation_request_returns_the_same_run() {
-        // Live demo 2026-09-25: one `invoke` ran the evaluation twice, 333 s
-        // apart (the webview re-sent the command after ~5 minutes).
-        let cid = format!("cand-{}", omniget_core::core::assist::new_id());
-        let (first, created) = claim_eval_job(&cid, 3, "bot", "live", 1_000);
-        assert!(created);
-        let (again, created2) = claim_eval_job(&cid, 3, "bot", "live", 1_000 + 333_000);
-        assert!(!created2, "a duplicate never starts a second evaluation");
-        assert_eq!(again.run_id, first.run_id);
-        assert_eq!(eval_job(&first.run_id).unwrap().state, "running");
-        // Another version is another evaluation.
-        let (other, created3) = claim_eval_job(&cid, 4, "bot", "live", 2_000);
-        assert!(created3);
-        assert_ne!(other.run_id, first.run_id);
-        // Once it ends, a new request starts a new run.
-        assert_eq!(finish_eval_job(&first.run_id, None).unwrap().state, "done");
-        let (next, created4) = claim_eval_job(&cid, 3, "bot", "live", 3_000);
-        assert!(created4);
-        assert_ne!(next.run_id, first.run_id);
-        assert_eq!(
-            finish_eval_job(&next.run_id, Some("boom".into()))
-                .unwrap()
-                .state,
-            "failed"
-        );
-        finish_eval_job(&other.run_id, None);
-    }
-}

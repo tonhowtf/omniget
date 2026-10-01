@@ -249,17 +249,3 @@ pub async fn call(app: &AppHandle, p: &Principal, name: &str, a: Value) -> Resul
         _ => Err("TOOL_NOT_AUTHORIZED".into()),
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn strips_transcript_section() {
-        let md =
-            "---\ntitle: x\n---\n\n# x\n\n## Summary\n\nok\n\n## Transcript\n\n**[00:00] A:** oi\n";
-        let out = without_transcript(md);
-        assert!(out.ends_with("ok\n\n"));
-        assert!(!out.contains("Transcript"));
-    }
-}

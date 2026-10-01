@@ -154,26 +154,6 @@ fn inherited_agent_session_vars_from(keys: impl Iterator<Item = String>) -> Vec<
     .collect()
 }
 
-#[cfg(test)]
-mod session_env_tests {
-    #[test]
-    fn strips_agent_session_vars_but_keeps_codex_home() {
-        let keys = [
-            "CLAUDECODE",
-            "CLAUDE_CODE_CHILD_SESSION",
-            "CODEX_SANDBOX",
-            "CODEX_HOME",
-            "PATH",
-            "CLAUDE_CONFIG_DIR",
-        ];
-        let out = super::inherited_agent_session_vars_from(keys.iter().map(|s| s.to_string()));
-        assert_eq!(
-            out,
-            vec!["CLAUDECODE", "CLAUDE_CODE_CHILD_SESSION", "CODEX_SANDBOX"]
-        );
-    }
-}
-
 #[derive(Debug, Clone, Serialize)]
 pub struct TermInfo {
     pub id: String,

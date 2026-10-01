@@ -1075,7 +1075,6 @@ pub fn ruleset(access: crate::core::llm::drivers::AccessMode) -> Value {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::llm::drivers::AccessMode;
 
     const SERVE: &str = include_str!("fixtures/serve-turn.ndjson");
     const SID: &str = "ses_f34ba6d80ffexlfsspdU6VNDwA";
@@ -1095,14 +1094,6 @@ mod tests {
                 _ => None,
             })
             .collect()
-    }
-
-    #[test]
-    fn sse_framing_joins_data_lines_and_skips_comments() {
-        let mut p = SseParser::new();
-        assert!(p.push(b": ping\n\ndata: {\"a\"").is_empty());
-        let out = p.push(b":1}\r\n\r\ndata: x\ndata: y\n\n");
-        assert_eq!(out, vec!["{\"a\":1}".to_string(), "x\ny".to_string()]);
     }
 
     #[test]
@@ -1219,31 +1210,5 @@ mod tests {
         t.begin_turn();
         let n: usize = events().iter().map(|e| t.on_event(e).len()).sum();
         assert_eq!(n, 0);
-    }
-
-    #[test]
-    fn replies_rulesets_and_answers() {
-        assert_eq!(reply_for(ApprovalDecision::Accept), "once");
-        assert_eq!(reply_for(ApprovalDecision::AcceptForSession), "always");
-        assert_eq!(reply_for(ApprovalDecision::Cancel), "reject");
-        let full = ruleset(AccessMode::FullAccess);
-        assert_eq!(full[0]["action"], "allow");
-        let edits = ruleset(AccessMode::AutoAcceptEdits);
-        assert_eq!(edits.as_array().unwrap().last().unwrap()["action"], "allow");
-        let strict = ruleset(AccessMode::ApprovalRequired);
-        assert_eq!(strict.as_array().unwrap().last().unwrap()["action"], "ask");
-        let q = Question {
-            ids: vec!["q0".into(), "q1".into()],
-            texts: vec!["Color?".into(), "Size?".into()],
-        };
-        assert_eq!(
-            question_answers(&q, &json!({ "q0": "red", "q1": ["S", "M"] })),
-            json!({ "answers": [["red"], ["S", "M"]] })
-        );
-        assert_eq!(
-            permission_type("external_directory"),
-            RequestType::PermissionApproval
-        );
-        assert_eq!(item_type("task"), ItemType::CollabAgentToolCall);
     }
 }

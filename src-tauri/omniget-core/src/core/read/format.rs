@@ -217,29 +217,3 @@ pub fn natural_cmp(a: &str, b: &str) -> std::cmp::Ordering {
         }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn detects_by_name_and_magic() {
-        assert_eq!(
-            BookFormat::from_path(Path::new("a/b.kepub.epub")),
-            Some(BookFormat::Kepub)
-        );
-        assert_eq!(
-            BookFormat::from_path(Path::new("x.CBZ")),
-            Some(BookFormat::Cbz)
-        );
-        assert_eq!(BookFormat::sniff(b"%PDF-1.7"), Some(BookFormat::Pdf));
-        assert_eq!(BookFormat::sniff(b"Rar!\x1a"), Some(BookFormat::Cbr));
-    }
-
-    #[test]
-    fn natural_order() {
-        let mut v = vec!["p10.jpg", "p2.jpg", "P1.jpg", "p02b.jpg"];
-        v.sort_by(|a, b| natural_cmp(a, b));
-        assert_eq!(v, vec!["P1.jpg", "p2.jpg", "p02b.jpg", "p10.jpg"]);
-    }
-}

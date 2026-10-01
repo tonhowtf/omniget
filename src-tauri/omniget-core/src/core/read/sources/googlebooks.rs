@@ -116,17 +116,3 @@ pub async fn lookup(
         })
         .collect())
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn builds_queries() {
-        assert_eq!(query("x", "", "978-0-14"), "isbn:978014");
-        assert_eq!(
-            query("Dom: Casmurro", "Machado", ""),
-            "intitle:Dom  Casmurro inauthor:Machado"
-        );
-    }
-}

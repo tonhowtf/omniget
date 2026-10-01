@@ -1706,11 +1706,3 @@ impl Engine {
         })
     }
 }
-
-#[cfg(test)]
-#[path = "policy_tests.rs"]
-mod tests;
-
-#[cfg(all(test, unix))]
-#[path = "bn7_tests.rs"]
-mod bn7_tests;

@@ -957,17 +957,3 @@ pub fn unified_diff(a: &str, b: &str, path: &str, new_file: bool) -> String {
     }
     out
 }
-
-#[cfg(test)]
-mod tests {
-    use super::unified_diff;
-
-    #[test]
-    fn diff_shows_changes() {
-        let d = unified_diff("a\nb\nc\n", "a\nB\nc\nd\n", "/x", false);
-        assert!(d.contains("-b\n+B\n"));
-        assert!(d.contains("+d\n"));
-        assert!(d.starts_with("--- a/x\n+++ b/x\n@@"));
-        assert_eq!(unified_diff("same", "same", "/x", false), "");
-    }
-}

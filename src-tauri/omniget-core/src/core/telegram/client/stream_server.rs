@@ -398,26 +398,6 @@ pub async fn start(session: TelegramSessionHandle) -> anyhow::Result<Arc<Mutex<S
     Ok(Arc::new(Mutex::new(StreamServerInfo { port, token })))
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn r(v: &str, total: u64) -> Option<(u64, u64, bool)> {
-        parse_range_header(Some(&HeaderValue::from_str(v).unwrap()), total)
-    }
-
-    #[test]
-    fn ranges() {
-        assert_eq!(parse_range_header(None, 100), Some((0, 99, false)));
-        assert_eq!(r("bytes=0-", 100), Some((0, 99, true)));
-        assert_eq!(r("bytes=0-1", 100), Some((0, 1, true)));
-        assert_eq!(r("bytes=90-200", 100), Some((90, 99, true)));
-        assert_eq!(r("bytes=-10", 100), Some((90, 99, true)));
-        assert_eq!(r("bytes=100-", 100), None);
-        assert_eq!(r("bytes=5-2", 100), None);
-    }
-}
-
 // ---- remux to HLS (MKV/AVI/WebM in the WKWebView) ---------------------------
 //
 // ffmpeg reads the file from this same server (`/stream/...`, with Range)

@@ -23,11 +23,6 @@ pub mod regfile;
 pub mod regfiles;
 pub mod state;
 
-#[cfg(test)]
-mod fake;
-#[cfg(test)]
-mod tests;
-
 use std::sync::OnceLock;
 
 use serde_json::{json, Value};

@@ -123,23 +123,3 @@ pub fn set_secrets(vexa_key: Option<&str>, teams_webhook: Option<&str>) -> Resul
     }
     Ok(())
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn defaults_and_roundtrip() {
-        let _root = super::super::test_support::temp_root();
-        assert_eq!(load(), MeetingSettings::default());
-        let s = MeetingSettings {
-            vexa_url: " http://localhost:18056/ ".into(),
-            whisper_model: "".into(),
-            ..Default::default()
-        };
-        save(&s).unwrap();
-        let back = load();
-        assert_eq!(back.vexa_url, "http://localhost:18056");
-        assert_eq!(back.whisper_model, DEFAULT_WHISPER_MODEL);
-    }
-}

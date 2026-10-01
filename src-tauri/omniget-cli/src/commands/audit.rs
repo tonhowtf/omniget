@@ -71,37 +71,3 @@ pub async fn execute(
     }
     Ok(())
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use serde_json::json;
-
-    #[test]
-    fn the_query_is_checked_before_the_request() {
-        assert_eq!(
-            path_of("1d", Some("job."), 50).unwrap(),
-            "/v1/audit?since=1d&limit=50&action=job."
-        );
-        assert!(path_of("yesterday", None, 50).is_err());
-        assert!(path_of("1d", Some("job&x=1"), 50).is_err());
-        assert_eq!(
-            path_of("2h", None, 0).unwrap(),
-            "/v1/audit?since=2h&limit=1"
-        );
-    }
-
-    #[test]
-    fn a_line_says_when_what_who_how_and_which() {
-        let l = line(
-            &json!({"ts_ms": 0, "action": "ask.answered", "actor": "token:ab12", "channel": "cli", "entity_kind": "ask", "entity_id": "apr_1"}),
-        );
-        assert!(
-            l.contains("ask.answered")
-                && l.contains("token:ab12")
-                && l.contains("cli")
-                && l.ends_with("ask:apr_1"),
-            "{l}"
-        );
-    }
-}

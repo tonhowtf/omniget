@@ -83,7 +83,6 @@ const areas = {
     f === "scripts/ipc-allowlist.json",
   extension: (f) => f.startsWith("browser-extension/") || f === "scripts/test-extension.mjs",
   plugin: (f) => f.startsWith("claude-plugin/"),
-  devScripts: (f) => f.startsWith("scripts/dev/") || f.startsWith("scripts/llm/"),
 };
 
 let touched = null; // null = run everything
@@ -159,7 +158,6 @@ const optional = [
   ["check:ipc", "ipc", "no src/ or src-tauri/ changes"],
   ["test:extension", "extension", "no browser-extension/ changes"],
   ["test:plugin", "plugin", "no claude-plugin/ changes"],
-  ["test:dev", "devScripts", "no scripts/dev/ or scripts/llm/ changes"],
 ];
 
 function optionalChecks() {

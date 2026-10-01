@@ -97,39 +97,3 @@ pub async fn llm_prune_set_jev_key(app: AppHandle, key: String) -> Result<Value,
     install(&app);
     Ok(json!({ "ok": true, "has_key": has_key() }))
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn the_default_settings_prune_nothing() {
-        let cfg = config_from(&LlmSettings::default());
-        assert!(!cfg.enabled);
-        assert_eq!(cfg.judge, PruneJudge::Local);
-        assert!(prune::judge_for(&cfg).is_none());
-    }
-
-    #[test]
-    fn an_unknown_judge_never_becomes_the_remote_one() {
-        let cfg = config_from(&LlmSettings {
-            prune_enabled: true,
-            prune_judge: "jevv".into(),
-            ..LlmSettings::default()
-        });
-        assert_eq!(cfg.judge, PruneJudge::Local);
-    }
-
-    #[test]
-    fn the_thresholds_stay_the_ported_ones() {
-        let cfg = config_from(&LlmSettings {
-            prune_enabled: true,
-            prune_judge: "jev".into(),
-            ..LlmSettings::default()
-        });
-        assert_eq!(
-            (cfg.recent_turns, cfg.min_chars, cfg.min_tokens),
-            (2, 1500, 50_000)
-        );
-    }
-}

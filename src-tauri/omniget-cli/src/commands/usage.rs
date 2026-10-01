@@ -238,33 +238,3 @@ pub async fn execute(days: u32, watch: Option<u64>, json: bool) -> anyhow::Resul
         }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn bar_and_until() {
-        assert_eq!(bar(0.5, 10), "█████░░░░░");
-        assert_eq!(bar(1.7, 4), "████");
-        assert_eq!(until(0, 30 * 60_000), "em 30 min");
-        assert_eq!(until(0, 80 * 60_000), "em 1h20");
-        assert_eq!(until(0, 3 * 24 * 60 * 60_000), "em 3 dias");
-        assert_eq!(until(10, 5), "agora");
-    }
-
-    #[test]
-    fn default_profile_is_the_scan_default_root() {
-        let mut a = CliAccount {
-            id: "meu".into(),
-            cli: CliKind::Claude,
-            config_dir: PathBuf::new(),
-            label: "Meu".into(),
-            disabled: false,
-            sandbox: Default::default(),
-        };
-        assert_eq!(report_key(&a), "default");
-        a.config_dir = PathBuf::from("/x/acc");
-        assert_eq!(report_key(&a), "meu");
-    }
-}

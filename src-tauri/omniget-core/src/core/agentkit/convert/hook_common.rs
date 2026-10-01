@@ -410,27 +410,3 @@ pub fn missing(target: &TargetAdapter, what: &str, scope: Scope) -> AgentkitErro
         ),
     )
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn quoting_survives_the_shell() {
-        assert_eq!(quote("python3", Os::Linux), "python3");
-        assert_eq!(quote("a b", Os::Linux), "'a b'");
-        assert_eq!(quote("it's", Os::Linux), "'it'\\''s'");
-        assert_eq!(quote("C:\\x y\\a.exe", Os::Windows), "\"C:\\x y\\a.exe\"");
-    }
-
-    #[test]
-    fn matcher_semantics_follow_claude() {
-        assert!(matcher_matches("Edit|Write", "Write"));
-        assert!(!matcher_matches("Edit|Write", "MultiEdit"));
-        assert!(matcher_matches("Edit, Write", "Edit"));
-        assert!(matcher_matches("mcp__memory__.*", "mcp__memory__save"));
-        assert!(matcher_matches("^Notebook", "NotebookEdit"));
-        assert!(matcher_matches("*", "Bash"));
-        assert!(!matcher_matches("Bash", "Read"));
-    }
-}

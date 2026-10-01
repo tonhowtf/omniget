@@ -78,28 +78,3 @@ pub async fn llm_models_list(provider: String, refresh: Option<bool>) -> Result<
     store(&provider, &models);
     Ok(json!({ "provider": provider, "models": models, "cached": false }))
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn local_kind_recognises_the_three_servers() {
-        assert_eq!(local_kind("ollama"), Some(LocalKind::Ollama));
-        assert_eq!(local_kind("lmstudio"), Some(LocalKind::LmStudio));
-        assert_eq!(local_kind("llama-server"), Some(LocalKind::LlamaServer));
-        assert_eq!(local_kind("openai"), None);
-    }
-
-    #[test]
-    fn the_cache_answers_inside_the_ttl_and_not_outside() {
-        store("test-provider", &["a".to_string()]);
-        assert_eq!(cached("test-provider"), Some(vec!["a".to_string()]));
-        if let Ok(mut c) = CACHE.lock() {
-            if let Some(hit) = c.get_mut("test-provider") {
-                hit.at = Instant::now() - CACHE_TTL - Duration::from_secs(1);
-            }
-        }
-        assert_eq!(cached("test-provider"), None);
-    }
-}

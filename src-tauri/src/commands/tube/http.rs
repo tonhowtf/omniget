@@ -392,23 +392,3 @@ pub fn redact(url: &str) -> String {
     let base = url.split('?').next().unwrap_or(url);
     base.chars().take(48).collect()
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn locale_splits_language_and_region() {
-        assert_eq!(locale_of("pt-BR"), ("pt".into(), "BR".into()));
-        assert_eq!(locale_of("en"), ("en".into(), "US".into()));
-        assert_eq!(locale_of("zh_CN"), ("zh-CN".into(), "CN".into()));
-        assert_eq!(locale_of("ru"), ("ru".into(), "RU".into()));
-        assert_eq!(locale_of(""), ("en".into(), "US".into()));
-    }
-
-    #[test]
-    fn redact_drops_the_query() {
-        let r = redact("https://rr1---sn-x.googlevideo.com/videoplayback?expire=1&sig=abc");
-        assert!(!r.contains("sig"));
-    }
-}

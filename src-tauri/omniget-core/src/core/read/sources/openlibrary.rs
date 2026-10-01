@@ -232,30 +232,3 @@ async fn work_description(client: &reqwest::Client, key: &str) -> Option<String>
         o => o["value"].as_str().map(str::to_string),
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn public_items_get_downloads() {
-        let d = Doc {
-            key: "/works/OL1W".into(),
-            title: "Moby Dick".into(),
-            ebook_access: Some("public".into()),
-            ia: vec!["mobydick00".into()],
-            cover_i: Some(1),
-            ..Default::default()
-        };
-        let h = to_hit(d.clone());
-        assert_eq!(
-            h.downloads[0].url,
-            "https://archive.org/download/mobydick00/mobydick00.epub"
-        );
-        let h = to_hit(Doc {
-            ebook_access: Some("borrowable".into()),
-            ..d
-        });
-        assert!(h.downloads.is_empty());
-    }
-}

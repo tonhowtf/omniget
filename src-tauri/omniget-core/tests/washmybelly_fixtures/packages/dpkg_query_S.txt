@@ -1,5 +1,0 @@
-nano: /bin/nano
-vlc-bin, vlc-plugin-base: /usr/share/applications/vlc.desktop
-gimp: /usr/share/applications/gimp.desktop
-libreoffice-common:amd64: /usr/share/applications/libreoffice-startcenter.desktop
-diversion by dash from: /bin/sh

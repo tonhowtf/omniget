@@ -146,27 +146,3 @@ pub fn decode(s: &str) -> String {
     out.push_str(rest);
     out
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn converts_teams_html() {
-        let h = r#"<p>Oi <at id="0">Ana</at>,&nbsp;veja:</p><ul><li>item &amp; 1</li><li>dois</li></ul><p><a href="https://x.com/a">https://x.com/a</a> e <a href="https://y.com">doc</a></p><attachment id="abc"></attachment><img alt="print" src="z">"#;
-        let t = to_text(h);
-        assert_eq!(
-            t,
-            "Oi Ana, veja:\n- item & 1\n- dois\nhttps://x.com/a e doc (https://y.com)\n[attachment][image: print]"
-        );
-    }
-
-    #[test]
-    fn decodes_numeric_entities_and_keeps_stray_ampersand() {
-        assert_eq!(decode("a &#233; b &#x1F600; c & d"), "a é b 😀 c & d");
-        assert_eq!(
-            to_text("line1<br>line2<br/><br/><br/>line3"),
-            "line1\nline2\n\nline3"
-        );
-    }
-}

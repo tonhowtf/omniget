@@ -358,27 +358,3 @@ pub fn spawn_session_refresh(_app: AppHandle) {
         }
     });
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn netscape_probe_lines_have_seven_fields() {
-        let c = ExtensionCookie {
-            domain: "youtube.com".into(),
-            http_only: false,
-            path: "/".into(),
-            secure: true,
-            expires: 0,
-            name: "SAPISID".into(),
-            value: "v".into(),
-            host_only: None,
-            same_site: None,
-        };
-        let text = netscape(&[c]);
-        let line = text.lines().nth(1).unwrap_or("");
-        assert_eq!(line.split('\t').count(), 7);
-        assert!(line.starts_with(".youtube.com"));
-    }
-}

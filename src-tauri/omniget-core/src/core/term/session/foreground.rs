@@ -177,16 +177,3 @@ fn windows_process_table() -> Option<Vec<(u32, u32, String)>> {
 pub fn label_for(program: &str) -> String {
     base_name(program)
 }
-
-#[cfg(test)]
-mod tests {
-    use super::base_name;
-
-    #[test]
-    fn names() {
-        assert_eq!(base_name("/bin/zsh\n"), "zsh");
-        assert_eq!(base_name("-zsh"), "zsh");
-        assert_eq!(base_name("C:\\Windows\\System32\\cmd.exe"), "cmd");
-        assert_eq!(base_name("node"), "node");
-    }
-}

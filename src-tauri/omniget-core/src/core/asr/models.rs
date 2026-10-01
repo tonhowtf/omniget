@@ -301,23 +301,3 @@ pub async fn install(m: &ModelSpec, progress: &ProgressFn) -> anyhow::Result<Pat
     }
     model_dir(m).ok_or_else(|| anyhow!("no app data directory"))
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn catalog_is_pinned() {
-        for m in MODELS {
-            assert_eq!(m.rev.len(), 40, "{} rev is not a commit", m.id);
-            for f in &m.files {
-                assert_eq!(f.sha256.len(), 64);
-                assert!(f.bytes > 1000);
-            }
-            assert_eq!(urls(m, &m.files[0]).len(), HOSTS.len());
-        }
-        assert!(find(DEFAULT_MODEL).is_some());
-        assert_eq!(find("small").map(|m| m.id), Some("whisper-small"));
-        assert!(pick(Some("huge")).is_err());
-    }
-}

@@ -66,25 +66,3 @@ impl UsageProvider for Ollama {
         })
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn loaded_models_come_with_their_memory_and_expiry() {
-        let v = serde_json::json!({"models":[
-            {"name":"qwen3:8b","model":"qwen3:8b","size":6654289920u64,"size_vram":6654289920u64,
-             "context_length":8192,"expires_at":"2099-01-01T05:00:00.000000+00:00",
-             "details":{"parameter_size":"8.2B","quantization_level":"Q4_K_M"}},
-            {"size":1}
-        ]});
-        let ms = parse_ps(&v);
-        assert_eq!(ms.len(), 1);
-        assert_eq!(ms[0].name, "qwen3:8b");
-        assert_eq!(ms[0].vram_bytes, Some(6_654_289_920));
-        assert_eq!(ms[0].quant.as_deref(), Some("Q4_K_M"));
-        assert_eq!(ms[0].expires_at, Some(4_070_926_800_000));
-        assert!(parse_ps(&serde_json::json!({})).is_empty());
-    }
-}

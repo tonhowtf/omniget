@@ -1,5 +1,0 @@
-pipewire-pulse.socket      enabled enabled
-pipewire.socket            enabled enabled
-syncthing.service          enabled disabled
-wireplumber.service        enabled enabled
-xdg-user-dirs.service      enabled enabled

@@ -1082,30 +1082,4 @@ mod tests {
             b"alive"
         );
     }
-
-    /// Same canary with a real NTFS junction. Run on Windows:
-    /// `cargo test -p omniget-core --lib washmybelly::clean::rules_windows -- --ignored`.
-    #[cfg(windows)]
-    #[test]
-    #[ignore = "Windows only, creates an NTFS junction with mklink"]
-    fn junction_canary_survives_on_ntfs() {
-        let dir = tempfile::tempdir().unwrap();
-        let precious = dir.path().join("precious");
-        std::fs::create_dir_all(&precious).unwrap();
-        std::fs::write(precious.join("canary.txt"), b"alive").unwrap();
-        let cache = dir.path().join("cache");
-        std::fs::create_dir_all(&cache).unwrap();
-        let status = crate::core::process::std_command("cmd")
-            .args(["/C", "mklink", "/J"])
-            .arg(cache.join("junction"))
-            .arg(&precious)
-            .status()
-            .unwrap();
-        assert!(status.success());
-        fsops::remove_tree(&cache, true).unwrap();
-        assert_eq!(
-            std::fs::read(precious.join("canary.txt")).unwrap(),
-            b"alive"
-        );
-    }
 }

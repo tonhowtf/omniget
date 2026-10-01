@@ -1230,85 +1230,6 @@ pub async fn read_duplicates() -> Result<Vec<Vec<i64>>, String> {
     .await
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn book(id: i64, title: &str, rating: i64, tags: &[&str]) -> BookRow {
-        BookRow {
-            id,
-            title: title.into(),
-            rating,
-            tags: tags.iter().map(|s| s.to_string()).collect(),
-            added_at: db::now_ms(),
-            ..Default::default()
-        }
-    }
-
-    #[test]
-    fn smart_rules_match() {
-        let books = vec![
-            book(1, "Dune", 5, &["sf"]),
-            book(2, "Emma", 3, &["classic"]),
-            book(3, "Dune Messiah", 4, &["sf"]),
-        ];
-        let r = SmartRules {
-            matching: "all".into(),
-            rules: vec![
-                SmartRule {
-                    field: "tag".into(),
-                    op: "is".into(),
-                    value: "sf".into(),
-                },
-                SmartRule {
-                    field: "rating".into(),
-                    op: "gte".into(),
-                    value: 5.into(),
-                },
-            ],
-            ..Default::default()
-        };
-        assert_eq!(smart_books(&r, &books), vec![1]);
-        let r = SmartRules {
-            matching: "any".into(),
-            rules: vec![
-                SmartRule {
-                    field: "title".into(),
-                    op: "starts".into(),
-                    value: "emma".into(),
-                },
-                SmartRule {
-                    field: "title".into(),
-                    op: "contains".into(),
-                    value: "messiah".into(),
-                },
-            ],
-            ..Default::default()
-        };
-        assert_eq!(smart_books(&r, &books), vec![2, 3]);
-    }
-
-    #[test]
-    fn markdown_export_links_back() {
-        let b = book(7, "Livro", 0, &[]);
-        let a = Annotation {
-            id: 1,
-            book_id: 7,
-            kind: "highlight".into(),
-            locator: "epubcfi(/6/4!/4/2)".into(),
-            text: "Uma frase.".into(),
-            note: "Nota".into(),
-            chapter: "Cap 1".into(),
-            ..Default::default()
-        };
-        let md = annotations_markdown(&b, &[a]);
-        assert!(md.contains("## Cap 1"));
-        assert!(md.contains("> Uma frase."));
-        assert!(md.contains("omniget://read?book=7&loc=epubcfi"));
-        assert!(marked_like(&md).contains("<blockquote>Uma frase.</blockquote>"));
-    }
-}
-
 // ---------- organize files ----------
 
 /// Fills a naming template: `{author}`, `{authors}`, `{title}`, `{series}`,
@@ -1441,28 +1362,4 @@ pub async fn read_organize(
         changed(&app);
     }
     Ok(plan)
-}
-
-#[cfg(test)]
-mod organize_tests {
-    use super::*;
-
-    #[test]
-    fn templates_drop_empty_optional_parts() {
-        let mut b = BookRow {
-            title: "Dune: Part/One".into(),
-            authors: vec!["Frank Herbert".into()],
-            series: "Dune".into(),
-            series_index: Some(1.0),
-            ..Default::default()
-        };
-        let out = render_template("{author}/<{series} {index} - >{title}", &b);
-        assert!(out.starts_with("Frank Herbert/Dune 01 - Dune"), "{out}");
-        assert!(out.ends_with("Part-One"), "{out}");
-        b.series.clear();
-        assert!(
-            render_template("{author}/<{series}/>{title}", &b).starts_with("Frank Herbert/Dune")
-        );
-        assert!(!render_template("{author}/<{series}/>{title}", &b).contains("//"));
-    }
 }

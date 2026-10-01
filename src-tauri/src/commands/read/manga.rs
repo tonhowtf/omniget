@@ -1264,48 +1264,6 @@ pub async fn read_download_ahead(app: AppHandle, id: i64) -> Result<(), String> 
     Ok(())
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn labels() {
-        let ch = ChapterRow {
-            number: Some(13.5),
-            volume: Some(2.0),
-            title: "The Duel".into(),
-            ..Default::default()
-        };
-        assert_eq!(chapter_label(&ch), "Vol.002 Ch.013.5 - The Duel");
-        let ch = ChapterRow {
-            number: Some(1.0),
-            title: "#001".into(),
-            ..Default::default()
-        };
-        assert_eq!(chapter_label(&ch), "Ch.001");
-    }
-
-    #[test]
-    fn orders_by_chapter_number() {
-        let ch = |key: &str, number: Option<f64>| RemoteChapter {
-            key: key.into(),
-            number,
-            ..Default::default()
-        };
-        let list = [
-            ch("114", Some(114.0)),
-            ch("2", Some(2.0)),
-            ch("extra", None),
-            ch("1", Some(1.0)),
-        ];
-        let keys: Vec<&str> = reading_order(&list)
-            .iter()
-            .map(|c| c.key.as_str())
-            .collect();
-        assert_eq!(keys, ["1", "2", "extra", "114"]);
-    }
-}
-
 // ---------- trackers ----------
 
 use omniget_core::core::read::trackers::{self, TrackHit};

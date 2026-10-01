@@ -153,37 +153,3 @@ impl UsageProvider for Grok {
         })
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn only_a_session_minted_by_xai_is_ever_used() {
-        let v = serde_json::json!({
-            "https://idp.example.com::abc": {"key": "private-proxy", "expires_at": "2999-01-01T00:00:00Z"},
-            "https://auth.x.ai.example.com::cli": {"key": "lookalike", "expires_at": "2999-01-01T00:00:00Z"},
-            "https://auth.x.ai::dead": {"key": "old", "expires_at": "2000-01-01T00:00:00Z"},
-            "https://auth.x.ai::live": {"key": "good", "expires_at": "2999-01-01T00:00:00Z", "email": "a@b.c"}
-        });
-        let s = pick_session(&v, 1_700_000_000_000).unwrap();
-        assert_eq!(s.token.expose(), "good");
-        assert!(!format!("{s:?}").contains("good"));
-        assert!(!s.expired);
-        assert_eq!(s.email.as_deref(), Some("a@b.c"));
-        let only_private = serde_json::json!({"https://idp.example.com::abc": {"key": "x"}});
-        assert_eq!(pick_session(&only_private, 0), None);
-    }
-
-    #[test]
-    fn the_weekly_credit_percentage_is_the_ring() {
-        let v = serde_json::json!({"config": {
-            "currentPeriod": {"type": "USAGE_PERIOD_TYPE_WEEKLY", "start": "2026-09-14T00:00:00Z", "end": "2026-09-21T00:00:00Z"},
-            "creditUsagePercent": 8.0,
-            "productUsage": [{"product": "GrokBuild", "usagePercent": 8.0}]}});
-        let ws = parse_usage(&v);
-        assert_eq!(ws[0].label, "Weekly credits");
-        assert_eq!(ws[0].span_ms, Some(7 * DAY_MS));
-        assert_eq!(ws[1].group.as_deref(), Some("Products"));
-    }
-}

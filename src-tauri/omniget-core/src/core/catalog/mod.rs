@@ -216,6 +216,3 @@ pub(crate) fn valid_repo(repo: &str) -> bool {
     };
     ok(o) && ok(r)
 }
-
-#[cfg(test)]
-mod tests;

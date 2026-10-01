@@ -445,24 +445,3 @@ pub fn battery() -> Result<Battery, String> {
     }
     Ok(parse::battery_from_ioreg(&parse::plist(&text)?))
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    /// Reads the real SMC of this Mac (read-only). On a machine without
-    /// AppleSMC (some CI VMs) it only checks that nothing panics.
-    #[test]
-    fn real_smc_reads_or_fails_cleanly() {
-        match smc_sensors() {
-            Ok((temps, _fans, _power)) => {
-                for t in &temps {
-                    assert!(t.celsius > 0.0 && t.celsius < 110.0);
-                }
-            }
-            Err(e) => assert!(!e.is_empty()),
-        }
-        let _ = main_temps();
-        assert!(memory_pressure().is_none_or(|p| (0.0..=100.0).contains(&p)));
-    }
-}

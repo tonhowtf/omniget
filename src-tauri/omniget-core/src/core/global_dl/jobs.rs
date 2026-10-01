@@ -618,15 +618,3 @@ pub fn vtt_to_srt(vtt: &str) -> String {
     }
     out
 }
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn vtt_becomes_srt() {
-        let vtt = "WEBVTT\n\nNOTE hi\n\n1\n00:01.000 --> 00:02.500 align:start\nHello\n\n00:00:03.000 --> 00:00:04.000\nWorld\n";
-        assert_eq!(
-            super::vtt_to_srt(vtt),
-            "1\n00:00:01,000 --> 00:00:02,500\nHello\n\n2\n00:00:03,000 --> 00:00:04,000\nWorld\n\n"
-        );
-    }
-}

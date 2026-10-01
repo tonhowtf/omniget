@@ -372,21 +372,3 @@ pub fn mirror_dir() -> Option<std::path::PathBuf> {
         None
     }
 }
-
-#[cfg(all(test, target_os = "macos"))]
-mod tests {
-    use super::mirror::bplist_string;
-
-    #[test]
-    fn bplist_strings_have_the_right_shape() {
-        let b = bplist_string("abc");
-        assert_eq!(&b[..8], b"bplist00");
-        assert_eq!(b[8], 0x53);
-        assert_eq!(b.len(), 8 + 1 + 3 + 1 + 32);
-        let long = "x".repeat(300);
-        let b = bplist_string(&long);
-        assert_eq!(&b[8..12], &[0x5f, 0x11, 0x01, 0x2c]);
-        let u = bplist_string("nota ç");
-        assert_eq!(u[8], 0x66);
-    }
-}

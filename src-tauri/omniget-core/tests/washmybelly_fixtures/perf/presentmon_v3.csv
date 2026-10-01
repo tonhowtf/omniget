@@ -1,9 +1,0 @@
-Application,ProcessID,SwapChainAddress,PresentRuntime,SyncInterval,PresentFlags,AllowsTearing,PresentMode,FrameType,TimeInSeconds,MsBetweenSimulationStart,MsBetweenPresents,MsBetweenDisplayChange,MsInPresentAPI,MsRenderPresentLatency,MsUntilDisplayed,CPUStartTimeInSeconds,MsBetweenAppStart,MsCPUBusy,MsCPUWait,MsGPULatency,MsGPUTime,MsGPUBusy,MsGPUWait,MsAnimationError,AnimationTime,MsFlipDelay
-League of Legends.exe,9000,0x000002A1F3C0,DXGI,0,512,1,Hardware: Independent Flip,Application,12.5000000,NA,6.9,6.94,0.21,3.3,9.1,12.4950,6.9,5.2,1.7,0.8,4.2,4.1,2.8,0.01,12.50,0
-RiotClientServices.exe,8000,0x000001B000C0,DXGI,1,0,0,Composed: Flip,Application,12.5010000,NA,16.7,16.7,0.30,2.0,20.0,12.4900,16.7,3.0,13.7,0.5,2.0,1.9,14.8,0.00,12.50,0
-League of Legends.exe,9000,0x000002A1F3C0,DXGI,0,512,1,Hardware: Independent Flip,Application,12.5070000,NA,7.0,6.95,0.20,3.2,9.0,12.5020,7.0,5.1,1.9,0.8,4.3,4.2,2.8,0.02,12.51,0
-League of Legends.exe,9000,0x000002A1F3C0,DXGI,0,512,1,Hardware: Independent Flip,Application,12.5139000,NA,6.9,6.93,0.22,3.4,9.2,12.5090,6.9,5.3,1.6,0.7,4.1,4.0,2.9,0.01,12.52,0
-League of Legends.exe,9000,0x000002A1F3C0,DXGI,0,512,1,Hardware: Independent Flip,Application,12.5210000,NA,7.1,NA,0.21,3.3,NA,12.5160,7.1,5.2,1.9,0.8,4.2,4.1,3.0,NA,12.52,0
-RiotClientServices.exe,8000,0x000001B000C0,DXGI,1,0,0,Composed: Flip,Application,12.5180000,NA,16.6,16.6,0.30,2.0,20.0,12.5070,16.6,3.0,13.6,0.5,2.0,1.9,14.7,0.00,12.51,0
-League of Legends.exe,9000,0x000002A1F3C0,DXGI,0,512,1,Hardware: Independent Flip,Application,12.5278000,NA,6.8,13.90,0.20,3.1,9.0,12.5230,6.8,5.0,1.8,0.8,4.0,3.9,2.9,0.03,12.53,0
-League of Legends.exe,9000,0x000002A1F3C0,DXGI,0,512,1,Hardware: Independent Flip,Application,12.5350000,NA,7.2,7.00,0.21,3.3,9.1,12.5300,7.2,5.2,2.0,0.8,4.2,4.1,3.1,0.01,12.54,0

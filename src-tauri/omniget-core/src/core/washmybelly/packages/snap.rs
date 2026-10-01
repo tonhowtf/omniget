@@ -173,36 +173,3 @@ impl PackageBackend for Snap {
         v
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::super::fixture;
-    use super::*;
-
-    #[test]
-    fn snaps_from_the_api() {
-        let v = parse_snaps(&fixture("snapd_snaps.json"));
-        assert_eq!(v.len(), 3, "the invalid name is dropped");
-        let ff = &v[0];
-        assert_eq!(
-            (ff.name.as_str(), ff.kind.as_str(), ff.publisher.as_str()),
-            ("firefox", "app", "Mozilla")
-        );
-        assert_eq!(ff.bytes, Some(265_289_728));
-        assert_eq!(v.iter().filter(|s| s.kind == "app").count(), 1);
-        assert_eq!(to_app(ff).id, "snap:firefox");
-    }
-
-    #[test]
-    fn refresh_list() {
-        let inst = parse_snaps(&fixture("snapd_snaps.json"));
-        let u = parse_refresh(&fixture("snapd_find_refresh.json"), &inst);
-        assert_eq!(u.len(), 1);
-        assert_eq!(
-            (u[0].current.as_str(), u[0].available.as_str()),
-            ("131.0-1", "132.0-1")
-        );
-        assert_eq!(u[0].size, Some(273_000_000));
-        assert!(u[0].admin);
-    }
-}

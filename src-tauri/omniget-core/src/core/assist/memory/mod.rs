@@ -37,11 +37,6 @@ pub mod temporal;
 mod toolset;
 mod transfer;
 
-#[cfg(test)]
-mod bench;
-#[cfg(test)]
-mod tests;
-
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 

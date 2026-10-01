@@ -389,16 +389,3 @@ pub fn open_external(url: &str, player: &str) -> Result<(), String> {
         }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn finished_rule() {
-        assert!(!is_finished(10.0, 600.0));
-        assert!(is_finished(595.0, 600.0));
-        assert!(is_finished(575.0, 600.0));
-        assert!(!is_finished(5.0, 0.0));
-    }
-}

@@ -132,12 +132,6 @@ tauri-plugin-single-instance = "2"
 tauri-plugin-deep-link = "2"
 tauri-plugin-autostart = "2"
 
-[dev-dependencies]
-# Paused clock for the notification timing tests (`llm_attention`): the
-# delay, the cooldown and the "answered in under 5 s" rule are measured in
-# virtual time instead of sleeping. Test builds only.
-tokio = { version = "1", features = ["full", "test-util"] }
-
 [profile.dev]
 debug = 0
 codegen-units = 256

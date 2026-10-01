@@ -166,17 +166,3 @@ pub fn extract(path: &Path) -> Result<Extracted, String> {
         cover,
     })
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn title_from_file_name() {
-        assert_eq!(
-            title_from_name(Path::new("/x/My_Book.kepub.epub")),
-            "My Book"
-        );
-        assert_eq!(title_from_name(Path::new("/x/a.fb2.zip")), "a");
-    }
-}

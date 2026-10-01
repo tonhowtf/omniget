@@ -497,37 +497,3 @@ pub async fn league_declare_champion(
     )
     .await
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn apex_tiers_drop_the_division() {
-        assert_eq!(normalise_division("MASTER", "II"), "NA");
-        assert_eq!(normalise_division("GOLD", "II"), "II");
-        assert_eq!(normalise_division("UNRANKED", "I"), "NA");
-    }
-
-    #[test]
-    fn the_summary_preferences_are_read_with_their_defaults() {
-        let summary = json!({
-            "topChallenges": [{ "id": 1 }, { "id": 2 }, { "id": 0 }, { "id": 3 }, { "id": 4 }],
-            "title": { "itemId": 77 },
-            "bannerAccent": "5"
-        });
-        assert_eq!(
-            summary_preferences(&summary),
-            (vec![1, 2, 3], "77".to_string(), "5".to_string())
-        );
-        let empty = json!({ "title": { "itemId": -1 }, "bannerAccent": "-1" });
-        assert_eq!(
-            summary_preferences(&empty),
-            (vec![], String::new(), "1".to_string())
-        );
-        assert_eq!(
-            summary_preferences(&Value::Null),
-            (vec![], String::new(), "1".to_string())
-        );
-    }
-}

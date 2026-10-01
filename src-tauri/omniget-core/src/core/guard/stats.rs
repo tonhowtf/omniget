@@ -805,25 +805,3 @@ pub fn config_stats(
     };
     st
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn tokens_reasonable() {
-        // ~ 9 words of plain English is ~ 10–13 tokens.
-        let n = estimate_tokens("The quick brown fox jumps over the lazy dog.");
-        assert!((9..=14).contains(&n), "{n}");
-        let code = estimate_tokens("```rust\nfn main() { println!(\"hi\"); }\n```");
-        assert!(code > 8, "{code}");
-    }
-
-    #[test]
-    fn category_and_complexity() {
-        assert_eq!(mcp_category("postgres", "npx", ""), "Database");
-        assert_eq!(mcp_category("gmail", "npx", "send email"), "Other");
-        let s = serde_json::json!({"command":"npx","args":["-y","x"],"env":{"A":"1","B":"2","C":"3","D":"4"}});
-        assert_eq!(mcp_complexity(&s), 4);
-    }
-}

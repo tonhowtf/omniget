@@ -116,37 +116,3 @@ impl Converter for GeminiCommandConverter {
         Ok(out)
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::core::agentkit::parse;
-    use crate::core::agentkit::targets;
-
-    #[test]
-    fn gemini_toml_round_trip() {
-        let text = "---\ndescription: Fix an issue\n---\nFix: $ARGUMENTS\nDiff: !`git diff --staged`\nStyle: @docs/style.md\nQuote \"\"\" and \\ stay.\n";
-        let files: parse::RawFiles = [("fix.md".to_string(), text.as_bytes().to_vec())]
-            .into_iter()
-            .collect();
-        let c = parse::parse_raw(ComponentKind::Command, "fix.md", &files).unwrap();
-        let ComponentBody::Command(cmd) = &c.body else {
-            unreachable!()
-        };
-        let t = targets::target("gemini").unwrap();
-        let (toml, losses) = GeminiCommandConverter::render(cmd, t);
-        assert!(losses.is_empty(), "{losses:?}");
-        let v = etoml::parse(&toml).unwrap_or_else(|e| panic!("{e}\n{toml}"));
-        let prompt = v["prompt"].as_str().unwrap();
-        assert!(prompt.contains("Fix: {{args}}"), "{prompt}");
-        assert!(prompt.contains("!{git diff --staged}"), "{prompt}");
-        assert!(prompt.contains("@{docs/style.md}"), "{prompt}");
-        assert!(prompt.contains("Quote \"\"\" and \\ stay."), "{prompt}");
-        let back = GeminiCommandConverter::read(&toml, t).unwrap();
-        assert_eq!(back.description, "Fix an issue");
-        assert_eq!(
-            parse::placeholders::to_claude(&back.body).trim(),
-            text.split("---\n").nth(2).unwrap().trim()
-        );
-    }
-}

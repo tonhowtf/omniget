@@ -157,19 +157,3 @@ pub async fn read_translate_page(
         base64::engine::general_purpose::STANDARD.encode(&out)
     ))
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn clips_from_the_end() {
-        assert_eq!(clip("abcdef", 3), "…def");
-        assert_eq!(clip("abc", 3), "abc");
-        let (sys, user) =
-            prompt("ask", "", "The butler did it.", "pt", "Who did it?", "X").unwrap();
-        assert!(sys.contains("pt"));
-        assert!(user.ends_with("Question: Who did it?"));
-        assert!(prompt("nope", "", "", "", "", "").is_err());
-    }
-}

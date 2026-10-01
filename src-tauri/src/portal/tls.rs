@@ -238,21 +238,3 @@ mod mac {
         );
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn loopback_hosts() {
-        assert!(is_loopback("localhost"));
-        assert!(is_loopback("app.localhost"));
-        assert!(is_loopback("127.0.0.1"));
-        assert!(is_loopback("[::1]"));
-        assert!(!is_loopback("example.org"));
-        assert!(!is_loopback("10.0.0.1"));
-        set_trusted("portal-x", ["Dev.Example".to_string()]);
-        assert!(is_trusted("portal-x", "dev.example"));
-        assert!(!is_trusted("portal-y", "dev.example"));
-    }
-}

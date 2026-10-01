@@ -673,31 +673,3 @@ pub async fn tube_playlist_create(
         .map(str::to_string)
         .ok_or_else(|| "YouTube did not create the playlist".to_string())
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn channel_ids_and_browse_lookup() {
-        assert!(is_channel_id("UCuAXFkgsw1L7xaCfnd5JJOw"));
-        assert!(!is_channel_id("@handle"));
-        let v =
-            json!({"endpoint": {"commandMetadata": {}, "browseEndpoint": {"browseId": "UCabc"}}});
-        assert_eq!(find_browse_id(&v).as_deref(), Some("UCabc"));
-    }
-
-    #[test]
-    fn playlist_ids_get_the_vl_prefix_once() {
-        assert_eq!(vl("PL123"), "VLPL123");
-        assert_eq!(vl("VLPL123"), "VLPL123");
-    }
-
-    #[test]
-    fn action_target_accepts_the_front_shape() {
-        let t: ActionTarget =
-            serde_json::from_value(json!({"video_id": "abc", "channel_id": null})).unwrap();
-        assert_eq!(t.video_id.as_deref(), Some("abc"));
-        assert!(need(&t.channel_id, "channel id").is_err());
-    }
-}

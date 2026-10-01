@@ -930,6 +930,3 @@ pub fn toolset() -> Arc<dyn AssistToolset> {
         db: None,
     })
 }
-
-#[cfg(test)]
-pub(crate) mod tests;

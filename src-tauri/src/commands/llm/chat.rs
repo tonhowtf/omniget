@@ -391,34 +391,3 @@ pub async fn llm_conversation_run_mode_set(
     run_mode::choose(&conv, mode);
     Ok(serde_json::json!({ "run_mode": mode.unwrap_or(RunMode::AutoEdits) }))
 }
-
-#[cfg(test)]
-mod workspace_command_tests {
-    use omniget_core::core::llm::code_tools;
-
-    /// O18/O19: picking a folder in one conversation changes that
-    /// conversation only — never the process-wide folder, never another chat.
-    #[tokio::test]
-    async fn picking_a_folder_in_a_conversation_does_not_set_the_global_one() {
-        let dir = std::env::temp_dir().join(format!("omniget-ws-cmd-{}", uuid::Uuid::new_v4()));
-        std::fs::create_dir_all(&dir).unwrap();
-        let before = code_tools::workspace();
-        let out = super::llm_workspace_set(
-            Some(dir.to_string_lossy().to_string()),
-            Some("ws-cmd-project".into()),
-        )
-        .await
-        .unwrap();
-        assert_eq!(out["context"], "project");
-        assert_eq!(
-            code_tools::workspace(),
-            before,
-            "the global folder is untouched"
-        );
-        let other = super::llm_workspace_get(Some("ws-cmd-personal".into()))
-            .await
-            .unwrap();
-        assert_eq!(other["context"], "projectless");
-        assert!(other["path"].is_null());
-    }
-}

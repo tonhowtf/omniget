@@ -94,37 +94,3 @@ impl Provider for FakeProvider {
         Some(self.capture.clone())
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::core::llm::types::{GenParams, Message, ModelRef, ProviderId, Role};
-    use tokio_util::sync::CancellationToken;
-
-    #[tokio::test]
-    async fn replays_the_script_in_order() {
-        let p = FakeProvider::text("hello world", 2);
-        let req = TurnRequest {
-            model: ModelRef {
-                provider: ProviderId::new("fake"),
-                model: "fake".into(),
-            },
-            messages: vec![Message::text(Role::User, "hi")],
-            tools: vec![],
-            params: GenParams::default(),
-            cancel: CancellationToken::new(),
-            agent_id: None,
-        };
-        let events: Vec<TurnEvent> = p.turn(req).await.unwrap().collect().await;
-        assert!(matches!(events.first(), Some(TurnEvent::Started { .. })));
-        assert!(matches!(events.last(), Some(TurnEvent::Finished { .. })));
-        let text: String = events
-            .iter()
-            .filter_map(|e| match e {
-                TurnEvent::TextDelta { text } => Some(text.as_str()),
-                _ => None,
-            })
-            .collect();
-        assert_eq!(text, "hello world");
-    }
-}

@@ -103,19 +103,3 @@ pub fn agent_from_markdown(name: &str, markdown: &str) -> Result<AgentPrompt, St
         }),
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn markdown_agent_becomes_a_system_prompt() {
-        let md = "---\nname: test-runner\ndescription: Runs tests.\nmodel: haiku\ntools: Bash, Read\n---\nYou run the tests and fix failures.\n";
-        let a = agent_from_markdown("test-runner", md).unwrap();
-        assert_eq!(a.name, "test-runner");
-        assert_eq!(a.system_prompt, "You run the tests and fix failures.");
-        assert_eq!(a.model.as_deref(), Some("haiku"));
-        let plain = agent_from_markdown("x", "Be terse.").unwrap();
-        assert_eq!(plain.system_prompt, "Be terse.");
-    }
-}

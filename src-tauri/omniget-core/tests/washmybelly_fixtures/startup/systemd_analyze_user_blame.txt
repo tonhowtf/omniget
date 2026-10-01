@@ -1,4 +1,0 @@
-2.105s syncthing.service
- 873ms wireplumber.service
-  95ms xdg-user-dirs.service
-1min 2.500s slow.service

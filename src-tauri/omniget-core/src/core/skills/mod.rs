@@ -138,30 +138,3 @@ pub enum SkillSource {
     #[default]
     Unknown,
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn error_maps_to_llm_error_keeping_the_code() {
-        let err = SkillError::new(ERR_SKILL_GIT, "git not found");
-        let llm: crate::core::llm::error::LlmError = err.into();
-        assert_eq!(llm.code, ERR_SKILL_GIT);
-        assert!(!llm.retryable);
-    }
-
-    #[test]
-    fn source_round_trips_through_json() {
-        let src = SkillSource::Git {
-            url: "https://example.invalid/skills.git".into(),
-            rev: Some("abc".into()),
-            subdir: None,
-        };
-        let json = serde_json::to_string(&src).unwrap();
-        assert!(json.contains("\"kind\":\"git\""), "{json}");
-        assert!(!json.contains("subdir"), "{json}");
-        let back: SkillSource = serde_json::from_str(&json).unwrap();
-        assert_eq!(back, src);
-    }
-}

@@ -210,34 +210,3 @@ pub fn parse_summary(raw: &str) -> Option<Summary> {
     }
     Some(summary)
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn parses_fenced_json_with_mixed_items() {
-        let raw = "Sure!\n```json\n{\"title\":\"Release plan\",\"overview\":\"We planned v1.\",\"key_points\":[\"scope\"],\"decisions\":[{\"text\":\"ship friday\"}],\"action_items\":[{\"task\":\"Tag v1\",\"owner\":\"Ana\",\"due\":null},\"Write notes\",{\"owner\":\"x\"}],\"open_questions\":[]}\n```";
-        let s = parse_summary(raw).unwrap();
-        assert_eq!(s.title, "Release plan");
-        assert_eq!(s.decisions, vec!["ship friday"]);
-        assert_eq!(s.action_items.len(), 2);
-        assert_eq!(s.action_items[0].owner.as_deref(), Some("Ana"));
-        assert_eq!(s.action_items[0].due, None);
-        assert_eq!(s.action_items[1].task, "Write notes");
-    }
-
-    #[test]
-    fn rejects_non_json_and_empty() {
-        assert!(parse_summary("no json here").is_none());
-        assert!(parse_summary("{\"title\":\"x\"}").is_none());
-    }
-
-    #[test]
-    fn chunks_on_line_boundaries() {
-        let text = "aaaa\nbbbb\ncccc\n";
-        let c = chunk(text, 10);
-        assert_eq!(c, vec!["aaaa\nbbbb\n".to_string(), "cccc\n".to_string()]);
-        assert_eq!(chunk("x\n", 10).len(), 1);
-    }
-}

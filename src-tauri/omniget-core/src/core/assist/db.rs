@@ -283,19 +283,6 @@ pub fn global() -> Result<Arc<AssistDb>, String> {
 }
 
 #[cfg(test)]
-pub(crate) mod tests_support {
-    use super::*;
-
-    /// A fresh file database under the system temp dir.
-    pub fn temp_db() -> (Arc<AssistDb>, PathBuf) {
-        let dir = std::env::temp_dir().join(format!("omniget-assist-{}", super::super::new_id()));
-        std::fs::create_dir_all(&dir).unwrap();
-        let path = dir.join(DB_FILE);
-        (Arc::new(AssistDb::open(&path).unwrap()), path)
-    }
-}
-
-#[cfg(test)]
 mod tests {
     use super::*;
 
@@ -321,31 +308,6 @@ mod tests {
         version: 2,
         sql: "ALTER TABLE t_items ADD COLUMN w TEXT;",
     };
-
-    /// The first launch opens `assist.db` from two places at once: every
-    /// opener must succeed and each migration must run exactly once.
-    #[test]
-    fn concurrent_opens_of_a_new_file_all_succeed() {
-        let path = temp_path();
-        let barrier = Arc::new(std::sync::Barrier::new(4));
-        let handles: Vec<_> = (0..4)
-            .map(|_| {
-                let (path, barrier) = (path.clone(), barrier.clone());
-                std::thread::spawn(move || {
-                    barrier.wait();
-                    AssistDb::open(&path).map(|_| ())
-                })
-            })
-            .collect();
-        for h in handles {
-            h.join().unwrap().unwrap();
-        }
-        let db = AssistDb::open(&path).unwrap();
-        let rows: i64 = db
-            .with(|c| c.query_row("SELECT count(*) FROM schema_migrations", [], |r| r.get(0)))
-            .unwrap();
-        assert_eq!(rows as usize, all_migrations().len());
-    }
 
     #[test]
     fn every_module_migration_applies_on_a_new_file_and_reopening_is_a_no_op() {

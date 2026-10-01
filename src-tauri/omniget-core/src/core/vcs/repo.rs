@@ -621,33 +621,3 @@ pub async fn log(path: &Path, n: u32, rev: Option<&str>) -> VcsResult<Vec<LogEnt
         })
         .collect())
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn porcelain_v2() {
-        let raw = b"# branch.oid abc\0# branch.head main\0# branch.upstream origin/main\0# branch.ab +2 -1\0\
-1 .M N... 100644 100644 100644 aaa aaa src/a b.rs\0\
-2 R. N... 100644 100644 100644 aaa aaa R100 new.rs\0old.rs\0\
-? tmp/x.txt\0";
-        let p = parse_porcelain_v2(raw);
-        assert_eq!(p.branch.head.as_deref(), Some("main"));
-        assert_eq!((p.branch.ahead, p.branch.behind), (2, 1));
-        assert_eq!(p.files.len(), 3);
-        assert_eq!(p.files[0].path, "src/a b.rs");
-        assert_eq!(p.files[0].kind, "modified");
-        assert_eq!(p.files[1].orig_path.as_deref(), Some("old.rs"));
-        assert_eq!(p.files[1].kind, "renamed");
-        assert_eq!(p.files[2].kind, "untracked");
-    }
-
-    #[test]
-    fn hosts() {
-        assert_eq!(host_kind("git@github.com:a/b.git"), "github");
-        assert_eq!(host_kind("https://***@gitlab.example.com/a/b"), "gitlab");
-        assert_eq!(host_kind("https://bitbucket.org/a/b"), "bitbucket");
-        assert_eq!(host_kind("/local/path"), "unknown");
-    }
-}

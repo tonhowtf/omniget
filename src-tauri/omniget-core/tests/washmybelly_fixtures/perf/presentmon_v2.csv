@@ -1,6 +1,0 @@
-Application,ProcessID,SwapChainAddress,PresentRuntime,SyncInterval,PresentFlags,AllowsTearing,PresentMode,CPUStartTime,FrameTime,CPUBusy,CPUWait,GPULatency,GPUTime,GPUBusy,GPUWait,DisplayLatency,DisplayedTime,AnimationError,AnimationTime,MsFlipDelay,AllInputToPhotonLatency,ClickToPhotonLatency
-eldenring.exe,4242,0x0000000012340000,DXGI,1,0,0,Hardware: Legacy Flip,1033.412,16.66,9.10,7.56,2.00,10.60,10.50,6.16,30.10,16.67,0.00,1033.40,0,NA,NA
-explorer.exe,999,0x0000000099990000,Other,0,0,0,Composed: Flip,1033.420,33.30,1.00,32.30,0.50,1.00,1.00,32.30,40.00,33.33,0.00,1033.40,0,NA,NA
-eldenring.exe,4242,0x0000000012340000,DXGI,1,0,0,Hardware: Legacy Flip,1050.072,16.70,9.20,7.50,2.10,10.70,10.60,6.10,30.20,16.66,0.02,1050.07,0,NA,NA
-eldenring.exe,4242,0x0000000012340000,DXGI,1,0,0,Hardware: Legacy Flip,1066.772,16.64,9.00,7.64,2.00,10.50,10.40,6.24,NA,NA,NA,1066.74,0,NA,NA
-eldenring.exe,4242,0x0000000012340000,DXGI,1,0,0,Hardware: Legacy Flip,1083.412,33.34,9.10,24.24,2.00,10.60,10.50,22.84,46.80,33.34,0.01,1083.41,0,NA,NA

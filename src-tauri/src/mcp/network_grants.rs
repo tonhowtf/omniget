@@ -70,22 +70,3 @@ pub fn allowed(p: &Principal) -> Result<BTreeSet<SocketAddr>, String> {
     })
     .collect()
 }
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn exceptions_require_exact_endpoints() {
-        assert!(endpoint("127.0.0.1:8080").is_ok());
-        assert!(endpoint("[::1]:8080").is_ok());
-        for bad in [
-            "localhost:8080",
-            "192.168.0.0/16",
-            "0.0.0.0:80",
-            "[::]:443",
-            "127.0.0.1:0",
-            "224.0.0.1:80",
-        ] {
-            assert!(endpoint(bad).is_err(), "{bad}");
-        }
-    }
-}

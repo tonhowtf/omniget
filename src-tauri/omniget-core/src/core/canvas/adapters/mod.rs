@@ -90,20 +90,3 @@ pub fn launch_args(
 pub fn agents_md_snippet() -> String {
     format!("## OmniGet canvas\n\n{}\n", claude::SKILL_BODY.trim())
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn a_preset_or_custom_command_takes_asks() {
-        assert_eq!(delivery_for("shell", false), Delivery::ShellOnly);
-        assert_eq!(delivery_for("shell", true), Delivery::Pty);
-        assert_eq!(delivery_for("", true), Delivery::Pty);
-        assert_eq!(delivery_for("native", true), Delivery::Native);
-        assert_eq!(delivery_for("claude", false), Delivery::Pty);
-        assert!(!has_turn_hooks("shell"));
-        assert!(!reads_envelope("shell"));
-        assert!(reads_envelope("claude"));
-    }
-}

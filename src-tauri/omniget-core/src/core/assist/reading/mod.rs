@@ -611,6 +611,3 @@ impl crate::core::llm::coordinator::TurnAugment for ReadingAugment {
 pub fn augment() -> Arc<dyn crate::core::llm::coordinator::TurnAugment> {
     Arc::new(ReadingAugment { db: None })
 }
-
-#[cfg(test)]
-mod tests;

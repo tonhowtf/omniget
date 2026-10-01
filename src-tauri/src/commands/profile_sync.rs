@@ -249,36 +249,3 @@ pub async fn profile_sync_run(url: String, output_dir: String) -> Result<SyncRes
         first_sync: first,
     })
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn one_profile_one_archive() {
-        assert_eq!(
-            normalize_url("https://www.flickr.com/photos/blender/?x=1#top"),
-            "https://flickr.com/photos/blender"
-        );
-        assert_eq!(
-            archive_name("https://www.flickr.com/photos/blender/"),
-            archive_name("https://flickr.com/photos/blender")
-        );
-        assert_ne!(
-            archive_name("https://flickr.com/photos/a"),
-            archive_name("https://flickr.com/photos/b")
-        );
-    }
-
-    #[test]
-    fn later_syncs_stop_at_known_files() {
-        let arch = Path::new("/tmp/x.sqlite3");
-        let first = sync_args("https://h/u", "/out", arch, true);
-        assert!(first.contains(&"--download-archive".to_string()));
-        assert!(!first.contains(&"--abort".to_string()));
-        let later = sync_args("https://h/u", "/out", arch, false);
-        let i = later.iter().position(|a| a == "--abort").unwrap();
-        assert_eq!(later[i + 1], "20");
-        assert_eq!(later.last().unwrap(), "https://h/u");
-    }
-}

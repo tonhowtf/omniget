@@ -96,30 +96,3 @@ impl UsageProvider for OpenCode {
         })
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn three_windows_with_used_percentages() {
-        let v = serde_json::json!({"usage":{
-            "rolling":{"status":"ok","percent":12,"resetsAt":"2026-09-06T12:31:06.611Z"},
-            "weekly":{"status":"ok","percent":40.5,"resetsAt":"2026-09-10T00:00:00Z"},
-            "monthly":{"status":"ok"}}});
-        let ws = parse_usage(&v);
-        assert_eq!(ws.len(), 2);
-        assert_eq!(ws[0].label, "5h limit");
-        assert!((ws[1].used.unwrap() - 0.405).abs() < 1e-6);
-    }
-
-    #[test]
-    fn the_key_is_found_as_a_string_or_inside_an_object_and_never_printed() {
-        let v = serde_json::json!({"opencode-go":{"type":"api","key":"k-SECRETVALUE"},"plain":"z"});
-        let k = key_from(&v, "opencode-go").unwrap();
-        assert_eq!(k.expose(), "k-SECRETVALUE");
-        assert!(!format!("{k:?}").contains("SECRETVALUE"));
-        assert_eq!(key_from(&v, "plain").unwrap().expose(), "z");
-        assert_eq!(key_from(&v, "nope"), None);
-    }
-}

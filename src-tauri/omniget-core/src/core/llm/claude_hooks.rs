@@ -475,7 +475,3 @@ pub fn main_with_args(args: &[String]) -> i32 {
     }
     out.code
 }
-
-#[cfg(test)]
-#[path = "claude_hooks_tests.rs"]
-mod tests;

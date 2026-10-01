@@ -1,7 +1,0 @@
-
-HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\DataCollection
-    AllowTelemetry    REG_DWORD    0x0
-    MaxTelemetryAllowed    REG_DWORD    0x1
-    LimitDiagnosticLogCollection    REG_DWORD    0x1
-
-HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\DataCollection\SubKey

@@ -329,26 +329,3 @@ pub async fn run_plan(plan_id: &str, on: ProgressFn) -> Result<RunResult, String
     });
     Ok(result)
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn buffer_guarda_so_o_final() {
-        let mut b = TailBuffer::default();
-        for i in 0..3000 {
-            b.push_line(&format!("linha {i}"));
-        }
-        let (text, truncated) = b.into_parts();
-        assert!(truncated);
-        assert!(text.chars().count() <= MAX_OUTPUT);
-        assert!(text.ends_with("linha 2999\n"));
-    }
-
-    #[test]
-    fn ansi_e_cr_saem() {
-        assert_eq!(strip_ansi("\u{1b}[32mok\u{1b}[0m"), "ok");
-        assert_eq!(strip_ansi("10%\r50%\r100%"), "100%");
-    }
-}

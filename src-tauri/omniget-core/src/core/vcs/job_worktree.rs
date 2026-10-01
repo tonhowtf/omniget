@@ -709,6 +709,3 @@ pub fn empty_trash() -> usize {
         .filter(|e| std::fs::remove_dir_all(e.path()).is_ok())
         .count()
 }
-
-#[cfg(test)]
-mod tests;

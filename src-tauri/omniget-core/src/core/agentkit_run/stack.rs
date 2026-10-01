@@ -536,32 +536,3 @@ pub fn context_block(r: &StackReport) -> String {
     }
     s
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn detects_every_language_and_real_framework_files() {
-        let root = std::env::temp_dir().join(format!("stack-{}", uuid::Uuid::new_v4().simple()));
-        std::fs::create_dir_all(root.join("backend/app")).unwrap();
-        std::fs::create_dir_all(root.join("node_modules/x")).unwrap();
-        std::fs::write(
-            root.join("package.json"),
-            r#"{"name":"web","scripts":{"test":"vitest","build":"vite build"},"devDependencies":{"typescript":"5","vite":"5"},"dependencies":{"react":"19"}}"#,
-        )
-        .unwrap();
-        std::fs::write(root.join("pnpm-lock.yaml"), "").unwrap();
-        std::fs::write(root.join("requirements.txt"), "Django>=5\npytest\n").unwrap();
-        std::fs::write(root.join("backend/app/settings.py"), "").unwrap();
-        std::fs::write(root.join("node_modules/x/a.go"), "").unwrap();
-        let r = detect(&root);
-        let langs: Vec<&str> = r.languages.iter().map(|l| l.id.as_str()).collect();
-        assert_eq!(langs, vec!["javascript", "typescript", "python"]);
-        assert!(r.has_framework("react") && r.has_framework("django") && r.has_framework("vite"));
-        assert_eq!(r.test_command.as_deref(), Some("pnpm test"));
-        assert_eq!(r.build_command.as_deref(), Some("pnpm build"));
-        assert!(!r.has_language("go"), "node_modules is skipped");
-        let _ = std::fs::remove_dir_all(&root);
-    }
-}

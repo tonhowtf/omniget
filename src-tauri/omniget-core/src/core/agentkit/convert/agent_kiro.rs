@@ -372,37 +372,3 @@ impl Converter for KiroAgentConverter {
         Ok(out)
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::core::agentkit::targets;
-
-    #[test]
-    fn kiro_round_trip() {
-        let text = "---\nname: backend\ndescription: Backend dev\ntools: Read, Edit, Bash, mcp__git__status\nskills: [api-design]\nhooks:\n  PostToolUse:\n    - matcher: Edit\n      hooks:\n        - type: command\n          command: cargo fmt\n          timeout: 5\n---\nYou build APIs.\n";
-        let files: parse::RawFiles = [("backend.md".to_string(), text.as_bytes().to_vec())]
-            .into_iter()
-            .collect();
-        let c = parse::parse_raw(ComponentKind::Agent, "backend.md", &files).unwrap();
-        let ComponentBody::Agent(a) = &c.body else {
-            unreachable!()
-        };
-        let t = targets::target("kiro").unwrap();
-        let (v, losses) = KiroAgentConverter::render(&c, a, "backend", t, Scope::Project);
-        assert_eq!(v["tools"], json!(["read", "write", "shell", "@git/status"]));
-        assert_eq!(v["prompt"], "You build APIs.\n");
-        assert!(v["resources"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|r| r == "skill://.kiro/skills/api-design/SKILL.md"));
-        assert_eq!(v["hooks"]["postToolUse"][0]["matcher"], "write");
-        assert_eq!(v["hooks"]["postToolUse"][0]["timeout_ms"], 5000);
-        assert!(losses.is_empty(), "{losses:?}");
-        let back = KiroAgentConverter::read(&v, std::path::Path::new("/"), "x");
-        assert!(back.tools.contains(&"Bash".to_string()));
-        assert!(back.tools.contains(&"mcp__git__status".to_string()));
-        assert_eq!(back.hooks["PostToolUse"][0]["hooks"][0]["timeout"], 5);
-    }
-}

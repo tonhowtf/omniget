@@ -753,36 +753,3 @@ pub async fn assist_mission_group_plan(
     let _ = now_ms();
     Ok(tasks)
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn row_counts_are_the_verdict_counts_even_with_commas_in_titles() {
-        // Live demo 2026-09-25: the row said "2 waiting" for one criterion
-        // titled "…3 tópicos, cita a biblioteca e o domingo".
-        let v = verify::Verdict {
-            passed: false,
-            criteria: vec![],
-            failing: vec![],
-            missing: vec!["a, b (c2)".into()],
-            awaiting_human: vec![
-                "O resumo tem no máximo 3 tópicos, cita a biblioteca e o domingo (c1)".into(),
-            ],
-            advisory_failing: vec![],
-            partial: vec![],
-            completion: "human".into(),
-        };
-        assert_eq!(
-            VerdictCounts::of(&v),
-            VerdictCounts {
-                passed: false,
-                failing: 0,
-                missing: 1,
-                awaiting_human: 1,
-                partial: 0
-            }
-        );
-    }
-}

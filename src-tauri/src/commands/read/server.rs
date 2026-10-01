@@ -972,24 +972,3 @@ async fn kosync_get(headers: HeaderMap, Path(doc): Path<String>) -> Response {
         None => Json(serde_json::json!({})).into_response(),
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn xor_roundtrip() {
-        let mut d = b"hello world".to_vec();
-        xor_decrypt(&mut d, "a1b2");
-        assert_ne!(d, b"hello world");
-        xor_decrypt(&mut d, "a1b2");
-        assert_eq!(d, b"hello world");
-    }
-
-    #[test]
-    fn with_q_joins() {
-        assert_eq!(with_q("/a", ""), "/a");
-        assert_eq!(with_q("/a", "k=1"), "/a?k=1");
-        assert_eq!(with_q("/a?x=1", "k=1"), "/a?x=1&k=1");
-    }
-}

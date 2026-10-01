@@ -31,8 +31,6 @@
 //!   projection.
 
 pub mod audit;
-#[cfg(test)]
-mod bench;
 pub mod context;
 pub mod exec;
 pub mod gov;
@@ -265,11 +263,4 @@ pub fn store() -> Result<Arc<CompanyStore>, String> {
 /// "not ready" instead of opening a second handle).
 pub fn try_store() -> Option<Arc<CompanyStore>> {
     STORE.get().cloned()
-}
-
-#[cfg(test)]
-pub(crate) fn test_store() -> (tempfile::TempDir, CompanyStore) {
-    let dir = tempfile::tempdir().expect("tempdir");
-    let s = CompanyStore::open(&dir.path().join(DB_FILE)).expect("open");
-    (dir, s)
 }

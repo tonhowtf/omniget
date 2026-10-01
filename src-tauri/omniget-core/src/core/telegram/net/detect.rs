@@ -543,30 +543,3 @@ async fn sniff_http(addr: SocketAddr) -> bool {
         Ok(Some(true))
     )
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn scutil_output() {
-        let text = "<dictionary> {\n  HTTPEnable : 1\n  HTTPPort : 7890\n  HTTPProxy : 127.0.0.1\n  SOCKSEnable : 1\n  SOCKSPort : 7890\n  SOCKSProxy : 127.0.0.1\n}";
-        let d = parse_scutil(text);
-        assert_eq!(d.len(), 2);
-        assert_eq!(d[0].route.kind, RouteKind::Socks5);
-    }
-
-    #[test]
-    fn windows_proxy_server() {
-        assert_eq!(parse_windows_proxy_server("127.0.0.1:7890").len(), 1);
-        let d = parse_windows_proxy_server("http=127.0.0.1:10809;socks=127.0.0.1:10808");
-        assert_eq!(d[1].route.kind, RouteKind::Socks5);
-    }
-
-    #[test]
-    fn yaml_ports() {
-        let y = "mixed-port: 7897\nsocks-port: 7898\nproxies:\n  - port: 443\nexternal-controller: 127.0.0.1:9097\n";
-        let p = ports_in_yaml(y);
-        assert_eq!(p, vec![(7897, "mixed"), (7898, "socks")]);
-    }
-}

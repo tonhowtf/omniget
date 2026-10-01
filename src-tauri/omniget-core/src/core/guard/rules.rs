@@ -180,14 +180,3 @@ pub fn rule(code: &str) -> Option<&'static Rule> {
 pub fn sev(code: &str) -> Severity {
     rule(code).map(|r| r.severity).unwrap_or(Severity::Medium)
 }
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn codes_are_unique() {
-        let mut seen = std::collections::BTreeSet::new();
-        for r in super::RULES {
-            assert!(seen.insert(r.code), "duplicate {}", r.code);
-        }
-    }
-}

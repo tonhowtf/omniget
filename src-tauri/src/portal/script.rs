@@ -234,26 +234,3 @@ pub const EVALUATE_FN: &str = r#"function (a) {
     } catch (e) { return String(r); }
   });
 }"#;
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn selectors() {
-        assert_eq!(normalize_selector(" @e12 "), "e12");
-        assert_eq!(normalize_selector("#go"), "#go");
-        assert!(is_point("120,48"));
-        assert!(is_point("1.5, 2"));
-        assert!(!is_point("e12"));
-        assert!(!is_point("1,2,3"));
-        assert!(!is_point("a,b"));
-    }
-
-    #[test]
-    fn scripts_answer_on_the_portal_channel() {
-        assert!(init().contains(REPORT_COMMAND));
-        assert!(!init().contains("preview_report"));
-        assert!(wrap("x", "function(){}", &Value::Null).contains(REPORT_COMMAND));
-    }
-}

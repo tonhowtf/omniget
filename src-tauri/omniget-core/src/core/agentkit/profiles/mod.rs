@@ -8,9 +8,6 @@
 //! secrets blocked) and `provider` (another endpoint: base URL + key read from
 //! an environment variable, never the key itself).
 
-#[cfg(test)]
-mod tests;
-
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};

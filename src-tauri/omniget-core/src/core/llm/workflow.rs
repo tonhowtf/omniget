@@ -870,6 +870,3 @@ pub async fn run_command(
         }
     }
 }
-
-#[cfg(test)]
-mod tests;

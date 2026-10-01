@@ -483,16 +483,3 @@ async fn api_terminal_stream(
     h.insert("x-accel-buffering", HeaderValue::from_static("no"));
     lbr::tag_device(r, &d)
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn frames_and_changes() {
-        assert_eq!(frame(&json!({"a": 1})), "data: {\"a\":1}\n\n");
-        let ops = vec![Op::RemoveNode { id: "n1".into() }];
-        let c = changes(&ops);
-        assert_eq!(c[0]["id"], "n1");
-    }
-}

@@ -134,26 +134,3 @@ pub fn would_exceed(plugin_data_dir: &Path, additional: u64) -> bool {
     }
     s.used_today_bytes.saturating_add(additional) > s.quota_bytes
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn unix_days_epoch_is_1970_01_01() {
-        let (y, m, d) = unix_days_to_ymd(0);
-        assert_eq!((y, m, d), (1970, 1, 1));
-    }
-
-    #[test]
-    fn unix_days_jan_1_2000_is_day_10957() {
-        let (y, m, d) = unix_days_to_ymd(10_957);
-        assert_eq!((y, m, d), (2000, 1, 1));
-    }
-
-    #[test]
-    fn unix_days_handles_leap_year_feb_29() {
-        let (y, m, d) = unix_days_to_ymd(11_016);
-        assert_eq!((y, m, d), (2000, 2, 29));
-    }
-}

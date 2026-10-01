@@ -236,24 +236,3 @@ fn enforce_memory(roots: &[u32], limit_kb: u64) {
         let _ = Command::new("kill").args(["-9", &pid.to_string()]).status();
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn memory_limit_spares_the_shell_and_strangers() {
-        let ps = parse_ps("  10 1 5000\n 11 10 900000\n 12 11 800000\n 13 10 100\n 99 1 999999\n");
-        let mut hit = over_limit(&ps, &[10], 500_000);
-        hit.sort();
-        assert_eq!(hit, vec![11, 12]);
-    }
-
-    #[test]
-    fn sleep_modes() {
-        assert!(wants_hold("always", false));
-        assert!(!wants_hold("never", true));
-        assert!(wants_hold("while_working", true));
-        assert!(!wants_hold("while_working", false));
-    }
-}

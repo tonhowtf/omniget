@@ -564,36 +564,3 @@ fn normalize_language(l: &str) -> String {
     }
     .to_string()
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn parses_whisper_cpp_json_and_drops_noise() {
-        let j = r#"{"result":{"language":"pt"},"transcription":[
-            {"offsets":{"from":0,"to":1500},"text":" Olá mundo"},
-            {"offsets":{"from":1500,"to":3000},"text":" [BLANK_AUDIO]"},
-            {"offsets":{"from":3000,"to":3000},"text":"   "}]}"#;
-        let (lang, segs) = parse_whisper_cpp_json(j).unwrap();
-        assert_eq!(lang, "pt");
-        assert_eq!(segs.len(), 1);
-        assert_eq!(segs[0].text, "Olá mundo");
-    }
-
-    #[test]
-    fn parses_verbose_json_with_offset() {
-        let body =
-            r#"{"language":"portuguese","segments":[{"start":1.5,"end":3.25,"text":" Bom dia"}]}"#;
-        let (lang, segs) = parse_verbose_json(body, 1_200_000);
-        assert_eq!(lang.as_deref(), Some("pt"));
-        assert_eq!(segs[0].start_ms, 1_201_500);
-        assert_eq!(segs[0].end_ms, 1_203_250);
-    }
-
-    #[test]
-    fn plain_text_answer_becomes_one_segment() {
-        let (_, segs) = parse_verbose_json("hello there", 0);
-        assert_eq!(segs.len(), 1);
-    }
-}

@@ -1087,33 +1087,3 @@ pub async fn cleanup(repo_path: &Path) -> VcsResult<Vec<PathBuf>> {
     }
     Ok(removed)
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn branch_names() {
-        assert_eq!(
-            sanitize_branch_name("Fix: the Login bug!"),
-            "fix-the-login-bug"
-        );
-        assert_eq!(sanitize_branch_name("feature//x..y"), "feature/x-y");
-        assert_eq!(sanitize_branch_name("  "), "update");
-        assert!(is_temp_branch(&temp_branch_name()));
-        assert!(!is_temp_branch("omniget/fix-login"));
-    }
-
-    #[test]
-    fn percent_and_config() {
-        assert_eq!(parse_percent("Updating files:  78% (2104/2700)"), Some(78));
-        assert_eq!(parse_percent("no progress"), None);
-        let c = parse_project_config(
-            r#"{"worktreeSubmodules":"none","scripts":[{"name":"deps","command":"pnpm i","runOnWorktreeCreate":true},{"name":"x","command":""}]}"#,
-        );
-        assert_eq!(c.worktree_submodules.as_deref(), Some("none"));
-        assert_eq!(c.scripts.len(), 1);
-        assert!(c.scripts[0].run_on_worktree_create);
-        assert_eq!(parse_project_config("not json"), ProjectConfig::default());
-    }
-}

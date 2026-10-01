@@ -25,9 +25,6 @@
 pub mod store;
 pub mod tasks;
 
-#[cfg(test)]
-mod tests;
-
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 

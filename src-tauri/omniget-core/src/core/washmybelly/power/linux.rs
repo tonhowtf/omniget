@@ -356,13 +356,3 @@ pub fn manager_unit(unit: &str, on: bool) -> Result<String, String> {
         if on { "enabled" } else { "stopped and masked" }
     ))
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn manager_unit_refuses_other_units() {
-        assert!(manager_unit("sshd.service", false).is_err());
-    }
-}

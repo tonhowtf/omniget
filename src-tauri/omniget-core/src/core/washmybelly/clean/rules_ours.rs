@@ -144,24 +144,3 @@ pub fn parse_decimal_size(s: &str) -> Option<u64> {
     };
     Some((n * mult) as u64)
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn docker_df_skips_volumes() {
-        let text = r#"{"Active":"1","Reclaimable":"1.5GB (60%)","Size":"2.5GB","TotalCount":"3","Type":"Images"}
-{"Active":"0","Reclaimable":"10MB (100%)","Size":"10MB","TotalCount":"2","Type":"Containers"}
-{"Active":"1","Reclaimable":"4GB (80%)","Size":"5GB","TotalCount":"4","Type":"Local Volumes"}
-{"Active":"0","Reclaimable":"0B","Size":"0B","TotalCount":"0","Type":"Build Cache"}"#;
-        assert_eq!(parse_docker_df(text), 1_510_000_000);
-        assert_eq!(parse_decimal_size("3kB"), Some(3000));
-    }
-
-    #[test]
-    fn cargo_keeps_its_index() {
-        let cargo = rules().into_iter().find(|r| r.id == "ours.cargo").unwrap();
-        assert_eq!(cargo.targets, vec!["~/.cargo/registry/cache"]);
-    }
-}

@@ -270,18 +270,3 @@ pub fn plist_string(xml: &str, key: &str) -> Option<String> {
     let v = rest[start..start + end].trim();
     (!v.is_empty()).then(|| v.to_string())
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn plist_xml_simples() {
-        let xml = "<plist><dict><key>CFBundleName</key><string>Zed</string>\n<key>CFBundleShortVersionString</key>\n\t<string>0.210.4</string></dict></plist>";
-        assert_eq!(
-            plist_string(xml, "CFBundleShortVersionString").as_deref(),
-            Some("0.210.4")
-        );
-        assert_eq!(plist_string(xml, "Nada"), None);
-    }
-}

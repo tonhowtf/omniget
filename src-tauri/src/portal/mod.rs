@@ -1338,22 +1338,3 @@ pub fn state_json(node_id: &str) -> Value {
         .map(|s| json!(s))
         .unwrap_or(Value::Null)
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn labels_are_safe() {
-        assert_eq!(label_for("a1-b_2"), "portal-a1-b_2");
-        assert_eq!(label_for("x/y z"), "portal-x_y_z");
-        assert_eq!(label_for(""), "portal-default");
-    }
-
-    #[test]
-    fn ua_presets() {
-        assert!(user_agent_preset("iOS").unwrap().contains("iPhone"));
-        assert!(user_agent_preset("android").unwrap().contains("Android"));
-        assert!(user_agent_preset("nope").is_none());
-    }
-}

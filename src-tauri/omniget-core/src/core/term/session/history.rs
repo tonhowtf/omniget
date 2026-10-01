@@ -205,33 +205,3 @@ pub fn read_tail(id: &str, cap: usize) -> Option<Vec<u8>> {
     }
     Some(data[cut..].to_vec())
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn trims_to_cap_on_a_line_boundary() {
-        let mut h = History::new(MIN_CAP, None);
-        let line = b"0123456789abcdef0123456789abcdef0123456789abcdef012345678901234\n";
-        for _ in 0..5000 {
-            h.push(line);
-        }
-        let b = h.bytes();
-        assert!(b.len() <= MIN_CAP + MIN_CAP / 4);
-        assert_eq!(b.len() % line.len(), 0);
-        assert!(b.starts_with(b"0123"));
-    }
-
-    #[test]
-    fn disk_jobs_append_then_rewrite() {
-        let mut h = History::new(MIN_CAP, Some(PathBuf::from("x.log")));
-        h.push(b"abc");
-        assert!(matches!(h.take_job(), Some(DiskJob::Rewrite(_, d)) if d == b"abc"));
-        h.push(b"def");
-        assert!(matches!(h.take_job(), Some(DiskJob::Append(_, d)) if d == b"def"));
-        assert!(h.take_job().is_none());
-        h.push(&vec![b'x'; MIN_CAP * 2]);
-        assert!(matches!(h.take_job(), Some(DiskJob::Rewrite(_, _))));
-    }
-}

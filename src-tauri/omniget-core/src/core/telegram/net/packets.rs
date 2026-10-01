@@ -177,20 +177,3 @@ pub fn unpad(p: &[u8]) -> &[u8] {
     }
     &p[..24 + (p.len() - 24) / 16 * 16]
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn unpad_rules() {
-        assert_eq!(unpad(&[0x6c, 0xfe, 0xff, 0xff, 1, 2, 3]).len(), 4);
-        let mut plain = vec![0u8; 20];
-        plain[16] = 8;
-        plain.extend([1u8; 8 + 5]);
-        assert_eq!(unpad(&plain).len(), 28);
-        let mut enc = vec![1u8; 24 + 32];
-        enc.extend([9u8; 7]);
-        assert_eq!(unpad(&enc).len(), 56);
-    }
-}

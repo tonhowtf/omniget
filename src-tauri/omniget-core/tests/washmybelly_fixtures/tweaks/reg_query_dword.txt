@@ -1,4 +1,0 @@
-
-HKEY_CURRENT_USER\System\GameConfigStore
-    GameDVR_Enabled    REG_DWORD    0x1
-

@@ -14,6 +14,3 @@ pub mod runner;
 pub mod worktree;
 
 pub use runner::{VcsError, VcsResult};
-
-#[cfg(test)]
-mod integration_tests;

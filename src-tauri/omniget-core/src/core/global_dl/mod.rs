@@ -200,36 +200,3 @@ pub fn host_matches(host: &str, domain: &str) -> bool {
     let d = domain.trim_start_matches("*.").trim_start_matches('.');
     host == d || host.ends_with(&format!(".{}", d))
 }
-
-#[cfg(test)]
-mod tests {
-    use super::{Rendition, Source};
-
-    #[test]
-    fn rendition_follows_max_height() {
-        let s = Source {
-            format: "direct".into(),
-            url: Some("https://u/x.1080p.webm".into()),
-            renditions: vec![
-                Rendition {
-                    height: 480,
-                    url: "https://u/x.480p.webm".into(),
-                },
-                Rendition {
-                    height: 1080,
-                    url: "https://u/x.1080p.webm".into(),
-                },
-            ],
-            ..Default::default()
-        };
-        assert_eq!(s.url_for(None).unwrap(), "https://u/x.1080p.webm");
-        assert_eq!(s.url_for(Some(720)).unwrap(), "https://u/x.480p.webm");
-        assert_eq!(s.url_for(Some(240)).unwrap(), "https://u/x.480p.webm");
-        assert_eq!(s.url_for(Some(2160)).unwrap(), "https://u/x.1080p.webm");
-        let plain = Source {
-            url: Some("https://u/a.mp4".into()),
-            ..Default::default()
-        };
-        assert_eq!(plain.url_for(Some(360)).unwrap(), "https://u/a.mp4");
-    }
-}

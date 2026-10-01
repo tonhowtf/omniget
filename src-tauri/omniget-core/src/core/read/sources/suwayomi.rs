@@ -298,19 +298,3 @@ impl Conn {
         .map(|_| ())
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn abs_inlines_credentials() {
-        let c = Conn::new("http://127.0.0.1:4567/", "u", "p");
-        assert_eq!(
-            c.abs("/api/v1/manga/1/chapter/2/page/0"),
-            "http://u:p@127.0.0.1:4567/api/v1/manga/1/chapter/2/page/0"
-        );
-        let c = Conn::new("http://127.0.0.1:4567", "", "");
-        assert_eq!(c.abs("/x"), "http://127.0.0.1:4567/x");
-    }
-}

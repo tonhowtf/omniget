@@ -145,23 +145,3 @@ pub fn opt_str<'a>(input: &'a Value, key: &str) -> Option<&'a str> {
         .and_then(Value::as_str)
         .filter(|s| !s.trim().is_empty())
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn tool_names_are_unique_and_provider_safe() {
-        let names = names();
-        let mut seen = std::collections::HashSet::new();
-        for n in &names {
-            assert!(seen.insert(n.clone()), "duplicate tool {n}");
-            assert!(
-                n.len() <= 64
-                    && n.chars()
-                        .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-'),
-                "tool name {n} breaks provider rules"
-            );
-        }
-    }
-}

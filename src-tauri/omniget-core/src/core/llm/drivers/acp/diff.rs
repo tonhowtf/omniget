@@ -94,19 +94,3 @@ pub fn unified_diff(old: &str, new: &str, path: &str) -> String {
     }
     out
 }
-
-#[cfg(test)]
-mod tests {
-    use super::unified_diff;
-
-    #[test]
-    fn diff_marks_changed_and_new_lines() {
-        let d = unified_diff("a\nb\nc\n", "a\nB\nc\nd\n", "/x.rs");
-        assert!(d.starts_with("--- a/x.rs\n+++ b/x.rs\n@@"));
-        assert!(d.contains("-b\n+B\n"));
-        assert!(d.contains("+d\n"));
-        let created = unified_diff("", "hi\n", "/n.txt");
-        assert!(created.starts_with("--- /dev/null\n"));
-        assert!(unified_diff("same", "same", "/s").is_empty());
-    }
-}

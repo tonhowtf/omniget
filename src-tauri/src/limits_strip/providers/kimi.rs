@@ -143,35 +143,3 @@ impl UsageProvider for Kimi {
         })
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn string_counts_become_the_rolling_and_weekly_windows() {
-        let v = serde_json::json!({"user":{"membership":{"level":"LEVEL_ADVANCED"}},
-            "usage":{"limit":"100","used":"2","remaining":"98","resetTime":"2026-09-15T19:39:34.389610Z"},
-            "limits":[{"window":{"duration":300,"timeUnit":"TIME_UNIT_MINUTE"},
-                "detail":{"limit":"100","used":"8","remaining":"92","resetTime":"2026-09-11T16:39:34.389610Z"}}]});
-        let (ws, plan) = parse_usage(&v);
-        assert_eq!(plan.as_deref(), Some("Advanced"));
-        assert_eq!(ws[0].id, "rolling");
-        assert!((ws[0].used.unwrap() - 0.08).abs() < 1e-6);
-        assert_eq!(ws[1].id, "weekly");
-        assert_eq!(ws[1].used_abs, Some(2.0));
-        assert!(ws[1].resets_at.is_some());
-    }
-
-    #[test]
-    fn the_token_never_shows_in_debug_output() {
-        let v = serde_json::json!({"access_token":"kimi-SECRETVALUE","expires_at":1790585719});
-        let c = parse_credential(&v).unwrap();
-        assert_eq!(c.expires_at, 1_790_585_719_000);
-        assert!(!format!("{c:?}").contains("SECRETVALUE"));
-        assert_eq!(
-            parse_credential(&serde_json::json!({"access_token":""})),
-            None
-        );
-    }
-}

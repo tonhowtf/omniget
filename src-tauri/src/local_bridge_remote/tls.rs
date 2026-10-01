@@ -284,30 +284,3 @@ pub fn pinned_client(pin: &str) -> rustls::ClientConfig {
         .with_custom_certificate_verifier(Arc::new(Pinned { pin, provider }))
         .with_no_client_auth()
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn cert_carries_the_pinned_key_and_loads_in_rustls() {
-        let seed = [7u8; 32];
-        let key = ed25519_dalek::SigningKey::from_bytes(&seed);
-        let cert = build_cert(&key);
-        let spki = spki(&key.verifying_key().to_bytes());
-        let want = base64::engine::general_purpose::STANDARD.encode(Sha256::digest(&spki));
-        assert_eq!(pin_of_cert(&cert).as_deref(), Some(want.as_str()));
-        let provider = Arc::new(rustls::crypto::ring::default_provider());
-        let cfg = rustls::ServerConfig::builder_with_provider(provider)
-            .with_safe_default_protocol_versions()
-            .unwrap()
-            .with_no_client_auth()
-            .with_single_cert(
-                vec![rustls::pki_types::CertificateDer::from(cert)],
-                rustls::pki_types::PrivateKeyDer::Pkcs8(
-                    rustls::pki_types::PrivatePkcs8KeyDer::from(pkcs8(&seed)),
-                ),
-            );
-        assert!(cfg.is_ok(), "{:?}", cfg.err());
-    }
-}

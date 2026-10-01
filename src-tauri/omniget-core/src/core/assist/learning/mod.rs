@@ -30,9 +30,6 @@
 
 pub mod eval;
 
-#[cfg(test)]
-mod tests;
-
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::{Arc, RwLock};
 

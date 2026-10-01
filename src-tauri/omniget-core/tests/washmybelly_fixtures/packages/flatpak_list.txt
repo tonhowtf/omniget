@@ -1,3 +1,0 @@
-org.gimp.GIMP	GNU Image Manipulation Program	2.10.38	1.2 GB	system
-org.videolan.VLC	VLC	3.0.21	92.4 MB	user
-com.example.Bad;rm	Bad	1	1 kB	user

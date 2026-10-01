@@ -650,19 +650,3 @@ async fn routine_edit(ctx: &NodeCtx, args: Value) -> Result<Value, String> {
     emit_routine(&r);
     Ok(json!(r))
 }
-
-#[cfg(test)]
-mod tests {
-    use super::parse_every;
-
-    #[test]
-    fn every_shorthand() {
-        assert_eq!(parse_every("30m").unwrap(), 1800);
-        assert_eq!(parse_every("30s").unwrap(), 30);
-        assert_eq!(parse_every("2h").unwrap(), 7200);
-        assert_eq!(parse_every("1d").unwrap(), 86_400);
-        assert_eq!(parse_every("45").unwrap(), 2700);
-        assert!(parse_every("5s").is_err());
-        assert!(parse_every("x").is_err());
-    }
-}

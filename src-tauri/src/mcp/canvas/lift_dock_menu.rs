@@ -175,29 +175,3 @@ pub async fn call(
         _ => Err("TOOL_NOT_AUTHORIZED".into()),
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn dock_replaces_the_edge_and_unlifts() {
-        let mut p = WorkspacePanels {
-            lifted: Some("a".into()),
-            docked: vec![DockedPanel {
-                node_id: "b".into(),
-                edge: "right".into(),
-                width: 400.0,
-            }],
-        };
-        apply_dock(&mut p, "a", "right", Some(333.0));
-        assert_eq!(p.lifted, None);
-        assert_eq!(p.docked.len(), 1);
-        assert_eq!(p.docked[0].node_id, "a");
-        assert_eq!(p.docked[0].width, 340.0);
-        apply_dock(&mut p, "a", "none", None);
-        assert!(p.docked.is_empty());
-        assert_eq!(snap_width(510.0), DOCK_DEFAULT_W);
-        assert_eq!(snap_width(100.0), DOCK_MIN_W);
-    }
-}

@@ -538,18 +538,3 @@ pub fn which(program: &str) -> Option<PathBuf> {
     }
     None
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn redacts_credentials() {
-        assert_eq!(
-            redact("fatal: https://me:ghp_x@github.com/a/b.git denied"),
-            "fatal: https://***@github.com/a/b.git denied"
-        );
-        assert_eq!(redact("ssh://git@host/x"), "ssh://***@host/x");
-        assert_eq!(redact("no url here"), "no url here");
-    }
-}

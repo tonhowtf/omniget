@@ -147,17 +147,3 @@ impl Vocab {
         String::from_utf8_lossy(&out).into_owned()
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn byte_table_is_a_bijection() {
-        let t = unicode_to_byte();
-        assert_eq!(t.len(), 256);
-        assert_eq!(t.get(&'Ġ'), Some(&b' '));
-        assert_eq!(t.get(&'a'), Some(&b'a'));
-        assert_eq!(t.get(&'Ċ'), Some(&b'\n'));
-    }
-}

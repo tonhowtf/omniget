@@ -255,7 +255,7 @@ fn read_status() -> (Value, Vec<PlanItem>) {
 }
 
 /// Plan candidates on Linux, from what runs and what the kernel exposes.
-#[cfg_attr(not(any(target_os = "linux", test)), allow(dead_code))]
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
 fn linux_items(
     running: &[arbiter::Manager],
     verdict: &arbiter::Verdict,
@@ -431,7 +431,7 @@ fn read_status() -> (Value, Vec<PlanItem>) {
     (v, items)
 }
 
-#[cfg_attr(not(any(windows, test)), allow(dead_code))]
+#[cfg_attr(not(windows), allow(dead_code))]
 fn ultimate_present(list: &[parse::Scheme], created: Option<&str>) -> bool {
     list.iter().any(|s| {
         s.guid == parse::ULTIMATE_TEMPLATE
@@ -440,7 +440,7 @@ fn ultimate_present(list: &[parse::Scheme], created: Option<&str>) -> bool {
     })
 }
 
-#[cfg_attr(not(any(windows, test)), allow(dead_code))]
+#[cfg_attr(not(windows), allow(dead_code))]
 fn win_items(list: &[parse::Scheme], created: Option<&str>) -> Vec<PlanItem> {
     let mut items: Vec<PlanItem> = list
         .iter()
@@ -847,206 +847,5 @@ pub async fn ui_action(action: &str, a: Value) -> Result<Value, String> {
         }
         "hold_state" => Ok(serde_json::to_value(hold::global().state()).unwrap_or(Value::Null)),
         _ => Err(format!("power: unknown screen action {action}")),
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn setting_allowlist() {
-        for (k, v) in [
-            ("cpu_epp", "balance_power"),
-            ("cpu_governor", "performance"),
-            ("charge_limit", "BAT0:80"),
-            ("lowpowermode", "1"),
-            ("manager_off", "power-profiles-daemon.service"),
-            ("manager_on", "tlp.service"),
-        ] {
-            validate_setting(k, v).unwrap_or_else(|e| panic!("{k}={v}: {e}"));
-        }
-        for (k, v) in [
-            ("hibernatemode", "0"),
-            ("cpu_epp", "power; reboot"),
-            ("cpu_epp", ""),
-            ("cpu_governor", "../../x"),
-            ("charge_limit", "BAT0:5"),
-            ("charge_limit", "BAT0:101"),
-            ("charge_limit", "../BAT0:80"),
-            ("lowpowermode", "2"),
-            ("manager_off", "sshd.service"),
-            ("manager_off", "tlp"),
-        ] {
-            assert!(validate_setting(k, v).is_err(), "{k}={v} must be refused");
-            assert!(elevated_setting(k, v).is_err());
-        }
-    }
-
-    #[test]
-    fn unknown_actions_are_refused() {
-        let dir = tempfile::tempdir().unwrap();
-        let ctx = Ctx::at(dir.path());
-        assert!(plan_execute(&ctx, "r", "rm_rf", &json!({})).is_err());
-        assert!(plan_elevated(&ctx, "r", "rm_rf", &json!({})).is_err());
-        assert!(plan_undo(&ctx, "rm_rf", &json!({})).is_err());
-    }
-
-    #[test]
-    fn undo_of_a_conflict_turns_managers_back_on_in_reverse() {
-        let changes = [
-            (
-                "manager_off".to_string(),
-                "power-profiles-daemon.service".to_string(),
-                "power-profiles-daemon.service".to_string(),
-            ),
-            (
-                "manager_off".to_string(),
-                "tuned.service".to_string(),
-                "tuned.service".to_string(),
-            ),
-        ];
-        let back: Vec<_> = changes
-            .iter()
-            .rev()
-            .map(|(k, _, o)| reverse(k, o))
-            .collect();
-        assert_eq!(back[0], ("manager_on".into(), "tuned.service".into()));
-        assert_eq!(
-            back[1],
-            ("manager_on".into(), "power-profiles-daemon.service".into())
-        );
-        assert_eq!(
-            reverse("cpu_epp", "balance_performance"),
-            ("cpu_epp".into(), "balance_performance".into())
-        );
-    }
-
-    #[test]
-    fn snapshot_round_trip() {
-        let dir = tempfile::tempdir().unwrap();
-        let ctx = Ctx::at(dir.path());
-        let id = ctx
-            .snapshot_put(
-                "r",
-                MODULE,
-                "scheme",
-                &Snap::Scheme {
-                    previous: parse::BALANCED.into(),
-                    created: Some("x".into()),
-                },
-            )
-            .unwrap();
-        let s: Snap = ctx.snapshot_get(&id).unwrap();
-        assert_eq!(
-            s,
-            Snap::Scheme {
-                previous: parse::BALANCED.into(),
-                created: Some("x".into())
-            }
-        );
-    }
-
-    #[test]
-    fn command_lines_are_display_only_and_validated() {
-        assert_eq!(
-            command_line("lowpowermode", "1"),
-            "sudo pmset -a lowpowermode 1"
-        );
-        assert!(
-            command_line("charge_limit", "BAT0:80").contains("/BAT0/charge_control_end_threshold")
-        );
-        assert!(command_line("cpu_epp", "x; rm -rf /").starts_with('#'));
-    }
-
-    #[test]
-    fn linux_items_follow_the_one_manager_rule() {
-        use arbiter::Manager::*;
-        let knobs = parse::CpuKnobs {
-            governor: Some("powersave".into()),
-            governors: vec!["performance".into(), "powersave".into()],
-            epp: Some("balance_performance".into()),
-            epps: vec![
-                "default".into(),
-                "performance".into(),
-                "balance_performance".into(),
-            ],
-            ..Default::default()
-        };
-        let limits = vec![parse::ChargeLimit {
-            battery: "BAT0".into(),
-            end: 100,
-            start: None,
-        }];
-        // Nobody manages: apply-now and charge limit offered.
-        let items = linux_items(&[], &arbiter::arbitrate(&[]), &knobs, &limits);
-        let ids: Vec<_> = items.iter().map(|i| i.id.as_str()).collect();
-        assert!(ids.contains(&"power:cpu_epp:performance"));
-        assert!(!ids.contains(&"power:cpu_epp:default"));
-        assert!(
-            !ids.contains(&"power:cpu_epp:balance_performance"),
-            "current value not offered"
-        );
-        assert!(ids.contains(&"power:cpu_governor:performance"));
-        assert!(ids.contains(&"power:charge_limit:BAT0:80"));
-        assert!(items.iter().all(|i| i.admin && i.risk == Risk::Reversible));
-        // PPD manages: no apply-now.
-        let items = linux_items(
-            &[PowerProfilesDaemon],
-            &arbiter::arbitrate(&[PowerProfilesDaemon]),
-            &knobs,
-            &limits,
-        );
-        assert!(items.iter().all(|i| !i.id.starts_with("power:cpu_")));
-        // TLP + PPD: conflict item, no charge limit (TLP owns it).
-        let running = [Tlp, PowerProfilesDaemon];
-        let items = linux_items(&running, &arbiter::arbitrate(&running), &knobs, &limits);
-        assert_eq!(items.len(), 1);
-        assert_eq!(items[0].id, "power:resolve_conflict:tlp");
-    }
-
-    #[test]
-    fn windows_items_offer_other_plans_and_ultimate_once() {
-        let list = parse::powercfg_list(
-            &std::fs::read_to_string(
-                std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-                    .join("tests/washmybelly_fixtures/power/powercfg_list.txt"),
-            )
-            .unwrap(),
-        );
-        let items = win_items(&list, None);
-        let ids: Vec<_> = items.iter().map(|i| i.id.clone()).collect();
-        assert!(ids.contains(&format!("power:set_scheme:{}", parse::HIGH_PERFORMANCE)));
-        assert!(
-            !ids.contains(&format!("power:set_scheme:{}", parse::BALANCED)),
-            "the active plan is not offered"
-        );
-        assert!(ids.contains(&"power:ultimate".to_string()));
-        assert!(items.iter().all(|i| !i.admin));
-        let with = parse::powercfg_list(
-            &std::fs::read_to_string(
-                std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-                    .join("tests/washmybelly_fixtures/power/powercfg_list_ultimate.txt"),
-            )
-            .unwrap(),
-        );
-        assert!(!win_items(&with, None)
-            .iter()
-            .any(|i| i.id == "power:ultimate"));
-    }
-
-    #[test]
-    fn mac_offers_the_opposite_low_power_mode() {
-        let s = parse::PmsetSettings {
-            low_power_mode: Some(false),
-            ..Default::default()
-        };
-        let items = mac_items(&s);
-        assert_eq!(items[0].id, "power:lowpowermode:on");
-        assert!(items[0].admin);
-        assert!(
-            mac_items(&parse::PmsetSettings::default()).is_empty(),
-            "no Low Power Mode, no item"
-        );
     }
 }

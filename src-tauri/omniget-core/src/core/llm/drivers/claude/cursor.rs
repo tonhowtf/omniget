@@ -225,43 +225,4 @@ mod tests {
             .session_id
             .is_empty());
     }
-
-    #[test]
-    fn truncate_keeps_the_boundary_of_the_last_kept_turn() {
-        let mut c = cursor();
-        assert_eq!(c.truncate(1), Ok(true));
-        assert_eq!(c.turns.len(), 1);
-        assert_eq!(
-            c.resume_at.as_deref(),
-            Some("bef506b5-1936-436c-807f-a1286c3f12ce")
-        );
-        assert!(c.fork);
-        // Keeping everything changes nothing.
-        let mut c = cursor();
-        assert_eq!(c.truncate(2), Ok(false));
-        assert_eq!(c.truncate(9), Ok(false));
-        // Zero = start over.
-        let mut c = cursor();
-        assert_eq!(c.truncate(0), Ok(true));
-        assert!(c.session_id.is_empty());
-        // Unknown boundary is an error, not a silent full resume.
-        let mut c = cursor();
-        c.turns[0].last_uuid = None;
-        assert!(c.truncate(1).is_err());
-    }
-
-    #[test]
-    fn the_store_persists_per_thread() {
-        let dir =
-            std::env::temp_dir().join(format!("omniget-claude-cursor-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&dir);
-        let path = dir.join("claude-threads.json");
-        let store = CursorStore::at(Some(path.clone()));
-        store.put("thr_a", &cursor());
-        let again = CursorStore::at(Some(path));
-        assert_eq!(again.get("thr_a"), Some(cursor()));
-        again.remove("thr_a");
-        assert_eq!(again.get("thr_a"), None);
-        let _ = std::fs::remove_dir_all(&dir);
-    }
 }

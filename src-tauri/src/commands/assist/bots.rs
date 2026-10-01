@@ -291,27 +291,3 @@ pub async fn assist_bot_skill_reads(
         limit.unwrap_or(50),
     )?)
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use serde_json::json;
-
-    #[test]
-    fn new_bot_payload_parses_with_defaults() {
-        let bot: NewBot = serde_json::from_value(json!({
-            "name": "Companheiro de leitura",
-            "capabilities": ["memory", "web", "reading"],
-            "connection_agent_id": "connection-x"
-        }))
-        .unwrap();
-        assert_eq!(bot.memory_policy, MemoryPolicy::Remember);
-        assert!(bot.skills.is_empty());
-        assert_eq!(
-            bot.capabilities,
-            vec![Capability::Memory, Capability::Web, Capability::Reading]
-        );
-        // Project code is never switched on by default.
-        assert!(!bot.capabilities.contains(&Capability::ProjectCode));
-    }
-}

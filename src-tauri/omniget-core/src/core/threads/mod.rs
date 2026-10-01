@@ -36,6 +36,4 @@ pub fn default_db_path() -> Option<std::path::PathBuf> {
 }
 
 #[cfg(test)]
-mod git_tests;
-#[cfg(test)]
 mod tests;

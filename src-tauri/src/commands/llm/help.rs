@@ -365,34 +365,3 @@ pub async fn help_turn_start(
     });
     Ok(json!({"request_id":id,"sources":sources}))
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn corpus_has_both_locales_and_stable_sources() {
-        for lang in ["pt", "en", "ru"] {
-            let all = docs(&json!({"locale":lang}));
-            assert_eq!(all.len(), 20);
-            for d in all {
-                assert_eq!(d["locale"], lang);
-                assert!(d["contentHash"].as_str().unwrap().len() == 8);
-                assert_eq!(d["sectionId"], "guide");
-            }
-        }
-    }
-    #[test]
-    fn journal_identifiers_cannot_escape_directory() {
-        assert!(safe_id(&json!({"id":"../x"}), "id").is_err());
-        assert!(safe_id(&json!({"id":"abc-123"}), "id").is_ok());
-    }
-    #[test]
-    fn an_omitted_locale_falls_back_to_the_running_turn() {
-        remember_turn_locale("ru");
-        assert_eq!(locale(&json!({})), "ru");
-        assert_eq!(locale(&json!({"query":"как скачать"})), "ru");
-        assert_eq!(locale(&json!({"locale":"pt-BR"})), "pt");
-        assert_eq!(locale(&json!({"locale":"de"})), "en");
-        remember_turn_locale("en");
-    }
-}

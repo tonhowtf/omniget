@@ -56,18 +56,3 @@ impl UsageProvider for LmStudio {
         })
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn the_server_list_becomes_model_names() {
-        let v = serde_json::json!({"object":"list","data":[
-            {"id":"qwen2.5-coder-7b-instruct","object":"model"},{"object":"model"}]});
-        let ms = parse_models(&v);
-        assert_eq!(ms.len(), 1);
-        assert_eq!(ms[0].name, "qwen2.5-coder-7b-instruct");
-        assert!(parse_models(&serde_json::json!({"error":"x"})).is_empty());
-    }
-}

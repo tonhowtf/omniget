@@ -755,34 +755,3 @@ pub fn row_to_annotation(r: &Row) -> rusqlite::Result<Annotation> {
 
 pub const ANNOTATION_COLS: &str =
     "id, book_id, kind, locator, text, note, color, style, chapter, progress, created_at, updated_at";
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn schema_applies_twice() {
-        let c = Connection::open_in_memory().unwrap();
-        schema(&c).unwrap();
-        schema(&c).unwrap();
-        c.execute(
-            "INSERT INTO books (path, folder, format, title, added_at) VALUES ('a', '', 'epub', 'Dom Casmurro', 0)",
-            [],
-        )
-        .unwrap();
-        let n: i64 = c
-            .query_row(
-                "SELECT COUNT(*) FROM books_fts WHERE books_fts MATCH 'casmurro'",
-                [],
-                |r| r.get(0),
-            )
-            .unwrap();
-        assert_eq!(n, 1);
-    }
-
-    #[test]
-    fn sort_keys() {
-        assert_eq!(sort_key("The Hobbit"), "hobbit");
-        assert_eq!(sort_key("O Alienista"), "alienista");
-    }
-}

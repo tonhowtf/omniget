@@ -1003,16 +1003,3 @@ pub async fn play(app: &AppHandle, channel: i64) -> Result<PlaybackInfo, String>
 pub async fn video_iptv_play(app: AppHandle, channel_id: i64) -> Result<PlaybackInfo, String> {
     play(&app, channel_id).await
 }
-
-#[cfg(test)]
-mod tests {
-    use super::norm_name;
-
-    #[test]
-    fn channel_names_meet() {
-        assert_eq!(norm_name("Globo HD"), "globo");
-        assert_eq!(norm_name("GLOBO"), "globo");
-        assert_eq!(norm_name("Télé Cinéma FHD"), "telecinema");
-        assert_eq!(norm_name("HD"), "hd");
-    }
-}

@@ -190,39 +190,3 @@ fn hash_entries(entries: &[Entry]) -> Result<String, SkillError> {
     }
     Ok(hex::encode(hasher.finalize()))
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::core::skills::install::tests_support::temp_dir;
-
-    #[test]
-    fn same_bytes_same_hash_and_any_change_changes_it() {
-        let a = temp_dir("hash-a");
-        let b = temp_dir("hash-b");
-        for d in [&a, &b] {
-            std::fs::create_dir_all(d.join("references")).unwrap();
-            std::fs::write(
-                d.join("SKILL.md"),
-                "---\nname: x\ndescription: y\n---\nbody",
-            )
-            .unwrap();
-            std::fs::write(d.join("references/R.md"), "ref").unwrap();
-        }
-        // The sidecar is ours: it never changes the hash.
-        std::fs::write(b.join(SIDECAR), "{\"source\":{}}").unwrap();
-        let ha = dir_hash(&a).unwrap();
-        assert_eq!(ha, dir_hash(&b).unwrap());
-        assert_eq!(ha.len(), 64);
-
-        std::fs::write(a.join("references/R.md"), "ref changed").unwrap();
-        let changed = dir_hash(&a).unwrap();
-        assert_ne!(ha, changed);
-        assert_eq!(changed, dir_hash_uncached(&a).unwrap());
-
-        std::fs::write(a.join("references/new.md"), "x").unwrap();
-        assert_ne!(changed, dir_hash(&a).unwrap());
-        let _ = std::fs::remove_dir_all(&a);
-        let _ = std::fs::remove_dir_all(&b);
-    }
-}

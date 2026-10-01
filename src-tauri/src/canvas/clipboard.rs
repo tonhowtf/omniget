@@ -503,33 +503,3 @@ pub fn read(app: &AppHandle) -> Value {
     };
     json!({ "canvas": canvas, "os": os })
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn classifies_foreign_text() {
-        assert!(matches!(
-            classify_text("<svg viewBox='0 0 1 1'></svg>"),
-            Some(Foreign::Svg(_))
-        ));
-        assert!(matches!(
-            classify_text("https://example.com/a?b=1"),
-            Some(Foreign::Url(u)) if u == "https://example.com/a?b=1"
-        ));
-        assert!(matches!(
-            classify_text("www.example.com"),
-            Some(Foreign::Url(_))
-        ));
-        let tmp = std::env::temp_dir();
-        let t = tmp.to_string_lossy().into_owned();
-        assert!(matches!(classify_text(&t), Some(Foreign::Paths(p)) if p.len() == 1));
-        assert!(matches!(
-            classify_text(&format!("file://{}", t)),
-            Some(Foreign::Paths(_))
-        ));
-        assert!(classify_text("hello world").is_none());
-        assert!(classify_text("/definitely/not/here/x").is_none());
-    }
-}

@@ -455,15 +455,6 @@ impl InstagramDownloader {
         })
     }
 
-    /// `Ok(None)`: GQL answered and the post has no media for this session
-    /// (`xdt_shortcode_media: null`), which is how a login-locked post looks.
-    #[cfg(test)]
-    async fn request_gql(&self, post_id: &str) -> anyhow::Result<Option<serde_json::Value>> {
-        let (path, html) = self.fetch_post_page(post_id).await?;
-        let params = Self::gql_params_from_page(&path, &html)?;
-        self.request_gql_with(post_id, &params).await
-    }
-
     async fn request_gql_with(
         &self,
         post_id: &str,
@@ -1568,38 +1559,5 @@ mod tests {
             crate::core::errors::classify_download_error(&format!("{err:#}")).0,
             "auth_required"
         );
-    }
-
-    /// Live, 2 requests (embed + post page), no cookies: the locked /tv/ post
-    /// must answer auth-required without spawning yt-dlp.
-    #[tokio::test]
-    #[ignore = "network: real Instagram requests"]
-    async fn instagram_live_locked_tv_stops_early() {
-        let dl = InstagramDownloader::new();
-        let t = std::time::Instant::now();
-        let err = dl
-            .get_media_info("https://www.instagram.com/tv/BkfuX9UB-eK/")
-            .await
-            .unwrap_err();
-        eprintln!("locked tv: {:?} -> {err:#}", t.elapsed());
-        assert!(t.elapsed() < std::time::Duration::from_secs(8));
-        assert_eq!(
-            crate::core::errors::classify_download_error(&format!("{err:#}")).0,
-            "auth_required"
-        );
-    }
-
-    /// Live: `cargo test --lib -p omniget-core instagram_live -- --ignored`.
-    /// 4 requests, no cookies.
-    #[tokio::test]
-    #[ignore = "network: real Instagram requests"]
-    async fn instagram_live_gql_public_vs_locked() {
-        let dl = InstagramDownloader::new();
-        let public = dl.request_gql("aye83DjauH").await;
-        eprintln!("public: {:?}", public.as_ref().map(|o| o.is_some()));
-        // 26/09 from this network: anonymous GQL answered HTTP 401 even for
-        // the public post, so no assertion on the outcome here.
-        let locked = dl.request_gql("BkfuX9UB-eK").await;
-        eprintln!("locked: {:?}", locked.as_ref().map(|o| o.is_some()));
     }
 }

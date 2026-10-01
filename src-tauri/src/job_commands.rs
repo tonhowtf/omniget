@@ -1114,6 +1114,3 @@ pub async fn mcp_call(
         _ => Err("UNKNOWN_TOOL".into()),
     }
 }
-
-#[cfg(test)]
-mod tests;

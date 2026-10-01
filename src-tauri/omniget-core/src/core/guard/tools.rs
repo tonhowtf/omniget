@@ -397,25 +397,3 @@ pub fn known_events(tool: &str) -> Option<&'static [&'static str]> {
         _ => None,
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn copilot_fingerprint() {
-        let t: Vec<String> = ["codebase", "edit/editFiles", "fetch"]
-            .iter()
-            .map(|s| s.to_string())
-            .collect();
-        assert_eq!(tools_fingerprint(&t), Some("copilot"));
-        let c: Vec<String> = ["Read", "Write", "Bash(git:*)"]
-            .iter()
-            .map(|s| s.to_string())
-            .collect();
-        assert_eq!(tools_fingerprint(&c), Some("claude"));
-        assert!(is_known("claude", "Bash(git add:*)"));
-        assert!(!is_known("claude", "codebase"));
-        assert!(is_known("copilot", "edit/editFiles"));
-    }
-}

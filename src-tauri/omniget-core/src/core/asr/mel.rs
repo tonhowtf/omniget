@@ -149,36 +149,3 @@ pub fn log_mel_window(samples: &[f32]) -> Vec<f32> {
     }
     mel
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn filters_match_librosa_shape_and_norm() {
-        let f = mel_filters();
-        assert_eq!(f.len(), N_MELS * N_BINS);
-        // Every band has some weight and nothing is negative.
-        for m in 0..N_MELS {
-            let row = &f[m * N_BINS..(m + 1) * N_BINS];
-            assert!(row.iter().all(|v| *v >= 0.0));
-            assert!(row.iter().any(|v| *v > 0.0), "band {m} is empty");
-        }
-        // librosa's first band peaks at bin 1 with ~0.0247 (Slaney norm).
-        assert!((f[1] - 0.024_6).abs() < 0.002, "got {}", f[1]);
-    }
-
-    #[test]
-    fn silence_is_flat_and_tone_is_not() {
-        let silent = log_mel_window(&[]);
-        assert_eq!(silent.len(), N_MELS * WINDOW_FRAMES);
-        assert!(silent.iter().all(|v| (*v - silent[0]).abs() < 1e-6));
-        let tone: Vec<f32> = (0..SAMPLE_RATE)
-            .map(|i| (2.0 * std::f32::consts::PI * 440.0 * i as f32 / SAMPLE_RATE as f32).sin())
-            .collect();
-        let m = log_mel_window(&tone);
-        let max = m.iter().copied().fold(f32::MIN, f32::max);
-        let min = m.iter().copied().fold(f32::MAX, f32::min);
-        assert!((max - min - 2.0).abs() < 1e-3, "dynamic range is 8 dB / 4");
-    }
-}

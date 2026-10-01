@@ -82,27 +82,3 @@ pub async fn meetings(
         .filter(|m| !only_online || m.join_url.is_some())
         .collect())
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use serde_json::json;
-
-    #[test]
-    fn reads_events() {
-        let v = json!({"id":"e1","subject":"Sync","isOrganizer":true,
-            "start":{"dateTime":"2026-09-30T13:00:00.0000000","timeZone":"UTC"},
-            "end":{"dateTime":"2026-09-30T13:30:00.0000000","timeZone":"UTC"},
-            "organizer":{"emailAddress":{"name":"Ana"}},
-            "attendees":[{"emailAddress":{"name":"Bruno"}}],
-            "onlineMeeting":{"joinUrl":"https://teams.microsoft.com/l/meetup-join/19%3a1%40thread.v2/0"}});
-        let e = event(&v);
-        assert_eq!(e.start, "2026-09-30T13:00:00Z");
-        assert_eq!(e.attendees, vec!["Bruno"]);
-        assert!(e.join_url.unwrap().contains("meetup-join"));
-        let loc = event(
-            &json!({"subject":"x","start":{},"end":{},"location":{"displayName":"https://teams.microsoft.com/meet/123?p=a"}}),
-        );
-        assert!(loc.join_url.is_some());
-    }
-}

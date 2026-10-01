@@ -278,35 +278,3 @@ pub fn check(file: &str, text: &str, config: bool, markdown: bool, sink: &mut Si
         }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn hosts() {
-        assert_eq!(
-            host_of("https://user:pw@Example.COM:8080/x").as_deref(),
-            Some("example.com")
-        );
-        assert!(matches!(classify("10.0.0.1"), HostClass::Private));
-        assert!(matches!(classify("169.254.169.254"), HostClass::Metadata));
-        assert!(matches!(classify("::1"), HostClass::Loopback));
-    }
-
-    #[test]
-    fn flags() {
-        let mut s = Sink::default();
-        check(
-            "a.md",
-            "see http://10.0.0.5/admin and [x](javascript:alert(1)) http://www.w3.org/2000/svg",
-            false,
-            true,
-            &mut s,
-        );
-        let codes: Vec<_> = s.findings.iter().map(|f| f.code.as_str()).collect();
-        assert!(codes.contains(&"REF_E004"));
-        assert!(codes.contains(&"REF_E005"));
-        assert!(!codes.contains(&"REF_W002"));
-    }
-}

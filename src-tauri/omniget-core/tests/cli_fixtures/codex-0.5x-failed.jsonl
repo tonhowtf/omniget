@@ -1,4 +1,0 @@
-{"type":"thread.started","thread_id":"0199c999-8888-7800-baaa-eeff55667788"}
-{"type":"turn.started"}
-{"type":"item.completed","item":{"id":"item_1","type":"error","message":"429 Too Many Requests: rate limit exceeded for this account"}}
-{"type":"turn.failed","error":{"message":"429 Too Many Requests: rate limit exceeded for this account"}}

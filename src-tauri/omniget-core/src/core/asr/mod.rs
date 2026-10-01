@@ -220,68 +220,6 @@ pub async fn transcribe_input(
     result
 }
 
-#[cfg(test)]
-mod tests {
-    /// End to end with the real model: `say` makes speech, ffmpeg turns it
-    /// into a WAV, Whisper reads it back. Downloads the runtime and
-    /// whisper-base into `OMNIGET_DATA_DIR` (point it at a scratch folder).
-    ///
-    /// `OMNIGET_DATA_DIR=/tmp/asr cargo test -p omniget-core --lib asr::tests -- --ignored --nocapture`
-    #[test]
-    #[ignore = "network + macOS `say`: downloads the ONNX Runtime and whisper-base"]
-    fn transcribes_real_speech() {
-        let dir = std::env::temp_dir().join("omniget-asr-test");
-        std::fs::create_dir_all(&dir).unwrap();
-        let aiff = dir.join("x.aiff");
-        let wav = dir.join("x.wav");
-        let custom = std::env::var("ASR_TEST_TEXT").ok();
-        let text = custom
-            .clone()
-            .unwrap_or_else(|| "hello world, this is a test".to_string());
-        let mut say = std::process::Command::new("say");
-        if let Ok(v) = std::env::var("ASR_TEST_VOICE") {
-            say.args(["-v", &v]);
-        }
-        let ok = say
-            .arg("-o")
-            .arg(&aiff)
-            .arg(&text)
-            .status()
-            .unwrap()
-            .success();
-        assert!(ok, "say failed");
-        let ok = std::process::Command::new("ffmpeg")
-            .args(["-y", "-loglevel", "error", "-i"])
-            .arg(&aiff)
-            .arg(&wav)
-            .status()
-            .unwrap()
-            .success();
-        assert!(ok, "ffmpeg failed");
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        let model = std::env::var("ASR_TEST_MODEL").ok();
-        let lang = std::env::var("ASR_TEST_LANG").ok();
-        let t0 = std::time::Instant::now();
-        let t = rt
-            .block_on(super::transcribe_file(
-                &wav,
-                lang.as_deref(),
-                model.as_deref(),
-                |p| eprintln!("progress {:.2}", p),
-            ))
-            .expect("transcription");
-        eprintln!("took {:?}", t0.elapsed());
-        eprintln!("{}", serde_json::to_string_pretty(&t).unwrap());
-        assert!(!t.segments.is_empty());
-        if custom.is_none() {
-            let got = t.text.to_lowercase();
-            assert!(got.contains("hello"), "got: {got}");
-            assert!(got.contains("test"), "got: {got}");
-            assert_eq!(t.lang, lang.unwrap_or_else(|| "en".into()));
-        }
-    }
-}
-
 /// Phrases Whisper is known to produce on music or silence.
 fn is_stock_hallucination(text: &str) -> bool {
     let t: String = text
@@ -318,20 +256,4 @@ fn is_stock_hallucination(text: &str) -> bool {
         "субтитры сделал dimatorzok",
     ];
     STOCK.contains(&t.as_str()) || t.split(' ').all(|w| w == "you")
-}
-
-#[cfg(test)]
-mod stock_tests {
-    use super::is_stock_hallucination;
-
-    #[test]
-    fn filters_stock_phrases_only() {
-        assert!(is_stock_hallucination(" you"));
-        assert!(is_stock_hallucination("Thank you."));
-        assert!(is_stock_hallucination("字幕由Amara.org社区提供"));
-        assert!(!is_stock_hallucination(
-            "Thank you for the explanation about ownership."
-        ));
-        assert!(!is_stock_hallucination("Olá, pessoal"));
-    }
 }

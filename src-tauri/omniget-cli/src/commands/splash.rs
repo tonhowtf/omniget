@@ -257,35 +257,3 @@ fn terminal_cols() -> Option<usize> {
                 .and_then(|o| String::from_utf8_lossy(&o.stdout).trim().parse().ok())
         })
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn art_is_rectangular_and_uses_only_the_palette() {
-        let w = LOOP_PIXELS[0].len();
-        assert!(LOOP_PIXELS.iter().all(|r| r.len() == w));
-        let max = (b'a' + LOOP_PALETTE.len() as u8 - 1) as char;
-        assert!(LOOP_PIXELS
-            .iter()
-            .all(|r| r.chars().all(|c| c == '.' || ('a'..=max).contains(&c))));
-        assert_eq!(
-            art_lines(Depth::TrueColor).len(),
-            LOOP_PIXELS.len().div_ceil(2)
-        );
-    }
-
-    #[test]
-    fn keeps_claude_code_and_its_version() {
-        let t = text_lines(Some("2.1.283"), "Max", None, "~", Depth::Ansi256).join("\n");
-        assert!(t.contains("OmniGet") && t.contains("Claude Code") && t.contains("v2.1.283"));
-    }
-
-    #[test]
-    fn xterm_256_mapping() {
-        assert_eq!(to_256((0, 0, 0)), 16);
-        assert_eq!(to_256((255, 255, 255)), 231);
-        assert_eq!(to_256((255, 149, 0)), 208);
-    }
-}

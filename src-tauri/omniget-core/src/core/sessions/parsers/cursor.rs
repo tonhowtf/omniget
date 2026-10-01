@@ -737,44 +737,4 @@ mod tests {
         let hexed = hex::encode(br#"{"name":"x","createdAt":1}"#);
         assert_eq!(decode_meta_value(hexed.as_bytes()).unwrap()["name"], "x");
     }
-
-    /// Contra os arquivos reais desta máquina (só leitura); ignora se não há Cursor.
-    #[test]
-    #[ignore = "reads this machine's Cursor files"]
-    fn real_cursor() {
-        let src = CursorSource;
-        let l = src.list();
-        eprintln!("cursor: {} sessões", l.len());
-        for m in l.iter().take(5) {
-            let s = src.load(&m.id).expect("load");
-            eprintln!(
-                "{} {:?} turns={} tools={}",
-                m.id,
-                m.title,
-                s.turns.len(),
-                s.turns.iter().map(|t| t.tool_calls.len()).sum::<usize>()
-            );
-        }
-        // Transcrições direto (na lista elas perdem para a IDE pelo id).
-        let (mut n, mut turns, mut tools, mut dated, mut with_proj) = (0, 0, 0, 0, 0);
-        let mut other = std::collections::BTreeMap::new();
-        for (f, id, parent) in transcripts() {
-            let s = parse_transcript(&f, &id, parent);
-            n += 1;
-            turns += s.turns.len();
-            dated += s
-                .turns
-                .iter()
-                .filter(|t| t.role == Role::User && !t.ts.is_empty())
-                .count();
-            with_proj += s.meta.project_path.is_some() as usize;
-            for c in s.turns.iter().flat_map(|t| t.tool_calls.iter()) {
-                tools += 1;
-                if c.name_canonical == "Other" {
-                    *other.entry(c.name_raw.clone()).or_insert(0) += 1;
-                }
-            }
-        }
-        eprintln!("transcrições={n} turnos={turns} tools={tools} prompts_datados={dated} com_projeto={with_proj} other={other:?}");
-    }
 }
